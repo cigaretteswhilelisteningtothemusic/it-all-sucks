@@ -1,0 +1,31 @@
+{
+  "rules": {
+    "users": {
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "$uid === auth.uid",
+        "profile": {
+          ".read": "auth != null"
+        }
+      }
+    },
+    "music_playlists_v2": {
+      "$uid": {
+        ".read": "$uid === auth.uid",
+        ".write": "$uid === auth.uid"
+      }
+    },
+    "public_playlists": {
+      ".read": "auth != null",
+      "$key": {
+        ".write": "auth != null && (data.child('ownerUid').val() === auth.uid || !data.exists())",
+        "likes": {
+          "$uid": { ".write": "$uid === auth.uid" }
+        },
+        "comments": {
+          ".write": "auth != null"
+        }
+      }
+    }
+  }
+}

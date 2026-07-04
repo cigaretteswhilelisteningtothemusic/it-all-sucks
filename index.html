@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vibexa</title>
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#156dee">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Vibexa">
+<link rel="apple-touch-icon" href="icons/launchericon-192x192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/launchericon-192x192.png">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Outfit', sans-serif;
+    background: #080B12;
+    color: #EEF2FF;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+
+  .bg-glow {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(ellipse 500px 400px at 20% 80%, rgba(29,107,219,0.1) 0%, transparent 65%),
+      radial-gradient(ellipse 400px 500px at 80% 20%, rgba(61,157,214,0.07) 0%, transparent 65%);
+  }
+
+  .loader {
+    position: relative; z-index: 1;
+    display: flex; flex-direction: column;
+    align-items: center; gap: 20px;
+    animation: fadeIn 0.4s ease forwards;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+  .logo {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .logo-mark {
+    width: 48px; height: 48px;
+    background: #1D6BDB;
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 30px rgba(29,107,219,0.5);
+  }
+  .logo-mark svg { width: 26px; height: 26px; color: #fff; }
+  .logo-name {
+    font-size: 1.9rem; font-weight: 800;
+    letter-spacing: -0.5px;
+    background: linear-gradient(130deg, #fff 30%, #7B8DB0);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* GIF Loader */
+  .spin-wrap {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 12px;
+  }
+  .bird-gif {
+    width: 160px; height: 122px;
+    object-fit: contain;
+    filter: drop-shadow(0 0 16px rgba(29,107,219,0.45));
+    animation: floatBird 2.4s ease-in-out infinite;
+  }
+  @keyframes floatBird {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+  }
+  .load-text {
+    font-size: 0.78rem;
+    color: #3A4560;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-weight: 600;
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-glow"></div>
+
+<div class="loader">
+  <div class="logo">
+    <div class="logo-mark">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+    </div>
+    <span class="logo-name">Vibexa</span>
+  </div>
+  <div class="spin-wrap">
+    <img class="bird-gif" src="bird.gif" alt="Loading...">
+    <span class="load-text">Loading...</span>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCeMRU4JgIOlS_M9hgZfDKrkIHyAFncVjE",
+    authDomain: "nevermind-c246a.firebaseapp.com",
+    databaseURL: "https://nevermind-c246a-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "nevermind-c246a",
+    storageBucket: "nevermind-c246a.firebasestorage.app",
+    messagingSenderId: "703998258491",
+    appId: "1:703998258491:web:ea9cceaa10af71db61db1e",
+    measurementId: "G-KLZM39SDQR"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+
+  // Cek status login, lalu redirect
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      // Sudah login → langsung ke app
+      window.location.replace('vibexa.html');
+    } else {
+      // Belum login → ke halaman login
+      window.location.replace('login.html');
+    }
+  });
+
+  // Fallback: kalau 5 detik tidak ada respons dari Firebase, paksa ke login
+  setTimeout(() => {
+    window.location.replace('login.html');
+  }, 5000);
+
+  // Register Service Worker (PWA)
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(console.error);
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,1708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Profil — Vibexa</title>
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#156dee">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NVM">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #080B12;
+  --panel: #0E1220;
+  --card: #141928;
+  --hover: #1A2035;
+  --border: rgba(255,255,255,0.07);
+  --blue: #1D6BDB;
+  --blue-dim: rgba(29,107,219,0.12);
+  --blue-glow: 0 0 30px rgba(29,107,219,0.25);
+  --teal: #3D9DD6;
+  --text: #EEF2FF;
+  --sub: #7B8DB0;
+  --muted: #3A4560;
+  --r: 14px;
+  --rs: 9px;
+  --f: 'Outfit', sans-serif;
+  --fm: 'DM Mono', monospace;
+  --danger: #ff5e5e;
+  --success: #3dda6e;
+}
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: var(--f);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(ellipse 500px 350px at 15% 85%, rgba(29,107,219,0.07) 0%, transparent 65%),
+    radial-gradient(ellipse 350px 500px at 85% 15%, rgba(61,157,214,0.04) 0%, transparent 65%);
+  pointer-events: none; z-index: 0;
+}
+
+/* ── AUTH OVERLAY ── */
+#auth-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(8,11,18,0.97);
+  display: flex; align-items: center; justify-content: center;
+}
+.auth-box {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 20px; padding: 40px 36px; text-align: center;
+  max-width: 380px; width: 90%;
+}
+.auth-box h2 { font-size: 1.3rem; font-weight: 800; margin-bottom: 8px; }
+.auth-box p { font-size: .83rem; color: var(--sub); margin-bottom: 22px; line-height: 1.6; }
+.auth-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.btn-login {
+  background: var(--blue); border: none; border-radius: 50px;
+  padding: 10px 26px; color: #fff; font-family: var(--f);
+  font-weight: 700; font-size: .85rem; cursor: pointer;
+  text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+}
+
+/* ── TOP NAV ── */
+#top-nav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(8,11,18,0.92);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px; height: 56px;
+}
+.nav-logo { display: flex; align-items: center; gap: 9px; text-decoration: none; }
+.nav-logo-mark {
+  width: 30px; height: 30px; background: var(--blue);
+  border-radius: 8px; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 16px rgba(29,107,219,0.4);
+}
+.nav-logo-mark svg { width: 16px; height: 16px; color: #fff; }
+.nav-logo-name {
+  font-size: 1.1rem; font-weight: 800;
+  background: linear-gradient(130deg, #fff 30%, #7B8DB0);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.nav-search-btn {
+  width: 38px; height: 38px; border-radius: 50%;
+  background: var(--card); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all .2s; color: var(--sub);
+}
+.nav-search-btn:hover { border-color: var(--blue); color: var(--blue); }
+.nav-search-btn svg { width: 17px; height: 17px; }
+
+/* ── MAIN CONTAINER ── */
+#app {
+  max-width: 700px; margin: 0 auto;
+  padding: 0 16px 100px; position: relative; z-index: 1;
+}
+
+/* ── PROFILE HEADER ── */
+.profile-header {
+  padding: 28px 0 20px;
+  display: flex; flex-direction: column; align-items: center;
+  text-align: center; gap: 16px;
+}
+.avatar-wrap { position: relative; display: inline-block; }
+.avatar-ring {
+  width: 100px; height: 100px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--blue), var(--teal));
+  padding: 2.5px; cursor: pointer;
+  transition: box-shadow .25s;
+}
+.avatar-ring:hover { box-shadow: 0 0 0 4px var(--blue-dim), var(--blue-glow); }
+.avatar-inner {
+  width: 100%; height: 100%; border-radius: 50%;
+  background: var(--card); overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2.8rem;
+}
+.avatar-inner img { width: 100%; height: 100%; object-fit: cover; }
+.avatar-edit-btn {
+  position: absolute; bottom: 2px; right: 2px;
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--blue); border: 2px solid var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all .2s;
+}
+.avatar-edit-btn:hover { transform: scale(1.1); }
+.avatar-edit-btn svg { width: 14px; height: 14px; color: #fff; }
+
+.profile-name-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+#display-name {
+  font-size: 1.5rem; font-weight: 800;
+  letter-spacing: -.4px; line-height: 1.2;
+}
+#user-email { font-size: .78rem; color: var(--muted); }
+#user-bio {
+  font-size: .85rem; color: var(--sub);
+  max-width: 320px; line-height: 1.65; text-align: center;
+}
+.profile-stats {
+  display: flex; gap: 32px; justify-content: center;
+  padding: 14px 0; border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border); width: 100%;
+}
+.stat-item { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.stat-num { font-size: 1.3rem; font-weight: 800; color: var(--text); }
+.stat-lbl { font-size: .65rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
+
+/* ── EDIT PROFILE SECTION ── */
+.section-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 20px; margin-bottom: 16px;
+}
+.section-title {
+  font-size: .7rem; font-weight: 700; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 16px;
+}
+.form-group { margin-bottom: 14px; }
+.form-label { font-size: .75rem; font-weight: 600; color: var(--sub); margin-bottom: 6px; display: block; }
+.form-input {
+  width: 100%; background: var(--panel);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 11px 14px; color: var(--text);
+  font-family: var(--f); font-size: .88rem; outline: none;
+  transition: border-color .2s, box-shadow .2s;
+}
+.form-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-dim); }
+.form-input::placeholder { color: var(--muted); }
+textarea.form-input { resize: none; line-height: 1.6; }
+.char-count { font-size: .68rem; color: var(--muted); text-align: right; margin-top: 3px; }
+.btn-save {
+  width: 100%; padding: 12px; border-radius: 50px;
+  background: var(--blue); border: none; color: #fff;
+  font-family: var(--f); font-weight: 700; font-size: .88rem;
+  cursor: pointer; transition: all .2s; margin-top: 4px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.btn-save:hover { box-shadow: var(--blue-glow); transform: translateY(-1px); }
+.btn-save:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+.btn-save svg { width: 16px; height: 16px; }
+
+/* ── PUBLIC PLAYLISTS ── */
+.playlists-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.section-h2 { font-size: 1rem; font-weight: 700; }
+.explore-btn {
+  background: var(--blue-dim); border: 1px solid rgba(29,107,219,.3);
+  border-radius: 50px; padding: 6px 14px; color: var(--blue);
+  font-family: var(--f); font-size: .73rem; font-weight: 700;
+  cursor: pointer; transition: all .2s; display: flex; align-items: center; gap: 5px;
+}
+.explore-btn:hover { background: var(--blue); color: #fff; }
+.explore-btn svg { width: 13px; height: 13px; }
+
+/* Playlist publish toggle row */
+.pl-pub-row {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--rs); padding: 12px 14px;
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 10px; transition: background .18s;
+}
+.pl-pub-row:hover { background: var(--hover); }
+.pl-pub-cover {
+  width: 44px; height: 44px; border-radius: 8px;
+  background: var(--hover); display: flex; align-items: center;
+  justify-content: center; font-size: 1.1rem; overflow: hidden; flex-shrink: 0;
+}
+.pl-pub-cover img { width: 100%; height: 100%; object-fit: cover; }
+.pl-pub-info { flex: 1; min-width: 0; }
+.pl-pub-name { font-size: .83rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-pub-meta { font-size: .7rem; color: var(--sub); margin-top: 2px; }
+.pub-badge {
+  font-size: .6rem; font-weight: 700; letter-spacing: .5px;
+  padding: 2px 7px; border-radius: 50px; margin-left: 6px;
+}
+.pub-badge.public { background: rgba(61,218,110,0.15); color: var(--success); }
+.pub-badge.private { background: var(--hover); color: var(--muted); }
+
+/* Toggle switch */
+.toggle-wrap { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.toggle-lbl { font-size: .68rem; color: var(--muted); font-weight: 600; }
+.toggle { position: relative; width: 40px; height: 22px; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+  position: absolute; inset: 0; cursor: pointer;
+  background: var(--hover); border-radius: 50px;
+  transition: background .25s;
+  border: 1px solid var(--border);
+}
+.toggle-slider::before {
+  content: ''; position: absolute;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--sub); bottom: 2px; left: 2px;
+  transition: all .25s;
+}
+.toggle input:checked + .toggle-slider { background: rgba(29,107,219,0.3); border-color: var(--blue); }
+.toggle input:checked + .toggle-slider::before { transform: translateX(18px); background: var(--blue); box-shadow: 0 0 10px rgba(29,107,219,0.5); }
+
+/* ── EXPLORE / COMMUNITY VIEW ── */
+#explore-view {
+  display: none; position: fixed; inset: 0; z-index: 200;
+  background: var(--bg); overflow-y: auto;
+  animation: slideUp .28s ease forwards;
+}
+@keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.explore-nav {
+  position: sticky; top: 0; z-index: 10;
+  background: rgba(8,11,18,0.95); backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 14px;
+  padding: 0 16px; height: 56px;
+}
+.explore-back {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--card); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all .2s; flex-shrink: 0;
+}
+.explore-back:hover { border-color: var(--blue); color: var(--blue); }
+.explore-back svg { width: 18px; height: 18px; }
+.explore-title { font-size: 1rem; font-weight: 700; flex: 1; }
+.explore-inner { padding: 16px; max-width: 700px; margin: 0 auto; }
+.explore-feed-title { font-size: .65rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+
+/* Community playlist card */
+.cpcard {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r); overflow: hidden; margin-bottom: 14px;
+  transition: border-color .2s;
+}
+.cpcard:hover { border-color: rgba(29,107,219,0.3); }
+.cpc-header { display: flex; align-items: center; gap: 12px; padding: 14px 14px 10px; }
+.cpc-user-av {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--blue), var(--teal));
+  padding: 2px; flex-shrink: 0;
+}
+.cpc-user-av-inner {
+  width: 100%; height: 100%; border-radius: 50%;
+  background: var(--card); overflow: hidden;
+  display: flex; align-items: center; justify-content: center; font-size: .9rem;
+}
+.cpc-user-av-inner img { width: 100%; height: 100%; object-fit: cover; }
+.cpc-user-info { flex: 1; min-width: 0; }
+.cpc-username { font-size: .8rem; font-weight: 700; }
+.cpc-time { font-size: .68rem; color: var(--muted); }
+.cpc-body { padding: 0 14px 12px; }
+.cpc-cover-row { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; }
+.cpc-cover {
+  width: 64px; height: 64px; border-radius: 10px;
+  background: var(--hover); display: flex; align-items: center;
+  justify-content: center; font-size: 1.8rem; overflow: hidden; flex-shrink: 0;
+}
+.cpc-cover img { width: 100%; height: 100%; object-fit: cover; }
+.cpc-pl-info { flex: 1; min-width: 0; }
+.cpc-pl-name { font-size: .95rem; font-weight: 700; margin-bottom: 3px; }
+.cpc-pl-sub { font-size: .73rem; color: var(--sub); }
+.cpc-play-btn {
+  width: 38px; height: 38px; border-radius: 50%;
+  background: var(--blue); border: none;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all .2s; flex-shrink: 0;
+  box-shadow: var(--blue-glow);
+}
+.cpc-play-btn:hover { transform: scale(1.1); }
+.cpc-play-btn svg { width: 16px; height: 16px; color: #fff; }
+
+/* Tracks preview in card */
+.cpc-tracks-preview { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.cpc-track-row {
+  display: flex; align-items: center; gap: 9px;
+  padding: 5px 8px; border-radius: 7px; cursor: pointer;
+  transition: background .15s;
+}
+.cpc-track-row:hover { background: var(--hover); }
+.cpc-tr-num { font-size: .68rem; color: var(--muted); font-family: var(--fm); width: 16px; text-align: center; flex-shrink: 0; }
+.cpc-tr-thumb {
+  width: 32px; height: 32px; border-radius: 6px;
+  background: var(--hover); overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .7rem; flex-shrink: 0;
+}
+.cpc-tr-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.cpc-tr-info { flex: 1; min-width: 0; }
+.cpc-tr-title { font-size: .78rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cpc-tr-artist { font-size: .68rem; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cpc-more { font-size: .72rem; color: var(--muted); padding: 2px 8px; }
+
+/* Actions bar */
+.cpc-actions {
+  display: flex; align-items: center; gap: 0;
+  border-top: 1px solid var(--border); padding: 6px 8px 6px;
+}
+.cpc-act-btn {
+  display: flex; align-items: center; gap: 6px;
+  background: none; border: none; cursor: pointer;
+  color: var(--sub); font-family: var(--f); font-size: .75rem;
+  font-weight: 600; padding: 7px 12px; border-radius: var(--rs);
+  transition: all .18s; flex: 1; justify-content: center;
+}
+.cpc-act-btn:hover { background: var(--hover); color: var(--text); }
+.cpc-act-btn.liked { color: #ff6b6b; }
+.cpc-act-btn svg { width: 16px; height: 16px; }
+.cpc-act-sep { width: 1px; height: 24px; background: var(--border); }
+
+/* Comments section */
+.cpc-comments { border-top: 1px solid var(--border); padding: 10px 14px; display: none; }
+.cpc-comments.open { display: block; }
+.comment-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.comment-item { display: flex; gap: 9px; }
+.cm-av {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--blue), var(--teal));
+  padding: 1.5px; flex-shrink: 0;
+}
+.cm-av-inner {
+  width: 100%; height: 100%; border-radius: 50%;
+  background: var(--card); overflow: hidden;
+  display: flex; align-items: center; justify-content: center; font-size: .65rem;
+}
+.cm-av-inner img { width: 100%; height: 100%; object-fit: cover; }
+.cm-body { flex: 1; min-width: 0; }
+.cm-name { font-size: .73rem; font-weight: 700; margin-bottom: 2px; }
+.cm-text { font-size: .78rem; color: var(--sub); line-height: 1.55; }
+.cm-time { font-size: .63rem; color: var(--muted); margin-top: 2px; }
+.comment-empty { font-size: .78rem; color: var(--muted); text-align: center; padding: 8px; }
+.comment-input-row { display: flex; gap: 8px; align-items: center; }
+.cm-input {
+  flex: 1; background: var(--panel); border: 1px solid var(--border);
+  border-radius: 50px; padding: 9px 14px; color: var(--text);
+  font-family: var(--f); font-size: .82rem; outline: none;
+  transition: border-color .2s;
+}
+.cm-input:focus { border-color: var(--blue); }
+.cm-input::placeholder { color: var(--muted); }
+.cm-send {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--blue); border: none;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all .2s; flex-shrink: 0;
+}
+.cm-send:hover { box-shadow: var(--blue-glow); }
+.cm-send svg { width: 15px; height: 15px; color: #fff; }
+
+/* ── TOAST ── */
+#toast {
+  position: fixed; bottom: 24px; left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 50px; padding: 10px 20px;
+  font-size: .8rem; color: var(--text); z-index: 9999;
+  opacity: 0; transition: all .28s; pointer-events: none;
+  white-space: nowrap;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── MOBILE BOTTOM NAV ── */
+#mob-nav {
+  display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+  background: rgba(14,18,32,0.97); backdrop-filter: blur(20px);
+  border-top: 1px solid var(--border);
+  justify-content: space-around; align-items: center;
+  height: 56px; padding: 0 4px;
+}
+.mob-nav-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  background: none; border: none; color: var(--muted);
+  font-family: var(--f); font-size: .56rem; font-weight: 700;
+  cursor: pointer; padding: 5px 10px; border-radius: 12px;
+  transition: all .18s; letter-spacing: .3px;
+  text-transform: uppercase; flex: 1;
+}
+.mob-nav-btn svg { width: 20px; height: 20px; transition: all .18s; }
+.mob-nav-btn.on { color: var(--blue); }
+.mob-nav-btn.on svg { filter: drop-shadow(0 0 6px rgba(29,107,219,.5)); }
+
+/* ── SKELETON ── */
+.sk { background: linear-gradient(90deg, var(--card) 25%, var(--hover) 50%, var(--card) 75%); background-size: 200% 100%; animation: sk 1.4s infinite; border-radius: 8px; }
+@keyframes sk { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* ── PHOTO MODAL ── */
+.modal-bg {
+  position: fixed; inset: 0; z-index: 500;
+  background: rgba(0,0,0,0.7); backdrop-filter: blur(6px);
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.modal-sheet {
+  background: var(--panel); border-radius: 20px 20px 0 0;
+  border-top: 1px solid var(--border); padding: 24px 20px 36px;
+  width: 100%; max-width: 480px;
+  animation: sheetUp .25s ease forwards;
+}
+@keyframes sheetUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.sheet-title { font-size: 1rem; font-weight: 700; margin-bottom: 4px; }
+.sheet-sub { font-size: .78rem; color: var(--sub); margin-bottom: 18px; }
+.drop-z {
+  border: 2px dashed var(--border); border-radius: var(--r);
+  padding: 28px 16px; text-align: center;
+  cursor: pointer; transition: all .2s; margin-bottom: 14px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+.drop-z:hover { border-color: var(--blue); background: var(--blue-dim); }
+.drop-z svg { width: 28px; height: 28px; color: var(--sub); }
+.drop-z span { font-size: .82rem; color: var(--sub); }
+.drop-z small { font-size: .7rem; color: var(--muted); }
+.preview-img {
+  width: 100%; max-height: 180px; object-fit: cover;
+  border-radius: var(--rs); margin-bottom: 14px; display: none;
+}
+.sheet-btns { display: flex; gap: 10px; }
+.btn-s {
+  flex: 1; padding: 11px; border-radius: 50px;
+  background: var(--card); border: 1px solid var(--border);
+  color: var(--sub); font-family: var(--f); font-size: .83rem;
+  font-weight: 600; cursor: pointer; transition: all .2s;
+}
+.btn-s:hover { color: var(--text); border-color: var(--blue); }
+.btn-p {
+  flex: 1; padding: 11px; border-radius: 50px;
+  background: var(--blue); border: none; color: #fff;
+  font-family: var(--f); font-size: .83rem; font-weight: 700;
+  cursor: pointer; transition: all .2s;
+}
+.btn-p:hover { box-shadow: var(--blue-glow); }
+.btn-p:disabled { opacity: .5; cursor: not-allowed; }
+
+@keyframes fadeInQ { from { opacity: 0; } to { opacity: 1; } }
+
+/* Search user result item */
+.su-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px; border-radius: var(--r);
+  cursor: pointer; transition: background .15s; border: 1px solid transparent;
+  margin-bottom: 6px;
+}
+.su-item:hover { background: var(--card); border-color: var(--border); }
+.su-av {
+  width: 46px; height: 46px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--blue), var(--teal));
+  padding: 2px; flex-shrink: 0;
+}
+.su-av-inner {
+  width: 100%; height: 100%; border-radius: 50%;
+  background: var(--card); overflow: hidden;
+  display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
+}
+.su-av-inner img { width: 100%; height: 100%; object-fit: cover; }
+.su-info { flex: 1; min-width: 0; }
+.su-name { font-size: .88rem; font-weight: 700; }
+.su-meta { font-size: .72rem; color: var(--sub); margin-top: 2px; }
+
+/* Public playlist card in user profile */
+.upv-pl-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 14px; margin-bottom: 10px;
+  display: flex; align-items: center; gap: 13px;
+  cursor: pointer; transition: all .18s;
+}
+.upv-pl-card:hover { border-color: rgba(29,107,219,.4); background: var(--hover); }
+.upv-pl-cover {
+  width: 54px; height: 54px; border-radius: 10px;
+  background: var(--hover); display: flex; align-items: center;
+  justify-content: center; font-size: 1.5rem; overflow: hidden; flex-shrink: 0;
+}
+.upv-pl-cover img { width: 100%; height: 100%; object-fit: cover; }
+.upv-pl-info { flex: 1; min-width: 0; }
+.upv-pl-name { font-size: .9rem; font-weight: 700; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.upv-pl-meta { font-size: .72rem; color: var(--sub); }
+.upv-pl-play {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--blue); border: none;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all .2s; flex-shrink: 0;
+  box-shadow: var(--blue-glow);
+}
+.upv-pl-play:hover { transform: scale(1.1); }
+.upv-pl-play svg { width: 15px; height: 15px; color: #fff; }
+
+/* Track row in detail view */
+.pld-track-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: var(--rs);
+  cursor: pointer; transition: background .15s;
+}
+.pld-track-row:hover { background: var(--card); }
+.pld-track-row.playing { background: var(--blue-dim); }
+.pld-tr-num { font-size: .68rem; color: var(--muted); font-family: var(--fm); width: 20px; text-align: center; flex-shrink: 0; }
+.pld-tr-thumb {
+  width: 40px; height: 40px; border-radius: 8px;
+  background: var(--hover); overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .85rem; flex-shrink: 0;
+}
+.pld-tr-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.pld-tr-info { flex: 1; min-width: 0; }
+.pld-tr-title { font-size: .83rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pld-tr-artist { font-size: .72rem; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pld-tr-play {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--blue-dim); border: 1px solid rgba(29,107,219,.3);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all .18s; flex-shrink: 0; color: var(--blue);
+}
+.pld-tr-play:hover { background: var(--blue); color: #fff; }
+.pld-tr-play svg { width: 12px; height: 12px; }
+@media (max-width: 600px) {
+  #mob-nav { display: flex; }
+  #app { padding-bottom: 80px; }
+  .profile-stats { gap: 20px; }
+  .stat-num { font-size: 1.1rem; }
+  .cpc-header { padding: 12px 12px 8px; }
+  .cpc-body { padding: 0 12px 10px; }
+  .cpc-actions { padding: 4px 6px; }
+  .cpc-act-btn { padding: 7px 8px; font-size: .7rem; gap: 4px; }
+  .mob-nav-btn { font-size: .5rem; padding: 4px 5px; }
+  .mob-nav-btn svg { width: 18px; height: 18px; }
+}
+</style>
+</head>
+<body>
+
+<!-- AUTH OVERLAY -->
+<div id="auth-overlay">
+  <div style="display:flex;flex-direction:column;align-items:center;gap:14px;">
+    <img src="bird.gif" alt="Loading" style="width:160px;height:122px;object-fit:contain;filter:drop-shadow(0 0 18px rgba(29,107,219,0.5));animation:birdFloat 2.4s ease-in-out infinite;">
+    <span style="font-size:.78rem;color:#3A4560;letter-spacing:1.5px;text-transform:uppercase;font-weight:600;animation:birdPulse 1.6s ease-in-out infinite;">Loading...</span>
+  </div>
+</div>
+<style>
+@keyframes birdFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+@keyframes birdPulse{0%,100%{opacity:.4}50%{opacity:1}}
+</style>
+
+<!-- TOP NAV -->
+<nav id="top-nav">
+  <a class="nav-logo" href="vibexa.html">
+    <div class="nav-logo-mark">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+    </div>
+    <span class="nav-logo-name">Vibexa</span>
+  </a>
+  <button class="nav-search-btn" onclick="openSearchUsers()" title="Search Users">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+  </button>
+</nav>
+
+<!-- MAIN APP -->
+<div id="app">
+
+  <!-- PROFILE HEADER -->
+  <div class="profile-header">
+    <div class="avatar-wrap" onclick="openPhotoModal()">
+      <div class="avatar-ring">
+        <div class="avatar-inner" id="avatar-inner">🎵</div>
+      </div>
+      <div class="avatar-edit-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </div>
+    </div>
+    <div class="profile-name-wrap">
+      <div id="display-name">—</div>
+      <div id="user-email">—</div>
+    </div>
+    <div id="user-bio" style="color:var(--muted);font-style:italic">No description yet</div>
+    <div class="profile-stats">
+      <div class="stat-item">
+        <div class="stat-num" id="stat-playlists">0</div>
+        <div class="stat-lbl">Playlist</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num" id="stat-public">0</div>
+        <div class="stat-lbl">Public</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num" id="stat-likes">0</div>
+        <div class="stat-lbl">Total Likes</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EDIT PROFILE FORM -->
+  <div class="section-card">
+    <div class="section-title">Edit Profile</div>
+    <div class="form-group">
+      <label class="form-label">Display Name</label>
+      <input type="text" class="form-input" id="inp-name" placeholder="Your name..." maxlength="32">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Description / Bio</label>
+      <textarea class="form-input" id="inp-bio" rows="3" placeholder="Tell us a little about yourself or your favorite music..." maxlength="120"></textarea>
+      <div class="char-count"><span id="bio-count">0</span>/120</div>
+    </div>
+    <button class="btn-save" id="btn-save-profile" onclick="saveProfile()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>
+      Save Changes
+    </button>
+  </div>
+
+  <!-- PLAYLIST PUBLISH -->
+  <div>
+    <div class="playlists-header">
+      <div class="section-h2">My Playlists</div>
+      <button class="explore-btn" onclick="openExplore()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m16.24 7.76-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z"/></svg>
+        Jelajahi
+      </button>
+    </div>
+    <div id="pl-publish-list">
+      <div style="text-align:center;padding:30px 0;color:var(--muted);font-size:.82rem">
+        <div style="font-size:2rem;margin-bottom:8px">🎵</div>
+        No playlists yet
+      </div>
+    </div>
+  </div>
+
+</div><!-- /#app -->
+
+<!-- EXPLORE / COMMUNITY VIEW -->
+<div id="explore-view">
+  <div class="explore-nav">
+    <button class="explore-back" onclick="closeExplore()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+    </button>
+    <div class="explore-title">🌐 Community Playlists</div>
+  </div>
+  <div class="explore-inner">
+    <div class="explore-feed-title">Public Playlists from All Users</div>
+    <div id="explore-feed">
+      <div style="text-align:center;padding:50px 0;color:var(--muted)">
+        <div style="font-size:2.2rem;margin-bottom:10px">🌐</div>
+        <div style="font-size:.85rem">Loading community playlists...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PHOTO MODAL -->
+<div id="photo-modal" class="modal-bg" style="display:none" onclick="closePhotoModalBg(event)">
+  <div class="modal-sheet">
+    <div class="sheet-title">Profile Photo</div>
+    <div class="sheet-sub">Upload your new profile photo</div>
+    <img class="preview-img" id="photo-preview" src="" alt="">
+    <div class="drop-z" id="drop-zone" onclick="document.getElementById('photo-inp').click()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+      <span>Click or drag photo here</span>
+      <small>JPG · PNG · WebP · Max 2MB</small>
+    </div>
+    <input type="file" id="photo-inp" accept="image/*" style="display:none">
+    <div class="sheet-btns">
+      <button class="btn-s" onclick="closePhotoModal()">Cancel</button>
+      <button class="btn-p" id="btn-save-photo" onclick="savePhoto()" disabled>Save Photo</button>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM NAV (mobile) -->
+<div id="mob-nav">
+  <button class="mob-nav-btn" onclick="window.location.href='vibexa.html'">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+    Musik
+  </button>
+  <button class="mob-nav-btn on">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v2h20v-2c0-3.3-6.7-5-10-5z"/></svg>
+    Profil
+  </button>
+  <button class="mob-nav-btn" onclick="openSearchUsers()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    Cari
+  </button>
+  <button class="mob-nav-btn" onclick="openExplore()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m16.24 7.76-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z"/></svg>
+    Jelajahi
+  </button>
+</div>
+
+<!-- ═══ SEARCH USERS MODAL ═══ -->
+<div id="search-users-modal" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(8,11,18,0.97);backdrop-filter:blur(8px);animation:fadeInQ .2s ease forwards;">
+  <div style="max-width:540px;margin:0 auto;height:100%;display:flex;flex-direction:column;">
+    <!-- Header -->
+    <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);flex-shrink:0;">
+      <button onclick="closeSearchUsers()" style="width:36px;height:36px;border-radius:50%;background:var(--card);border:1px solid var(--border);color:var(--sub);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all .2s;" onmouseover="this.style.borderColor='var(--blue)'" onmouseout="this.style.borderColor='var(--border)'">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="18" height="18"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      </button>
+      <div style="flex:1;position:relative;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--muted);pointer-events:none;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input id="search-user-inp" type="text" placeholder="Search username..."
+          style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:50px;padding:10px 14px 10px 38px;color:var(--text);font-family:var(--f);font-size:.88rem;outline:none;transition:border-color .2s;"
+          oninput="onSearchUserInput(this.value)"
+          onfocus="this.style.borderColor='var(--blue)'"
+          onblur="this.style.borderColor='var(--border)'">
+      </div>
+    </div>
+    <!-- Results -->
+    <div id="search-user-results" style="flex:1;overflow-y:auto;padding:12px 16px;">
+      <div style="text-align:center;padding:60px 0;color:var(--muted);">
+        <div style="font-size:2.5rem;margin-bottom:12px;">🔍</div>
+        <div style="font-size:.84rem;">Type a name to search for users</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ USER PUBLIC PROFILE VIEW ═══ -->
+<div id="user-profile-view" style="display:none;position:fixed;inset:0;z-index:400;background:var(--bg);overflow-y:auto;animation:slideUp .28s ease forwards;">
+  <!-- Nav -->
+  <div style="position:sticky;top:0;z-index:10;background:rgba(8,11,18,0.95);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;padding:0 16px;height:56px;">
+    <button onclick="closeUserProfile()" style="width:36px;height:36px;border-radius:50%;background:var(--card);border:1px solid var(--border);color:var(--sub);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all .2s;" onmouseover="this.style.borderColor='var(--blue)'" onmouseout="this.style.borderColor='var(--border)'">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="18" height="18"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+    </button>
+    <div id="upv-nav-name" style="font-size:1rem;font-weight:700;flex:1;">User Profile</div>
+  </div>
+  <!-- Content -->
+  <div style="max-width:700px;margin:0 auto;padding:0 16px 100px;">
+    <!-- Profile Header -->
+    <div style="padding:28px 0 20px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px;">
+      <div style="width:90px;height:90px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--teal));padding:2.5px;">
+        <div id="upv-avatar" style="width:100%;height:100%;border-radius:50%;background:var(--card);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:2.4rem;"></div>
+      </div>
+      <div>
+        <div id="upv-name" style="font-size:1.4rem;font-weight:800;letter-spacing:-.4px;"></div>
+      </div>
+      <div id="upv-bio" style="font-size:.85rem;color:var(--sub);max-width:300px;line-height:1.65;text-align:center;"></div>
+      <div style="display:flex;gap:32px;justify-content:center;padding:14px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);width:100%;">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+          <div id="upv-stat-pl" style="font-size:1.2rem;font-weight:800;">0</div>
+          <div style="font-size:.62rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);">Playlist</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+          <div id="upv-stat-likes" style="font-size:1.2rem;font-weight:800;">0</div>
+          <div style="font-size:.62rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);">Total Likes</div>
+        </div>
+      </div>
+    </div>
+    <!-- Public Playlists -->
+    <div>
+      <div style="font-size:.68rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:14px;">Public Playlists</div>
+      <div id="upv-playlists">
+        <div style="text-align:center;padding:40px 0;color:var(--muted);font-size:.83rem;">Loading...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PLAYLIST DETAIL PLAYER VIEW (for other user's playlist) ═══ -->
+<div id="pl-detail-view" style="display:none;position:fixed;inset:0;z-index:500;background:var(--bg);overflow-y:auto;animation:slideUp .28s ease forwards;">
+  <div style="position:sticky;top:0;z-index:10;background:rgba(8,11,18,0.95);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;padding:0 16px;height:56px;">
+    <button onclick="closePlDetail()" style="width:36px;height:36px;border-radius:50%;background:var(--card);border:1px solid var(--border);color:var(--sub);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;" onmouseover="this.style.borderColor='var(--blue)'" onmouseout="this.style.borderColor='var(--border)'">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="18" height="18"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+    </button>
+    <div id="pld-nav-name" style="font-size:1rem;font-weight:700;flex:1;">Playlist</div>
+  </div>
+  <div style="max-width:700px;margin:0 auto;padding:20px 16px 100px;">
+    <!-- Cover + Info -->
+    <div style="display:flex;gap:16px;align-items:center;margin-bottom:20px;">
+      <div id="pld-cover" style="width:88px;height:88px;border-radius:14px;background:var(--card);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:2.5rem;flex-shrink:0;"></div>
+      <div style="flex:1;min-width:0;">
+        <div id="pld-name" style="font-size:1.2rem;font-weight:800;margin-bottom:4px;"></div>
+        <div id="pld-owner" style="font-size:.78rem;color:var(--sub);margin-bottom:8px;"></div>
+        <button id="pld-play-all-btn" onclick="playAllFromDetail()" style="display:flex;align-items:center;gap:8px;background:var(--blue);border:none;border-radius:50px;padding:9px 20px;color:#fff;font-family:var(--f);font-size:.82rem;font-weight:700;cursor:pointer;transition:all .2s;box-shadow:var(--blue-glow);">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15"><path d="M8 5v14l11-7z"/></svg>
+          Putar Semua
+        </button>
+      </div>
+    </div>
+    <!-- Track list -->
+    <div id="pld-tracks" style="display:flex;flex-direction:column;gap:4px;"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<script>
+'use strict';
+
+// ── Firebase ─────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyCeMRU4JgIOlS_M9hgZfDKrkIHyAFncVjE",
+  authDomain: "nevermind-c246a.firebaseapp.com",
+  databaseURL: "https://nevermind-c246a-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "nevermind-c246a",
+  storageBucket: "nevermind-c246a.firebasestorage.app",
+  messagingSenderId: "703998258491",
+  appId: "1:703998258491:web:ea9cceaa10af71db61db1e"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db   = firebase.database();
+
+let currentUser = null;
+let pendingPhotoData = null;
+let myPlaylists = {};
+
+// ── Auth ─────────────────────────────────────────────────
+auth.onAuthStateChanged(async user => {
+  if (user) {
+    currentUser = user;
+    const overlay = document.getElementById('auth-overlay');
+    overlay.style.opacity = '0';
+    overlay.style.transition = 'opacity .4s';
+    setTimeout(() => overlay.style.display = 'none', 400);
+    await loadProfile();
+    await loadMyPlaylists();
+    // Jika ada ?uid= di URL, langsung buka profil user tersebut
+    const params = new URLSearchParams(window.location.search);
+    const viewUid = params.get('uid');
+    if (viewUid && viewUid !== currentUser.uid) {
+      setTimeout(() => openUserProfile(viewUid), 300);
+    }
+  } else {
+    document.getElementById('auth-overlay').innerHTML = `
+      <div class="auth-box">
+        <div style="font-size:2rem;margin-bottom:10px">🔒</div>
+        <h2>Login Required</h2>
+        <p>You need to log in to view your profile.</p>
+        <div class="auth-btns">
+          <a class="btn-login" href="index.html">Login</a>
+        </div>
+      </div>`;
+    document.getElementById('auth-overlay').style.display = 'flex';
+  }
+});
+
+// ── Load Profile ──────────────────────────────────────────
+async function loadProfile() {
+  try {
+    const snap = await db.ref('users/' + currentUser.uid + '/profile').get();
+    const data = snap.exists() ? snap.val() : {};
+    const name = data.displayName || currentUser.displayName || currentUser.email.split('@')[0];
+    const bio  = data.bio || '';
+    const photo = data.photoURL || currentUser.photoURL || '';
+
+    document.getElementById('display-name').textContent = name;
+    document.getElementById('user-email').textContent   = currentUser.email;
+    document.getElementById('user-bio').textContent     = bio || 'No description yet';
+    document.getElementById('user-bio').style.fontStyle = bio ? 'normal' : 'italic';
+    document.getElementById('user-bio').style.color     = bio ? 'var(--sub)' : 'var(--muted)';
+
+    document.getElementById('inp-name').value = name;
+    document.getElementById('inp-bio').value  = bio;
+    document.getElementById('bio-count').textContent = bio.length;
+
+    setAvatar(photo, name);
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+function setAvatar(photoURL, name) {
+  const el = document.getElementById('avatar-inner');
+  if (photoURL) {
+    el.innerHTML = `<img src="${photoURL}" alt="" onerror="this.parentNode.textContent='${name.charAt(0).toUpperCase()}'">`;
+  } else {
+    el.textContent = name.charAt(0).toUpperCase();
+    el.style.fontSize = '2.2rem';
+  }
+}
+
+// ── Load My Playlists ─────────────────────────────────────
+async function loadMyPlaylists() {
+  if (!currentUser) return;
+  try {
+    const snap = await db.ref('music_playlists_v2/' + currentUser.uid).get();
+    if (snap.exists()) {
+      myPlaylists = snap.val() || {};
+    } else {
+      myPlaylists = {};
+    }
+    renderMyPlaylists();
+    updateStats();
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+function renderMyPlaylists() {
+  const container = document.getElementById('pl-publish-list');
+  const ids = Object.keys(myPlaylists);
+  if (!ids.length) {
+    container.innerHTML = `<div style="text-align:center;padding:30px 0;color:var(--muted);font-size:.82rem"><div style="font-size:2rem;margin-bottom:8px">🎵</div>No playlists yet</div>`;
+    return;
+  }
+  container.innerHTML = ids.map(id => {
+    const pl = myPlaylists[id];
+    const isPublic = !!pl.public;
+    const trackCount = Array.isArray(pl.tracks) ? pl.tracks.length : 0;
+    const coverHTML = pl.coverThumb
+      ? `<img src="${esc(pl.coverThumb)}" alt="">`
+      : (pl.tracks && pl.tracks[0] && pl.tracks[0].thumb ? `<img src="${esc(pl.tracks[0].thumb)}" alt="">` : '🎵');
+    return `
+    <div class="pl-pub-row">
+      <div class="pl-pub-cover">${coverHTML}</div>
+      <div class="pl-pub-info">
+        <div class="pl-pub-name">${esc(pl.name || 'Playlist')} <span class="pub-badge ${isPublic?'public':'private'}">${isPublic?'Public':'Private'}</span></div>
+        <div class="pl-pub-meta">${trackCount} songs${isPublic ? ' · Bisa dilihat semua orang' : ''}</div>
+      </div>
+      <div class="toggle-wrap">
+        <span class="toggle-lbl">${isPublic?'ON':'OFF'}</span>
+        <label class="toggle">
+          <input type="checkbox" ${isPublic?'checked':''} onchange="togglePublish('${id}', this.checked, this)">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function updateStats() {
+  const ids = Object.keys(myPlaylists);
+  const publicCount = ids.filter(id => myPlaylists[id].public).length;
+  document.getElementById('stat-playlists').textContent = ids.length;
+  document.getElementById('stat-public').textContent    = publicCount;
+
+  // Count total likess across all published playlists
+  let totalLikes = 0;
+  for (const id of ids) {
+    if (myPlaylists[id].public) {
+      try {
+        const snap = await db.ref('public_playlists/' + currentUser.uid + '_' + id + '/likes').get();
+        if (snap.exists()) {
+          const val = snap.val();
+          totalLikes += typeof val === 'object' ? Object.keys(val).length : 0;
+        }
+      } catch(e) {}
+    }
+  }
+  document.getElementById('stat-likes').textContent = totalLikes;
+}
+
+// ── Toggle Publish ────────────────────────────────────────
+async function togglePublish(plId, makePublic, inputEl) {
+  if (!currentUser || !myPlaylists[plId]) return;
+  const pl = myPlaylists[plId];
+  const lbl = inputEl.closest('.toggle-wrap').querySelector('.toggle-lbl');
+  const badge = inputEl.closest('.pl-pub-row').querySelector('.pub-badge');
+
+  try {
+    if (makePublic) {
+      // Write to public_playlists
+      const pubData = {
+        id: plId,
+        ownerUid: currentUser.uid,
+        ownerName: document.getElementById('display-name').textContent,
+        ownerPhoto: (await db.ref('users/' + currentUser.uid + '/profile/photoURL').get()).val() || '',
+        name: pl.name || 'Playlist',
+        coverThumb: pl.coverThumb || '',
+        tracks: (pl.tracks || []).slice(0, 50).map(t => ({
+          title: t.title || '',
+          artist: t.artist || '',
+          thumb: t.thumb || '',
+          _query: t._query || ''
+        })),
+        publishedAt: Date.now(),
+        public: true
+      };
+      await db.ref('public_playlists/' + currentUser.uid + '_' + plId).set(pubData);
+      await db.ref('music_playlists_v2/' + currentUser.uid + '/' + plId + '/public').set(true);
+      myPlaylists[plId].public = true;
+      lbl.textContent = 'ON';
+      badge.textContent = 'Public';
+      badge.className = 'pub-badge public';
+      toast('✅ Playlist published!');
+    } else {
+      await db.ref('public_playlists/' + currentUser.uid + '_' + plId).remove();
+      await db.ref('music_playlists_v2/' + currentUser.uid + '/' + plId + '/public').set(false);
+      myPlaylists[plId].public = false;
+      lbl.textContent = 'OFF';
+      badge.textContent = 'Private';
+      badge.className = 'pub-badge private';
+      toast('🔒 Playlist set to private');
+    }
+    updateStats();
+  } catch(e) {
+    toast('❌ Failed: ' + e.message);
+    inputEl.checked = !makePublic; // revert
+  }
+}
+
+// ── Save Profile ──────────────────────────────────────────
+async function saveProfile() {
+  if (!currentUser) return;
+  const btn  = document.getElementById('btn-save-profile');
+  const name = document.getElementById('inp-name').value.trim();
+  const bio  = document.getElementById('inp-bio').value.trim();
+  if (!name) { toast('❗ Name cannot be empty'); return; }
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+  try {
+    await db.ref('users/' + currentUser.uid + '/profile').update({ displayName: name, bio });
+    await currentUser.updateProfile({ displayName: name });
+    document.getElementById('display-name').textContent = name;
+    document.getElementById('user-bio').textContent = bio || 'No description yet';
+    document.getElementById('user-bio').style.fontStyle = bio ? 'normal' : 'italic';
+    document.getElementById('user-bio').style.color = bio ? 'var(--sub)' : 'var(--muted)';
+    // Also update owner name in all public playlists
+    const ids = Object.keys(myPlaylists).filter(id => myPlaylists[id].public);
+    for (const id of ids) {
+      db.ref('public_playlists/' + currentUser.uid + '_' + id + '/ownerName').set(name);
+    }
+    toast('✅ Profile saved!');
+  } catch(e) {
+    toast('❌ Failed: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg> Save Changes`;
+  }
+}
+
+// ── Photo Upload ──────────────────────────────────────────
+function openPhotoModal() {
+  pendingPhotoData = null;
+  document.getElementById('photo-preview').style.display = 'none';
+  document.getElementById('btn-save-photo').disabled = true;
+  document.getElementById('drop-zone').style.display = 'flex';
+  document.getElementById('photo-modal').style.display = 'flex';
+}
+function closePhotoModal() { document.getElementById('photo-modal').style.display = 'none'; }
+function closePhotoModalBg(e) { if (e.target === document.getElementById('photo-modal')) closePhotoModal(); }
+
+document.getElementById('photo-inp').addEventListener('change', function() {
+  const file = this.files[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) { toast('❗ Photo too large (max 2MB)'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    pendingPhotoData = e.target.result;
+    document.getElementById('photo-preview').src = pendingPhotoData;
+    document.getElementById('photo-preview').style.display = 'block';
+    document.getElementById('drop-zone').style.display = 'none';
+    document.getElementById('btn-save-photo').disabled = false;
+  };
+  reader.readAsDataURL(file);
+});
+
+// Drag & drop
+const dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.style.borderColor = 'var(--blue)'; });
+dz.addEventListener('dragleave', () => { dz.style.borderColor = ''; });
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.style.borderColor = '';
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) {
+    document.getElementById('photo-inp').files = e.dataTransfer.files;
+    document.getElementById('photo-inp').dispatchEvent(new Event('change'));
+  }
+});
+
+async function savePhoto() {
+  if (!pendingPhotoData || !currentUser) return;
+  const btn = document.getElementById('btn-save-photo');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    // Store as base64 in DB (small sized)
+    const compressed = await compressImage(pendingPhotoData, 200, 200, 0.7);
+    await db.ref('users/' + currentUser.uid + '/profile/photoURL').set(compressed);
+    // Update public playlists with new photo
+    const ids = Object.keys(myPlaylists).filter(id => myPlaylists[id].public);
+    for (const id of ids) {
+      db.ref('public_playlists/' + currentUser.uid + '_' + id + '/ownerPhoto').set(compressed);
+    }
+    setAvatar(compressed, document.getElementById('display-name').textContent);
+    closePhotoModal();
+    toast('✅ Profile photo updated!');
+  } catch(e) {
+    toast('❌ Failed: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save Photo';
+  }
+}
+
+function compressImage(dataURL, maxW, maxH, quality) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let w = img.width, h = img.height;
+      if (w > h) { if (w > maxW) { h = h * maxW / w; w = maxW; } }
+      else { if (h > maxH) { w = w * maxH / h; h = maxH; } }
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.src = dataURL;
+  });
+}
+
+// ── Bio char count ────────────────────────────────────────
+document.getElementById('inp-bio').addEventListener('input', function() {
+  document.getElementById('bio-count').textContent = this.value.length;
+});
+
+// ── EXPLORE ──────────────────────────────────────────────
+let exploreFeedLoaded = false;
+function openExplore() {
+  document.getElementById('explore-view').style.display = 'block';
+  if (!exploreFeedLoaded) { loadExploreFeed(); exploreFeedLoaded = true; }
+}
+function closeExplore() {
+  document.getElementById('explore-view').style.display = 'none';
+}
+
+async function loadExploreFeed() {
+  const feed = document.getElementById('explore-feed');
+  try {
+    const snap = await db.ref('public_playlists').get();
+    if (!snap.exists()) {
+      feed.innerHTML = `<div style="text-align:center;padding:50px 0;color:var(--muted)"><div style="font-size:2rem;margin-bottom:8px">🌐</div><div style="font-size:.83rem">No playlists yet publik</div></div>`;
+      return;
+    }
+    const all = snap.val();
+    const keys = Object.keys(all).sort((a, b) => (all[b].publishedAt || 0) - (all[a].publishedAt || 0));
+    feed.innerHTML = keys.map(key => buildCPCard(key, all[key])).join('');
+  } catch(e) {
+    feed.innerHTML = `<div style="text-align:center;padding:50px 0;color:var(--muted)">Failed to load</div>`;
+  }
+}
+
+function buildCPCard(key, pl) {
+  const tracks = pl.tracks || [];
+  const trackCount = tracks.length;
+  const coverHTML = pl.coverThumb
+    ? `<img src="${esc(pl.coverThumb)}" alt="">`
+    : (tracks[0]?.thumb ? `<img src="${esc(tracks[0].thumb)}" alt="">` : '🎵');
+  const userAv = pl.ownerPhoto
+    ? `<img src="${esc(pl.ownerPhoto)}" alt="">`
+    : pl.ownerName?.charAt(0)?.toUpperCase() || '?';
+  const isOwn = currentUser && pl.ownerUid === currentUser.uid;
+  const timeAgo = pl.publishedAt ? timeSince(pl.publishedAt) : '';
+
+  const tracksHTML = tracks.slice(0, 3).map((t, i) => `
+    <div class="cpc-track-row" onclick="playPublicTrack(${JSON.stringify(JSON.stringify(t))})">
+      <div class="cpc-tr-num">${i + 1}</div>
+      <div class="cpc-tr-thumb">${t.thumb ? `<img src="${esc(t.thumb)}" alt="">` : '♪'}</div>
+      <div class="cpc-tr-info">
+        <div class="cpc-tr-title">${esc(t.title || '—')}</div>
+        <div class="cpc-tr-artist">${esc(t.artist || '—')}</div>
+      </div>
+    </div>`).join('');
+
+  const moreHTML = trackCount > 3 ? `<div class="cpc-more">+${trackCount - 3} songs lagi</div>` : '';
+
+  return `
+  <div class="cpcard" id="card-${key}">
+    <div class="cpc-header">
+      <div class="cpc-user-av"><div class="cpc-user-av-inner">${userAv}</div></div>
+      <div class="cpc-user-info">
+        <div class="cpc-username">${esc(pl.ownerName || 'User')}${isOwn ? ' <span style="color:var(--blue);font-size:.65rem">(Kamu)</span>' : ''}</div>
+        <div class="cpc-time">${timeAgo}</div>
+      </div>
+    </div>
+    <div class="cpc-body">
+      <div class="cpc-cover-row">
+        <div class="cpc-cover">${coverHTML}</div>
+        <div class="cpc-pl-info">
+          <div class="cpc-pl-name">${esc(pl.name || 'Playlist')}</div>
+          <div class="cpc-pl-sub">${trackCount} songs</div>
+        </div>
+        <button class="cpc-play-btn" onclick="playPublicPlaylist('${key}')">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+      </div>
+      <div class="cpc-tracks-preview">${tracksHTML}</div>
+      ${moreHTML}
+    </div>
+    <div class="cpc-actions">
+      <button class="cpc-act-btn" id="like-btn-${key}" onclick="toggleLike('${key}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        <span id="like-count-${key}">0</span> Suka
+      </button>
+      <div class="cpc-act-sep"></div>
+      <button class="cpc-act-btn" onclick="toggleComments('${key}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span id="cm-count-${key}">0</span> Komentar
+      </button>
+    </div>
+    <div class="cpc-comments" id="comments-${key}">
+      <div class="comment-list" id="comment-list-${key}">
+        <div class="comment-empty">Loading comments...</div>
+      </div>
+      <div class="comment-input-row">
+        <input type="text" class="cm-input" id="cm-inp-${key}" placeholder="Write a comment..." maxlength="200"
+          onkeydown="if(event.key==='Enter') submitComment('${key}')">
+        <button class="cm-send" onclick="submitComment('${key}')">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── Likes ─────────────────────────────────────────────────
+const likeState = {}; // { key: bool }
+async function initLikesForCard(key) {
+  if (!currentUser) return;
+  try {
+    const likeRef = db.ref('public_playlists/' + key + '/likes');
+    const snap = await likeRef.get();
+    const likes = snap.exists() ? snap.val() : {};
+    const count = typeof likes === 'object' ? Object.keys(likes).length : 0;
+    const liked = !!(likes[currentUser.uid]);
+    likeState[key] = liked;
+    const btn = document.getElementById('like-btn-' + key);
+    const countEl = document.getElementById('like-count-' + key);
+    if (countEl) countEl.textContent = count;
+    if (btn) {
+      btn.classList.toggle('liked', liked);
+      const svg = btn.querySelector('svg');
+      if (svg) svg.setAttribute('fill', liked ? '#ff6b6b' : 'none');
+    }
+  } catch(e) {}
+}
+
+async function toggleLike(key) {
+  if (!currentUser) { toast('Please log in to like'); return; }
+  const btn = document.getElementById('like-btn-' + key);
+  const countEl = document.getElementById('like-count-' + key);
+  const liked = !likeState[key];
+  likeState[key] = liked;
+  btn.classList.toggle('liked', liked);
+  const svg = btn.querySelector('svg');
+  if (svg) svg.setAttribute('fill', liked ? '#ff6b6b' : 'none');
+  const ref = db.ref('public_playlists/' + key + '/likes/' + currentUser.uid);
+  try {
+    if (liked) {
+      await ref.set(true);
+    } else {
+      await ref.remove();
+    }
+    const snap = await db.ref('public_playlists/' + key + '/likes').get();
+    const likes = snap.exists() ? snap.val() : {};
+    const count = typeof likes === 'object' ? Object.keys(likes).length : 0;
+    if (countEl) countEl.textContent = count;
+  } catch(e) { toast('Failed: ' + e.message); }
+}
+
+// ── Comments ──────────────────────────────────────────────
+const commentsLoaded = {};
+function toggleComments(key) {
+  const el = document.getElementById('comments-' + key);
+  const open = el.classList.toggle('open');
+  if (open && !commentsLoaded[key]) {
+    loadComments(key);
+    commentsLoaded[key] = true;
+  }
+}
+
+async function loadComments(key) {
+  const listEl = document.getElementById('comment-list-' + key);
+  const countEl = document.getElementById('cm-count-' + key);
+  try {
+    const snap = await db.ref('public_playlists/' + key + '/comments').get();
+    if (!snap.exists()) {
+      listEl.innerHTML = '<div class="comment-empty">No comments yet. Be the first!</div>';
+      if (countEl) countEl.textContent = '0';
+      return;
+    }
+    const comments = snap.val();
+    const arr = Object.entries(comments).sort((a, b) => (a[1].t || 0) - (b[1].t || 0));
+    if (countEl) countEl.textContent = arr.length;
+    listEl.innerHTML = arr.map(([id, c]) => {
+      const av = c.photo ? `<img src="${esc(c.photo)}" alt="">` : c.name?.charAt(0)?.toUpperCase() || '?';
+      return `
+      <div class="comment-item">
+        <div class="cm-av"><div class="cm-av-inner">${av}</div></div>
+        <div class="cm-body">
+          <div class="cm-name">${esc(c.name || 'User')}</div>
+          <div class="cm-text">${esc(c.text || '')}</div>
+          <div class="cm-time">${timeSince(c.t)}</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    listEl.innerHTML = '<div class="comment-empty">Failed to load komentar</div>';
+  }
+}
+
+async function submitComment(key) {
+  if (!currentUser) { toast('Please log in to comment'); return; }
+  const inp = document.getElementById('cm-inp-' + key);
+  const text = inp.value.trim();
+  if (!text) return;
+  inp.value = '';
+  try {
+    const profSnap = await db.ref('users/' + currentUser.uid + '/profile').get();
+    const prof = profSnap.exists() ? profSnap.val() : {};
+    const name = prof.displayName || currentUser.displayName || currentUser.email.split('@')[0];
+    const photo = prof.photoURL || '';
+    const ref = db.ref('public_playlists/' + key + '/comments').push();
+    await ref.set({ name, photo, text, uid: currentUser.uid, t: Date.now() });
+    // Update count
+    const snap = await db.ref('public_playlists/' + key + '/comments').get();
+    const count = snap.exists() ? Object.keys(snap.val()).length : 0;
+    const countEl = document.getElementById('cm-count-' + key);
+    if (countEl) countEl.textContent = count;
+    // Reload comments
+    commentsLoaded[key] = false;
+    loadComments(key);
+    commentsLoaded[key] = true;
+  } catch(e) {
+    toast('Failed to send comment: ' + e.message);
+  }
+}
+
+// ── Play public track ────────────────────────────────────
+function playPublicTrack(jsonStr) {
+  try {
+    const track = JSON.parse(jsonStr);
+    if (!track._query) { toast('Info songs tidak tersedia'); return; }
+    // Open music player with the track via URL param
+    window.open('vibexa.html?play=' + encodeURIComponent(track._query), '_blank');
+  } catch(e) {}
+}
+
+function playPublicPlaylist(key) {
+  // Just navigate to music player; user can manually search
+  toast('🎵 Open Vibexa Music to play this playlist');
+}
+
+// ── SEARCH USERS ──────────────────────────────────────────
+let searchDebounce = null;
+let allPublicUsers = null; // cache: { uid: { displayName, photoURL, bio, plCount, likesTotal } }
+
+function openSearchUsers() {
+  document.getElementById('search-users-modal').style.display = 'block';
+  setTimeout(() => document.getElementById('search-user-inp').focus(), 150);
+  if (!allPublicUsers) preloadPublicUsers();
+}
+function closeSearchUsers() {
+  document.getElementById('search-users-modal').style.display = 'none';
+  document.getElementById('search-user-inp').value = '';
+  document.getElementById('search-user-results').innerHTML = `
+    <div style="text-align:center;padding:60px 0;color:var(--muted);">
+      <div style="font-size:2.5rem;margin-bottom:12px;">🔍</div>
+      <div style="font-size:.84rem;">Type a name to search for users</div>
+    </div>`;
+}
+
+async function preloadPublicUsers() {
+  try {
+    const snap = await db.ref('public_playlists').get();
+    const map = {};
+    if (snap.exists()) {
+      const all = snap.val();
+      for (const key of Object.keys(all)) {
+        const pl = all[key];
+        const uid = pl.ownerUid;
+        if (!uid) continue;
+        if (!map[uid]) {
+          map[uid] = {
+            uid,
+            displayName: pl.ownerName || 'User',
+            photoURL: pl.ownerPhoto || '',
+            plCount: 0,
+            likesTotal: 0
+          };
+        }
+        map[uid].plCount++;
+        const likes = pl.likes ? Object.keys(pl.likes).length : 0;
+        map[uid].likesTotal += likes;
+      }
+    }
+    // Also pull profile bio from users node for own user
+    allPublicUsers = map;
+  } catch(e) { allPublicUsers = {}; }
+}
+
+function onSearchUserInput(val) {
+  clearTimeout(searchDebounce);
+  const q = val.trim().toLowerCase();
+  if (!q) {
+    document.getElementById('search-user-results').innerHTML = `
+      <div style="text-align:center;padding:60px 0;color:var(--muted);">
+        <div style="font-size:2.5rem;margin-bottom:12px;">🔍</div>
+        <div style="font-size:.84rem;">Type a name to search for users</div>
+      </div>`;
+    return;
+  }
+  searchDebounce = setTimeout(() => doSearchUsers(q), 280);
+}
+
+async function doSearchUsers(q) {
+  const res = document.getElementById('search-user-results');
+  res.innerHTML = `<div style="text-align:center;padding:30px 0;color:var(--muted);font-size:.83rem;">Mencari...</div>`;
+
+  if (!allPublicUsers) await preloadPublicUsers();
+
+  const matches = Object.values(allPublicUsers).filter(u =>
+    u.displayName.toLowerCase().includes(q)
+  );
+
+  if (!matches.length) {
+    res.innerHTML = `<div style="text-align:center;padding:60px 0;color:var(--muted);"><div style="font-size:2rem;margin-bottom:10px">😔</div><div style="font-size:.83rem;">Pengguna tidak ditemukan</div></div>`;
+    return;
+  }
+
+  res.innerHTML = matches.map(u => {
+    const isMe = currentUser && u.uid === currentUser.uid;
+    const avHTML = u.photoURL
+      ? `<img src="${esc(u.photoURL)}" alt="">`
+      : `<span>${u.displayName.charAt(0).toUpperCase()}</span>`;
+    return `
+    <div class="su-item" onclick="${isMe ? "closeSearchUsers()" : `openUserProfile('${u.uid}')`}">
+      <div class="su-av"><div class="su-av-inner">${avHTML}</div></div>
+      <div class="su-info">
+        <div class="su-name">${esc(u.displayName)}${isMe ? ' <span style="color:var(--blue);font-size:.65rem">(Kamu)</span>' : ''}</div>
+        <div class="su-meta">${u.plCount} public playlists · ${u.likesTotal} total likes</div>
+      </div>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="color:var(--muted);flex-shrink:0;"><path d="M9 18l6-6-6-6"/></svg>
+    </div>`;
+  }).join('');
+}
+
+// ── USER PUBLIC PROFILE ────────────────────────────────────
+let currentViewedUid = null;
+let currentViewedPlaylists = {};
+
+async function openUserProfile(uid) {
+  currentViewedUid = uid;
+  currentViewedPlaylists = {};
+  document.getElementById('user-profile-view').style.display = 'block';
+  document.getElementById('upv-nav-name').textContent = 'User Profile';
+  document.getElementById('upv-avatar').textContent = '...';
+  document.getElementById('upv-name').textContent = '...';
+  document.getElementById('upv-bio').textContent = '';
+  document.getElementById('upv-stat-pl').textContent = '0';
+  document.getElementById('upv-stat-likes').textContent = '0';
+  document.getElementById('upv-playlists').innerHTML = `<div style="text-align:center;padding:40px 0;color:var(--muted);font-size:.83rem;">Loading...</div>`;
+
+  // ── 1. Ambil semua public_playlists dulu (dapat ownerName & ownerPhoto dari sini) ──
+  let userPls = {};
+  let nameFromPl = '';
+  let photoFromPl = '';
+
+  try {
+    const plSnap = await db.ref('public_playlists').get();
+    if (plSnap.exists()) {
+      const allPls = plSnap.val();
+      for (const key in allPls) {
+        const pl = allPls[key];
+        if (pl && pl.ownerUid === uid) {
+          userPls[key] = pl;
+          // Ambil nama & foto dari entry playlist pertama yang ketemu
+          if (!nameFromPl && pl.ownerName) nameFromPl = pl.ownerName;
+          if (!photoFromPl && pl.ownerPhoto) photoFromPl = pl.ownerPhoto;
+        }
+      }
+    }
+  } catch(e) {
+    console.error('Gagal ambil public_playlists:', e);
+  }
+
+  // ── 2. Coba ambil profil lengkap dari users/{uid}/profile ──
+  let name = nameFromPl || 'User';
+  let photo = photoFromPl || '';
+  let bio = '';
+
+  try {
+    const profSnap = await db.ref('users/' + uid + '/profile').get();
+    if (profSnap.exists()) {
+      const prof = profSnap.val();
+      if (prof.displayName) name = prof.displayName;
+      if (prof.photoURL || prof.photoBase64) photo = prof.photoURL || prof.photoBase64;
+      bio = prof.bio || '';
+    }
+  } catch(e) {
+    // Tidak apa-apa, sudah ada data dari playlist
+    console.warn('Tidak bisa baca users profile, pakai data dari playlist:', e.message);
+  }
+
+  // ── 3. Render header profil ──
+  document.getElementById('upv-nav-name').textContent = name;
+  document.getElementById('upv-name').textContent = name;
+  document.getElementById('upv-bio').textContent = bio || 'No description yet';
+  document.getElementById('upv-bio').style.fontStyle = bio ? 'normal' : 'italic';
+
+  const avEl = document.getElementById('upv-avatar');
+  if (photo) {
+    avEl.innerHTML = `<img src="${esc(photo)}" alt="${esc(name)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentNode.textContent='${name.charAt(0).toUpperCase()}'">`;
+  } else {
+    avEl.textContent = name.charAt(0).toUpperCase();
+  }
+
+  // ── 4. Render playlist ──
+  const keys = Object.keys(userPls);
+  if (!keys.length) {
+    document.getElementById('upv-playlists').innerHTML = `<div style="text-align:center;padding:40px 0;color:var(--muted);"><div style="font-size:2rem;margin-bottom:8px">🎵</div><div style="font-size:.83rem;">No playlists yet publik</div></div>`;
+    document.getElementById('upv-stat-pl').textContent = '0';
+    document.getElementById('upv-stat-likes').textContent = '0';
+    return;
+  }
+
+  currentViewedPlaylists = userPls;
+  keys.sort((a,b) => (userPls[b].publishedAt||0) - (userPls[a].publishedAt||0));
+
+  let totalLikes = 0;
+  keys.forEach(k => {
+    totalLikes += userPls[k].likes ? Object.keys(userPls[k].likes).length : 0;
+  });
+
+  document.getElementById('upv-stat-pl').textContent = keys.length;
+  document.getElementById('upv-stat-likes').textContent = totalLikes;
+
+  document.getElementById('upv-playlists').innerHTML = keys.map(key => {
+    const pl = userPls[key];
+    const tracks = pl.tracks || [];
+    const coverHTML = pl.coverThumb
+      ? `<img src="${esc(pl.coverThumb)}" alt="">`
+      : (tracks[0]?.thumb ? `<img src="${esc(tracks[0].thumb)}" alt="">` : '🎵');
+    const likes = pl.likes ? Object.keys(pl.likes).length : 0;
+    return `
+    <div class="upv-pl-card" onclick="openPlDetail('${key}')">
+      <div class="upv-pl-cover">${coverHTML}</div>
+      <div class="upv-pl-info">
+        <div class="upv-pl-name">${esc(pl.name || 'Playlist')}</div>
+        <div class="upv-pl-meta">${tracks.length} songs · ${likes} likes</div>
+      </div>
+      <button class="upv-pl-play" onclick="event.stopPropagation();openPlDetail('${key}')">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+    </div>`;
+  }).join('');
+}
+
+function closeUserProfile() {
+  document.getElementById('user-profile-view').style.display = 'none';
+  currentViewedUid = null;
+}
+
+// ── PLAYLIST DETAIL VIEW ───────────────────────────────────
+let currentDetailKey = null;
+let currentDetailTracks = [];
+let currentPlayingIdx = -1;
+
+function openPlDetail(key) {
+  currentDetailKey = key;
+  const pl = currentViewedPlaylists[key];
+  if (!pl) return;
+
+  currentDetailTracks = pl.tracks || [];
+  currentPlayingIdx = -1;
+
+  document.getElementById('pl-detail-view').style.display = 'block';
+  document.getElementById('pld-nav-name').textContent = pl.name || 'Playlist';
+  document.getElementById('pld-name').textContent = pl.name || 'Playlist';
+  document.getElementById('pld-owner').textContent = 'by ' + (pl.ownerName || 'User');
+
+  const coverEl = document.getElementById('pld-cover');
+  const coverHTML = pl.coverThumb
+    ? `<img src="${esc(pl.coverThumb)}" alt="" style="width:100%;height:100%;object-fit:cover;">`
+    : (currentDetailTracks[0]?.thumb ? `<img src="${esc(currentDetailTracks[0].thumb)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : '🎵');
+  coverEl.innerHTML = coverHTML;
+
+  renderDetailTracks();
+}
+
+function closePlDetail() {
+  document.getElementById('pl-detail-view').style.display = 'none';
+  currentDetailKey = null;
+  currentDetailTracks = [];
+  currentPlayingIdx = -1;
+}
+
+function renderDetailTracks() {
+  const container = document.getElementById('pld-tracks');
+  if (!currentDetailTracks.length) {
+    container.innerHTML = `<div style="text-align:center;padding:30px;color:var(--muted);font-size:.83rem;">Tidak ada songs</div>`;
+    return;
+  }
+  container.innerHTML = currentDetailTracks.map((t, i) => `
+    <div class="pld-track-row${i === currentPlayingIdx ? ' playing' : ''}" id="pld-tr-${i}" onclick="playDetailTrack(${i})">
+      <div class="pld-tr-num">${i === currentPlayingIdx ? '<svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12" style="color:var(--blue)"><path d="M8 5v14l11-7z"/></svg>' : (i+1)}</div>
+      <div class="pld-tr-thumb">${t.thumb ? `<img src="${esc(t.thumb)}" alt="">` : '♪'}</div>
+      <div class="pld-tr-info">
+        <div class="pld-tr-title">${esc(t.title || '—')}</div>
+        <div class="pld-tr-artist">${esc(t.artist || '—')}</div>
+      </div>
+      <div class="pld-tr-play" onclick="event.stopPropagation();playDetailTrack(${i})">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </div>
+    </div>`).join('');
+}
+
+function playDetailTrack(idx) {
+  const t = currentDetailTracks[idx];
+  if (!t || !t._query) { toast('ℹ️ Info songs tidak tersedia'); return; }
+  currentPlayingIdx = idx;
+  renderDetailTracks();
+  // Open music player with track
+  window.open('vibexa.html?play=' + encodeURIComponent(t._query), '_blank');
+}
+
+function playAllFromDetail() {
+  if (!currentDetailTracks.length) { toast('Playlist is empty'); return; }
+  const first = currentDetailTracks[0];
+  if (!first || !first._query) { toast('ℹ️ Info songs tidak tersedia'); return; }
+  currentPlayingIdx = 0;
+  renderDetailTracks();
+  window.open('vibexa.html?play=' + encodeURIComponent(first._query), '_blank');
+}
+function initAllLikes() {
+  const cards = document.querySelectorAll('#explore-feed .cpcard');
+  cards.forEach(card => {
+    const key = card.id.replace('card-', '');
+    initLikesForCard(key);
+  });
+}
+
+const _origLoadExploreFeed = loadExploreFeed;
+// patch to init likes after load
+window.loadExploreFeed = async function() {
+  await _origLoadExploreFeed();
+  setTimeout(initAllLikes, 200);
+};
+// re-bind
+window.openExplore = function() {
+  document.getElementById('explore-view').style.display = 'block';
+  if (!exploreFeedLoaded) { window.loadExploreFeed(); exploreFeedLoaded = true; }
+};
+
+// ── Helpers ───────────────────────────────────────────────
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function timeSince(ts) {
+  if (!ts) return '';
+  const sec = Math.floor((Date.now() - ts) / 1000);
+  if (sec < 60) return 'just now';
+  if (sec < 3600) return Math.floor(sec / 60) + ' minutes ago';
+  if (sec < 86400) return Math.floor(sec / 3600) + ' hours ago';
+  return Math.floor(sec / 86400) + ' days ago';
+}
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(console.error);
+}
+</script>
+</body>
+</html>

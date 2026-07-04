@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VibeProfile — Vibexa</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&family=Outfit:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0d0d0d;--panel:#161616;--card:#1e1e1e;--border:rgba(255,255,255,0.08);
+  --green:#1ed760;--green-dim:rgba(30,215,96,0.1);--text:#ffffff;--sub:#a8a8a8;--muted:#555;
+  --blue:#1D6BDB;--teal:#3D9DD6;
+  --r:12px;--f:'Space Grotesk',sans-serif;--fm:'DM Mono',monospace;
+  --page-w:700px;
+}
+body{font-family:var(--f);background:#111;color:var(--text);min-height:100vh;overflow-x:hidden;display:flex;flex-direction:column;align-items:center}
+#page-wrap{width:100%;max-width:var(--page-w);background:var(--bg);min-height:100vh;position:relative;box-shadow:0 0 80px rgba(0,0,0,0.6);margin:0 auto;overflow:hidden;}
+
+/* ── TOP BAR ── */
+#top-bar{
+  position:fixed;top:0;left:50%;transform:translateX(-50%);
+  width:100%;max-width:var(--page-w);
+  background:rgba(13,13,13,0.9);border-bottom:1px solid var(--border);
+  z-index:500;backdrop-filter:blur(16px);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 16px;
+  gap:10px;
+}
+.top-bar-brand{display:flex;align-items:center;gap:8px;text-decoration:none}
+.top-bar-logo{width:28px;height:28px;background:var(--blue);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.top-bar-logo svg{width:14px;height:14px;color:#fff}
+.top-bar-name{font-family:'Outfit',sans-serif;font-size:1rem;font-weight:800;letter-spacing:-.3px;background:linear-gradient(130deg,#fff 30%,#7B8DB0);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.top-bar-label{font-size:.62rem;color:var(--muted);letter-spacing:.5px}
+#share-badge{font-size:.6rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--green);background:var(--green-dim);border:1px solid rgba(30,215,96,0.25);border-radius:50px;padding:3px 9px}
+
+/* ── CONTENT AREA — Scale-based responsive ── */
+#free-zone-outer{
+  position:relative;
+  width:100%;
+  margin-top:50px;
+  overflow:hidden;
+}
+#free-zone{
+  position:relative;
+  width:700px;
+  transform-origin:top left;
+}
+#header-zone{position:absolute;top:0;left:0;width:700px;min-height:380px;background:linear-gradient(180deg,rgba(30,215,96,0.07) 0%,transparent 70%);pointer-events:none;z-index:0}
+
+/* ── WIDGET styles (mirror vibeprofile) ── */
+.widget{position:absolute;z-index:10}
+.w-inner{width:100%;height:100%;overflow:hidden;border-radius:8px}
+.profile-wrap{width:100%;height:100%;border-radius:12px;overflow:hidden;background:var(--card);border:2px solid rgba(30,215,96,0.2);position:relative}
+.profile-wrap img,.profile-wrap .profile-ph{width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block}
+.profile-wrap .profile-ph{display:flex;align-items:center;justify-content:center;font-size:3rem;background:var(--card)}
+.label-el{font-size:.6rem;letter-spacing:2.5px;text-transform:uppercase;color:var(--green);font-weight:700;white-space:nowrap}
+.title-el{font-size:2rem;font-weight:700;line-height:1.15;letter-spacing:-.5px;width:100%;height:100%;overflow:hidden}
+.desc-el{font-size:.85rem;color:var(--sub);line-height:1.6;width:100%;height:100%;overflow:hidden}
+.meta-el{display:flex;align-items:center;gap:14px;font-size:.78rem;color:var(--sub)}
+.ph-plays{display:flex;align-items:center;gap:5px}
+.ph-plays svg{width:12px;height:12px}
+.ph-ig{display:flex;align-items:center;gap:5px;color:var(--sub);text-decoration:none;transition:color .2s}
+.ph-ig:hover{color:var(--text)}
+.playbar-el{display:flex;align-items:center;gap:12px;height:100%}
+.play-btn-big{width:52px;height:52px;background:var(--green);border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;box-shadow:0 4px 20px rgba(30,215,96,0.3);flex-shrink:0}
+.play-btn-big:hover{transform:scale(1.06)}
+.play-btn-big svg{width:20px;height:20px;color:#000;margin-left:2px}
+.heart-btn{background:none;border:none;cursor:pointer;color:var(--sub);padding:6px;transition:all .2s}
+.heart-btn:hover,.heart-btn.liked{color:var(--green)}
+.heart-btn svg{width:20px;height:20px}
+.play-count{font-size:.78rem;color:var(--sub);font-family:var(--fm)}
+.music-card{background:transparent;border-radius:0;padding:0;border:none;width:100%;height:100%;display:flex;flex-direction:column;text-align:center;overflow:hidden;position:relative;cursor:pointer}
+.music-card:hover{}
+.music-card img{width:100%;flex:1;min-height:0;object-fit:cover;border-radius:8px;margin-bottom:5px;background:var(--panel);display:block}
+.mc-title{font-size:.72rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
+.mc-artist{font-size:.65rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:3px;justify-content:center}
+.mc-play-overlay{position:absolute;top:0;left:0;right:0;bottom:22px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.4);border-radius:8px;opacity:0;transition:opacity .2s}
+.music-card:hover .mc-play-overlay{opacity:1}
+.mc-play-icon{width:40px;height:40px;background:var(--green);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(30,215,96,0.4)}
+.mc-play-icon svg{width:16px;height:16px;color:#000;margin-left:2px}
+.photo-el{width:100%;height:100%;overflow:hidden;border-radius:10px;border:1px solid var(--border)}
+.photo-el img{width:100%;height:100%;object-fit:cover;display:block}
+.text-el{width:100%;height:100%;overflow:hidden;padding:10px;border-radius:10px}
+.text-el p{line-height:1.6;word-break:break-word;white-space:pre-wrap}
+.gif-el{width:100%;height:100%;overflow:hidden;border-radius:10px;border:1px solid var(--border)}
+.gif-el img{width:100%;height:100%;object-fit:cover;display:block}
+.sticker-el{width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:visible}
+.sticker-el img{width:100%;height:100%;object-fit:contain;display:block;border-radius:0;filter:drop-shadow(0 2px 8px rgba(0,0,0,0.5))}
+[contenteditable]{pointer-events:none}
+
+/* ── NOT FOUND ── */
+#not-found{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:16px;padding:40px;text-align:center}
+#not-found .nf-emoji{font-size:4rem;margin-bottom:8px}
+#not-found h2{font-size:1.5rem;font-weight:700;margin-bottom:8px}
+#not-found p{font-size:.88rem;color:var(--sub);line-height:1.7;max-width:340px}
+
+/* ── LOADING ── */
+#loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:14px}
+.loader-ring{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#loading p{font-size:.82rem;color:var(--muted)}
+
+/* ── CTA BANNER ── */
+#cta-banner{
+  position:fixed;bottom:0;left:50%;transform:translateX(-50%);
+  width:100%;max-width:var(--page-w);
+  z-index:900;
+}
+.cta-inner{
+  margin:0 10px 10px;
+  background:linear-gradient(135deg,rgba(14,18,32,0.98) 0%,rgba(20,25,40,0.98) 100%);
+  border:1px solid rgba(29,107,219,0.3);
+  border-radius:18px;
+  padding:14px 18px;
+  display:flex;align-items:center;gap:14px;
+  backdrop-filter:blur(20px);
+  box-shadow:0 8px 40px rgba(0,0,0,0.7),0 0 0 1px rgba(29,107,219,0.1);
+  position:relative;overflow:hidden;
+}
+.cta-inner::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 300px 100px at 0% 50%,rgba(29,107,219,0.08),transparent 70%);
+  pointer-events:none;
+}
+.cta-icon{
+  width:44px;height:44px;flex-shrink:0;
+  background:linear-gradient(135deg,var(--blue),var(--teal));
+  border-radius:12px;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 16px rgba(29,107,219,0.4);
+}
+.cta-icon svg{width:22px;height:22px;color:#fff}
+.cta-text{flex:1;min-width:0}
+.cta-headline{font-family:'Outfit',sans-serif;font-size:.88rem;font-weight:800;letter-spacing:-.2px;line-height:1.3;margin-bottom:2px}
+.cta-headline span{background:linear-gradient(90deg,var(--blue),var(--teal));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.cta-sub{font-size:.7rem;color:var(--sub);line-height:1.4}
+.cta-actions{display:flex;gap:8px;flex-shrink:0;align-items:center}
+.cta-btn-primary{
+  background:linear-gradient(135deg,var(--blue),var(--teal));
+  border:none;border-radius:50px;
+  padding:9px 18px;
+  color:#fff;font-family:'Outfit',sans-serif;font-weight:700;font-size:.78rem;
+  cursor:pointer;transition:all .2s;white-space:nowrap;
+  text-decoration:none;display:inline-flex;align-items:center;gap:6px;
+}
+.cta-btn-primary:hover{opacity:.88;transform:translateY(-1px);box-shadow:0 6px 20px rgba(29,107,219,0.4)}
+.cta-btn-close{
+  background:none;border:none;color:var(--muted);cursor:pointer;
+  padding:6px;border-radius:50%;transition:all .18s;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.cta-btn-close:hover{color:var(--text);background:rgba(255,255,255,0.08)}
+.cta-btn-close svg{width:14px;height:14px}
+
+/* ── MINI PLAYER (view-only) ── */
+#mini-player{
+  position:fixed;bottom:90px;left:50%;transform:translateX(-50%);
+  width:calc(100% - 20px);max-width:calc(var(--page-w) - 20px);
+  background:rgba(16,16,16,0.98);border:1px solid rgba(30,215,96,0.3);
+  border-radius:16px;padding:10px 14px;
+  z-index:850;backdrop-filter:blur(20px);
+  display:none;box-shadow:0 8px 40px rgba(0,0,0,0.6);
+}
+#mini-player.visible{display:block}
+.mp-top{display:flex;align-items:center;gap:10px}
+.mp-art{width:40px;height:40px;border-radius:8px;object-fit:cover;background:var(--card);flex-shrink:0}
+.mp-info{flex:1;min-width:0}
+.mp-title{font-size:.78rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mp-artist{font-size:.65rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mp-controls{display:flex;align-items:center;gap:8px}
+.mp-btn{background:none;border:none;color:var(--sub);cursor:pointer;padding:5px;border-radius:8px;transition:all .18s;display:flex;align-items:center;justify-content:center}
+.mp-btn:hover{color:var(--green);background:var(--green-dim)}
+.mp-btn svg{width:16px;height:16px}
+.mp-close:hover{color:#ff5c5c;background:rgba(255,92,92,0.1)}
+.mp-play{width:34px;height:34px;background:var(--green);border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;box-shadow:0 2px 12px rgba(30,215,96,0.4)}
+.mp-play:hover{transform:scale(1.08)}
+.mp-play svg{width:14px;height:14px;color:#000;margin-left:1px}
+.mp-progress-wrap{margin-top:8px;display:flex;align-items:center;gap:8px}
+.mp-time{font-size:.6rem;color:var(--muted);font-family:var(--fm);min-width:28px}
+.mp-progress{flex:1;height:3px;background:rgba(255,255,255,0.1);border-radius:2px;cursor:pointer;position:relative}
+.mp-bar{height:100%;background:var(--green);border-radius:2px;transition:width .1s linear;width:0%}
+.mp-progress:hover .mp-bar{background:#fff}
+
+/* ── MOBILE IMPROVEMENTS ── */
+@media(max-width:660px){
+  #top-bar{padding:8px 12px;gap:8px;}
+  .top-bar-name{font-size:.88rem;}
+  #share-badge{font-size:.55rem;padding:2px 7px;}
+  #free-zone{margin-top:48px;}
+  #cta-banner{padding-bottom:env(safe-area-inset-bottom,0);}
+  .cta-inner{
+    margin:0 8px 8px;
+    padding:10px 12px;
+    gap:10px;
+    border-radius:14px;
+  }
+  .cta-icon{width:36px;height:36px;border-radius:9px;flex-shrink:0;}
+  .cta-icon svg{width:17px;height:17px;}
+  .cta-headline{font-size:.8rem;}
+  .cta-sub{font-size:.65rem;}
+  .cta-btn-primary{padding:8px 14px;font-size:.72rem;}
+  #mini-player{
+    bottom:72px;
+    border-radius:14px;
+    padding:9px 12px;
+  }
+  #not-found{padding:30px 20px;}
+  #not-found h2{font-size:1.2rem;}
+  #not-found p{font-size:.8rem;}
+}
+
+/* ── ASK ME WIDGET (view) ── */
+/* ── ASK WIDGET – Yellow Window Style ── */
+.ask-widget-card{
+  background:transparent;
+  border:none;
+  border-radius:20px;
+  padding:0;
+  width:100%;height:100%;
+  display:flex;flex-direction:column;align-items:stretch;gap:0;
+  position:relative;overflow:hidden;
+  box-shadow:0 8px 32px rgba(180,140,0,0.2), 0 2px 8px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.15);
+  border:2px solid #c49a00;
+  border-radius:18px;
+}
+/* Yellow top header bar */
+.ask-widget-header{
+  background:linear-gradient(180deg,#f5c842 0%,#e8b800 100%);
+  border-radius:16px 16px 0 0;
+  padding:12px 16px 14px;
+  display:flex;flex-direction:column;align-items:flex-start;gap:3px;
+  position:relative;
+  flex-shrink:0;
+  border-bottom:2px solid #c49a00;
+}
+/* White/cream content area */
+.ask-widget-body{
+  background:linear-gradient(180deg,#fffef5 0%,#fdfbec 100%);
+  border-radius:0 0 15px 15px;
+  padding:16px 16px 14px;
+  display:flex;flex-direction:column;gap:10px;
+  flex:1;
+  min-height:0;
+}
+.ask-widget-emoji{display:none}
+.ask-widget-title{font-size:.88rem;font-weight:800;color:#3a2e00;letter-spacing:-.2px;text-shadow:0 1px 0 rgba(255,255,255,0.3)}
+.ask-widget-sub{font-size:.65rem;color:rgba(60,46,0,0.72);line-height:1.4}
+/* X close button in top-right of header */
+.ask-widget-xbtn{
+  position:absolute;top:50%;right:10px;transform:translateY(-50%);
+  width:28px;height:28px;
+  background:rgba(160,120,0,0.35);
+  border:1.5px solid rgba(255,255,255,0.4);
+  border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  cursor:default;pointer-events:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.3),0 2px 4px rgba(0,0,0,0.15);
+}
+.ask-widget-xbtn::after{
+  content:'✕';font-size:.7rem;color:#3a2e00;font-weight:700;
+}
+.ask-input-wrap{width:100%;position:relative}
+.ask-textarea{
+  width:100%;min-height:70px;max-height:160px;
+  background:rgba(255,255,255,0.9);
+  border:1.5px solid rgba(180,140,0,0.28);
+  border-radius:10px;
+  padding:10px 42px 10px 12px;
+  color:#2a2000;
+  font-family:var(--f);
+  font-size:.82rem;
+  line-height:1.5;
+  resize:none;
+  outline:none;
+  transition:border-color .2s,background .2s,box-shadow .2s;
+  display:block;
+  box-shadow:inset 0 1px 3px rgba(0,0,0,0.05);
+}
+.ask-textarea:focus{border-color:rgba(180,140,0,0.6);background:#fff;box-shadow:inset 0 1px 3px rgba(0,0,0,0.05),0 0 0 3px rgba(232,184,0,0.15)}
+.ask-textarea::placeholder{color:#b8a050}
+.ask-char-count{position:absolute;bottom:8px;right:10px;font-size:.56rem;color:#b8a050;font-family:var(--fm);pointer-events:none}
+.ask-char-count.warn{color:#e07820}
+.ask-char-count.danger{color:#e03030}
+.ask-footer{width:100%;display:flex;align-items:center;justify-content:center;gap:10px}
+.ask-anon-badge{display:none}
+.ask-send-btn{
+  background:linear-gradient(135deg,#f0c800,#d4a800);
+  border:none;border-radius:8px;
+  padding:9px 32px;
+  color:#3a2e00;font-family:var(--f);font-weight:800;font-size:.78rem;
+  cursor:pointer;transition:all .2s;
+  display:flex;align-items:center;gap:5px;white-space:nowrap;
+  box-shadow:0 3px 10px rgba(180,140,0,0.3);
+  letter-spacing:.2px;
+}
+.ask-send-btn:hover{opacity:.9;transform:translateY(-1px);box-shadow:0 5px 14px rgba(180,140,0,0.4)}
+.ask-send-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
+.ask-send-btn svg{width:12px;height:12px}
+.ask-success{
+  display:none;flex-direction:column;align-items:center;gap:8px;
+  padding:16px;text-align:center;
+}
+.ask-success.show{display:flex}
+.ask-success-emoji{display:none}
+.ask-success-msg{font-size:.82rem;font-weight:700;color:#b08800}
+.ask-success-sub{font-size:.68rem;color:#8a7030}
+.ask-send-another{
+  background:none;border:1.5px solid rgba(180,140,0,0.4);border-radius:8px;
+  padding:7px 16px;color:#b08800;font-family:var(--f);font-size:.72rem;font-weight:700;
+  cursor:pointer;margin-top:4px;transition:all .2s;
+}
+.ask-send-another:hover{background:rgba(232,184,0,0.1)}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="top-bar">
+  <a class="top-bar-brand" href="vibexa.html">
+    <div class="top-bar-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18V5l12-2v13M9 18a3 3 0 11-6 0M21 16a3 3 0 11-6 0"/></svg>
+    </div>
+    <span class="top-bar-name">Vibexa</span>
+  </a>
+  <span class="top-bar-label" id="page-owner-label">VibeProfile</span>
+  <span id="share-badge">PUBLIC</span>
+</div>
+
+<!-- PAGE CONTENT -->
+<div id="page-wrap">
+  <!-- Loading state -->
+  <div id="loading">
+    <div class="loader-ring"></div>
+    <p>Loading page...</p>
+  </div>
+
+  <!-- Not found state -->
+  <div id="not-found">
+    <div class="nf-emoji">😶</div>
+    <h2>Halaman tidak ditemukan</h2>
+    <p>The link you opened may no longer be active or has not been published by its owner.</p>
+    <a href="vibexa.html" style="margin-top:8px;padding:10px 22px;background:var(--green);color:#000;border-radius:50px;font-weight:700;font-size:.82rem;text-decoration:none">Back to Vibexa</a>
+  </div>
+
+  <!-- Actual page content -->
+  <div id="free-zone-outer">
+    <div id="free-zone" style="display:none">
+      <div id="header-zone"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MINI PLAYER -->
+<div id="mini-player">
+  <div class="mp-top">
+    <img class="mp-art" id="mp-art" src="" alt="">
+    <div class="mp-info">
+      <div class="mp-title" id="mp-title">—</div>
+      <div class="mp-artist" id="mp-artist">—</div>
+    </div>
+    <div class="mp-controls">
+      <button class="mp-play" id="mp-play-btn" onclick="togglePlay()">
+        <svg id="mp-icon-play" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+        <svg id="mp-icon-pause" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+      </button>
+      <button class="mp-close mp-btn" id="mp-close-btn" onclick="_stopPlayback()" title="Tutup">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="mp-progress-wrap">
+    <span class="mp-time" id="mp-current">0:00</span>
+    <div class="mp-progress" id="mp-progress" onclick="seekTo(event)">
+      <div class="mp-bar" id="mp-bar"></div>
+    </div>
+    <span class="mp-time" id="mp-duration">0:00</span>
+  </div>
+</div>
+
+<!-- CTA BANNER -->
+<div id="cta-banner">
+  <div class="cta-inner">
+    <div class="cta-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13M9 18a3 3 0 11-6 0M21 16a3 3 0 11-6 0"/></svg>
+    </div>
+    <div class="cta-text">
+      <div class="cta-headline">Create your own <span>VibeProfile</span>!</div>
+      <div class="cta-sub">Halaman musik personalmu. Gratis & langsung bisa dibagikan.</div>
+    </div>
+    <div class="cta-actions">
+      <a id="cta-main-btn" href="vibexa.html" class="cta-btn-primary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+        Buat Sekarang
+      </a>
+      <button class="cta-btn-close" onclick="dismissCTA()" title="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── CTA REDIRECT LOGIC ──────────────────────────────────────────────────────
+(function() {
+  const SESSION_KEYS = ['firebase:authUser', 'sp_user_uid', 'userLoggedIn'];
+  const isLoggedIn = SESSION_KEYS.some(k => {
+    try {
+      const val = localStorage.getItem(k);
+      if (!val) return false;
+      if (k === 'firebase:authUser') return true;
+      return val && val !== 'false' && val !== 'null';
+    } catch { return false; }
+  });
+
+  const ctaBtn = document.getElementById('cta-main-btn');
+  if (isLoggedIn) {
+    ctaBtn.href = 'vibeprofile.html';
+    ctaBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit VibeProfile-ku';
+    document.querySelector('.cta-headline').innerHTML = 'Edit your <span>VibeProfile</span>';
+    document.querySelector('.cta-sub').textContent = 'You already have a VibeProfile. Click to edit it.';
+  }
+})();
+
+function dismissCTA() {
+  document.getElementById('cta-banner').style.display = 'none';
+}
+
+// ── PAGE DATA LOADER ────────────────────────────────────────────────────────
+function getShareId() {
+  return new URLSearchParams(window.location.search).get('id');
+}
+
+async function loadPage() {
+  const sid = getShareId();
+  if (!sid) { showNotFound(); return; }
+
+  let snapshot = null;
+
+  // 1. Coba dari Firebase Realtime DB (lintas perangkat)
+  try {
+    const db = window._firebaseDb;
+    const fn = window._fbFunctions;
+    if (db && fn) {
+      const snap = await fn.get(fn.ref(db, 'vibeprofiles/' + sid));
+      if (snap.exists()) snapshot = snap.val();
+    }
+  } catch(e) {
+    console.warn('Firebase load gagal, coba localStorage:', e);
+  }
+
+  // 2. Fallback: localStorage (same-device)
+  if (!snapshot) {
+    try {
+      const raw = localStorage.getItem('sp_pub_' + sid);
+      if (raw) snapshot = JSON.parse(raw);
+    } catch(e) {}
+  }
+
+  if (!snapshot) { showNotFound(); return; }
+
+  // ✅ Validasi: pastikan snapshot punya data elemen
+  if (!snapshot.els || snapshot.els.length === 0) {
+    console.warn('Snapshot ditemukan tapi tidak ada elemen (els kosong). Kemungkinan publish gagal menyimpan widget.');
+  }
+
+  renderSnapshot(snapshot, sid);
+}
+
+function showNotFound() {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('not-found').style.display = 'flex';
+}
+
+const REF_W = 700; // Lebar referensi editor PC (harus sama dengan --page-w editor)
+
+function applyZoneScale() {
+  const fz = document.getElementById('free-zone');
+  const outer = document.getElementById('free-zone-outer');
+  if (!fz || !outer) return;
+  const outerW = outer.offsetWidth || window.innerWidth;
+  const scale = outerW / REF_W;
+  fz.style.transform = `scale(${scale})`;
+  // Sesuaikan tinggi outer agar tidak ada gap
+  const fzH = fz.offsetHeight;
+  outer.style.height = Math.ceil(fzH * scale) + 'px';
+}
+
+function renderSnapshot(snapshot, sid) {
+  document.getElementById('loading').style.display = 'none';
+
+  // ✅ Simpan ownerUid VibeProfile ini secara global supaya bisa dibandingkan
+  // dengan UID viewer begitu status Firebase Auth selesai diketahui.
+  window._profileOwnerUid = snapshot.ownerUid || null;
+  // Jika auth viewer sudah lebih dulu resolve sebelum snapshot ini dimuat,
+  // tentukan status owner sekarang juga.
+  if (window._viewerAuthUid !== undefined) {
+    window._isProfileOwner = !!(window._viewerAuthUid && window._profileOwnerUid && window._viewerAuthUid === window._profileOwnerUid);
+  }
+
+  const title = snapshot.info?.name || 'VibeProfile';
+  document.title = title + ' — Vibexa';
+  document.getElementById('page-owner-label').textContent = title + "'s VibeProfile";
+
+  if (snapshot.bg && snapshot.bg.type !== 'none') applyBg(snapshot.bg);
+
+  const fz = document.getElementById('free-zone');
+  fz.style.display = 'block';
+
+  if (snapshot.els && snapshot.els.length) {
+    let maxBottom = 400;
+
+    snapshot.els.forEach(elData => {
+      const div = document.createElement('div');
+      div.className = 'widget';
+
+      // Gunakan posisi pixel PERSIS seperti disimpan saat publish dari PC
+      // If pct data exists, convert back to pixels in REF_W=700 space
+      let left, top, width, height, rotation = 0;
+
+      if (elData.px) {
+        // ✅ Latest format: coordinates already normalized to 700px space
+        left   = elData.px.left;
+        top    = elData.px.top;
+        width  = elData.px.width;
+        height = elData.px.height;
+        rotation = elData.px.rotation || 0;
+      } else if (elData.pct) {
+        const p = elData.pct;
+        rotation = p.rotation || 0;
+        // Scale pct ke dalam koordinat REF_W (700px)
+        width  = Math.round(p.width  * REF_W);
+        height = Math.round(p.height * REF_W);
+        left   = Math.round(p.left   * REF_W);
+        top    = Math.round(p.top    * REF_W);
+      } else {
+        // Legacy: ambil dari style cssText langsung (sudah dalam pixel PC)
+        const tmp = document.createElement('div');
+        tmp.style.cssText = elData.style || '';
+        width  = parseInt(tmp.style.width)  || 120;
+        height = parseInt(tmp.style.height) || 120;
+        left   = parseInt(tmp.style.left)   || 0;
+        top    = parseInt(tmp.style.top)    || 0;
+        // Rotasi dari transform style
+        const rotMatch = (tmp.style.transform || '').match(/rotate\(([-\d.]+)deg\)/);
+        if (rotMatch) rotation = parseFloat(rotMatch[1]);
+      }
+
+      div.style.position = 'absolute';
+      div.style.left   = left   + 'px';
+      div.style.top    = top    + 'px';
+      div.style.width  = width  + 'px';
+      div.style.height = height + 'px';
+      if (rotation) div.style.transform = `rotate(${rotation}deg)`;
+
+      maxBottom = Math.max(maxBottom, top + height + 40);
+
+      div.innerHTML = elData.html;
+      div.querySelectorAll('.w-bar,.rh,.rot-handle,.rot-line,.prof-edit-btn').forEach(e => e.remove());
+      div.querySelectorAll('[contenteditable]').forEach(e => e.removeAttribute('contenteditable'));
+      fz.appendChild(div);
+
+      // ── ASK WIDGET: replace preview with live interactive form ──
+      if (elData.type === 'ask') {
+        div.style.position = 'absolute';
+        div.style.height = 'auto';
+        // ✅ Render dulu tanpa color picker (default aman untuk pengunjung).
+        // Jika viewer ternyata pemilik (UID cocok dengan ownerUid), color
+        // picker akan disuntikkan otomatis begitu status auth diketahui
+        // lewat _applyOwnerStateToAskWidgets().
+        div.innerHTML = _buildAskForm(elData.theme || 'yellow', false);
+        fz.appendChild(div);
+        _initAskForm(div, snapshot.ownerUid, sid, elData.theme || 'yellow');
+        maxBottom = Math.max(maxBottom, top + 260);
+        return; // skip further handlers
+      }
+
+      // Music card click handler
+      if (elData.type === 'music') {
+        div.querySelectorAll('.music-card').forEach(card => {
+          card.removeAttribute('onclick');
+          card.style.cursor = 'pointer';
+          card.addEventListener('click', () => {
+            const t = card.querySelector('.mc-title')?.textContent || '';
+            const a = card.querySelector('.mc-artist')?.textContent?.trim() || '';
+            const art = card.querySelector('img')?.src || '';
+            const track = { title: t, artist: a, art, preview: null };
+            const ex = _queue.findIndex(q => q.title === t && q.artist === a);
+            if (ex >= 0 && ex === _queueIdx && _isPlaying) { if (_YTP) _YTP.pauseVideo(); return; }
+            if (ex >= 0) _playIdx(ex);
+            else { _queue.push(track); _playIdx(_queue.length - 1); }
+          });
+        });
+      }
+
+      // Big play button
+      const bigBtn = div.querySelector('.play-btn-big');
+      if (bigBtn) {
+        bigBtn.removeAttribute('onclick');
+        if (!bigBtn.querySelector('.icon-pause')) {
+          bigBtn.innerHTML = `<svg class="icon-play" viewBox="0 0 24 24" fill="black"><path d="M8 5v14l11-7z"/></svg>
+            <svg class="icon-pause" viewBox="0 0 24 24" fill="black" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
+        }
+        bigBtn.addEventListener('click', () => {
+          if (_isPlaying) togglePlay();
+          else if (_queue.length) togglePlay();
+          else playAllFromTop();
+        });
+      }
+    });
+
+    // Set tinggi zone sesuai konten, lalu apply scale
+    fz.style.minHeight = (maxBottom + 80) + 'px';
+
+    // Apply scale setelah render selesai
+    requestAnimationFrame(() => {
+      applyZoneScale();
+    });
+  }
+}
+
+// Re-apply scale when screen is rotated or resized
+window.addEventListener('resize', applyZoneScale);
+
+function applyBg(bg) {
+  const wrap = document.getElementById('page-wrap');
+  if (bg.type === 'image') {
+    wrap.style.backgroundImage = `url(${bg.value})`;
+    wrap.style.backgroundSize = 'cover';
+    wrap.style.backgroundPosition = 'center';
+    wrap.style.backgroundAttachment = 'local';
+    let ovEl = document.getElementById('bg-overlay-el');
+    if (!ovEl) {
+      ovEl = document.createElement('div');
+      ovEl.id = 'bg-overlay-el';
+      ovEl.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:0';
+      wrap.prepend(ovEl);
+    }
+    ovEl.style.background = `rgba(0,0,0,${(bg.overlay || 0) / 100})`;
+  } else if (bg.type === 'color') {
+    wrap.style.backgroundColor = bg.value;
+  }
+}
+
+// ── ASK ME WIDGET ────────────────────────────────────────────────────────────
+
+// Color themes for ask widget
+const ASK_THEMES = {
+  yellow: {
+    border:'#c49a00', headerBg:'linear-gradient(180deg,#f5c842 0%,#e8b800 100%)',
+    headerBorder:'#c49a00', bodyBg:'linear-gradient(180deg,#fffef5 0%,#fdfbec 100%)',
+    titleColor:'#3a2e00', subColor:'rgba(60,46,0,0.72)',
+    xbtnBg:'rgba(160,120,0,0.35)', inputBorder:'rgba(180,140,0,0.28)',
+    inputColor:'#2a2000', placeholder:'#b8a050', charColor:'#b8a050',
+    btnBg:'linear-gradient(135deg,#f0c800,#d4a800)', btnColor:'#3a2e00',
+    successMsg:'#b08800', successSub:'#8a7030', anotherBorder:'rgba(180,140,0,0.4)', anotherColor:'#b08800',
+    shadow:'rgba(180,140,0,0.2)'
+  },
+  pink: {
+    border:'#c4006a', headerBg:'linear-gradient(180deg,#ff6eb4 0%,#e8006a 100%)',
+    headerBorder:'#c4006a', bodyBg:'linear-gradient(180deg,#fff5fa 0%,#fdeef6 100%)',
+    titleColor:'#3a0020', subColor:'rgba(80,0,40,0.72)',
+    xbtnBg:'rgba(160,0,80,0.35)', inputBorder:'rgba(196,0,106,0.28)',
+    inputColor:'#2a0015', placeholder:'#d060a0', charColor:'#d060a0',
+    btnBg:'linear-gradient(135deg,#ff6eb4,#e8006a)', btnColor:'#fff',
+    successMsg:'#c4006a', successSub:'#8a0047', anotherBorder:'rgba(196,0,106,0.4)', anotherColor:'#c4006a',
+    shadow:'rgba(196,0,106,0.2)'
+  },
+  blue: {
+    border:'#0062c4', headerBg:'linear-gradient(180deg,#42a8f5 0%,#0062e8 100%)',
+    headerBorder:'#0062c4', bodyBg:'linear-gradient(180deg,#f5faff 0%,#eef4fd 100%)',
+    titleColor:'#00213a', subColor:'rgba(0,40,80,0.72)',
+    xbtnBg:'rgba(0,80,160,0.35)', inputBorder:'rgba(0,98,196,0.28)',
+    inputColor:'#00213a', placeholder:'#5090d0', charColor:'#5090d0',
+    btnBg:'linear-gradient(135deg,#42a8f5,#0062e8)', btnColor:'#fff',
+    successMsg:'#0062c4', successSub:'#004a92', anotherBorder:'rgba(0,98,196,0.4)', anotherColor:'#0062c4',
+    shadow:'rgba(0,98,196,0.2)'
+  },
+  green: {
+    border:'#00994a', headerBg:'linear-gradient(180deg,#4cd97a 0%,#00a84a 100%)',
+    headerBorder:'#00994a', bodyBg:'linear-gradient(180deg,#f5fff8 0%,#edfbf2 100%)',
+    titleColor:'#003a18', subColor:'rgba(0,60,25,0.72)',
+    xbtnBg:'rgba(0,120,50,0.35)', inputBorder:'rgba(0,153,74,0.28)',
+    inputColor:'#003a18', placeholder:'#50c080', charColor:'#50c080',
+    btnBg:'linear-gradient(135deg,#4cd97a,#00a84a)', btnColor:'#003a18',
+    successMsg:'#00994a', successSub:'#007038', anotherBorder:'rgba(0,153,74,0.4)', anotherColor:'#00994a',
+    shadow:'rgba(0,153,74,0.2)'
+  },
+  purple: {
+    border:'#7a00c4', headerBg:'linear-gradient(180deg,#b86eff 0%,#7800e8 100%)',
+    headerBorder:'#7a00c4', bodyBg:'linear-gradient(180deg,#faf5ff 0%,#f4eeff 100%)',
+    titleColor:'#26003a', subColor:'rgba(50,0,80,0.72)',
+    xbtnBg:'rgba(100,0,160,0.35)', inputBorder:'rgba(122,0,196,0.28)',
+    inputColor:'#26003a', placeholder:'#9060d0', charColor:'#9060d0',
+    btnBg:'linear-gradient(135deg,#b86eff,#7800e8)', btnColor:'#fff',
+    successMsg:'#7a00c4', successSub:'#5a0092', anotherBorder:'rgba(122,0,196,0.4)', anotherColor:'#7a00c4',
+    shadow:'rgba(122,0,196,0.2)'
+  },
+  dark: {
+    border:'#444', headerBg:'linear-gradient(180deg,#3a3a3a 0%,#222 100%)',
+    headerBorder:'#444', bodyBg:'linear-gradient(180deg,#1e1e1e 0%,#181818 100%)',
+    titleColor:'#fff', subColor:'rgba(255,255,255,0.55)',
+    xbtnBg:'rgba(255,255,255,0.1)', inputBorder:'rgba(255,255,255,0.15)',
+    inputColor:'#fff', placeholder:'#666', charColor:'#666',
+    btnBg:'linear-gradient(135deg,#555,#333)', btnColor:'#fff',
+    successMsg:'#aaa', successSub:'#666', anotherBorder:'rgba(255,255,255,0.2)', anotherColor:'#aaa',
+    shadow:'rgba(0,0,0,0.4)'
+  }
+};
+
+function _buildAskForm(themeKey, isOwner) {
+  const t = ASK_THEMES[themeKey] || ASK_THEMES.yellow;
+  const colorDots = Object.entries(ASK_THEMES).map(([k, th]) => {
+    const hdrColor = th.headerBg.includes('gradient') ? th.border : th.headerBg;
+    const sel = k === (themeKey || 'yellow') ? 'outline:2.5px solid #fff;outline-offset:2px;' : '';
+    return `<button onclick="askChangeTheme(this,'${k}')" style="width:20px;height:20px;border-radius:50%;border:2px solid rgba(255,255,255,0.3);background:${hdrColor};cursor:pointer;flex-shrink:0;transition:all .15s;${sel}" title="${k}"></button>`;
+  }).join('');
+
+  // ✅ Color picker hanya dirender untuk pemilik VibeProfile. Pengunjung lain
+  // tidak akan melihat/bisa mengklik tombol ganti warna sama sekali.
+  const colorPickerHtml = isOwner
+    ? `<div class="ask-widget-colors" style="display:flex;gap:5px;align-items:center;margin-top:5px;flex-wrap:wrap;">${colorDots}</div>`
+    : '';
+
+  return `
+    <div class="ask-widget-card" data-theme="${themeKey||'yellow'}" data-owner-only="${isOwner ? '1' : '0'}" style="border-color:${t.border};box-shadow:0 8px 32px ${t.shadow},0 2px 8px rgba(0,0,0,0.25),inset 0 1px 0 rgba(255,255,255,0.15);">
+      <div class="ask-widget-header" style="background:${t.headerBg};border-bottom:2px solid ${t.headerBorder};">
+        <div class="ask-widget-title" style="color:${t.titleColor};">Ask me something</div>
+        ${colorPickerHtml}
+        <div class="ask-widget-xbtn" style="background:${t.xbtnBg};color:${t.titleColor};"></div>
+      </div>
+      <div class="ask-widget-body" style="background:${t.bodyBg};">
+        <div class="ask-input-wrap">
+          <textarea class="ask-textarea" placeholder="Write your message or question..." maxlength="300" oninput="askOnInput(this)" style="border-color:${t.inputBorder};color:${t.inputColor};--ask-ph:${t.placeholder};"></textarea>
+          <span class="ask-char-count" style="color:${t.charColor};">0/300</span>
+        </div>
+        <div class="ask-footer">
+          <button class="ask-send-btn" onclick="askSend(this)" disabled style="background:${t.btnBg};color:${t.btnColor};">
+            Send
+          </button>
+        </div>
+        <div class="ask-success" style="display:none;flex-direction:column;align-items:center;gap:8px;padding:16px;text-align:center;">
+          <div style="font-size:.82rem;font-weight:700;color:${t.successMsg};">Message sent!</div>
+          <button class="ask-send-another" onclick="askSendAnother(this)" style="border-color:${t.anotherBorder};color:${t.anotherColor};">Send another</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function askChangeTheme(btn, themeKey) {
+  const card = btn.closest('.ask-widget-card');
+  if (!card) return;
+  // ✅ Guard tambahan: hanya pemilik VibeProfile yang boleh mengganti warna.
+  // Tombolnya memang tidak dirender untuk non-owner, tapi cek ini mencegah
+  // perubahan via console/devtools oleh pengunjung lain.
+  if (card.dataset.ownerOnly !== '1' || !window._isProfileOwner) return;
+  const t = ASK_THEMES[themeKey] || ASK_THEMES.yellow;
+  card.dataset.theme = themeKey;
+  // Update border & shadow
+  card.style.borderColor = t.border;
+  card.style.boxShadow = `0 8px 32px ${t.shadow},0 2px 8px rgba(0,0,0,0.25),inset 0 1px 0 rgba(255,255,255,0.15)`;
+  // Header
+  const header = card.querySelector('.ask-widget-header');
+  header.style.background = t.headerBg;
+  header.style.borderBottomColor = t.headerBorder;
+  // Title
+  const title = card.querySelector('.ask-widget-title');
+  title.style.color = t.titleColor;
+  // xbtn
+  const xbtn = card.querySelector('.ask-widget-xbtn');
+  xbtn.style.background = t.xbtnBg;
+  // Body
+  const body = card.querySelector('.ask-widget-body');
+  body.style.background = t.bodyBg;
+  // Textarea
+  const ta = card.querySelector('.ask-textarea');
+  ta.style.borderColor = t.inputBorder;
+  ta.style.color = t.inputColor;
+  // Char count
+  const cc = card.querySelector('.ask-char-count');
+  cc.style.color = t.charColor;
+  // Send btn
+  const sbtn = card.querySelector('.ask-send-btn');
+  sbtn.style.background = t.btnBg;
+  sbtn.style.color = t.btnColor;
+  // Success msg
+  const succ = card.querySelector('.ask-success');
+  if (succ) {
+    const msg = succ.querySelector('div');
+    if (msg) msg.style.color = t.successMsg;
+    const another = succ.querySelector('.ask-send-another');
+    if (another) { another.style.borderColor = t.anotherBorder; another.style.color = t.anotherColor; }
+  }
+  // Highlight selected dot
+  const dots = card.querySelectorAll('[data-theme-dot], .ask-widget-header button');
+  dots.forEach(d => { d.style.outline = ''; d.style.outlineOffset = ''; });
+  btn.style.outline = '2.5px solid #fff';
+  btn.style.outlineOffset = '2px';
+}
+
+function askOnInput(ta) {
+  const card = ta.closest('.ask-widget-card');
+  const countEl = card.querySelector('.ask-char-count');
+  const btn = card.querySelector('.ask-send-btn');
+  const len = ta.value.length;
+  countEl.textContent = len + '/300';
+  countEl.className = 'ask-char-count' + (len > 280 ? ' danger' : len > 240 ? ' warn' : '');
+  btn.disabled = len < 2;
+}
+
+async function askSend(btn) {
+  const card = btn.closest('.ask-widget-card');
+  const ta = card.querySelector('.ask-textarea');
+  const msg = ta.value.trim();
+  if (!msg || msg.length < 2) return;
+
+  btn.disabled = true;
+  btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13"><circle cx="12" cy="12" r="10"/></svg> Mengirim...';
+
+  try {
+    const db = window._firebaseDb;
+    const fn = window._fbFunctions;
+    if (!db || !fn) throw new Error('Firebase tidak tersambung');
+
+    const sid = card.closest('[data-sid]')?.dataset.sid || window._currentSid;
+    const ownerUid = window._currentOwnerUid;
+    const msgId = 'msg' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const ts = Date.now();
+
+    // Save message to vibeprofiles/{sid}/messages/{msgId}
+    await fn.set(fn.ref(db, `vibeprofiles/${sid}/messages/${msgId}`), {
+      text: msg,
+      ts,
+      read: false,
+    });
+
+    // Show success
+    card.querySelector('.ask-footer').style.display = 'none';
+    card.querySelector('.ask-input-wrap').style.display = 'none';
+    const succ = card.querySelector('.ask-success');
+    succ.style.display = 'flex';
+
+  } catch(e) {
+    console.error('Ask send error:', e);
+    btn.disabled = false;
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send';
+    alert('Failed to send message. Please try again.');
+  }
+}
+
+function askSendAnother(btn) {
+  const card = btn.closest('.ask-widget-card');
+  card.querySelector('.ask-footer').style.display = '';
+  card.querySelector('.ask-input-wrap').style.display = '';
+  const succ = card.querySelector('.ask-success');
+  succ.style.display = 'none';
+  const ta = card.querySelector('.ask-textarea');
+  ta.value = '';
+  askOnInput(ta);
+}
+
+function _initAskForm(div, ownerUid, sid, themeKey) {
+  div.dataset.sid = sid || '';
+  div.dataset.themeKey = themeKey || 'yellow';
+  window._currentSid = sid || '';
+  window._currentOwnerUid = ownerUid || null;
+  // Daftarkan widget ini supaya bisa di-render-ulang saat status owner sudah diketahui
+  window._askWidgets = window._askWidgets || [];
+  window._askWidgets.push(div);
+  // Jika status owner sudah diketahui (auth sudah resolve sebelum widget ini dibuat), terapkan langsung
+  if (window._isProfileOwner === true) _applyOwnerStateToAskWidgets();
+}
+
+// ✅ Dipanggil setelah Firebase Auth selesai resolve. Membandingkan UID
+// viewer saat ini dengan ownerUid milik VibeProfile yang sedang dilihat.
+// Hanya jika cocok, color picker tema akan ditampilkan ulang.
+function _applyOwnerStateToAskWidgets() {
+  const widgets = window._askWidgets || [];
+  widgets.forEach(div => {
+    if (!div.isConnected) return;
+    const themeKey = div.dataset.themeKey || 'yellow';
+    div.innerHTML = _buildAskForm(themeKey, window._isProfileOwner === true);
+  });
+}
+
+// ── MINI PLAYER ─────────────────────────────────────────────────────────────
+let _currentYT = null;
+
+function openYouTube(ytId, title, artist, art) {
+  document.getElementById('mp-title').textContent = title || '—';
+  document.getElementById('mp-artist').textContent = artist || '—';
+  const artEl = document.getElementById('mp-art');
+  if (art) { artEl.src = art; artEl.style.display = 'block'; }
+  _currentYT = ytId;
+  document.getElementById('mini-player').classList.add('visible');
+}
+
+function seekTo() {}
+
+// ── INIT: dipanggil langsung dari Firebase module setelah siap ───────────────
+// (waitForFirebaseThenLoad dihapus — diganti dengan pemanggilan loadPage()
+//  langsung di dalam script module di bawah, agar tidak ada race condition)
+
+// ── MUSIC PLAYER SYSTEM (view-only) ─────────────────────────────────────────
+const WORKER = 'https://fancy-band-d65b.alpinofficial26.workers.dev';
+let _ytReady = false;
+let _pendingVid = null;
+let _YTP = null;
+let _isPlaying = false;
+let _queue = [];
+let _queueIdx = -1;
+let _raf = null;
+
+// Load YouTube IFrame API
+(function(){
+  if (document.getElementById('yt-api-script')) return;
+  const tag = document.createElement('script');
+  tag.id = 'yt-api-script';
+  tag.src = 'https://www.youtube.com/iframe_api';
+  document.head.appendChild(tag);
+})();
+
+window.onYouTubeIframeAPIReady = function() {
+  _ytReady = true;
+  if (_pendingVid) { _createPlayer(_pendingVid); _pendingVid = null; }
+};
+
+function _createPlayer(videoId) {
+  if (_YTP) { try { _YTP.destroy(); } catch(e) {} _YTP = null; }
+  let wrap = document.getElementById('yt-player-wrap');
+  if (!wrap) {
+    wrap = document.createElement('div');
+    wrap.id = 'yt-player-wrap';
+    wrap.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-9999px';
+    document.body.appendChild(wrap);
+  }
+  wrap.innerHTML = '<div id="yt-player-v"></div>';
+  _YTP = new YT.Player('yt-player-v', {
+    width: '1', height: '1', videoId,
+    playerVars: { autoplay: 1, controls: 0, playsinline: 1, rel: 0 },
+    events: {
+      onReady(e) { e.target.setVolume(80); e.target.playVideo(); },
+      onStateChange(e) {
+        if (e.data === YT.PlayerState.PLAYING) {
+          _isPlaying = true;
+          document.getElementById('mp-icon-play').style.display = 'none';
+          document.getElementById('mp-icon-pause').style.display = '';
+          cancelAnimationFrame(_raf);
+          _raf = requestAnimationFrame(_tickProgress);
+          _syncBigPlayBtn();
+        } else if (e.data === YT.PlayerState.PAUSED) {
+          _isPlaying = false;
+          document.getElementById('mp-icon-play').style.display = '';
+          document.getElementById('mp-icon-pause').style.display = 'none';
+          cancelAnimationFrame(_raf);
+          _syncBigPlayBtn();
+        } else if (e.data === YT.PlayerState.ENDED) {
+          _isPlaying = false;
+          cancelAnimationFrame(_raf);
+          _syncBigPlayBtn();
+          _nextTrack();
+        }
+      },
+      onError() { _showToast('⚠ Video tidak bisa diputar'); }
+    }
+  });
+}
+
+function _initPlayer(videoId) {
+  return new Promise(resolve => {
+    if (_ytReady && window.YT && window.YT.Player) { _createPlayer(videoId); resolve(); }
+    else { _pendingVid = videoId; const t = setInterval(() => { if (_ytReady) { clearInterval(t); resolve(); }}, 100); }
+  });
+}
+
+function _tickProgress() {
+  if (_YTP && _YTP.getDuration) {
+    const cur = _YTP.getCurrentTime() || 0;
+    const tot = _YTP.getDuration() || 0;
+    if (tot > 0) {
+      document.getElementById('mp-bar').style.width = (cur/tot*100) + '%';
+      document.getElementById('mp-current').textContent = _fmt(cur);
+      document.getElementById('mp-duration').textContent = _fmt(tot);
+    }
+  }
+  _raf = requestAnimationFrame(_tickProgress);
+}
+
+function _fmt(s) {
+  const m = Math.floor(s/60), ss = Math.floor(s%60);
+  return m + ':' + (ss<10?'0':'') + ss;
+}
+
+async function _resolveVid(query) {
+  try {
+    const res = await fetch(WORKER + '/search?q=' + encodeURIComponent(query), { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.videoId || null;
+  } catch(e) { return null; }
+}
+
+async function _playIdx(idx) {
+  if (idx < 0 || idx >= _queue.length) return;
+  _queueIdx = idx;
+  const t = _queue[idx];
+  document.getElementById('mp-title').textContent = t.title || '—';
+  document.getElementById('mp-artist').textContent = t.artist || '—';
+  const artEl = document.getElementById('mp-art');
+  if (t.art) { artEl.src = t.art; artEl.style.display = 'block'; }
+  document.getElementById('mini-player').classList.add('visible');
+  _showToast('▶ Mencari: ' + t.title);
+  const searchQ = t.artist + ' ' + t.title + ' official audio';
+  const videoId = await _resolveVid(searchQ) || await _resolveVid(t.artist + ' ' + t.title);
+  if (videoId) {
+    await _initPlayer(videoId);
+    _showToast('▶ ' + t.title);
+  } else if (t.preview) {
+    let audio = document.getElementById('sp-audio-fb');
+    if (!audio) {
+      audio = document.createElement('audio');
+      audio.id = 'sp-audio-fb';
+      audio.style.display = 'none';
+      audio.addEventListener('ended', _nextTrack);
+      document.body.appendChild(audio);
+    }
+    audio.src = t.preview;
+    audio.play().catch(() => {});
+    _isPlaying = true;
+    _showToast('▶ ' + t.title + ' (preview)');
+  } else {
+    _showToast('⚠ Video tidak ditemukan');
+  }
+}
+
+function _nextTrack() {
+  if (_queueIdx < _queue.length - 1) {
+    _playIdx(_queueIdx + 1);
+  } else {
+    // ✅ Lagu terakhir di queue sudah selesai dan tidak ada lagu berikutnya
+    // — hentikan playback dan sembunyikan kotak mini player otomatis.
+    _stopPlayback();
+  }
+}
+
+// ✅ Menghentikan playback sepenuhnya dan menyembunyikan mini player.
+// Dipanggil otomatis saat lagu terakhir selesai, atau manual lewat tombol close.
+function _stopPlayback() {
+  cancelAnimationFrame(_raf);
+  if (_YTP) {
+    try { _YTP.stopVideo(); _YTP.destroy(); } catch(e) {}
+    _YTP = null;
+  }
+  const audio = document.getElementById('sp-audio-fb');
+  if (audio) { audio.pause(); audio.src = ''; }
+  _isPlaying = false;
+  _queue = [];
+  _queueIdx = -1;
+  document.getElementById('mini-player').classList.remove('visible');
+  document.getElementById('mp-bar').style.width = '0%';
+  document.getElementById('mp-current').textContent = '0:00';
+  document.getElementById('mp-duration').textContent = '0:00';
+  _syncBigPlayBtn();
+}
+
+// ✅ Function called by the play button in the playbar widget
+function playAllFromTop() {
+  const cards = document.querySelectorAll('#free-zone .music-card');
+  _queue = [];
+  cards.forEach(card => {
+    _queue.push({
+      title: card.querySelector('.mc-title')?.textContent || '',
+      artist: card.querySelector('.mc-artist')?.textContent?.trim() || '',
+      art: card.querySelector('img')?.src || '',
+      preview: null
+    });
+  });
+  if (!_queue.length) { _showToast('⚠ No songs yet'); return; }
+  _playIdx(0);
+}
+
+// ✅ Fungsi yang dipanggil saat klik music card
+function onMusicCardClick(wid) {
+  const card = document.querySelector('#free-zone [data-wid="' + wid + '"] .music-card')
+             || event?.currentTarget?.closest('.music-card');
+  if (!card) return;
+  const track = {
+    title: card.querySelector('.mc-title')?.textContent || '',
+    artist: card.querySelector('.mc-artist')?.textContent?.trim() || '',
+    art: card.querySelector('img')?.src || '',
+    preview: null
+  };
+  // Check if this song is already in the queue
+  const existing = _queue.findIndex(q => q.title === track.title && q.artist === track.artist);
+  if (existing >= 0 && existing === _queueIdx && _isPlaying) {
+    // Pause jika lagi diputar
+    if (_YTP) _YTP.pauseVideo();
+    return;
+  }
+  if (existing >= 0) {
+    _playIdx(existing);
+  } else {
+    _queue.push(track);
+    _playIdx(_queue.length - 1);
+  }
+}
+
+// Override togglePlay untuk mini player
+function togglePlay() {
+  if (_YTP) {
+    if (_isPlaying) { _YTP.pauseVideo(); }
+    else { _YTP.playVideo(); }
+  }
+  // Update big play button too
+  _syncBigPlayBtn();
+}
+
+function _syncBigPlayBtn() {
+  const bigBtn = document.querySelector('.play-btn-big');
+  if (!bigBtn) return;
+  const playIco = bigBtn.querySelector('.icon-play');
+  const pauseIco = bigBtn.querySelector('.icon-pause');
+  if (playIco && pauseIco) {
+    playIco.style.display = _isPlaying ? 'none' : 'block';
+    pauseIco.style.display = _isPlaying ? 'block' : 'none';
+  }
+}
+
+function _showToast(msg) {
+  let t = document.getElementById('_vtoast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = '_vtoast';
+    t.style.cssText = 'position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:rgba(30,30,30,0.95);color:#fff;padding:9px 18px;border-radius:50px;font-size:.78rem;z-index:9999;pointer-events:none;opacity:0;transition:opacity .25s;white-space:nowrap;border:1px solid rgba(255,255,255,0.1)';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  clearTimeout(t._to);
+  t._to = setTimeout(() => { t.style.opacity = '0'; }, 2800);
+}
+</script>
+
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+  import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+  import { getAuth, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCeMRU4JgIOlS_M9hgZfDKrkIHyAFncVjE",
+    authDomain: "nevermind-c246a.firebaseapp.com",
+    databaseURL: "https://nevermind-c246a-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "nevermind-c246a",
+    storageBucket: "nevermind-c246a.firebasestorage.app",
+    messagingSenderId: "703998258491",
+    appId: "1:703998258491:web:ea9cceaa10af71db61db1e"
+  };
+
+  const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  const auth = getAuth(app);
+
+  window._firebaseDb = db;
+  window._fbFunctions = { ref, get, set };
+
+  // ✅ Firebase sudah siap — langsung load halaman tanpa polling
+  loadPage();
+
+  // ✅ Tentukan identitas viewer (sama seperti editor: anonymous auth per
+  // browser/device). Dipakai HANYA untuk menentukan apakah viewer ini adalah
+  // pemilik VibeProfile, supaya color picker "Ask me something" hanya
+  // tampil/aktif untuk pemilik — bukan untuk pengunjung lain.
+  window._viewerAuthUid = undefined;
+  window._isProfileOwner = false;
+
+  onAuthStateChanged(auth, user => {
+    window._viewerAuthUid = user ? user.uid : null;
+    window._isProfileOwner = !!(window._viewerAuthUid && window._profileOwnerUid && window._viewerAuthUid === window._profileOwnerUid);
+    if (typeof _applyOwnerStateToAskWidgets === 'function') _applyOwnerStateToAskWidgets();
+  });
+
+  signInAnonymously(auth).catch(err => {
+    console.warn('Anonymous sign-in gagal:', err.message);
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,3171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Straw Page</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0d0d0d;--panel:#161616;--card:#1e1e1e;--border:rgba(255,255,255,0.08);
+  --green:#1ed760;--green-dim:rgba(30,215,96,0.1);--text:#ffffff;--sub:#a8a8a8;--muted:#555;
+  --r:12px;--f:'Space Grotesk',sans-serif;--fm:'DM Mono',monospace;
+  --page-w:700px;
+}
+body{font-family:var(--f);background:#111;color:var(--text);min-height:100vh;overflow-x:hidden;display:flex;flex-direction:column;align-items:center}
+#page-wrap{width:100%;max-width:var(--page-w);background:var(--bg);min-height:100vh;padding-bottom:140px;position:relative;box-shadow:0 0 80px rgba(0,0,0,0.6);overflow:hidden;margin:0 auto;}
+
+/* ── EDITOR BOTTOM BAR ── */
+#editor{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:var(--page-w);height:60px;background:rgba(14,14,14,0.97);border-top:1px solid var(--border);z-index:1000;display:flex;align-items:center;justify-content:center;gap:6px;backdrop-filter:blur(16px)}
+#editor.hidden{display:none}
+.ed-body{display:flex;flex-direction:row;align-items:center;gap:6px;padding:0}
+.ed-section{display:flex;flex-direction:row;gap:6px}
+.ed-btn{display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:10px;color:var(--sub);cursor:pointer;width:44px;height:44px;transition:all .2s;flex-shrink:0}
+.ed-btn:hover{border-color:var(--green);color:var(--green);background:rgba(30,215,96,0.1)}
+.ed-btn svg{width:18px;height:18px}
+.ed-divider{width:1px;height:28px;background:var(--border);flex-shrink:0}
+#bar-toggle{position:fixed;bottom:68px;right:calc(50% - var(--page-w)/2 - 40px);background:var(--panel);border:1px solid var(--border);border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--sub);z-index:1001;transition:all .2s}
+#bar-toggle:hover{color:var(--green);border-color:var(--green)}
+#bar-toggle svg{width:14px;height:14px}
+
+/* ── HEADER ZONE ── */
+#header-zone{position:absolute;top:0;left:0;right:0;min-height:380px;background:linear-gradient(180deg,rgba(30,215,96,0.07) 0%,transparent 70%);pointer-events:none;z-index:0}
+
+/* ── WIDGET SYSTEM ── */
+.widget{position:absolute;cursor:grab;user-select:none;z-index:10}
+.widget:active{cursor:grabbing}
+.widget.sel{z-index:200;outline:1.5px dashed rgba(30,215,96,0.55);outline-offset:3px;border-radius:6px}
+.w-bar{position:absolute;top:-30px;left:0;background:rgba(12,12,12,0.92);border:1px solid rgba(30,215,96,0.35);border-radius:7px;padding:2px 6px;display:none;align-items:center;gap:4px;white-space:nowrap;z-index:300;backdrop-filter:blur(8px)}
+.widget.sel .w-bar{display:flex}
+.w-bar-label{font-size:.58rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--green);padding-right:4px;border-right:1px solid rgba(255,255,255,0.1)}
+.w-bar-btn{background:none;border:none;color:var(--sub);cursor:pointer;font-size:.7rem;padding:2px 5px;border-radius:4px;transition:all .15s;line-height:1.5;font-family:var(--f)}
+.w-bar-btn:hover{color:var(--text);background:rgba(255,255,255,0.08)}
+.w-bar-btn.del:hover{color:#ff5555;background:rgba(255,85,85,0.1)}
+.w-size{font-size:.6rem;color:var(--muted);font-family:var(--fm);padding:2px 4px;background:rgba(255,255,255,0.05);border-radius:4px;min-width:56px;text-align:center}
+.rh{position:absolute;width:13px;height:13px;background:#0d0d0d;border:2px solid var(--green);border-radius:3px;z-index:320;display:none;box-shadow:0 0 0 1px rgba(0,0,0,0.4);touch-action:none;-webkit-tap-highlight-color:transparent;}
+.widget.sel .rh{display:block}
+.rh-nw{top:-7px;left:-7px;cursor:nw-resize}.rh-ne{top:-7px;right:-7px;cursor:ne-resize}
+.rh-se{bottom:-7px;right:-7px;cursor:se-resize}.rh-sw{bottom:-7px;left:-7px;cursor:sw-resize}
+.rh-n{top:-7px;left:50%;transform:translateX(-50%);cursor:n-resize}.rh-e{right:-7px;top:50%;transform:translateY(-50%);cursor:e-resize}
+.rh-s{bottom:-7px;left:50%;transform:translateX(-50%);cursor:s-resize}.rh-w{left:-7px;top:50%;transform:translateY(-50%);cursor:w-resize}
+/* Mobile: only show corner handles, much larger */
+@media (pointer:coarse){
+  .rh{width:34px;height:34px;border-radius:10px;border-width:3px;background:rgba(13,13,13,0.95);}
+  .rh-n,.rh-e,.rh-s,.rh-w{display:none !important;}
+  .rh-nw{top:-17px;left:-17px}.rh-ne{top:-17px;right:-17px}
+  .rh-se{bottom:-17px;right:-17px}.rh-sw{bottom:-17px;left:-17px}
+  .rh::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:56px;height:56px;}
+  .widget.sel .rh-nw,.widget.sel .rh-ne,.widget.sel .rh-se,.widget.sel .rh-sw{box-shadow:0 0 0 2px rgba(0,0,0,0.6),0 0 10px rgba(30,215,96,0.5);}
+  .rot-handle{width:36px;height:36px;top:-54px;border-width:3px;}
+  .rot-handle::after{font-size:16px;}
+  .rot-line{top:-44px;height:38px;}
+}
+.w-inner{width:100%;height:100%;overflow:hidden;border-radius:8px}
+
+/* ── MOBILE WIDGET TOOLBAR ── */
+#mob-widget-bar{
+  display:none;
+  position:fixed;bottom:64px;left:50%;transform:translateX(-50%);
+  width:calc(100% - 16px);max-width:calc(var(--page-w) - 16px);
+  background:rgba(14,14,14,0.97);border:1px solid rgba(30,215,96,0.3);
+  border-radius:18px;padding:12px 14px;
+  z-index:990;backdrop-filter:blur(20px);
+  box-shadow:0 8px 40px rgba(0,0,0,0.7);
+  flex-direction:column;gap:10px;
+  transition:bottom .25s cubic-bezier(.4,0,.2,1);
+}
+#mob-widget-bar.visible{display:flex}
+/* Naikkan toolbar jika mini-player sedang tampil */
+#mob-widget-bar.visible.player-up{bottom:calc(64px + 90px + 12px)}
+.mwb-row{display:flex;align-items:center;gap:8px}
+.mwb-label{font-size:.6rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--sub);min-width:32px}
+.mwb-slider{flex:1;accent-color:var(--green);cursor:pointer;height:4px}
+.mwb-val{font-size:.65rem;color:var(--green);font-family:var(--fm);min-width:36px;text-align:right}
+.mwb-btns{display:flex;gap:6px;margin-left:auto}
+.mwb-btn{background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:10px;color:var(--sub);cursor:pointer;padding:6px 12px;font-size:.72rem;font-family:var(--f);transition:all .2s;white-space:nowrap}
+.mwb-btn:active{background:rgba(30,215,96,0.15);border-color:var(--green);color:var(--green)}
+.mwb-btn.danger:active{background:rgba(255,85,85,0.15);border-color:#ff5555;color:#ff5555}
+.mwb-hint{font-size:.6rem;color:var(--muted);text-align:center;line-height:1.5}
+/* hide toolbar on desktop */
+@media (pointer:fine){#mob-widget-bar{display:none !important}}
+
+/* ── ROTATION HANDLE ── */
+.rot-handle{
+  position:absolute;top:-38px;left:50%;transform:translateX(-50%);
+  width:20px;height:20px;
+  background:#0d0d0d;border:2px solid var(--green);border-radius:50%;
+  z-index:320;display:none;cursor:grab;
+  box-shadow:0 0 0 1px rgba(0,0,0,0.5), 0 0 8px rgba(30,215,96,0.3);
+  transition:box-shadow .15s;
+  align-items:center;justify-content:center;
+  user-select:none;touch-action:none;
+}
+.rot-handle:hover{box-shadow:0 0 0 1px rgba(0,0,0,0.5), 0 0 14px rgba(30,215,96,0.6);}
+.rot-handle:active{cursor:grabbing;}
+.rot-handle::after{
+  content:'↻';font-size:11px;color:var(--green);line-height:1;
+  pointer-events:none;
+}
+.rot-line{
+  position:absolute;top:-28px;left:50%;transform:translateX(-50%);
+  width:1.5px;height:22px;background:rgba(30,215,96,0.4);
+  z-index:315;display:none;pointer-events:none;
+}
+.widget.sel .rot-handle{display:flex;}
+.widget.sel .rot-line{display:block;}
+.widget.no-rotate .rot-handle,.widget.no-rotate .rot-line{display:none !important;}
+.w-bar-rot{font-size:.65rem;color:var(--sub);font-family:var(--fm);padding:2px 5px;
+  background:rgba(255,255,255,0.04);border-radius:4px;min-width:36px;text-align:center;
+  border:1px solid rgba(255,255,255,0.08);}
+
+/* ── MOBILE CONTROL PANEL ── */
+#mob-ctrl{
+  display:none;
+  position:fixed;bottom:68px;left:50%;transform:translateX(-50%);
+  width:calc(100% - 24px);max-width:calc(var(--page-w) - 24px);
+  background:rgba(14,14,14,0.98);border:1px solid rgba(30,215,96,0.35);
+  border-radius:18px;padding:12px 14px 10px;
+  z-index:1100;backdrop-filter:blur(20px);
+  box-shadow:0 8px 40px rgba(0,0,0,0.7);
+  flex-direction:column;gap:10px;
+}
+#mob-ctrl.active{display:flex;}
+.mc-row{display:flex;align-items:center;gap:8px;}
+.mc-label{font-size:.58rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--green);min-width:44px;}
+.mc-val{font-size:.68rem;color:var(--text);font-family:var(--fm);min-width:52px;text-align:center;background:rgba(255,255,255,0.05);border-radius:8px;padding:4px 6px;}
+.mc-btn{display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.07);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:1.1rem;line-height:1;width:40px;height:40px;cursor:pointer;flex-shrink:0;transition:all .15s;-webkit-tap-highlight-color:transparent;user-select:none;}
+.mc-btn:active{background:rgba(30,215,96,0.2);border-color:var(--green);color:var(--green);}
+.mc-btn.danger:active{background:rgba(255,85,85,0.2);border-color:#ff5555;color:#ff5555;}
+.mc-grow{flex:1;}
+.mc-divider{height:1px;background:var(--border);}
+.mc-title-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;}
+.mc-title{font-size:.65rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--sub);}
+.mc-close{background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;padding:2px 6px;line-height:1;}
+/* Hide w-bar on mobile so panel is the only control */
+@media (pointer:coarse){
+  .w-bar{display:none !important;}
+  .widget.sel{outline-width:2px;outline-offset:4px;}
+}
+
+/* ── PROFILE PHOTO ── */
+.profile-wrap{width:100%;height:100%;border-radius:12px;overflow:hidden;background:var(--card);border:2px solid rgba(30,215,96,0.2);position:relative}
+.profile-wrap img,.profile-wrap .profile-ph{width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block}
+.profile-wrap .profile-ph{display:flex;align-items:center;justify-content:center;font-size:3rem;background:var(--card)}
+.prof-edit-btn{position:absolute;bottom:6px;right:6px;background:rgba(0,0,0,0.75);border:1px solid rgba(255,255,255,0.15);border-radius:7px;padding:4px 8px;color:var(--sub);font-size:.65rem;cursor:pointer;transition:all .2s;font-family:var(--f)}
+.prof-edit-btn:hover{color:var(--green);border-color:var(--green)}
+
+/* ── LABEL / TITLE / DESC / META ── */
+.label-el{font-size:.6rem;letter-spacing:2.5px;text-transform:uppercase;color:var(--green);font-weight:700;white-space:nowrap}
+.title-el{font-size:2rem;font-weight:700;line-height:1.15;letter-spacing:-.5px;width:100%;height:100%;overflow:hidden}
+.desc-el{font-size:.85rem;color:var(--sub);line-height:1.6;width:100%;height:100%;overflow:hidden}
+.meta-el{display:flex;align-items:center;gap:14px;font-size:.78rem;color:var(--sub)}
+.ph-plays{display:flex;align-items:center;gap:5px}
+.ph-plays svg{width:12px;height:12px}
+.ph-ig{display:flex;align-items:center;gap:5px;color:var(--sub);text-decoration:none;transition:color .2s}
+.ph-ig:hover{color:var(--text)}
+
+/* ── PLAY BAR WIDGET ── */
+.playbar-el{display:flex;align-items:center;gap:12px;height:100%}
+.play-btn-big{width:52px;height:52px;background:var(--green);border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;box-shadow:0 4px 20px rgba(30,215,96,0.3);flex-shrink:0}
+.play-btn-big:hover{transform:scale(1.06)}
+.play-btn-big svg{width:20px;height:20px;color:#000;margin-left:2px}
+.play-btn-big.playing svg.icon-play{display:none}
+.play-btn-big.playing svg.icon-pause{display:block !important}
+.heart-btn{background:none;border:none;cursor:pointer;color:var(--sub);padding:6px;transition:all .2s}
+.heart-btn:hover,.heart-btn.liked{color:var(--green)}
+.heart-btn svg{width:20px;height:20px}
+.play-count{font-size:.78rem;color:var(--sub);font-family:var(--fm)}
+
+/* ── FREE ZONE ── */
+#free-zone{position:relative;width:100%;min-height:700px;padding-bottom:40px;overflow:hidden;}
+
+/* ── PAGE RESIZE HANDLE ── */
+#page-resize-handle{
+  position:relative;width:100%;height:36px;
+  display:flex;align-items:center;justify-content:center;
+  cursor:ns-resize;user-select:none;
+  background:transparent;
+  transition:background .2s;
+  z-index:50;
+  flex-shrink:0;
+}
+#page-resize-handle:hover{background:rgba(30,215,96,0.06)}
+#page-resize-handle::before{
+  content:'';display:block;
+  width:48px;height:4px;
+  background:var(--border);
+  border-radius:4px;
+  transition:all .2s;
+}
+#page-resize-handle:hover::before{
+  width:64px;background:var(--green);
+  box-shadow:0 0 8px rgba(30,215,96,0.4);
+}
+#page-resize-handle.dragging::before{
+  width:80px;background:var(--green);
+  box-shadow:0 0 12px rgba(30,215,96,0.6);
+}
+#page-resize-handle .rh-tooltip{
+  position:absolute;top:50%;transform:translateY(-50%);
+  right:14px;
+  font-size:.6rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--muted);opacity:0;transition:opacity .2s;pointer-events:none;
+  font-family:var(--fm);
+}
+#page-resize-handle:hover .rh-tooltip{opacity:1}
+#page-resize-handle.dragging .rh-tooltip{opacity:1;color:var(--green)}
+
+/* ── MUSIC CARD ── */
+.music-card{background:transparent;border-radius:0;padding:0;border:none;width:100%;height:100%;display:flex;flex-direction:column;text-align:center;overflow:hidden;position:relative;cursor:pointer;transition:none}
+.music-card:hover{}
+.music-card.now-playing{}
+.music-card img{width:100%;flex:1;min-height:0;object-fit:cover;border-radius:8px;margin-bottom:5px;background:var(--panel);display:block}
+.mc-title{font-size:.72rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px;flex-shrink:0}
+.mc-artist{font-size:.65rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:3px;justify-content:center;flex-shrink:0}
+.mc-play-overlay{position:absolute;top:0;left:0;right:0;bottom:22px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.4);border-radius:8px;opacity:0;transition:opacity .2s}
+.music-card:hover .mc-play-overlay{opacity:1}
+.music-card.now-playing .mc-play-overlay{opacity:1;background:rgba(30,215,96,0.15)}
+.mc-play-icon{width:40px;height:40px;background:var(--green);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(30,215,96,0.4)}
+.mc-play-icon svg{width:16px;height:16px;color:#000;margin-left:2px}
+.mc-eq{display:none;align-items:flex-end;gap:2px;height:16px}
+.music-card.now-playing .mc-eq{display:flex}
+.music-card.now-playing .mc-play-icon{display:none}
+.eq-bar{width:3px;background:var(--green);border-radius:2px;animation:eq .6s ease-in-out infinite alternate}
+.eq-bar:nth-child(1){height:6px;animation-delay:0s}
+.eq-bar:nth-child(2){height:12px;animation-delay:.15s}
+.eq-bar:nth-child(3){height:8px;animation-delay:.3s}
+.eq-bar:nth-child(4){height:14px;animation-delay:.1s}
+@keyframes eq{from{transform:scaleY(.4)}to{transform:scaleY(1)}}
+
+/* ── MINI PLAYER BAR ── */
+#mini-player{
+  position:fixed;bottom:64px;left:50%;transform:translateX(-50%);
+  width:calc(100% - 20px);max-width:calc(var(--page-w) - 20px);
+  background:rgba(16,16,16,0.98);border:1px solid rgba(30,215,96,0.3);
+  border-radius:16px;padding:10px 14px;
+  z-index:999;backdrop-filter:blur(20px);
+  display:none;box-shadow:0 8px 40px rgba(0,0,0,0.6);
+}
+#mini-player.visible{display:block}
+.mp-top{display:flex;align-items:center;gap:10px}
+.mp-art{width:40px;height:40px;border-radius:8px;object-fit:cover;background:var(--card);flex-shrink:0}
+.mp-info{flex:1;min-width:0}
+.mp-title{font-size:.78rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mp-artist{font-size:.65rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mp-controls{display:flex;align-items:center;gap:8px}
+.mp-btn{background:none;border:none;color:var(--sub);cursor:pointer;padding:5px;border-radius:8px;transition:all .18s;display:flex;align-items:center;justify-content:center}
+.mp-btn:hover{color:var(--green);background:var(--green-dim)}
+.mp-btn svg{width:16px;height:16px}
+.mp-play{width:34px;height:34px;background:var(--green);border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;box-shadow:0 2px 12px rgba(30,215,96,0.4)}
+.mp-play:hover{transform:scale(1.08)}
+.mp-play svg{width:14px;height:14px;color:#000;margin-left:1px}
+.mp-progress-wrap{margin-top:8px;display:flex;align-items:center;gap:8px}
+.mp-time{font-size:.6rem;color:var(--muted);font-family:var(--fm);min-width:28px}
+.mp-progress{flex:1;height:3px;background:rgba(255,255,255,0.1);border-radius:2px;cursor:pointer;position:relative}
+.mp-bar{height:100%;background:var(--green);border-radius:2px;transition:width .1s linear;width:0%}
+.mp-progress:hover .mp-bar{background:#fff}
+
+/* ── QUEUE PANEL ── */
+#queue-panel{position:fixed;bottom:64px;right:calc(50% - var(--page-w)/2 - 320px);width:280px;background:rgba(14,14,14,0.98);border:1px solid var(--border);border-radius:16px;padding:14px;z-index:998;backdrop-filter:blur(20px);display:none;max-height:400px;overflow:hidden;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,0.6)}
+#queue-panel.open{display:flex}
+/* Mobile: queue panel jadi bottom sheet penuh */
+@media(max-width:660px){
+  #queue-panel{
+    bottom:0 !important;right:0 !important;left:0 !important;
+    width:100% !important;
+    max-width:100% !important;
+    max-height:70vh;
+    border-radius:20px 20px 0 0;
+    border-bottom:none;
+    padding:16px 16px 32px;
+    z-index:1200;
+    transform:translateY(100%);
+    transition:transform .3s cubic-bezier(.4,0,.2,1);
+    display:flex !important;
+  }
+  #queue-panel.open{transform:translateY(0);}
+  /* Overlay gelap di belakang queue */
+  #queue-overlay{
+    display:none;
+    position:fixed;inset:0;
+    background:rgba(0,0,0,0.55);
+    z-index:1199;
+    backdrop-filter:blur(4px);
+  }
+  #queue-overlay.open{display:block;}
+  /* Drag handle di atas panel */
+  #queue-panel::before{
+    content:'';
+    display:block;
+    width:40px;height:4px;
+    background:rgba(255,255,255,0.2);
+    border-radius:4px;
+    margin:0 auto 14px;
+    flex-shrink:0;
+  }
+  /* Touch drag reorder: tampilkan tombol panah up/down di mobile */
+  .qi-drag{display:none !important;}
+  .qi-move-btns{display:flex !important;}
+}
+/* Tombol up/down untuk mobile queue reorder - hidden di desktop */
+.qi-move-btns{
+  display:none;
+  flex-direction:column;gap:1px;
+  flex-shrink:0;
+}
+.qi-move-btn{
+  background:rgba(255,255,255,0.07);border:none;border-radius:5px;
+  color:var(--sub);font-size:.65rem;line-height:1;
+  width:22px;height:20px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .15s;
+}
+.qi-move-btn:active{background:rgba(30,215,96,0.2);color:var(--green);}
+.qi-move-btn:disabled{opacity:.2;pointer-events:none;}
+.qp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-shrink:0}
+.qp-title{font-size:.72rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--sub)}
+.qp-close{background:none;border:none;color:var(--sub);cursor:pointer;font-size:1.1rem;line-height:1;transition:color .2s}
+.qp-close:hover{color:var(--text)}
+#queue-list{overflow-y:auto;flex:1;scrollbar-width:thin;scrollbar-color:var(--card) transparent}
+.qi-item{display:flex;align-items:center;gap:8px;padding:6px 4px;border-radius:8px;cursor:pointer;transition:all .18s;border:1px solid transparent}
+.qi-item:hover{background:rgba(255,255,255,0.04)}
+.qi-item.now{background:var(--green-dim);border-color:rgba(30,215,96,0.2)}
+.qi-item.dragging-over{border-color:var(--green) !important;background:rgba(30,215,96,0.08)}
+.qi-num{font-size:.6rem;color:var(--muted);font-family:var(--fm);min-width:16px;text-align:right;flex-shrink:0}
+.qi-thumb{width:32px;height:32px;border-radius:6px;object-fit:cover;background:var(--card);flex-shrink:0}
+.qi-info{flex:1;min-width:0}
+.qi-name{font-size:.72rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qi-art{font-size:.62rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qi-item.now .qi-name{color:var(--green)}
+.qi-drag{color:var(--muted);cursor:grab;padding:2px;flex-shrink:0;font-size:.9rem;line-height:1}
+.qi-drag:active{cursor:grabbing}
+.qi-remove{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:2px 4px;border-radius:4px;opacity:0;transition:all .15s;flex-shrink:0}
+.qi-item:hover .qi-remove{opacity:1;color:var(--sub)}
+.qi-item:hover .qi-remove:hover{color:#ff5555}
+#queue-empty{text-align:center;padding:24px;color:var(--muted);font-size:.78rem;display:none}
+
+/* ── PHOTO / TEXT / GIF ── */
+.photo-el{width:100%;height:100%;overflow:hidden;border-radius:10px;border:1px solid var(--border)}
+.photo-el img{width:100%;height:100%;object-fit:cover;display:block}
+.text-el{width:100%;height:100%;overflow:hidden;padding:8px;border-radius:10px;display:flex;align-items:flex-start}
+.text-el p{line-height:1.5;word-break:break-word;white-space:pre-wrap;overflow-wrap:break-word;width:100%;margin:0}
+.text-el.editing{outline:1.5px dashed rgba(30,215,96,0.6);border-radius:8px;background:rgba(30,215,96,0.04)}
+.text-el p[contenteditable="true"]{outline:none;cursor:text;}
+.gif-el{width:100%;height:100%;overflow:hidden;border-radius:10px;border:1px solid var(--border)}
+.gif-el img{width:100%;height:100%;object-fit:cover;display:block}
+
+/* ── MODALS ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:2000;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s;backdrop-filter:blur(8px)}
+.modal-overlay.open{opacity:1;pointer-events:all}
+.modal{background:#1a1a1a;border-radius:20px;border:1px solid var(--border);padding:26px;max-width:500px;width:92%;max-height:82vh;overflow-y:auto;transform:scale(.95);transition:transform .25s;scrollbar-width:thin;scrollbar-color:var(--card) transparent}
+.modal-overlay.open .modal{transform:scale(1)}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.modal-title{font-size:1rem;font-weight:700}
+.modal-close{background:none;border:none;color:var(--sub);cursor:pointer;font-size:1.4rem;line-height:1;transition:color .2s}
+.modal-close:hover{color:var(--text)}
+.modal-search-wrap{position:relative;margin-bottom:14px}
+.modal-search-wrap svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);width:14px;height:14px}
+.modal-search{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:50px;padding:9px 96px 9px 36px;color:var(--text);font-family:var(--f);font-size:.8rem;outline:none;transition:border-color .2s}
+.modal-search:focus{border-color:var(--green)}
+.modal-search::placeholder{color:var(--muted)}
+.modal-search-btn{position:absolute;right:5px;top:50%;transform:translateY(-50%);background:var(--green);border:none;border-radius:50px;padding:6px 14px;color:#000;font-family:var(--f);font-weight:700;font-size:.72rem;cursor:pointer}
+.modal-search-btn:disabled{opacity:.5;cursor:not-allowed}
+.modal-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:9px}
+.modal-card{background:var(--card);border-radius:10px;padding:9px;border:1px solid var(--border);cursor:pointer;transition:all .18s;text-align:center}
+.modal-card:hover{background:#2a2a2a;border-color:var(--green);transform:translateY(-1px)}
+.modal-card img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;margin-bottom:5px;background:var(--panel)}
+.modal-card-title{font-size:.68rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
+.modal-card-artist{font-size:.6rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.modal-empty{text-align:center;padding:36px;color:var(--muted);font-size:.8rem}
+.modal-empty span{display:block;font-size:2rem;margin-bottom:8px}
+.gif-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.gif-item{border-radius:8px;overflow:hidden;cursor:pointer;aspect-ratio:1;border:2px solid transparent;transition:all .18s}
+.gif-item:hover{border-color:var(--green);transform:scale(1.02)}
+.gif-item img{width:100%;height:100%;object-fit:cover;display:block}
+.sk{background:linear-gradient(90deg,var(--card) 25%,#2a2a2a 50%,var(--card) 75%);background-size:200% 100%;animation:sk 1.4s infinite;border-radius:8px}
+@keyframes sk{0%{background-position:200%}100%{background-position:-200%}}
+.ed-save-btn{background:var(--green);border:none;border-radius:8px;padding:9px;color:#000;font-family:var(--f);font-weight:700;font-size:.78rem;cursor:pointer;width:100%;margin-top:4px}
+.ed-save-btn:hover{opacity:.85}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:72px;left:50%;transform:translateX(-50%) translateY(8px);background:#1a1a1a;border:1px solid var(--green);border-radius:50px;padding:9px 18px;font-size:.76rem;font-weight:600;color:var(--green);z-index:9999;opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+[contenteditable]{outline:none;cursor:text}
+[contenteditable]:focus{border-bottom:1px dashed rgba(30,215,96,0.4)}
+[contenteditable]:empty::before{content:attr(data-placeholder);color:var(--muted);font-style:italic}
+
+/* ── ASK WIDGET PREVIEW (editor) – Pink Window Style ── */
+.ask-widget-preview{
+  width:100%;height:100%;
+  display:flex;flex-direction:column;
+  border-radius:16px;
+  overflow:hidden;
+  border:2px solid #c49a00;
+  box-shadow:0 6px 24px rgba(180,140,0,0.2),inset 0 1px 0 rgba(255,255,255,0.1);
+}
+.ask-preview-header{
+  background:linear-gradient(180deg,#f5c842 0%,#e8b800 100%);
+  padding:10px 14px 11px;
+  display:flex;flex-direction:column;gap:2px;
+  position:relative;
+  border-bottom:2px solid #c49a00;
+}
+.ask-preview-header-xbtn{
+  position:absolute;top:50%;right:9px;transform:translateY(-50%);
+  width:26px;height:26px;
+  background:rgba(160,120,0,0.3);
+  border:1.5px solid rgba(255,255,255,0.4);
+  border-radius:7px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.68rem;color:#3a2e00;font-weight:700;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.25);
+}
+.ask-preview-body{
+  background:linear-gradient(180deg,#fffef5 0%,#fdfbec 100%);
+  flex:1;padding:12px 14px;
+  display:flex;flex-direction:column;gap:8px;align-items:center;
+}
+.ask-preview-icon{display:none}
+.ask-preview-title{font-size:.82rem;font-weight:800;color:#3a2e00;letter-spacing:-.1px}
+.ask-preview-sub{font-size:.62rem;color:rgba(60,46,0,0.7);line-height:1.4}
+.ask-preview-input-mock{width:100%;background:rgba(255,255,255,0.9);border:1.5px solid rgba(180,140,0,0.25);border-radius:8px;padding:8px 12px;font-size:.72rem;color:#b8a050;font-style:italic;text-align:left;box-shadow:inset 0 1px 3px rgba(0,0,0,0.04)}
+.ask-preview-btn-mock{background:linear-gradient(135deg,#f0c800,#d4a800);color:#3a2e00;font-size:.7rem;font-weight:800;padding:7px 28px;border-radius:8px;opacity:.9;box-shadow:0 3px 10px rgba(180,140,0,0.3);font-family:var(--f)}
+
+/* ── BACKGROUND SWATCHES ── */
+.bg-color-swatch{width:28px;height:28px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all .18s;flex-shrink:0}
+.bg-color-swatch:hover{transform:scale(1.15);border-color:var(--green)}
+.bg-color-swatch.active{border-color:var(--green);box-shadow:0 0 0 2px rgba(30,215,96,0.3)}
+
+/* ── STICKER SYSTEM ── */
+.sticker-el{width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:visible}
+.sticker-el img{width:100%;height:100%;object-fit:contain;display:block;border-radius:0;filter:drop-shadow(0 2px 8px rgba(0,0,0,0.5))}
+.sticker-upload-zone{display:flex;align-items:center;justify-content:center;gap:8px;background:rgba(255,255,255,0.04);border:1.5px dashed var(--border);border-radius:10px;padding:24px 14px;cursor:pointer;transition:all .2s;font-size:.82rem;color:var(--sub);width:100%;flex-direction:column;text-align:center}
+.sticker-upload-zone:hover{border-color:var(--green);color:var(--green);background:rgba(30,215,96,0.05)}
+.sticker-upload-zone svg{width:28px;height:28px;margin-bottom:4px;opacity:.6}
+.sticker-canvas-wrap{position:relative;width:100%;display:flex;justify-content:center;margin-bottom:12px;min-height:160px;align-items:center}
+#sticker-preview-canvas{border-radius:12px;border:1px solid var(--border);background:repeating-conic-gradient(#2a2a2a 0% 25%, #1a1a1a 0% 50%) 0 0 / 16px 16px;max-width:100%;max-height:220px;display:none}
+#sticker-preview-img{max-width:100%;max-height:220px;display:none;border-radius:8px}
+.sticker-processing{display:none;flex-direction:column;align-items:center;gap:10px;padding:30px;color:var(--sub);font-size:.78rem}
+.sticker-processing.active{display:flex}
+.sp-spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sticker-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;max-height:220px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--card) transparent}
+.sticker-thumb{aspect-ratio:1;border-radius:10px;background:repeating-conic-gradient(#2a2a2a 0% 25%, #1a1a1a 0% 50%) 0 0 / 12px 12px;border:2px solid var(--border);cursor:pointer;overflow:hidden;display:flex;align-items:center;justify-content:center;transition:all .18s;position:relative}
+.sticker-thumb:hover{border-color:var(--green);transform:scale(1.05)}
+.sticker-thumb img{width:80%;height:80%;object-fit:contain;filter:drop-shadow(0 1px 4px rgba(0,0,0,0.4))}
+.sticker-thumb .st-del{position:absolute;top:3px;right:3px;background:rgba(0,0,0,0.7);border:none;border-radius:50%;width:18px;height:18px;font-size:.55rem;color:var(--sub);cursor:pointer;display:none;align-items:center;justify-content:center;line-height:1}
+.sticker-thumb:hover .st-del{display:flex}
+.sticker-thumb .st-del:hover{color:#ff5555;background:rgba(255,85,85,0.2)}
+.sticker-tabs{display:flex;gap:6px;margin-bottom:14px}
+.sticker-tab{flex:1;padding:8px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--sub);font-family:var(--f);font-size:.72rem;cursor:pointer;transition:all .18s;font-weight:600}
+.sticker-tab.active{border-color:var(--green);background:var(--green-dim);color:var(--green)}
+.bg-method-row{display:flex;gap:6px;margin-bottom:12px}
+.bg-method-btn{flex:1;padding:7px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--sub);font-family:var(--f);font-size:.68rem;cursor:pointer;transition:all .18s}
+.bg-method-btn.active{border-color:var(--green);background:var(--green-dim);color:var(--green)}
+
+/* ── MOBILE HEADER (vibeprofile editor) ── */
+#sp-mobile-header{
+  display:none;
+  position:fixed;top:0;left:0;right:0;
+  height:54px;
+  background:rgba(13,13,13,0.96);
+  border-bottom:1px solid var(--border);
+  z-index:1100;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 14px;
+  gap:10px;
+  backdrop-filter:blur(20px);
+}
+.sph-left{display:flex;align-items:center;gap:8px;}
+.sph-back{background:none;border:none;color:var(--sub);cursor:pointer;padding:4px;display:flex;align-items:center;}
+.sph-back svg{width:20px;height:20px;}
+.sph-logo{width:26px;height:26px;background:linear-gradient(135deg,var(--green),#1a9e50);border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.sph-logo svg{width:13px;height:13px;color:#000;}
+.sph-title{font-size:.88rem;font-weight:800;letter-spacing:-.3px;}
+.sph-badge{font-size:.55rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--green);background:var(--green-dim);border:1px solid rgba(30,215,96,.25);border-radius:50px;padding:2px 7px;white-space:nowrap;}
+.sph-right{display:flex;align-items:center;gap:6px;}
+.sph-btn{background:none;border:1px solid var(--border);border-radius:10px;color:var(--sub);cursor:pointer;padding:6px 8px;display:flex;align-items:center;justify-content:center;transition:all .2s;}
+.sph-btn svg{width:16px;height:16px;}
+.sph-btn:hover{border-color:var(--green);color:var(--green);}
+.sph-share-btn{background:linear-gradient(135deg,var(--green),#1a9e50)!important;border:none!important;color:#000!important;font-family:var(--f);font-weight:700;font-size:.75rem;padding:6px 12px;border-radius:50px;display:flex;align-items:center;gap:5px;}
+.sph-share-btn svg{width:14px;height:14px;}
+
+/* ── MOBILE EDITOR BAR UPGRADE ── */
+@media(max-width:660px){
+  #sp-mobile-header{display:flex;}
+  #page-wrap{padding-top:54px;padding-bottom:90px;}
+  #editor{
+    height:56px;padding:0 8px;gap:0;
+    overflow-x:auto;scrollbar-width:none;
+  }
+  #editor::-webkit-scrollbar{display:none;}
+  .ed-body{gap:4px;padding:0 4px;overflow-x:auto;}
+  .ed-btn{width:40px;height:40px;flex-shrink:0;}
+  .ed-btn svg{width:16px;height:16px;}
+  .ed-divider{display:none;}
+  #bar-toggle{display:none;}
+  .widget.sel .w-bar{top:-26px;}
+  /* Sembunyikan resize handle di mobile — ukuran diatur dari PC */
+  .rh{display:none !important;}
+  .rot-handle,.rot-line{display:none !important;}
+  /* Sembunyikan tombol background di header mobile */
+  .sph-btn{display:none !important;}
+}
+</style>
+</head>
+<body>
+
+<!-- MOBILE HEADER (only visible on mobile) -->
+<div id="sp-mobile-header">
+  <div class="sph-left">
+    <button class="sph-back" onclick="history.back()" title="Back">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+    </button>
+    <div class="sph-logo">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+    </div>
+    <span class="sph-title">VibeProfile</span>
+    <span class="sph-badge">Editor</span>
+  </div>
+  <div class="sph-right">
+    <button class="sph-btn" onclick="openModal('bg')" title="Background">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none"/><path d="M21 15l-6-6L3 21"/></svg>
+    </button>
+    <button class="sph-share-btn" onclick="openShareModal()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+      Share
+    </button>
+  </div>
+</div>
+
+<div id="page-wrap">
+  <div id="free-zone">
+    <div id="header-zone"></div>
+  </div>
+  <div id="page-resize-handle">
+    <span class="rh-tooltip">SERET UNTUK ATUR TINGGI</span>
+  </div>
+
+<!-- BOTTOM EDITOR BAR -->
+<div id="editor">
+  <div class="ed-body">
+    <div class="ed-section">
+      <button class="ed-btn" onclick="openModal('sticker')" title="Buat Stiker">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c1.85 0 3.58-.53 5.04-1.44L21 21l-.56-3.96A9.96 9.96 0 0022 12C22 6.48 17.52 2 12 2z"/><path d="M8 12s1.5 2 4 2 4-2 4-2"/><circle cx="9" cy="9" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="9" r="1" fill="currentColor" stroke="none"/></svg>
+      </button>
+      <input type="file" id="profile-upload" accept="image/*" style="display:none" onchange="handleProfileUpload(event)">
+    </div>
+    <div class="ed-divider"></div>
+    <div class="ed-section">
+      <button class="ed-btn" onclick="openModal('music')" title="Add Music Card">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13M9 18a3 3 0 11-6 0M21 16a3 3 0 11-6 0"/></svg>
+      </button>
+      <button class="ed-btn" onclick="document.getElementById('photo-upload').click()" title="Upload Photo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+      </button>
+      <input type="file" id="photo-upload" accept="image/*" style="display:none" onchange="handlePhotoUpload(event)">
+      <button class="ed-btn" onclick="openModal('text')" title="Add Text Block">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h7"/></svg>
+      </button>
+      <button class="ed-btn" onclick="openModal('gif')" title="Add GIF">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="3"/><path d="M12 8v8M8 12h8"/></svg>
+      </button>
+    </div>
+    <div class="ed-divider"></div>
+    <div class="ed-section">
+      <button class="ed-btn" onclick="openModal('bg')" title="Ganti Background">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none"/><path d="M21 15l-6-6L3 21"/></svg>
+      </button>
+    </div>
+    <div class="ed-divider"></div>
+    <div class="ed-section">
+      <button class="ed-btn" onclick="addAskWidget()" title="Add Ask Me Anonymous widget" style="position:relative" id="ask-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/><line x1="9" y1="10" x2="9" y2="10" stroke-width="3" stroke-linecap="round"/><line x1="12" y1="10" x2="12" y2="10" stroke-width="3" stroke-linecap="round"/><line x1="15" y1="10" x2="15" y2="10" stroke-width="3" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="ed-divider"></div>
+    <div class="ed-section">
+      <button class="ed-btn" onclick="toggleQueue()" title="Queue / Play Order" id="queue-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h12"/></svg>
+      </button>
+    </div>
+    <div class="ed-divider"></div>
+    <div class="ed-section">
+      <button class="ed-btn ed-btn-share" onclick="openShareModal()" title="Bagikan Halaman" id="share-btn" style="background:rgba(30,215,96,0.12);border-color:rgba(30,215,96,0.35);color:var(--green)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<button id="bar-toggle" onclick="document.getElementById('editor').classList.toggle('hidden')" title="Toggle editor">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+</button>
+
+<!-- MINI PLAYER -->
+<div id="mini-player">
+  <div class="mp-top">
+    <img class="mp-art" id="mp-art" src="" alt="">
+    <div class="mp-info">
+      <div class="mp-title" id="mp-title">—</div>
+      <div class="mp-artist" id="mp-artist">—</div>
+    </div>
+    <div class="mp-controls">
+      <button class="mp-btn" onclick="prevTrack()" title="Previous">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
+      </button>
+      <button class="mp-play" id="mp-play-btn" onclick="togglePlay()">
+        <svg class="icon-play" viewBox="0 0 24 24" fill="black"><path d="M8 5v14l11-7z"/></svg>
+        <svg class="icon-pause" viewBox="0 0 24 24" fill="black" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+      </button>
+      <button class="mp-btn" onclick="nextTrack()" title="Next">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zm2.5-6 6-4.3v8.6L8.5 12zM16 6h2v12h-2z"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="mp-progress-wrap">
+    <span class="mp-time" id="mp-current">0:00</span>
+    <div class="mp-progress" id="mp-progress" onclick="seekTo(event)">
+      <div class="mp-bar" id="mp-bar"></div>
+    </div>
+    <span class="mp-time" id="mp-duration">0:00</span>
+  </div>
+</div>
+
+<!-- QUEUE OVERLAY (mobile only) -->
+<div id="queue-overlay" onclick="toggleQueue()"></div>
+
+<!-- QUEUE PANEL -->
+<div id="queue-panel">
+  <div class="qp-head">
+    <span class="qp-title">🎵 Play Queue <span id="queue-count" style="color:var(--green);font-family:var(--fm);font-size:.6rem"></span></span>
+    <button class="qp-close" onclick="toggleQueue()">×</button>
+  </div>
+  <div id="queue-empty" style="display:none"><span>😶</span>No songs in queue yet.</div>
+  <div id="queue-list"></div>
+</div>
+
+<div id="toast"></div>
+
+<!-- MODAL MUSIC -->
+<div class="modal-overlay" id="modal-music">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title">Add Music Card</span><button class="modal-close" onclick="closeModal('music')">×</button></div>
+    <div class="modal-search-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input class="modal-search" id="music-q" placeholder="Search song or artist..." onkeydown="if(event.key==='Enter')searchMusic('music-q','music-grid-res')">
+      <button class="modal-search-btn" onclick="searchMusic('music-q','music-grid-res')">Search</button>
+    </div>
+    <div id="music-grid-res" class="modal-grid"><div class="modal-empty"><span>🎵</span>Ketik untuk mencari</div></div>
+  </div>
+</div>
+
+<!-- MODAL EDIT TEXT -->
+<div class="modal-overlay" id="modal-edit-text">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title">✎ Edit Teks</span><button class="modal-close" onclick="document.getElementById('modal-edit-text').classList.remove('open')">×</button></div>
+    <input type="hidden" id="edit-text-wid">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+      <span style="font-size:.72rem;color:var(--sub);white-space:nowrap;min-width:72px">Ukuran Teks</span>
+      <input type="range" id="edit-text-fontsize" min="10" max="72" value="16" step="1" style="flex:1;accent-color:var(--green);cursor:pointer" oninput="document.getElementById('edit-text-fontsize-val').textContent=this.value+'px';document.getElementById('edit-text-preview').style.fontSize=this.value+'px'">
+      <span id="edit-text-fontsize-val" style="font-size:.72rem;color:var(--green);font-family:var(--fm);min-width:32px;text-align:right">16px</span>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:12px">
+      <button id="etbtn-normal" onclick="setEditTextWeight('normal')" style="flex:1;padding:7px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim);color:var(--green);font-family:var(--f);font-size:.72rem;cursor:pointer;font-weight:400">Normal</button>
+      <button id="etbtn-bold" onclick="setEditTextWeight('bold')" style="flex:1;padding:7px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--sub);font-family:var(--f);font-size:.72rem;cursor:pointer;font-weight:700">Bold</button>
+      <button id="etbtn-300" onclick="setEditTextWeight('300')" style="flex:1;padding:7px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--sub);font-family:var(--f);font-size:.72rem;cursor:pointer;font-weight:300">Light</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+      <span style="font-size:.72rem;color:var(--sub);white-space:nowrap">Warna</span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <div onclick="setEditTextColor('#ffffff')" style="width:22px;height:22px;border-radius:50%;background:#ffffff;cursor:pointer;border:2px solid var(--green)"></div>
+        <div onclick="setEditTextColor('#a8a8a8')" style="width:22px;height:22px;border-radius:50%;background:#a8a8a8;cursor:pointer;border:2px solid transparent"></div>
+        <div onclick="setEditTextColor('#1ed760')" style="width:22px;height:22px;border-radius:50%;background:#1ed760;cursor:pointer;border:2px solid transparent"></div>
+        <div onclick="setEditTextColor('#ff6b6b')" style="width:22px;height:22px;border-radius:50%;background:#ff6b6b;cursor:pointer;border:2px solid transparent"></div>
+        <div onclick="setEditTextColor('#4ecdc4')" style="width:22px;height:22px;border-radius:50%;background:#4ecdc4;cursor:pointer;border:2px solid transparent"></div>
+        <div onclick="setEditTextColor('#ffd93d')" style="width:22px;height:22px;border-radius:50%;background:#ffd93d;cursor:pointer;border:2px solid transparent"></div>
+        <div onclick="setEditTextColor('#a78bfa')" style="width:22px;height:22px;border-radius:50%;background:#a78bfa;cursor:pointer;border:2px solid transparent"></div>
+        <div onclick="setEditTextColor('#f97316')" style="width:22px;height:22px;border-radius:50%;background:#f97316;cursor:pointer;border:2px solid transparent"></div>
+      </div>
+      <input type="color" id="edit-text-custom-color" value="#ffffff" style="width:26px;height:26px;border:none;border-radius:50%;cursor:pointer;background:none;padding:0" oninput="setEditTextColor(this.value)">
+    </div>
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:12px;min-height:56px;display:flex;align-items:center">
+      <p id="edit-text-preview" style="font-size:16px;color:#ffffff;font-weight:400;line-height:1.5;word-break:break-word;font-family:'Space Grotesk',sans-serif;margin:0;width:100%">Preview teks...</p>
+    </div>
+    <textarea id="edit-text-input" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:.82rem;min-height:90px;outline:none;resize:vertical;margin-bottom:10px" placeholder="Type text here..." oninput="document.getElementById('edit-text-preview').textContent=this.value||'Preview teks...'"></textarea>
+    <button class="ed-save-btn" onclick="saveEditText()">✓ Save Changes</button>
+  </div>
+</div>
+
+<!-- MODAL TEXT -->
+<div class="modal-overlay" id="modal-text">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title">Add Text Block</span><button class="modal-close" onclick="closeModal('text')">×</button></div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+      <span style="font-size:.72rem;color:var(--sub);white-space:nowrap;min-width:72px">Ukuran Teks</span>
+      <input type="range" id="text-fontsize" min="10" max="72" value="16" step="1" style="flex:1;accent-color:var(--green);cursor:pointer" oninput="document.getElementById('text-fontsize-val').textContent=this.value+'px';document.getElementById('text-preview').style.fontSize=this.value+'px'">
+      <span id="text-fontsize-val" style="font-size:.72rem;color:var(--green);font-family:var(--fm);min-width:32px;text-align:right">16px</span>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:12px">
+      <button id="tbtn-normal" onclick="setTextWeight('normal')" style="flex:1;padding:7px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim);color:var(--green);font-family:var(--f);font-size:.72rem;cursor:pointer;font-weight:400">Normal</button>
+      <button id="tbtn-bold" onclick="setTextWeight('bold')" style="flex:1;padding:7px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--sub);font-family:var(--f);font-size:.72rem;cursor:pointer;font-weight:700">Bold</button>
+      <button id="tbtn-light" onclick="setTextWeight('300')" style="flex:1;padding:7px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--sub);font-family:var(--f);font-size:.72rem;cursor:pointer;font-weight:300">Light</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+      <span style="font-size:.72rem;color:var(--sub);white-space:nowrap">Warna</span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <div onclick="setTextColor('#ffffff')" style="width:22px;height:22px;border-radius:50%;background:#ffffff;cursor:pointer;border:2px solid var(--green)"></div>
+        <div onclick="setTextColor('#a8a8a8')" style="width:22px;height:22px;border-radius:50%;background:#a8a8a8;cursor:pointer;border:2px solid transparent"></div>
+        <div onclick="setTextColor('#1ed760')" style="width:22px;height:22px;border-radius:50%;background:#1ed760;cursor:pointer;border:2px solid transparent"></div>
+        <div onclick="setTextColor('#ff6b6b')" style="width:22px;height:22px;border-radius:50%;background:#ff6b6b;cursor:pointer;border:2px solid transparent"></div>
+        <div onclick="setTextColor('#4ecdc4')" style="width:22px;height:22px;border-radius:50%;background:#4ecdc4;cursor:pointer;border:2px solid transparent"></div>
+        <div onclick="setTextColor('#ffd93d')" style="width:22px;height:22px;border-radius:50%;background:#ffd93d;cursor:pointer;border:2px solid transparent"></div>
+        <div onclick="setTextColor('#a78bfa')" style="width:22px;height:22px;border-radius:50%;background:#a78bfa;cursor:pointer;border:2px solid transparent"></div>
+        <div onclick="setTextColor('#f97316')" style="width:22px;height:22px;border-radius:50%;background:#f97316;cursor:pointer;border:2px solid transparent"></div>
+      </div>
+      <input type="color" id="text-custom-color" value="#ffffff" style="width:26px;height:26px;border:none;border-radius:50%;cursor:pointer;background:none;padding:0" oninput="setTextColor(this.value)">
+    </div>
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:12px;min-height:56px;display:flex;align-items:center">
+      <p id="text-preview" style="font-size:16px;color:#ffffff;font-weight:400;line-height:1.5;word-break:break-word;font-family:'Space Grotesk',sans-serif">Text preview...</p>
+    </div>
+    <textarea id="text-input" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:.82rem;min-height:90px;outline:none;resize:vertical;margin-bottom:10px" placeholder="Type text here..." oninput="document.getElementById('text-preview').textContent=this.value||'Text preview...'"></textarea>
+    <button class="ed-save-btn" onclick="addTextEl()">Add to Page</button>
+  </div>
+</div>
+
+<!-- MODAL GIF -->
+<div class="modal-overlay" id="modal-gif">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title">Add GIF via Giphy</span><button class="modal-close" onclick="closeModal('gif')">×</button></div>
+    <div class="modal-search-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input class="modal-search" id="gif-q" placeholder="Search GIF..." onkeydown="if(event.key==='Enter')searchGifs()">
+      <button class="modal-search-btn" id="gif-search-btn" onclick="searchGifs()">Search</button>
+    </div>
+    <div id="gif-grid-res" class="gif-grid"><div class="modal-empty" style="grid-column:1/-1"><span>✨</span>Search GIFs from Giphy</div></div>
+  </div>
+</div>
+
+<!-- MODAL STICKER MAKER -->
+<div class="modal-overlay" id="modal-sticker">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">🎨 Buat Stiker</span>
+      <button class="modal-close" onclick="closeModal('sticker')">×</button>
+    </div>
+    <div class="sticker-tabs">
+      <button class="sticker-tab active" id="stab-create" onclick="switchStickerTab('create')">✦ Create New</button>
+      <button class="sticker-tab" id="stab-library" onclick="switchStickerTab('library')">🗂 Koleksi Stiker</button>
+    </div>
+
+    <!-- TAB CREATE -->
+    <div id="sticker-tab-create">
+      <!-- Upload zone -->
+      <div id="sticker-upload-area">
+        <label class="sticker-upload-zone" for="sticker-file-input">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Upload Foto untuk Stiker
+          <span style="font-size:.65rem;color:var(--muted);margin-top:2px">PNG, JPG, WEBP — max 5MB</span>
+        </label>
+        <input type="file" id="sticker-file-input" accept="image/*" style="display:none" onchange="loadStickerImage(event)">
+      </div>
+
+      <!-- Processing spinner -->
+      <div class="sticker-processing" id="sticker-processing">
+        <div class="sp-spinner"></div>
+        <span id="sticker-proc-label">Memproses...</span>
+      </div>
+
+      <!-- Preview canvas + controls -->
+      <div id="sticker-preview-area" style="display:none">
+        <div class="sticker-canvas-wrap">
+          <canvas id="sticker-preview-canvas"></canvas>
+          <img id="sticker-preview-img" alt="sticker preview">
+        </div>
+
+        <!-- BG removal method selector -->
+        <div style="font-size:.68rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:7px">Remove Background</div>
+        <div class="bg-method-row">
+          <button class="bg-method-btn active" id="bgm-auto" onclick="selectBgMethod('auto')">✦ Otomatis</button>
+          <button class="bg-method-btn" id="bgm-color" onclick="selectBgMethod('color')">🎨 By Warna</button>
+          <button class="bg-method-btn" id="bgm-none" onclick="selectBgMethod('none')">— Tanpa BG</button>
+        </div>
+
+        <!-- Color threshold (shown only for 'color' method) -->
+        <div id="bgm-color-opts" style="display:none;margin-bottom:10px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:7px">
+            <span style="font-size:.7rem;color:var(--sub);white-space:nowrap">Warna BG</span>
+            <input type="color" id="sticker-bg-color" value="#ffffff" style="width:28px;height:28px;border:none;border-radius:50%;cursor:pointer;background:none;padding:0" oninput="applyColorRemoval()">
+            <span style="font-size:.65rem;color:var(--muted)">Klik area foto untuk sample warna</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:.7rem;color:var(--sub);white-space:nowrap">Toleransi</span>
+            <input type="range" id="sticker-tolerance" min="5" max="120" value="40" step="5" style="flex:1;accent-color:var(--green);cursor:pointer" oninput="document.getElementById('sticker-tol-val').textContent=this.value;applyColorRemoval()">
+            <span id="sticker-tol-val" style="font-size:.7rem;color:var(--green);font-family:var(--fm);min-width:24px;text-align:right">40</span>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:4px">
+          <button onclick="removeStickerBg()" id="btn-remove-bg" style="flex:1;padding:9px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:8px;color:var(--sub);font-family:var(--f);font-size:.75rem;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='var(--green)';this.style.color='var(--green)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--sub)'">✦ Remove Background</button>
+          <button onclick="resetStickerImg()" style="padding:9px 14px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px;color:var(--sub);font-family:var(--f);font-size:.75rem;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='#ff5555';this.style.color='#ff5555'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--sub)'">↺</button>
+        </div>
+
+        <button class="ed-save-btn" style="margin-top:10px" onclick="saveSticker()">💾 Save & Use Sticker</button>
+      </div>
+    </div>
+
+    <!-- TAB LIBRARY -->
+    <div id="sticker-tab-library" style="display:none">
+      <div id="sticker-grid-wrap">
+        <div class="sticker-grid" id="sticker-grid"></div>
+        <div id="sticker-grid-empty" style="text-align:center;padding:30px;color:var(--muted);font-size:.78rem;display:none"><span style="display:block;font-size:2rem;margin-bottom:8px">🎨</span>No stickers yet. Create a new sticker first!</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL BACKGROUND -->
+<div class="modal-overlay" id="modal-bg">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title">🖼 Ganti Background</span><button class="modal-close" onclick="closeModal('bg')">×</button></div>
+
+    <!-- Preview -->
+    <div id="bg-preview" style="width:100%;height:100px;border-radius:10px;border:1px solid var(--border);margin-bottom:16px;background:var(--bg);background-size:cover;background-position:center;transition:all .3s;position:relative;overflow:hidden">
+      <span id="bg-preview-label" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.72rem;color:var(--muted)">Preview background</span>
+    </div>
+
+    <!-- Upload foto -->
+    <div style="margin-bottom:14px">
+      <div style="font-size:.7rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Upload Foto</div>
+      <label id="bg-upload-label" style="display:flex;align-items:center;justify-content:center;gap:8px;background:rgba(255,255,255,0.04);border:1.5px dashed var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:all .2s;font-size:.82rem;color:var(--sub)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Klik untuk pilih foto
+        <input type="file" id="bg-upload" accept="image/*" style="display:none" onchange="handleBgUpload(event)">
+      </label>
+    </div>
+
+    <!-- Pilihan warna solid -->
+    <div style="margin-bottom:16px">
+      <div style="font-size:.7rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Warna Solid</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <div class="bg-color-swatch" onclick="setBgColor('#0d0d0d')" style="background:#0d0d0d" title="Default Dark"></div>
+        <div class="bg-color-swatch" onclick="setBgColor('#111827')" style="background:#111827" title="Midnight"></div>
+        <div class="bg-color-swatch" onclick="setBgColor('#1a0a2e')" style="background:#1a0a2e" title="Deep Purple"></div>
+        <div class="bg-color-swatch" onclick="setBgColor('#0a1628')" style="background:#0a1628" title="Ocean"></div>
+        <div class="bg-color-swatch" onclick="setBgColor('#0d1a0d')" style="background:#0d1a0d" title="Forest"></div>
+        <div class="bg-color-swatch" onclick="setBgColor('#1a0a0a')" style="background:#1a0a0a" title="Deep Red"></div>
+        <div class="bg-color-swatch" onclick="setBgColor('#0a0a0a')" style="background:#0a0a0a" title="Pure Black"></div>
+        <div class="bg-color-swatch" onclick="setBgColor('#1c1c1c')" style="background:#1c1c1c" title="Charcoal"></div>
+        <input type="color" id="bg-custom-color" value="#0d0d0d" title="Pilih warna custom"
+          style="width:28px;height:28px;border:2px solid var(--border);border-radius:50%;cursor:pointer;background:none;padding:0;outline:none"
+          oninput="setBgColor(this.value)">
+      </div>
+    </div>
+
+    <!-- Opacity overlay untuk foto -->
+    <div id="bg-overlay-row" style="margin-bottom:16px;display:none">
+      <div style="font-size:.7rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Kegelapan Overlay</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <input type="range" id="bg-overlay-slider" min="0" max="90" value="30" step="5"
+          style="flex:1;accent-color:var(--green);cursor:pointer"
+          oninput="setBgOverlay(this.value)">
+        <span id="bg-overlay-val" style="font-size:.72rem;color:var(--green);font-family:var(--fm);min-width:32px;text-align:right">30%</span>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px">
+      <button class="ed-save-btn" style="flex:1" onclick="applyBg()">✓ Terapkan</button>
+      <button onclick="resetBg()" style="background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:8px;padding:9px 16px;color:var(--sub);font-family:var(--f);font-size:.78rem;cursor:pointer;transition:all .2s;white-space:nowrap" onmouseover="this.style.borderColor='var(--green)';this.style.color='var(--green)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--sub)'">↺ Reset</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const GIPHY_KEY='GlVGYHkr3WSBnllca54iNt0yFbjz7L65';
+const WORKER='https://fancy-band-d65b.alpinofficial26.workers.dev';
+const MIN_W=60, MIN_H=40;
+const ZONE_MIN_H=380;
+
+let favorites = JSON.parse(localStorage.getItem('sp_favorites')||'[]');
+let pageInfo  = JSON.parse(localStorage.getItem('sp_info')||'{}');
+// Bersihkan foto bg lama yang tersimpan sebagai base64 di localStorage (penyebab QuotaExceededError)
+if(pageInfo.bg && pageInfo.bg.type==='image' && pageInfo.bg.value && pageInfo.bg.value.startsWith('data:')){
+  try{ sessionStorage.setItem('sp_bg_img', pageInfo.bg.value); }catch(e){}
+  delete pageInfo.bg.value;
+  pageInfo.bg.hasImg=true;
+  try{ localStorage.setItem('sp_info', JSON.stringify(pageInfo)); }catch(e){}
+}
+let hwState   = JSON.parse(localStorage.getItem('sp_hw')||'{}');
+let elData    = JSON.parse(localStorage.getItem('sp_els')||'[]');
+let wCounter  = 0;
+
+// ── YOUTUBE PLAYER ──
+let YTP = null;
+let queue = []; // [{id, title, artist, thumb, preview}]
+let queueIndex = -1;
+let isPlaying = false;
+let cur = 0, tot = 0;
+let raf = null;
+let curTrack = null;
+let lyrCache = {};
+
+// rAF-based progress
+function ft(s){ if(!s||isNaN(s))return'0:00'; return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0'); }
+function updateProgress(){
+  const af=document.getElementById('sp-audio-fallback');
+  if(YTP){
+    try{ cur=YTP.getCurrentTime()||cur; tot=YTP.getDuration()||tot; }catch(e){}
+  } else if(af&&af.src&&!af.paused){
+    cur=af.currentTime||cur; tot=af.duration||tot;
+  }
+  document.getElementById('mp-current').textContent=ft(cur);
+  document.getElementById('mp-duration').textContent=ft(tot);
+  document.getElementById('mp-bar').style.width=(tot?(cur/tot*100):0)+'%';
+  if(isPlaying) raf=requestAnimationFrame(updateProgress);
+}
+function seekTo(e){
+  const rect=document.getElementById('mp-progress').getBoundingClientRect();
+  const ratio=(e.clientX-rect.left)/rect.width;
+  if(YTP&&tot) YTP.seekTo(ratio*tot, true);
+}
+
+// YouTube IFrame API loader
+(function loadYTApi(){
+  if(document.getElementById('yt-api-script'))return;
+  const tag=document.createElement('script');
+  tag.id='yt-api-script';
+  tag.src='https://www.youtube.com/iframe_api';
+  document.head.appendChild(tag);
+})();
+window.onYouTubeIframeAPIReady=function(){
+  window._ytApiReady=true;
+  if(window._pendingVideoId){_createYTPlayer(window._pendingVideoId);window._pendingVideoId=null;}
+};
+function _createYTPlayer(videoId, expectedToken){
+  if(YTP){try{YTP.destroy();}catch(e){} YTP=null;}
+  let wrap=document.getElementById('yt-player-wrap');
+  if(!wrap){wrap=document.createElement('div');wrap.id='yt-player-wrap';wrap.style.cssText='position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-9999px';document.body.appendChild(wrap);}
+  wrap.innerHTML='<div id="yt-player"></div>';
+  YTP=new YT.Player('yt-player',{
+    width:'1',height:'1',videoId,
+    playerVars:{autoplay:1,controls:0,playsinline:1,rel:0,modestbranding:1},
+    events:{
+      onReady(e){ if(expectedToken!==_playToken)return; e.target.setVolume(80); e.target.playVideo(); },
+      onStateChange(e){
+        if(expectedToken!==_playToken)return;
+        if(e.data===YT.PlayerState.PLAYING){
+          isPlaying=true;
+          updatePlayerUIPlaying();
+          cancelAnimationFrame(raf); raf=requestAnimationFrame(updateProgress);
+        } else if(e.data===YT.PlayerState.PAUSED){
+          isPlaying=false; updatePlayerUIPaused(); cancelAnimationFrame(raf);
+        } else if(e.data===YT.PlayerState.ENDED){
+          isPlaying=false; cancelAnimationFrame(raf); nextTrack();
+        }
+      },
+      onError(e){ if(expectedToken!==_playToken)return; toast('⚠ Video could not be played, try another song'); }
+    }
+  });
+}
+function initYTPlayer(videoId, token){
+  if(!videoId) return Promise.resolve();
+  return new Promise(resolve=>{
+    if(window._ytApiReady&&window.YT&&window.YT.Player){_createYTPlayer(videoId, token);resolve();}
+    else{window._pendingVideoId=videoId;const check=setInterval(()=>{if(window._ytApiReady){clearInterval(check);resolve();}},100);}
+  });
+}
+async function resolveVid(query){
+  try{
+    const url=`${WORKER}/search?q=${encodeURIComponent(query)}`;
+    const res=await fetch(url,{signal:AbortSignal.timeout(10000)});
+    if(!res.ok)return null;
+    const data=await res.json(); return data.videoId||null;
+  }catch(e){ return null; }
+}
+
+// Token to cancel previous search if song changes
+let _playToken = 0;
+
+function sanitizeQuery(s){ return (s||'').replace(/[^\w\s\-]/g,' ').replace(/\s+/g,' ').trim(); }
+
+async function playTrackAtIndex(idx){
+  if(idx<0||idx>=queue.length)return;
+  queueIndex=idx;
+  const t=queue[idx];
+  // Pastikan field tidak undefined
+  const title  = t.title  || '';
+  const artist = t.artist || '';
+  curTrack=t;
+  isPlaying=false;
+  cancelAnimationFrame(raf);
+  // Hentikan audio fallback lama
+  const afOld=document.getElementById('sp-audio-fallback');
+  if(afOld){afOld.pause();afOld.src='';}
+
+  updatePlayerUI(t);
+  renderQueue();
+  updateAllCardState();
+
+  // Create new token — if song changes before resolve finishes, old token is invalid
+  const token = ++_playToken;
+  toast('▶ Searching: '+(title||'song'));
+
+  const q1 = sanitizeQuery(artist+' '+title+' official audio');
+  const q2 = sanitizeQuery(artist+' '+title);
+  const videoId = (q1 ? await resolveVid(q1) : null) || (q2 ? await resolveVid(q2) : null);
+
+  // If a newer request already exists, cancel
+  if(token !== _playToken) return;
+
+  if(videoId){
+    await initYTPlayer(videoId, token).catch(()=>toast('⚠ Failed to load video'));
+    if(token !== _playToken) return;
+    toast('▶ '+(title||'song'));
+  } else {
+    // Fallback ke preview iTunes jika ada
+    if(t.preview){
+      let audio=document.getElementById('sp-audio-fallback');
+      if(!audio){
+        const a=document.createElement('audio');
+        a.id='sp-audio-fallback';
+        a.style='display:none';
+        a.addEventListener('ended',()=>nextTrack());
+        document.body.appendChild(a);
+        audio=a;
+      }
+      audio.src=t.preview;
+      audio.play().catch(()=>{});
+      isPlaying=true; updatePlayerUIPlaying();
+      raf=requestAnimationFrame(updateProgress);
+      toast('▶ '+(title||'song')+' (preview)');
+    } else {
+      toast('⚠ No video found for: '+(title||'this song'));
+    }
+  }
+}
+
+function updatePlayerUI(t){
+  document.getElementById('mp-art').src=t.thumb||'';
+  document.getElementById('mp-title').textContent=t.title||'—';
+  document.getElementById('mp-artist').textContent=t.artist||'—';
+  document.getElementById('mini-player').classList.add('visible');
+  // Naikkan mobile widget toolbar agar tidak tertutup player
+  const mwb=document.getElementById('mob-widget-bar');
+  if(mwb) mwb.classList.add('player-up');
+  updatePlayerUIPaused();
+}
+function updatePlayerUIPlaying(){
+  const pb=document.getElementById('mp-play-btn');
+  pb.querySelector('.icon-play').style.display='none';
+  pb.querySelector('.icon-pause').style.display='block';
+  const hpb=document.querySelector('.play-btn-big');
+  if(hpb){hpb.classList.add('playing');hpb.querySelector('.icon-play').style.display='none';if(hpb.querySelector('.icon-pause'))hpb.querySelector('.icon-pause').style.display='block';}
+}
+function updatePlayerUIPaused(){
+  const pb=document.getElementById('mp-play-btn');
+  pb.querySelector('.icon-play').style.display='block';
+  pb.querySelector('.icon-pause').style.display='none';
+  const hpb=document.querySelector('.play-btn-big');
+  if(hpb){hpb.classList.remove('playing');hpb.querySelector('.icon-play').style.display='block';const ip2=hpb.querySelector('.icon-pause');if(ip2)ip2.style.display='none';}
+}
+
+function updateAllCardState(){
+  document.querySelectorAll('.music-card').forEach(card=>{
+    const wid=card.closest('[data-wid]')?.dataset.wid;
+    const idx=queue.findIndex(q=>q.id===wid);
+    card.classList.toggle('now-playing', idx===queueIndex && isPlaying);
+  });
+}
+
+function togglePlay(){
+  if(!queue.length){toast('⚠ Add songs first!');return;}
+  if(queueIndex<0){playTrackAtIndex(0);return;}
+  if(isPlaying){
+    if(YTP) YTP.pauseVideo();
+    const af=document.getElementById('sp-audio-fallback');
+    if(af)af.pause();
+    isPlaying=false; updatePlayerUIPaused(); cancelAnimationFrame(raf); updateAllCardState();
+  } else {
+    if(YTP){ YTP.playVideo(); }
+    const af=document.getElementById('sp-audio-fallback');
+    if(af&&af.src) af.play().catch(()=>{});
+    isPlaying=true; updatePlayerUIPlaying(); raf=requestAnimationFrame(updateProgress); updateAllCardState();
+  }
+}
+
+function nextTrack(){
+  if(!queue.length)return;
+  const next=(queueIndex+1)%queue.length;
+  playTrackAtIndex(next);
+}
+function prevTrack(){
+  if(!queue.length)return;
+  if(cur>3&&YTP){YTP.seekTo(0,true);return;}
+  const prev=(queueIndex-1+queue.length)%queue.length;
+  playTrackAtIndex(prev);
+}
+
+function addToQueue(track){
+  // check if already in queue
+  if(queue.find(q=>q.id===track.id)){toast('⚠ Sudah ada di queue');return;}
+  queue.push(track);
+  renderQueue();
+  toast('+ Ditambahkan ke queue');
+}
+function removeFromQueue(idx){
+  if(idx===queueIndex){
+    if(YTP)YTP.pauseVideo();
+    isPlaying=false;cancelAnimationFrame(raf);
+    if(queue.length>1){
+      queue.splice(idx,1);
+      queueIndex=Math.min(queueIndex,queue.length-1);
+      playTrackAtIndex(queueIndex);
+    } else {
+      queue.splice(idx,1);
+      queueIndex=-1;isPlaying=false;
+      document.getElementById('mini-player').classList.remove('visible');
+      // Restore mobile widget toolbar
+      const mwb=document.getElementById('mob-widget-bar');
+      if(mwb) mwb.classList.remove('player-up');
+    }
+  } else {
+    if(idx<queueIndex)queueIndex--;
+    queue.splice(idx,1);
+    if(queueIndex<0&&queue.length)queueIndex=0;
+  }
+  renderQueue();
+  updateAllCardState();
+}
+
+// Queue drag-reorder
+let _qdrag=null, _qdragOver=null;
+function renderQueue(){
+  const list=document.getElementById('queue-list');
+  const empty=document.getElementById('queue-empty');
+  const countEl=document.getElementById('queue-count');
+  if(countEl) countEl.textContent = queue.length ? `(${queue.length})` : '';
+  if(!queue.length){list.innerHTML='';empty.style.display='block';return;}
+  empty.style.display='none';
+  list.innerHTML=queue.map((t,i)=>`
+    <div class="qi-item${i===queueIndex?' now':''}" data-qi="${i}"
+      draggable="true"
+      ondragstart="qDragStart(${i})"
+      ondragover="qDragOver(event,${i})"
+      ondragend="qDragEnd()"
+      onclick="playTrackAtIndex(${i})">
+      <span class="qi-drag" title="Drag to reorder">⠿</span>
+      <span class="qi-num">${i+1}</span>
+      <img class="qi-thumb" src="${esc(t.thumb)}" alt="" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect fill=%22%231e1e1e%22 width=%22100%22 height=%22100%22/%3E%3Ctext y=%2262%22 x=%2250%25%22 text-anchor=%22middle%22 font-size=%2240%22%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E'">
+      <div class="qi-info">
+        <div class="qi-name">${esc(t.title)}</div>
+        <div class="qi-art">${esc(t.artist)}</div>
+      </div>
+      <div class="qi-move-btns">
+        <button class="qi-move-btn" onclick="event.stopPropagation();qMoveUp(${i})" ${i===0?'disabled':''} title="Naik">▲</button>
+        <button class="qi-move-btn" onclick="event.stopPropagation();qMoveDown(${i})" ${i===queue.length-1?'disabled':''} title="Turun">▼</button>
+      </div>
+      <button class="qi-remove" onclick="event.stopPropagation();removeFromQueue(${i})" title="Remove from queue">✕</button>
+    </div>`).join('');
+}
+function qDragStart(i){_qdrag=i;}
+function qDragOver(e,i){
+  e.preventDefault();
+  _qdragOver=i;
+  document.querySelectorAll('.qi-item').forEach((el,idx)=>el.classList.toggle('dragging-over',idx===i&&i!==_qdrag));
+}
+function qDragEnd(){
+  if(_qdrag!==null&&_qdragOver!==null&&_qdrag!==_qdragOver){
+    const moved=queue.splice(_qdrag,1)[0];
+    queue.splice(_qdragOver,0,moved);
+    if(_qdrag===queueIndex)queueIndex=_qdragOver;
+    else if(_qdrag<queueIndex&&_qdragOver>=queueIndex)queueIndex--;
+    else if(_qdrag>queueIndex&&_qdragOver<=queueIndex)queueIndex++;
+    renderQueue();
+    updateAllCardState();
+  }
+  _qdrag=null;_qdragOver=null;
+  document.querySelectorAll('.qi-item').forEach(el=>el.classList.remove('dragging-over'));
+}
+function toggleQueue(){
+  const panel=document.getElementById('queue-panel');
+  const overlay=document.getElementById('queue-overlay');
+  const isOpen=panel.classList.contains('open');
+  panel.classList.toggle('open');
+  if(overlay) overlay.classList.toggle('open',!isOpen);
+}
+
+// ── QUEUE MOBILE UP/DOWN REORDER ──
+function qMoveUp(i){
+  if(i<=0)return;
+  const moved=queue.splice(i,1)[0];
+  queue.splice(i-1,0,moved);
+  if(i===queueIndex)queueIndex=i-1;
+  else if(i-1===queueIndex)queueIndex=i;
+  renderQueue();updateAllCardState();
+}
+function qMoveDown(i){
+  if(i>=queue.length-1)return;
+  const moved=queue.splice(i,1)[0];
+  queue.splice(i+1,0,moved);
+  if(i===queueIndex)queueIndex=i+1;
+  else if(i+1===queueIndex)queueIndex=i;
+  renderQueue();updateAllCardState();
+}
+
+// ── WIDGET ENGINE ──
+let _mode=null,_active=null;
+let _sx=0,_sy=0,_sl=0,_st=0,_sw=0,_sh=0,_sdir='';
+let _rotStartAngle=0, _rotStartDeg=0;
+let _axisLock=null; // 'x' | 'y' | null — for mobile resize axis lock
+
+// ── PINCH STATE (2-finger gesture) ──
+let _pinchActive=false, _pinchEl=null;
+let _pinchStartDist=0, _pinchStartW=0, _pinchStartH=0;
+let _pinchStartAngle=0, _pinchStartRot=0;
+let _pinchStartMidX=0, _pinchStartMidY=0, _pinchStartL=0, _pinchStartT=0;
+
+function getPinchDist(t0,t1){ return Math.hypot(t1.clientX-t0.clientX, t1.clientY-t0.clientY); }
+function getPinchAngle(t0,t1){ return Math.atan2(t1.clientY-t0.clientY, t1.clientX-t0.clientX)*(180/Math.PI); }
+function getPinchMid(t0,t1){ return {x:(t0.clientX+t1.clientX)/2, y:(t0.clientY+t1.clientY)/2}; }
+
+function getPointerAngle(e, el){
+  const rect = el.getBoundingClientRect();
+  const cx = rect.left + rect.width/2;
+  const cy = rect.top + rect.height/2;
+  return Math.atan2(e.clientY - cy, e.clientX - cx) * (180/Math.PI);
+}
+
+function setWidgetRotation(el, deg){
+  deg = ((deg % 360) + 360) % 360;
+  if(deg > 180) deg -= 360;
+  deg = Math.round(deg * 10)/10;
+  el.dataset.rotation = deg;
+  el.style.transform = deg !== 0 ? `rotate(${deg}deg)` : '';
+  const wr = document.getElementById('wr-'+el.dataset.wid);
+  if(wr) wr.textContent = Math.round(deg) + '°';
+  // sync mobile bar
+  const rs = document.getElementById('mwb-rot-slider');
+  const rv = document.getElementById('mwb-rot-val');
+  if(rs) rs.value = deg;
+  if(rv) rv.textContent = Math.round(deg) + '°';
+}
+
+function rotateWidget(wid, delta, reset=false){
+  const el = document.querySelector(`[data-wid="${wid}"]`);
+  if(!el) return;
+  const cur = parseFloat(el.dataset.rotation) || 0;
+  const newDeg = reset ? 0 : cur + delta;
+  setWidgetRotation(el, newDeg);
+  saveWidgetState(el);
+}
+
+// ── MOBILE BAR helpers ──
+let _mwbWid = null;
+function mwbShow(el){
+  if(!el){ mwbHide(); return; }
+  const noRotate = el.classList.contains('no-rotate');
+  const bar = document.getElementById('mob-widget-bar');
+  if(!bar) return;
+  _mwbWid = el.dataset.wid;
+  document.getElementById('mwb-rot-slider').value = parseFloat(el.dataset.rotation)||0;
+  document.getElementById('mwb-rot-val').textContent = Math.round(parseFloat(el.dataset.rotation)||0)+'°';
+  document.getElementById('mwb-rot-slider').parentElement.style.display = noRotate ? 'none' : 'flex';
+  // Set slider max dynamically based on zone width
+  const zone = el.parentElement || document.getElementById('free-zone');
+  const zoneW = zone ? zone.offsetWidth : 700;
+  const maxW = Math.max(700, zoneW);
+  document.getElementById('mwb-w-slider').max = maxW;
+  document.getElementById('mwb-h-slider').max = maxW;
+  document.getElementById('mwb-w-slider').value = el.offsetWidth;
+  document.getElementById('mwb-w-val').textContent = el.offsetWidth;
+  document.getElementById('mwb-h-slider').value = el.offsetHeight;
+  document.getElementById('mwb-h-val').textContent = el.offsetHeight;
+  // Show edit button only for text widgets
+  const isText = el.dataset.elType === 'text';
+  const editRow = document.getElementById('mwb-edit-row');
+  if(editRow) editRow.style.display = isText ? 'flex' : 'none';
+  bar.classList.add('visible');
+  // Naikkan toolbar jika mini-player sedang tampil
+  if(document.getElementById('mini-player').classList.contains('visible')){
+    bar.classList.add('player-up');
+  }
+}
+function mwbHide(){
+  _mwbWid = null;
+  const bar = document.getElementById('mob-widget-bar');
+  if(bar) bar.classList.remove('visible');
+}
+function mwbOnRotSlider(v){
+  if(!_mwbWid) return;
+  const el = document.querySelector(`[data-wid="${_mwbWid}"]`);
+  if(!el) return;
+  document.getElementById('mwb-rot-val').textContent = Math.round(v) + '°';
+  setWidgetRotation(el, parseFloat(v));
+  saveWidgetState(el);
+}
+function mwbRotReset(){
+  if(!_mwbWid) return;
+  document.getElementById('mwb-rot-slider').value = 0;
+  mwbOnRotSlider(0);
+}
+function mwbNudgeSize(axis, delta){
+  if(!_mwbWid) return;
+  const sliderId = axis === 'w' ? 'mwb-w-slider' : 'mwb-h-slider';
+  const slider = document.getElementById(sliderId);
+  if(!slider) return;
+  slider.value = Math.max(parseInt(slider.min), Math.min(parseInt(slider.max), parseInt(slider.value) + delta));
+  mwbOnSizeSlider();
+}
+function mwbOnSizeSlider(){
+  if(!_mwbWid) return;
+  const el = document.querySelector(`[data-wid="${_mwbWid}"]`);
+  if(!el) return;
+  const nw = parseInt(document.getElementById('mwb-w-slider').value);
+  const nh = parseInt(document.getElementById('mwb-h-slider').value);
+  document.getElementById('mwb-w-val').textContent = nw;
+  document.getElementById('mwb-h-val').textContent = nh;
+  el.style.width = nw+'px';
+  el.style.height = nh+'px';
+  const si = document.getElementById('ws-'+_mwbWid);
+  if(si) si.textContent = nw+'×'+nh;
+  saveWidgetState(el);
+}
+function mwbDelete(){
+  if(!_mwbWid) return;
+  const el = document.querySelector(`[data-wid="${_mwbWid}"]`);
+  if(!el) return;
+  const saveKey = el.dataset.hwKey ? 'hw' : 'els';
+  removeWidget(_mwbWid, saveKey);
+  mwbHide();
+}
+
+function makeWidget(el, cfg){
+  const id = cfg.id || ('w-'+(++wCounter));
+  el.classList.add('widget');
+  el.dataset.wid = id;
+
+  // Clamp initial position so widget doesn't start outside the zone
+  const _initZoneW = cfg.zone ? cfg.zone.offsetWidth : (document.getElementById('free-zone')?.offsetWidth || 700);
+  const _initW = cfg.w || 120;
+  const _initH = cfg.h || 120;
+  const _initX = Math.max(0, Math.min(cfg.x || 40, _initZoneW - _initW));
+  const _initY = Math.max(0, cfg.y || 40);
+
+  el.style.left  = _initX+'px';
+  el.style.top   = _initY+'px';
+  el.style.width = _initW+'px';
+  el.style.height= _initH+'px';
+
+  // Apply saved rotation
+  const initRot = cfg.rotation || 0;
+  el.dataset.rotation = initRot;
+  if(initRot !== 0) el.style.transform = `rotate(${initRot}deg)`;
+
+  // Determine if this widget supports rotation (music cards don't)
+  const noRotate = cfg.type === 'music' || el.querySelector('.music-card');
+  if(noRotate) el.classList.add('no-rotate');
+
+  const bar = document.createElement('div');
+  bar.className='w-bar';
+  const rotBtns = noRotate ? '' : `
+    <button class="w-bar-btn" title="Rotate -15°" onclick="rotateWidget('${id}',-15)">↺</button>
+    <span class="w-bar-rot" id="wr-${id}">${initRot}°</span>
+    <button class="w-bar-btn" title="Rotate +15°" onclick="rotateWidget('${id}',15)">↻</button>
+    <button class="w-bar-btn" title="Reset rotasi" onclick="rotateWidget('${id}',0,true)" style="font-size:.6rem">0°</button>`;
+  const isTextWidget = cfg.type === 'text';
+  const editBtn = isTextWidget ? `<button class="w-bar-btn" onclick="openEditTextModal('${id}')" title="Edit teks" style="color:#a78bfa">✎ Edit</button><button class="w-bar-btn" onclick="rapikanTeks('${id}')" title="Auto-fit ukuran teks" style="color:#1ed760">✦ Rapihkan</button>` : '';
+  bar.innerHTML=`<span class="w-bar-label">${cfg.label||'Element'}</span>
+    <span class="w-size" id="ws-${id}">${cfg.w||120}×${cfg.h||120}</span>
+    ${rotBtns}
+    ${editBtn}
+    <button class="w-bar-btn del" onclick="removeWidget('${id}','${cfg.saveKey||''}')">✕ Hapus</button>`;
+  el.appendChild(bar);
+
+  // Rotation line + handle (not for music)
+  if(!noRotate){
+    const rotLine = document.createElement('div');
+    rotLine.className = 'rot-line';
+    el.appendChild(rotLine);
+
+    const rotHandle = document.createElement('div');
+    rotHandle.className = 'rot-handle';
+    rotHandle.title = 'Seret untuk memutar';
+    el.appendChild(rotHandle);
+
+    rotHandle.addEventListener('mousedown', e => {
+      e.stopPropagation(); e.preventDefault();
+      selectWidget(el);
+      _mode = 'rotate'; _active = el;
+      _rotStartAngle = getPointerAngle(e, el);
+      _rotStartDeg = parseFloat(el.dataset.rotation) || 0;
+    });
+    rotHandle.addEventListener('touchstart', e => {
+      e.stopPropagation(); e.preventDefault();
+      selectWidget(el);
+      const t = e.touches[0];
+      _mode = 'rotate'; _active = el;
+      _rotStartAngle = getPointerAngle(t, el);
+      _rotStartDeg = parseFloat(el.dataset.rotation) || 0;
+    }, {passive: false});
+  }
+
+  // Resize handles (desktop: 8 dirs, mobile CSS hides 4 sides leaving 4 corners)
+  ['nw','n','ne','e','se','s','sw','w'].forEach(dir=>{
+    const rh=document.createElement('div');
+    rh.className=`rh rh-${dir}`;
+    rh.dataset.dir=dir;
+    rh.addEventListener('mousedown',e=>{
+      e.stopPropagation();e.preventDefault();
+      selectWidget(el);
+      _mode='resize';_active=el;_sdir=dir;
+      _sx=e.clientX;_sy=e.clientY;
+      _sl=parseInt(el.style.left)||0;_st=parseInt(el.style.top)||0;
+      _sw=el.offsetWidth;_sh=el.offsetHeight;
+    });
+    rh.addEventListener('touchstart',e=>{
+      e.stopPropagation();e.preventDefault();
+      selectWidget(el);
+      const t=e.touches[0];
+      _mode='resize';_active=el;_sdir=dir;
+      _sx=t.clientX;_sy=t.clientY;
+      _sl=parseInt(el.style.left)||0;_st=parseInt(el.style.top)||0;
+      _sw=el.offsetWidth;_sh=el.offsetHeight;
+      _axisLock=null; // reset axis lock on new touch
+      // Visual feedback
+      rh.style.background='rgba(30,215,96,0.35)';
+    },{passive:false});
+    rh.addEventListener('touchend',()=>{ rh.style.background=''; });
+    el.appendChild(rh);
+  });
+
+  // Mouse drag
+  el.addEventListener('mousedown',e=>{
+    if(e.target.classList.contains('rh'))return;
+    if(e.target.closest('.w-bar'))return;
+    const ce=e.target.closest('[contenteditable]');
+    if(ce&&document.activeElement===ce)return;
+    if(e.target.closest('button')&&!e.target.closest('.w-bar'))return;
+    e.preventDefault();
+    selectWidget(el);
+    _mode='drag';_active=el;
+    _sx=e.clientX;_sy=e.clientY;
+    _sl=parseInt(el.style.left)||0;_st=parseInt(el.style.top)||0;
+  });
+
+  // Touch: 1 finger = drag, 2 fingers = pinch-rotate-resize
+  el.addEventListener('touchstart',e=>{
+    // If any touch point is on a resize handle, let the handle's own listener handle it
+    for(let i=0;i<e.touches.length;i++){
+      const pt=document.elementFromPoint(e.touches[i].clientX,e.touches[i].clientY);
+      if(pt&&(pt.classList.contains('rh')||pt.closest('.rh')))return;
+    }
+    if(e.target.classList.contains('rh'))return;
+    if(e.target.closest('.rot-handle'))return;
+    if(e.target.closest('.w-bar'))return;
+    const ce=e.target.closest('[contenteditable]');
+    if(ce&&document.activeElement===ce)return;
+    if(e.target.closest('button')&&!e.target.closest('.w-bar'))return;
+
+    if(e.touches.length === 2){
+      // 2-finger pinch: scale + rotate
+      e.preventDefault();
+      _mode = null; _active = null; // cancel drag
+      _pinchActive = true; _pinchEl = el;
+      selectWidget(el);
+      const t0=e.touches[0], t1=e.touches[1];
+      _pinchStartDist = getPinchDist(t0,t1);
+      _pinchStartW = el.offsetWidth;
+      _pinchStartH = el.offsetHeight;
+      _pinchStartAngle = getPinchAngle(t0,t1);
+      _pinchStartRot = parseFloat(el.dataset.rotation)||0;
+      const mid = getPinchMid(t0,t1);
+      _pinchStartMidX = mid.x; _pinchStartMidY = mid.y;
+      _pinchStartL = parseInt(el.style.left)||0;
+      _pinchStartT = parseInt(el.style.top)||0;
+    } else {
+      // 1-finger: drag
+      const t=e.touches[0];
+      selectWidget(el);
+      _mode='drag';_active=el;
+      _sx=t.clientX;_sy=t.clientY;
+      _sl=parseInt(el.style.left)||0;_st=parseInt(el.style.top)||0;
+    }
+  },{passive:false});
+
+  cfg.zone.appendChild(el);
+  return id;
+}
+
+document.addEventListener('mousemove',e=>{
+  if(!_active||!_mode)return;
+  if(_mode==='rotate'){
+    const curAngle = getPointerAngle(e, _active);
+    const delta = curAngle - _rotStartAngle;
+    setWidgetRotation(_active, _rotStartDeg + delta);
+    return;
+  }
+  const dx=e.clientX-_sx, dy=e.clientY-_sy;
+  const zone=_active.parentElement;
+  const zw=zone.offsetWidth;
+  if(_mode==='drag'){
+    const ww=_active.offsetWidth;
+    const wh=_active.offsetHeight;
+    let nl=Math.max(0,Math.min(_sl+dx, zw-ww));
+    let nt=Math.max(0,_st+dy);
+    const zh=zone.offsetHeight;
+    if(nt+wh>zh-10)zone.style.minHeight=(nt+wh+40)+'px';
+    _active.style.left=nl+'px';
+    _active.style.top=nt+'px';
+  } else if(_mode==='resize'){
+    const d=_sdir;
+    let nw=_sw,nh=_sh,nl=_sl,nt=_st;
+    const zw2=zone.offsetWidth;
+    if(d.includes('e')){nw=Math.max(MIN_W,Math.min(_sw+dx, zw2-nl));}
+    if(d.includes('w')){nw=Math.max(MIN_W,_sw-dx);nl=Math.max(0,_sl+(_sw-nw));}
+    if(d.includes('s')){nh=Math.max(MIN_H,_sh+dy);}
+    if(d.includes('n')){nh=Math.max(MIN_H,_sh-dy);nt=Math.max(0,_st+(_sh-nh));}
+    _active.style.width=nw+'px';_active.style.height=nh+'px';
+    _active.style.left=nl+'px';_active.style.top=nt+'px';
+    const si=document.getElementById('ws-'+_active.dataset.wid);
+    if(si)si.textContent=Math.round(nw)+'×'+Math.round(nh);
+  }
+  saveWidgetState(_active);
+});
+
+document.addEventListener('touchmove',e=>{
+  // Handle 2-finger pinch gesture
+  if(_pinchActive && _pinchEl && e.touches.length >= 2){
+    e.preventDefault();
+    const t0=e.touches[0], t1=e.touches[1];
+    const dist = getPinchDist(t0,t1);
+    const angle = getPinchAngle(t0,t1);
+    const scale = dist / _pinchStartDist;
+
+    // Scale width & height proportionally
+    const nw = Math.max(MIN_W, Math.round(_pinchStartW * scale));
+    const nh = Math.max(MIN_H, Math.round(_pinchStartH * scale));
+    _pinchEl.style.width = nw+'px';
+    _pinchEl.style.height = nh+'px';
+
+    // Rotate (only if not no-rotate)
+    if(!_pinchEl.classList.contains('no-rotate')){
+      const angleDelta = angle - _pinchStartAngle;
+      setWidgetRotation(_pinchEl, _pinchStartRot + angleDelta);
+    }
+
+    // Keep element centered on pinch midpoint
+    const mid = getPinchMid(t0,t1);
+    const zone = _pinchEl.parentElement;
+    const zw = zone.offsetWidth;
+    const dx = mid.x - _pinchStartMidX;
+    const dy = mid.y - _pinchStartMidY;
+    let nl = Math.max(0, Math.min(_pinchStartL + dx, zw - nw));
+    let nt = Math.max(0, _pinchStartT + dy);
+    const zh = zone.offsetHeight;
+    if(nt+nh>zh-10) zone.style.minHeight=(nt+nh+40)+'px';
+    _pinchEl.style.left = nl+'px';
+    _pinchEl.style.top = nt+'px';
+
+    const si = document.getElementById('ws-'+_pinchEl.dataset.wid);
+    if(si) si.textContent = nw+'×'+nh;
+    // sync mobile bar sliders
+    const ws = document.getElementById('mwb-w-slider');
+    const hs = document.getElementById('mwb-h-slider');
+    const wv = document.getElementById('mwb-w-val');
+    const hv = document.getElementById('mwb-h-val');
+    if(ws){ws.value=nw;wv.textContent=nw;}
+    if(hs){hs.value=nh;hv.textContent=nh;}
+    saveWidgetState(_pinchEl);
+    return;
+  }
+
+  if(!_active)return;
+  if(_mode==='rotate'||_mode==='resize'||_mode==='drag') e.preventDefault();
+
+  if(_mode==='rotate'){
+    const t=e.touches[0];
+    const curAngle = getPointerAngle(t, _active);
+    const delta = curAngle - _rotStartAngle;
+    setWidgetRotation(_active, _rotStartDeg + delta);
+    return;
+  }
+  const t=e.touches[0];
+  const dx=t.clientX-_sx, dy=t.clientY-_sy;
+  const zone=_active.parentElement;
+  const zw=zone.offsetWidth;
+  if(_mode==='drag'){
+    const ww=_active.offsetWidth;
+    const wh=_active.offsetHeight;
+    let nl=Math.max(0,Math.min(_sl+dx, zw-ww));
+    let nt=Math.max(0,_st+dy);
+    const zh=zone.offsetHeight;
+    if(nt+wh>zh-10)zone.style.minHeight=(nt+wh+40)+'px';
+    _active.style.left=nl+'px';
+    _active.style.top=nt+'px';
+  } else if(_mode==='resize'){
+    const d=_sdir;
+    let nw=_sw,nh=_sh,nl=_sl,nt=_st;
+    const zw2=zone.offsetWidth;
+    // Axis lock for touch: after 10px movement, lock to dominant axis
+    const isTouchResize = window.matchMedia('(pointer:coarse)').matches;
+    if(isTouchResize && _axisLock===null && (Math.abs(dx)>10 || Math.abs(dy)>10)){
+      _axisLock = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
+    }
+    const applyX = !isTouchResize || _axisLock===null || _axisLock==='x';
+    const applyY = !isTouchResize || _axisLock===null || _axisLock==='y';
+    if(applyX){
+      if(d.includes('e')){nw=Math.max(MIN_W,Math.min(_sw+dx, zw2-nl));}
+      if(d.includes('w')){nw=Math.max(MIN_W,_sw-dx);nl=Math.max(0,_sl+(_sw-nw));}
+    }
+    if(applyY){
+      if(d.includes('s')){nh=Math.max(MIN_H,_sh+dy);}
+      if(d.includes('n')){nh=Math.max(MIN_H,_sh-dy);nt=Math.max(0,_st+(_sh-nh));}
+    }
+    _active.style.width=nw+'px';_active.style.height=nh+'px';
+    _active.style.left=nl+'px';_active.style.top=nt+'px';
+    const si=document.getElementById('ws-'+_active.dataset.wid);
+    if(si)si.textContent=Math.round(nw)+'×'+Math.round(nh);
+    const ws=document.getElementById('mwb-w-slider');
+    const hs=document.getElementById('mwb-h-slider');
+    if(ws){ws.value=nw;document.getElementById('mwb-w-val').textContent=Math.round(nw);}
+    if(hs){hs.value=nh;document.getElementById('mwb-h-val').textContent=Math.round(nh);}
+  }
+},{passive:false});
+document.addEventListener('mouseup',()=>{
+  if((_mode==='rotate'||_mode==='resize'||_mode==='drag')&&_active) saveWidgetState(_active);
+  _mode=null;_active=null;_axisLock=null;
+});
+document.addEventListener('touchend',e=>{
+  if(_pinchActive && _pinchEl){ saveWidgetState(_pinchEl); }
+  // If going from 2 fingers to 1 or 0: end pinch
+  if(e.touches.length < 2){ _pinchActive=false; _pinchEl=null; }
+  if(e.touches.length === 0){
+    if((_mode==='rotate'||_mode==='resize'||_mode==='drag')&&_active) saveWidgetState(_active);
+    _mode=null;_active=null;_axisLock=null;
+  }
+});
+
+function _deselectIfOutside(target){
+  if(!target.closest('.widget')&&!target.closest('.w-bar')&&!target.closest('#mob-widget-bar')){
+    document.querySelectorAll('.widget').forEach(w=>w.classList.remove('sel'));
+    mwbHide();
+  }
+}
+document.addEventListener('click',e=>_deselectIfOutside(e.target));
+document.addEventListener('touchend',e=>{
+  // Hanya proses jika bukan sedang drag/resize/pinch
+  if(_mode||_pinchActive) return;
+  const t=e.changedTouches[0];
+  const target=document.elementFromPoint(t.clientX,t.clientY);
+  if(target) _deselectIfOutside(target);
+},{passive:true});
+
+function selectWidget(el){
+  document.querySelectorAll('.widget').forEach(w=>w.classList.remove('sel'));
+  el.classList.add('sel');
+  // Show mobile toolbar on touch devices
+  if(window.matchMedia('(pointer:coarse)').matches) mwbShow(el);
+  else mwbHide();
+}
+function removeWidget(wid, saveKey){
+  const el=document.querySelector(`[data-wid="${wid}"]`);
+  if(!el)return;
+  // if it's a music card, also remove from queue
+  const qIdx=queue.findIndex(q=>q.id===wid);
+  if(qIdx>-1)removeFromQueue(qIdx);
+  el.remove();
+  if(saveKey==='els'){
+    elData=elData.filter(d=>d.id!==wid);
+    localStorage.setItem('sp_els',JSON.stringify(elData));
+  } else if(saveKey==='hw'){
+    delete hwState[wid];
+    localStorage.setItem('sp_hw',JSON.stringify(hwState));
+  }
+  toast('Dihapus');
+}
+function saveWidgetState(el){
+  const wid=el.dataset.wid;
+  const rotation = parseFloat(el.dataset.rotation) || 0;
+  const zone = el.parentElement || document.getElementById('free-zone');
+  const zW = zone ? zone.offsetWidth : 700;
+  const zH = zone ? zone.offsetHeight : 700;
+  const px = parseInt(el.style.left)||0;
+  const py = parseInt(el.style.top)||0;
+  const pw = el.offsetWidth;
+  const ph = el.offsetHeight;
+  // Posisi dalam persen relatif terhadap lebar zone (untuk rendering responsif)
+  const pct = { left: px/zW, top: py/zW, width: pw/zW, height: ph/zW, rotation, refW: zW };
+
+  if(el.dataset.hwKey){
+    hwState[el.dataset.hwKey]={x:px,y:py,w:pw,h:ph,rotation,pct};
+    try{ localStorage.setItem('sp_hw',JSON.stringify(hwState)); }catch(e){ _warnSaveFailed(e); }
+  }
+  if(!el.dataset.hwKey){
+    const idx=elData.findIndex(d=>d.id===wid);
+    if(idx>-1){
+      elData[idx].x=px;elData[idx].y=py;
+      elData[idx].w=pw;elData[idx].h=ph;
+      elData[idx].rotation=rotation;
+      elData[idx].pct=pct;
+      try{ localStorage.setItem('sp_els',JSON.stringify(elData)); }catch(e){ _warnSaveFailed(e); }
+    }
+  }
+}
+let _saveFailWarned=false;
+function _warnSaveFailed(e){
+  console.error('[saveWidgetState] Gagal menyimpan posisi ke localStorage:', e);
+  if(_saveFailWarned) return;
+  _saveFailWarned=true;
+  toast('⚠ Penyimpanan posisi penuh (kuota browser). Hapus beberapa foto/sticker agar posisi tersimpan.');
+}
+
+// ── HEADER WIDGETS ──
+const DEFAULTS={
+  'hw-profile':{x:40,y:40,w:130,h:130,label:'📷 Profile Photo'},
+  'hw-label':  {x:190,y:40,w:200,h:24,label:'🏷 Label'},
+  'hw-title':  {x:190,y:72,w:300,h:80,label:'✏️ Judul'},
+  'hw-desc':   {x:190,y:158,w:300,h:70,label:'📝 Deskripsi'},
+  'hw-meta':   {x:190,y:234,w:280,h:24,label:'💚 Meta'},
+  'hw-playbar':{x:40,y:200,w:230,h:60,label:'▶ Play Bar'},
+};
+function merge(key){
+  const d=DEFAULTS[key];const s=hwState[key]||{};
+  return{x:s.x??d.x,y:s.y??d.y,w:s.w??d.w,h:s.h??d.h,label:d.label,rotation:s.rotation||0};
+}
+
+function buildHeaderWidgets(){
+  const zone=document.getElementById('free-zone');
+  // skip if already removed
+  const removedHW=JSON.parse(localStorage.getItem('sp_hw_removed')||'[]');
+
+  function makeHW(key,html,extraStyle){
+    if(removedHW.includes(key))return;
+    const el=document.createElement('div');
+    el.dataset.hwKey=key;
+    el.innerHTML=html;
+    if(extraStyle)el.style.overflow=extraStyle;
+    const s=merge(key);
+    makeWidget(el,{zone,id:key,saveKey:'hw',label:DEFAULTS[key].label,...s});
+  }
+
+  if(!removedHW.includes('hw-profile')){
+    const profEl=document.createElement('div');
+    profEl.dataset.hwKey='hw-profile';
+    const s=merge('hw-profile');
+    profEl.innerHTML=`<div class="profile-wrap">
+      <div class="profile-ph" id="profile-ph">🎵</div>
+      <img id="profile-img" style="display:none" src="" alt="Profile">
+      <button class="prof-edit-btn" onclick="document.getElementById('profile-upload').click()">✎ Foto</button>
+    </div>`;
+    makeWidget(profEl,{zone,id:'hw-profile',saveKey:'hw',...merge('hw-profile')});
+  }
+
+  makeHW('hw-label',`<div class="label-el">PUBLIC PLAYLIST</div>`,'visible');
+  makeHW('hw-title',`<h1 class="title-el" id="page-title" contenteditable="true" data-placeholder="Judul halaman...">${esc(pageInfo.title||'My Straw Page')}</h1>`);
+  makeHW('hw-desc',`<p class="desc-el" id="page-desc" contenteditable="true" data-placeholder="Deskripsi halaman...">${esc(pageInfo.desc||'Click to edit your description here.')}</p>`);
+  makeHW('hw-meta',`<div class="meta-el">
+    <span class="ph-plays"><svg viewBox="0 0 24 24" fill="var(--green)" width="13" height="13"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+    <span id="like-count">25,720</span> plays</span>
+    <a class="ph-ig" id="ph-ig-link" href="#" style="display:none" target="_blank">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+      <span id="ph-ig-text">@username</span>
+    </a>
+  </div>`,'visible');
+
+  if(!removedHW.includes('hw-playbar')){
+    const pbEl=document.createElement('div');
+    pbEl.dataset.hwKey='hw-playbar';
+    pbEl.innerHTML=`<div class="playbar-el">
+      <button class="play-btn-big" onclick="isPlaying ? togglePlay() : (queue.length ? togglePlay() : playAllFromTop())" title="Play / Pause">
+        <svg class="icon-play" viewBox="0 0 24 24" fill="black"><path d="M8 5v14l11-7z"/></svg>
+        <svg class="icon-pause" viewBox="0 0 24 24" fill="black" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+      </button>
+      <button class="heart-btn" onclick="this.classList.toggle('liked')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg></button>
+      <span class="play-count" id="play-count-label">${elData.filter(d=>d.type==='music').length} lagu</span>
+    </div>`;
+    pbEl.style.overflow='visible';
+    makeWidget(pbEl,{zone,id:'hw-playbar',saveKey:'hw',...merge('hw-playbar')});
+  }
+}
+
+function playAllFromTop(){
+  const musicEls = elData.filter(d=>d.type==='music');
+  if(!musicEls.length){toast('⚠ No songs on this page');return;}
+  queue=musicEls.map(d=>({id:d.id,title:d.title,artist:d.artist,thumb:d.thumb,preview:d.preview||null}));
+  queueIndex=-1;
+  renderQueue();
+  document.getElementById('queue-panel').classList.add('open');
+  playTrackAtIndex(0);
+}
+
+// ── FREE ZONE ELEMENTS ──
+function addToFreeZone(el,data){
+  const zone=document.getElementById('free-zone');
+  const id=makeWidget(el,{zone,label:data.label||'Element',saveKey:'els',...data});
+  data.id=id;
+  elData.push(data);
+  localStorage.setItem('sp_els',JSON.stringify(elData));
+  updatePlayCountLabel();
+  // Double-click to edit text widgets
+  if(data.type==='text'){
+    el.addEventListener('dblclick',e=>{
+      e.stopPropagation();
+      openEditTextModal(id);
+    });
+  }
+  return id;
+}
+
+function updatePlayCountLabel(){
+  const lbl=document.getElementById('play-count-label');
+  if(lbl)lbl.textContent=elData.filter(d=>d.type==='music').length+' songs';
+}
+
+function addMusicCardEl(track){
+  const id='w-'+(++wCounter);
+  const el=document.createElement('div');
+  el.dataset.elType='music';
+  el.innerHTML=`<div class="music-card" onclick="onMusicCardClick('${id}')">
+    <div class="mc-play-overlay">
+      <div class="mc-play-icon">
+        <svg viewBox="0 0 24 24" fill="black"><path d="M8 5v14l11-7z"/></svg>
+        <div class="mc-eq">
+          <div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div>
+        </div>
+      </div>
+    </div>
+    <img src="${esc(track.thumb)}" alt="" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect fill=%22%231e1e1e%22 width=%22100%22 height=%22100%22/%3E%3Ctext y=%2262%22 x=%2250%25%22 text-anchor=%22middle%22 font-size=%2240%22%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E'">
+    <div class="mc-title">${esc(track.title||'')}</div>
+    <div class="mc-artist"><svg viewBox="0 0 24 24" fill="var(--green)" style="width:9px;height:9px"><circle cx="12" cy="12" r="10"/></svg>${esc(track.artist||'')}</div>
+  </div>`;
+  addToFreeZone(el,{id,type:'music',x:60,y:60,w:160,h:210,label:'🎵 Music',...track});
+  toast('♫ Music card added! Klik untuk putar');
+}
+
+function onMusicCardClick(wid){
+  const d=elData.find(d=>d.id===wid);
+  if(!d)return;
+  const qi=queue.findIndex(q=>q.id===wid);
+  if(qi===queueIndex&&isPlaying){
+    if(YTP)YTP.pauseVideo();
+    isPlaying=false;updatePlayerUIPaused();updateAllCardState();cancelAnimationFrame(raf);return;
+  }
+  if(qi<0){
+    queue.push({id:d.id,title:d.title,artist:d.artist,thumb:d.thumb,preview:d.preview||null});
+    playTrackAtIndex(queue.length-1);
+  } else {
+    playTrackAtIndex(qi);
+  }
+  renderQueue();
+}
+
+function addPhotoEl(src){
+  const el=document.createElement('div');
+  el.dataset.elType='photo';
+  el.innerHTML=`<div class="photo-el"><img src="${src}" alt=""></div>`;
+  addToFreeZone(el,{type:'photo',x:80,y:80,w:200,h:200,label:'📷 Photo',src});
+  toast('📷 Photo added!');
+}
+
+let _textColor='#ffffff', _textWeight='normal';
+function setTextColor(c){
+  _textColor=c;
+  document.getElementById('text-preview').style.color=c;
+  document.getElementById('text-custom-color').value=c;
+  document.querySelectorAll('#modal-text [onclick^="setTextColor"]').forEach(s=>{
+    if(s.getAttribute('onclick')===`setTextColor('${c}')`)s.style.borderColor='var(--green)';
+    else if(s.tagName!=='INPUT')s.style.borderColor='transparent';
+  });
+}
+function setTextWeight(w){
+  _textWeight=w;
+  document.getElementById('text-preview').style.fontWeight=w;
+  ['normal','bold','300'].forEach(v=>{
+    const b=document.getElementById('tbtn-'+v);if(!b)return;
+    if(v===w){b.style.borderColor='var(--green)';b.style.background='var(--green-dim)';b.style.color='var(--green)';}
+    else{b.style.borderColor='var(--border)';b.style.background='transparent';b.style.color='var(--sub)';}
+  });
+}
+function addTextEl(){
+  const txt=document.getElementById('text-input').value.trim();if(!txt)return;
+  const fontSize=parseInt(document.getElementById('text-fontsize').value)||16;
+  const fontWeight=_textWeight||'normal';
+  const color=_textColor||'#ffffff';
+  const el=document.createElement('div');
+  el.dataset.elType='text';
+  el.innerHTML=`<div class="text-el"><p style="font-size:${fontSize}px;font-weight:${fontWeight};color:${color}">${esc(txt).replace(/\n/g,'<br>')}</p></div>`;
+  addToFreeZone(el,{type:'text',x:60,y:60,w:260,h:Math.max(80,fontSize*3),label:'✍ Text',txt,fontSize,fontWeight,color});
+  closeModal('text');
+  document.getElementById('text-input').value='';
+  document.getElementById('text-preview').textContent='Text preview...';
+  toast('✍ Text added!');
+}
+
+// ── RAPIHKAN TEKS: auto-fit font-size agar teks pas di dalam kotak ──
+function rapikanTeks(wid){
+  const widgetEl = document.querySelector(`[data-wid="${wid}"]`);
+  if(!widgetEl) return;
+  const p = widgetEl.querySelector('.text-el p');
+  const container = widgetEl.querySelector('.text-el');
+  if(!p || !container) return;
+
+  const maxW = container.clientWidth - 16; // padding 8px tiap sisi
+  const maxH = container.clientHeight - 16;
+
+  // Binary search: cari font-size terbesar yang masih muat
+  let lo = 8, hi = 120, best = lo;
+  for(let i=0; i<20; i++){
+    const mid = Math.floor((lo + hi) / 2);
+    p.style.fontSize = mid + 'px';
+    if(p.scrollWidth <= maxW && p.scrollHeight <= maxH){
+      best = mid; lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  p.style.fontSize = best + 'px';
+
+  // Save to data
+  const idx = elData.findIndex(d=>d.id===wid);
+  if(idx>-1){
+    elData[idx].fontSize = best;
+    localStorage.setItem('sp_els', JSON.stringify(elData));
+  }
+  toast('✦ Teks dirapihkan!');
+}
+function openEditTextModal(wid){
+  const data=elData.find(d=>d.id===wid);
+  if(!data)return;
+  // populate modal with current values
+  document.getElementById('edit-text-wid').value=wid;
+  document.getElementById('edit-text-input').value=data.txt||'';
+  document.getElementById('edit-text-fontsize').value=data.fontSize||16;
+  document.getElementById('edit-text-fontsize-val').textContent=(data.fontSize||16)+'px';
+  document.getElementById('edit-text-preview').style.fontSize=(data.fontSize||16)+'px';
+  document.getElementById('edit-text-preview').style.fontWeight=data.fontWeight||'normal';
+  document.getElementById('edit-text-preview').style.color=data.color||'#ffffff';
+  document.getElementById('edit-text-preview').textContent=data.txt||'';
+  _editTextColor=data.color||'#ffffff';
+  _editTextWeight=data.fontWeight||'normal';
+  // update weight buttons
+  ['normal','bold','300'].forEach(v=>{
+    const b=document.getElementById('etbtn-'+v);if(!b)return;
+    if(v===_editTextWeight){b.style.borderColor='var(--green)';b.style.background='var(--green-dim)';b.style.color='var(--green)';}
+    else{b.style.borderColor='var(--border)';b.style.background='transparent';b.style.color='var(--sub)';}
+  });
+  document.getElementById('modal-edit-text').classList.add('open');
+}
+let _editTextColor='#ffffff', _editTextWeight='normal';
+function setEditTextColor(c){
+  _editTextColor=c;
+  document.getElementById('edit-text-preview').style.color=c;
+  document.getElementById('edit-text-custom-color').value=c;
+}
+function setEditTextWeight(w){
+  _editTextWeight=w;
+  document.getElementById('edit-text-preview').style.fontWeight=w;
+  ['normal','bold','300'].forEach(v=>{
+    const b=document.getElementById('etbtn-'+v);if(!b)return;
+    if(v===w){b.style.borderColor='var(--green)';b.style.background='var(--green-dim)';b.style.color='var(--green)';}
+    else{b.style.borderColor='var(--border)';b.style.background='transparent';b.style.color='var(--sub)';}
+  });
+}
+function saveEditText(){
+  const wid=document.getElementById('edit-text-wid').value;
+  const txt=document.getElementById('edit-text-input').value.trim();if(!txt)return;
+  const fontSize=parseInt(document.getElementById('edit-text-fontsize').value)||16;
+  const fontWeight=_editTextWeight||'normal';
+  const color=_editTextColor||'#ffffff';
+  const widgetEl=document.querySelector(`[data-wid="${wid}"]`);
+  if(widgetEl){
+    const p=widgetEl.querySelector('.text-el p');
+    if(p){
+      p.style.fontSize=fontSize+'px';
+      p.style.fontWeight=fontWeight;
+      p.style.color=color;
+      p.innerHTML=esc(txt).replace(/\n/g,'<br>');
+    }
+  }
+  const idx=elData.findIndex(d=>d.id===wid);
+  if(idx>-1){
+    elData[idx].txt=txt;
+    elData[idx].fontSize=fontSize;
+    elData[idx].fontWeight=fontWeight;
+    elData[idx].color=color;
+    localStorage.setItem('sp_els',JSON.stringify(elData));
+  }
+  document.getElementById('modal-edit-text').classList.remove('open');
+  toast('✎ Text updated!');
+}
+function addGifEl(url){
+  const el=document.createElement('div');
+  el.dataset.elType='gif';
+  el.innerHTML=`<div class="gif-el"><img src="${url}" alt="gif"></div>`;
+  addToFreeZone(el,{type:'gif',x:80,y:80,w:200,h:200,label:'✨ GIF',url});
+  closeModal('gif');
+  toast('✨ GIF added!');
+}
+
+// ── RESTORE ──
+function restoreEls(){
+  const zone=document.getElementById('free-zone');
+  elData.forEach(data=>{
+    let el=document.createElement('div');
+    el.dataset.elType=data.type;
+    if(data.type==='music'){
+      const wid=data.id;
+      el.innerHTML=`<div class="music-card" onclick="onMusicCardClick('${wid}')">
+        <div class="mc-play-overlay">
+          <div class="mc-play-icon">
+            <svg viewBox="0 0 24 24" fill="black"><path d="M8 5v14l11-7z"/></svg>
+            <div class="mc-eq"><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div></div>
+          </div>
+        </div>
+        <img src="${esc(data.thumb||'')}" alt="" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect fill=%22%231e1e1e%22 width=%22100%22 height=%22100%22/%3E%3Ctext y=%2262%22 x=%2250%25%22 text-anchor=%22middle%22 font-size=%2240%22%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E'">
+        <div class="mc-title">${esc(data.title||'')}</div>
+        <div class="mc-artist"><svg viewBox="0 0 24 24" fill="var(--green)" style="width:9px;height:9px"><circle cx="12" cy="12" r="10"/></svg>${esc(data.artist||'')}</div>
+      </div>`;
+    } else if(data.type==='photo'){
+      el.innerHTML=`<div class="photo-el"><img src="${data.src||''}" alt=""></div>`;
+    } else if(data.type==='text'){
+      const fs=data.fontSize||14,fw=data.fontWeight||'normal',fc=data.color||'#ffffff';
+      el.innerHTML=`<div class="text-el"><p style="font-size:${fs}px;font-weight:${fw};color:${fc}">${esc(data.txt||'').replace(/\n/g,'<br>')}</p></div>`;
+    } else if(data.type==='gif'){
+      el.innerHTML=`<div class="gif-el"><img src="${data.url||''}" alt="gif"></div>`;
+    } else if(data.type==='sticker'){
+      el.innerHTML=`<div class="sticker-el"><img src="${data.src||''}" alt="sticker"></div>`;
+    }
+    const labels={music:'🎵 Music',photo:'📷 Photo',text:'✍ Text',gif:'✨ GIF',sticker:'🎨 Stiker'};
+    makeWidget(el,{zone,id:data.id,saveKey:'els',label:labels[data.type]||'Element',...data});
+    el.dataset.wid=data.id;
+    // Double-click to edit text widgets
+    if(data.type==='text'){
+      el.addEventListener('dblclick',e=>{
+        e.stopPropagation();
+        openEditTextModal(data.id);
+      });
+    }
+  });
+}
+
+// ── PROFILE ──
+function handleProfileUpload(e){
+  const file=e.target.files[0];if(!file)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    const src=ev.target.result;
+    const img=document.getElementById('profile-img');
+    if(img){img.src=src;img.style.display='block';document.getElementById('profile-ph').style.display='none';}
+    pageInfo.profileImg=src;
+    localStorage.setItem('sp_info',JSON.stringify(pageInfo));
+    toast('✓ Profile photo updated!');
+  };
+  r.readAsDataURL(file);
+}
+function handlePhotoUpload(e){
+  const file=e.target.files[0];if(!file)return;
+  const r=new FileReader();
+  r.onload=ev=>{addPhotoEl(ev.target.result);};
+  r.readAsDataURL(file);
+  e.target.value='';
+}
+
+// ── MODALS ──
+function openModal(type){
+  document.getElementById('modal-'+type).classList.add('open');
+  if(type==='sticker'){
+    switchStickerTab('create');
+    // reset create tab state
+    document.getElementById('sticker-upload-area').style.display='block';
+    document.getElementById('sticker-preview-area').style.display='none';
+    document.getElementById('sticker-processing').classList.remove('active');
+    _stickerOrigDataURL=null; _stickerCurrentDataURL=null;
+    selectBgMethod('auto');
+    return;
+  }
+  if(type==='bg'){
+    const bg=pageInfo.bg||{type:'none'};
+    _bgPending={...bg};
+    const prev=document.getElementById('bg-preview');
+    const lbl=document.getElementById('bg-preview-label');
+    const ovRow=document.getElementById('bg-overlay-row');
+    const ovSlider=document.getElementById('bg-overlay-slider');
+    const ovVal=document.getElementById('bg-overlay-val');
+    document.querySelectorAll('.bg-color-swatch').forEach(s=>s.classList.remove('active'));
+    if(bg.type==='image'){
+      prev.style.backgroundImage=`url(${bg.value})`;
+      prev.style.backgroundColor='';
+      lbl.style.display='none';
+      ovRow.style.display='block';
+      const ov=bg.overlay||30;
+      ovSlider.value=ov; ovVal.textContent=ov+'%';
+    } else if(bg.type==='color'){
+      prev.style.backgroundImage=''; prev.style.backgroundColor=bg.value||'';
+      lbl.style.display='none'; ovRow.style.display='none';
+      document.querySelectorAll('.bg-color-swatch').forEach(s=>{
+        if(s.getAttribute('onclick')===`setBgColor('${bg.value}')`)s.classList.add('active');
+      });
+    } else {
+      prev.style.backgroundImage=''; prev.style.backgroundColor='';
+      lbl.style.display='flex'; ovRow.style.display='none';
+    }
+  }
+}
+function closeModal(type){document.getElementById('modal-'+type).classList.remove('open');}
+document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');}));
+
+// ── INSTAGRAM ──
+function setIg(ig){
+  const link=document.getElementById('ph-ig-link');
+  const txt=document.getElementById('ph-ig-text');
+  if(link&&ig){link.href='https://instagram.com/'+ig;txt.textContent='@'+ig;link.style.display='flex';}
+  else if(link){link.style.display='none';}
+}
+
+
+// ── ITUNES SEARCH ──
+async function searchMusic(inputId,gridId){
+  const q=document.getElementById(inputId).value.trim();if(!q)return;
+  const grid=document.getElementById(gridId);
+  grid.innerHTML=Array(6).fill('<div class="modal-card"><div class="sk" style="aspect-ratio:1;border-radius:6px;margin-bottom:6px"></div><div class="sk" style="height:8px;margin-bottom:4px"></div><div class="sk" style="height:7px;width:60%"></div></div>').join('');
+  try{
+    const url=`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=18&country=ID`;
+    const res=await fetch(url);const data=await res.json();
+    const items=data.results||[];
+    grid.innerHTML='';
+    if(!items.length){grid.innerHTML='<div class="modal-empty" style="grid-column:1/-1"><span>😕</span>Tidak ditemukan</div>';return;}
+    items.forEach(it=>{
+      const thumb=(it.artworkUrl100||'').replace('100x100bb','300x300bb');
+      const title=it.trackName||'Unknown';const artist=it.artistName||'Unknown';
+      const preview=it.previewUrl||null;
+      const card=document.createElement('div');card.className='modal-card';
+      card.innerHTML=`<img src="${esc(thumb)}" alt=""><div class="modal-card-title">${esc(title)}</div><div class="modal-card-artist">${esc(artist)}</div>`;
+      card.addEventListener('click',()=>{
+        addMusicCardEl({title,artist,thumb,preview});closeModal('music');
+      });
+      grid.appendChild(card);
+    });
+  }catch(err){
+    grid.innerHTML=`<div class="modal-empty" style="grid-column:1/-1"><span>⚠️</span>Gagal memuat hasil</div>`;
+  }
+}
+
+// ── GIPHY ──
+async function searchGifs(){
+  const q=document.getElementById('gif-q').value.trim();if(!q)return;
+  const btn=document.getElementById('gif-search-btn');
+  btn.disabled=true;btn.textContent='...';
+  const grid=document.getElementById('gif-grid-res');
+  grid.innerHTML='<div class="modal-empty" style="grid-column:1/-1"><span>⏳</span>Loading...</div>';
+  try{
+    const url=`https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(q)}&limit=12&rating=g`;
+    const res=await fetch(url);const data=await res.json();
+    const gifs=data.data||[];
+    if(!gifs.length){grid.innerHTML='<div class="modal-empty" style="grid-column:1/-1"><span>😕</span>GIF tidak ditemukan</div>';return;}
+    grid.innerHTML=gifs.map(g=>{
+      const gifUrl=g.images?.fixed_height?.url||g.images?.original?.url||'';
+      const preview=g.images?.fixed_height_small?.url||gifUrl;
+      return `<div class="gif-item" onclick="addGifEl('${gifUrl}')"><img src="${preview}" alt="gif" loading="lazy"></div>`;
+    }).join('');
+  }catch(err){
+    grid.innerHTML='<div class="modal-empty" style="grid-column:1/-1"><span>⚠️</span>Gagal memuat GIF</div>';
+  }finally{btn.disabled=false;btn.textContent='Search';}
+}
+
+// ── TITLE/DESC SAVE ──
+document.addEventListener('input',e=>{
+  if(e.target.id==='page-title'){pageInfo.title=e.target.textContent;localStorage.setItem('sp_info',JSON.stringify(pageInfo));}
+  if(e.target.id==='page-desc'){pageInfo.desc=e.target.textContent;localStorage.setItem('sp_info',JSON.stringify(pageInfo));}
+});
+
+// ── REMOVE HEADER WIDGET (track removal) ──
+const _origRemoveWidget = window.removeWidget;
+// Override removeWidget to handle hw removal tracking
+window.removeWidget = function(wid, saveKey){
+  const el=document.querySelector(`[data-wid="${wid}"]`);
+  if(!el)return;
+  if(saveKey==='hw'){
+    const removed=JSON.parse(localStorage.getItem('sp_hw_removed')||'[]');
+    if(!removed.includes(wid))removed.push(wid);
+    localStorage.setItem('sp_hw_removed',JSON.stringify(removed));
+  }
+  // if music card, remove from queue
+  const qIdx=queue.findIndex(q=>q.id===wid);
+  if(qIdx>-1)removeFromQueue(qIdx);
+  el.remove();
+  if(saveKey==='els'){
+    elData=elData.filter(d=>d.id!==wid);
+    localStorage.setItem('sp_els',JSON.stringify(elData));
+    updatePlayCountLabel();
+  } else if(saveKey==='hw'){
+    delete hwState[wid];
+    localStorage.setItem('sp_hw',JSON.stringify(hwState));
+  }
+  toast('Dihapus');
+};
+
+function esc(s){if(!s)return'';const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+function toast(msg,dur=2800){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),dur);}
+
+// ── PAGE HEIGHT RESIZE ──
+(function initPageResize(){
+  const handle = document.getElementById('page-resize-handle');
+  const freeZone = document.getElementById('free-zone');
+  const MIN_H = 600;
+  let _dragging = false, _startY = 0, _startH = 0;
+
+  // Restore saved height
+  const savedH = parseInt(localStorage.getItem('sp_page_h'));
+  if(savedH && savedH >= MIN_H){
+    freeZone.style.minHeight = savedH + 'px';
+  }
+
+  // Update tooltip text with current height
+  function updateTooltip(){
+    const h = freeZone.offsetHeight;
+    const tooltip = handle.querySelector('.rh-tooltip');
+    if(tooltip) tooltip.textContent = Math.round(h) + 'px — SERET UNTUK ATUR TINGGI';
+  }
+  updateTooltip();
+
+  function onDown(clientY){
+    _dragging = true;
+    _startY = clientY;
+    _startH = freeZone.offsetHeight;
+    handle.classList.add('dragging');
+    document.body.style.cursor = 'ns-resize';
+    document.body.style.userSelect = 'none';
+  }
+  function onMove(clientY){
+    if(!_dragging) return;
+    const dy = clientY - _startY;
+    const newH = Math.max(MIN_H, _startH + dy);
+    freeZone.style.minHeight = newH + 'px';
+    const tooltip = handle.querySelector('.rh-tooltip');
+    if(tooltip) tooltip.textContent = Math.round(newH) + 'px — SERET UNTUK ATUR TINGGI';
+  }
+  function onUp(){
+    if(!_dragging) return;
+    _dragging = false;
+    handle.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    localStorage.setItem('sp_page_h', freeZone.offsetHeight);
+    toast('↕ Tinggi halaman disimpan');
+  }
+
+  handle.addEventListener('mousedown', e=>{ e.preventDefault(); onDown(e.clientY); });
+  handle.addEventListener('touchstart', e=>{ onDown(e.touches[0].clientY); }, {passive:true});
+  document.addEventListener('mousemove', e=>{ if(_dragging) onMove(e.clientY); });
+  document.addEventListener('touchmove', e=>{ if(_dragging){ e.preventDefault(); onMove(e.touches[0].clientY); } }, {passive:false});
+  document.addEventListener('mouseup', onUp);
+  document.addEventListener('touchend', onUp);
+})();
+
+// ── STICKER SYSTEM ──
+let _stickerOrigDataURL = null;
+let _stickerCurrentDataURL = null;
+let _stickerBgMethod = 'auto';
+let _stickerCache = null;
+
+// Semua user otomatis pakai satu Worker → KV storage bersama, tanpa kode/setup
+async function getStickerLibrary(){
+  if(_stickerCache) return _stickerCache;
+  try{
+    const res = await fetch(`${WORKER}/stickers`);
+    if(!res.ok) throw new Error();
+    const data = await res.json();
+    _stickerCache = data.stickers || [];
+    return _stickerCache;
+  }catch(e){
+    try{ return JSON.parse(localStorage.getItem('sp_stickers_local')||'[]'); }catch(e2){ return []; }
+  }
+}
+
+async function addStickerToCloud(sticker){
+  try{
+    const res = await fetch(`${WORKER}/stickers`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(sticker)
+    });
+    if(!res.ok) throw new Error(await res.text());
+    _stickerCache = null;
+    return true;
+  }catch(e){
+    // fallback lokal
+    const lib = JSON.parse(localStorage.getItem('sp_stickers_local')||'[]');
+    lib.unshift(sticker); if(lib.length>50) lib.length=50;
+    localStorage.setItem('sp_stickers_local', JSON.stringify(lib));
+    return false;
+  }
+}
+
+async function deleteStickerFromCloud(id){
+  try{
+    await fetch(`${WORKER}/stickers?id=${encodeURIComponent(id)}`,{method:'DELETE'});
+    _stickerCache = null;
+  }catch(e){}
+}
+
+function switchStickerTab(tab){
+  document.getElementById('sticker-tab-create').style.display = tab==='create'?'block':'none';
+  document.getElementById('sticker-tab-library').style.display = tab==='library'?'block':'none';
+  document.getElementById('stab-create').classList.toggle('active', tab==='create');
+  document.getElementById('stab-library').classList.toggle('active', tab==='library');
+  if(tab==='library') renderStickerGrid();
+}
+
+function loadStickerImage(e){
+  const file = e.target.files[0]; if(!file)return;
+  if(file.size > 5*1024*1024){ toast('⚠ File terlalu besar (maks 5MB)'); return; }
+  const r = new FileReader();
+  r.onload = ev => {
+    _stickerOrigDataURL = ev.target.result;
+    _stickerCurrentDataURL = ev.target.result;
+    showStickerPreview(ev.target.result, false);
+  };
+  r.readAsDataURL(file);
+  e.target.value='';
+}
+
+function showStickerPreview(dataURL, processed){
+  document.getElementById('sticker-upload-area').style.display='none';
+  document.getElementById('sticker-processing').classList.remove('active');
+  document.getElementById('sticker-preview-area').style.display='block';
+  const canvas = document.getElementById('sticker-preview-canvas');
+  const previewImg = document.getElementById('sticker-preview-img');
+  if(processed){
+    canvas.style.display='block';
+    previewImg.style.display='none';
+  } else {
+    canvas.style.display='none';
+    previewImg.style.display='block';
+    previewImg.src = dataURL;
+    // also draw on canvas for later processing
+    const img = new Image();
+    img.onload = ()=>{
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.drawImage(img,0,0);
+    };
+    img.src = dataURL;
+  }
+  // click on preview image to pick bg color
+  previewImg.onclick = (ev)=>{
+    if(_stickerBgMethod!=='color')return;
+    const rect = previewImg.getBoundingClientRect();
+    const scaleX = previewImg.naturalWidth / previewImg.offsetWidth;
+    const scaleY = previewImg.naturalHeight / previewImg.offsetHeight;
+    const x = Math.round((ev.clientX - rect.left) * scaleX);
+    const y = Math.round((ev.clientY - rect.top) * scaleY);
+    sampleColorFromImage(_stickerOrigDataURL, x, y);
+  };
+}
+
+function sampleColorFromImage(dataURL, x, y){
+  const img = new Image();
+  img.onload = ()=>{
+    const tmpC = document.createElement('canvas');
+    tmpC.width = img.naturalWidth; tmpC.height = img.naturalHeight;
+    const ctx = tmpC.getContext('2d');
+    ctx.drawImage(img,0,0);
+    const px = ctx.getImageData(x,y,1,1).data;
+    const hex = '#'+[px[0],px[1],px[2]].map(v=>v.toString(16).padStart(2,'0')).join('');
+    document.getElementById('sticker-bg-color').value = hex;
+    applyColorRemoval();
+    toast('🎨 Warna sampled: '+hex);
+  };
+  img.src = dataURL;
+}
+
+function selectBgMethod(method){
+  _stickerBgMethod = method;
+  ['auto','color','none'].forEach(m=>{
+    document.getElementById('bgm-'+m).classList.toggle('active', m===method);
+  });
+  document.getElementById('bgm-color-opts').style.display = method==='color'?'block':'none';
+}
+
+function removeStickerBg(){
+  if(!_stickerOrigDataURL){ toast('⚠ Upload foto dulu!'); return; }
+  if(_stickerBgMethod==='none'){
+    _stickerCurrentDataURL = _stickerOrigDataURL;
+    showStickerPreview(_stickerOrigDataURL, false);
+    toast('— No background was removed');
+    return;
+  }
+  if(_stickerBgMethod==='color'){
+    applyColorRemoval(true);
+    return;
+  }
+  // auto method — smart edge detection using canvas
+  autoRemoveBg();
+}
+
+function autoRemoveBg(){
+  document.getElementById('sticker-processing').classList.add('active');
+  document.getElementById('sticker-proc-label').textContent = 'Mendeteksi background...';
+  document.getElementById('sticker-preview-area').style.display='none';
+  const img = new Image();
+  img.onload = ()=>{
+    const w=img.naturalWidth, h=img.naturalHeight;
+    const canvas = document.getElementById('sticker-preview-canvas');
+    canvas.width=w; canvas.height=h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img,0,0,w,h);
+    const imgData = ctx.getImageData(0,0,w,h);
+    const data = imgData.data;
+    // Sample corners to detect background color
+    const samples = [];
+    [[0,0],[w-1,0],[0,h-1],[w-1,h-1],[Math.floor(w/2),0],[0,Math.floor(h/2)]].forEach(([x,y])=>{
+      const i=(y*w+x)*4;
+      samples.push([data[i],data[i+1],data[i+2]]);
+    });
+    // find most common bg tone
+    const avgBg = samples.reduce((acc,s)=>[acc[0]+s[0],acc[1]+s[1],acc[2]+s[2]],[0,0,0]).map(v=>Math.round(v/samples.length));
+    // flood fill + tolerance removal
+    const tolerance = 60;
+    const visited = new Uint8Array(w*h);
+    const queue2 = [];
+    // seed from all 4 edges
+    for(let x=0;x<w;x++){ queue2.push([x,0]); queue2.push([x,h-1]); }
+    for(let y=1;y<h-1;y++){ queue2.push([0,y]); queue2.push([w-1,y]); }
+    while(queue2.length){
+      const [cx,cy] = queue2.pop();
+      if(cx<0||cy<0||cx>=w||cy>=h)continue;
+      const idx=(cy*w+cx);
+      if(visited[idx])continue;
+      visited[idx]=1;
+      const pi=idx*4;
+      const r=data[pi],g=data[pi+1],b=data[pi+2];
+      const dist = Math.sqrt((r-avgBg[0])**2+(g-avgBg[1])**2+(b-avgBg[2])**2);
+      if(dist<tolerance){
+        data[pi+3]=0; // transparent
+        queue2.push([cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]);
+      }
+    }
+    // feather edges slightly
+    ctx.putImageData(imgData,0,0);
+    const resultURL = canvas.toDataURL('image/png');
+    _stickerCurrentDataURL = resultURL;
+    document.getElementById('sticker-processing').classList.remove('active');
+    document.getElementById('sticker-preview-area').style.display='block';
+    canvas.style.display='block';
+    document.getElementById('sticker-preview-img').style.display='none';
+    toast('✦ Background berhasil dihapus!');
+  };
+  img.onerror=()=>{ toast('⚠ Failed to process image'); document.getElementById('sticker-processing').classList.remove('active'); document.getElementById('sticker-preview-area').style.display='block'; };
+  img.crossOrigin='anonymous';
+  img.src = _stickerOrigDataURL;
+}
+
+function applyColorRemoval(showToast=false){
+  if(!_stickerOrigDataURL)return;
+  const hexColor = document.getElementById('sticker-bg-color').value;
+  const tolerance = parseInt(document.getElementById('sticker-tolerance').value)||40;
+  const targetR = parseInt(hexColor.slice(1,3),16);
+  const targetG = parseInt(hexColor.slice(3,5),16);
+  const targetB = parseInt(hexColor.slice(5,7),16);
+  const img = new Image();
+  img.onload = ()=>{
+    const w=img.naturalWidth, h=img.naturalHeight;
+    const canvas = document.getElementById('sticker-preview-canvas');
+    canvas.width=w; canvas.height=h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img,0,0,w,h);
+    const imgData = ctx.getImageData(0,0,w,h);
+    const data = imgData.data;
+    // flood fill from edges only
+    const visited = new Uint8Array(w*h);
+    const q = [];
+    for(let x=0;x<w;x++){ q.push([x,0]); q.push([x,h-1]); }
+    for(let y=1;y<h-1;y++){ q.push([0,y]); q.push([w-1,y]); }
+    while(q.length){
+      const [cx,cy]=q.pop();
+      if(cx<0||cy<0||cx>=w||cy>=h)continue;
+      const idx=cy*w+cx;
+      if(visited[idx])continue;
+      visited[idx]=1;
+      const pi=idx*4;
+      const r=data[pi],g=data[pi+1],b=data[pi+2],a=data[pi+3];
+      if(a===0)continue;
+      const dist=Math.sqrt((r-targetR)**2+(g-targetG)**2+(b-targetB)**2);
+      if(dist<tolerance){
+        data[pi+3]=0;
+        q.push([cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]);
+      }
+    }
+    ctx.putImageData(imgData,0,0);
+    const resultURL = canvas.toDataURL('image/png');
+    _stickerCurrentDataURL = resultURL;
+    canvas.style.display='block';
+    document.getElementById('sticker-preview-img').style.display='none';
+    if(showToast) toast('🎨 Background dihapus dengan warna!');
+  };
+  img.src = _stickerOrigDataURL;
+}
+
+function resetStickerImg(){
+  _stickerCurrentDataURL = _stickerOrigDataURL;
+  showStickerPreview(_stickerOrigDataURL, false);
+  toast('↺ Reset ke foto asli');
+}
+
+async function saveSticker(){
+  const dataURL = _stickerCurrentDataURL;
+  if(!dataURL){ toast('⚠ No sticker to save'); return; }
+  const btn = document.querySelector('#sticker-tab-create .ed-save-btn');
+  if(btn){ btn.disabled=true; btn.textContent='💾 Menyimpan...'; }
+  const id = 'stk-'+Date.now();
+  const saved = await addStickerToCloud({id, dataURL, createdAt: Date.now()});
+  addStickerEl(dataURL, id);
+  document.getElementById('sticker-upload-area').style.display='block';
+  document.getElementById('sticker-preview-area').style.display='none';
+  _stickerOrigDataURL=null; _stickerCurrentDataURL=null;
+  if(btn){ btn.disabled=false; btn.textContent='💾 Save & Use Sticker'; }
+  closeModal('sticker');
+  toast(saved ? '🎉 Stiker disimpan & bisa dipakai semua user!' : '🎉 Stiker ditambahkan! (tersimpan lokal)');
+}
+
+function addStickerEl(dataURL, sid){
+  const el = document.createElement('div');
+  el.dataset.elType='sticker';
+  el.innerHTML=`<div class="sticker-el"><img src="${dataURL}" alt="sticker"></div>`;
+  addToFreeZone(el,{type:'sticker',x:60,y:60,w:160,h:160,label:'🎨 Stiker',src:dataURL,sid:sid||('stk-'+Date.now())});
+}
+
+async function renderStickerGrid(){
+  const grid = document.getElementById('sticker-grid');
+  const empty = document.getElementById('sticker-grid-empty');
+  // show loading state
+  grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--muted);font-size:.75rem"><div style="width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 8px"></div>Loading stickers...</div>';
+  empty.style.display='none';
+
+  const lib = await getStickerLibrary();
+  if(!lib.length){ grid.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  grid.innerHTML = lib.map((s,i)=>`
+    <div class="sticker-thumb" data-idx="${i}" title="Klik untuk gunakan">
+      <img src="${s.dataURL}" alt="sticker">
+      <button class="st-del" title="Delete sticker">✕</button>
+    </div>`).join('');
+  grid.querySelectorAll('.sticker-thumb img').forEach((img,i)=>{
+    img.onclick = ()=>{ useStickerFromLibrary(lib[i].id, lib[i].dataURL); };
+  });
+  grid.querySelectorAll('.st-del').forEach((btn,i)=>{
+    btn.onclick = (e)=>{ e.stopPropagation(); deleteStickerFromLibrary(lib[i].id); };
+  });
+}
+
+function useStickerFromLibrary(id, dataURL){
+  addStickerEl(dataURL, id);
+  closeModal('sticker');
+  toast('🎨 Stiker ditambahkan!');
+}
+
+async function deleteStickerFromLibrary(id){
+  await deleteStickerFromCloud(id);
+  renderStickerGrid();
+  toast('🗑 Stiker dihapus dari koleksi');
+}
+
+// ── BACKGROUND ──
+let _bgPending = {type:'none', value:'', overlay:30}; // staging area before Apply
+
+function handleBgUpload(e){
+  const file=e.target.files[0]; if(!file)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    const src=ev.target.result;
+    _bgPending={type:'image', value:src, overlay:parseInt(document.getElementById('bg-overlay-slider').value)||30};
+    // show preview
+    const prev=document.getElementById('bg-preview');
+    prev.style.backgroundImage=`url(${src})`;
+    prev.style.backgroundColor='';
+    document.getElementById('bg-preview-label').style.display='none';
+    document.getElementById('bg-overlay-row').style.display='block';
+    // clear active swatch
+    document.querySelectorAll('.bg-color-swatch').forEach(s=>s.classList.remove('active'));
+  };
+  r.readAsDataURL(file);
+  e.target.value='';
+}
+
+function setBgColor(hex){
+  _bgPending={type:'color', value:hex, overlay:0};
+  const prev=document.getElementById('bg-preview');
+  prev.style.backgroundImage='';
+  prev.style.backgroundColor=hex;
+  document.getElementById('bg-preview-label').style.display='none';
+  document.getElementById('bg-overlay-row').style.display='none';
+  document.querySelectorAll('.bg-color-swatch').forEach(s=>s.classList.toggle('active', s.getAttribute('onclick')===`setBgColor('${hex}')`));
+  document.getElementById('bg-custom-color').value=hex;
+}
+
+function setBgOverlay(val){
+  document.getElementById('bg-overlay-val').textContent=val+'%';
+  _bgPending.overlay=parseInt(val);
+  if(_bgPending.type==='image'){
+    applyBgToPage(_bgPending, false);
+  }
+}
+
+function applyBgToPage(bg, save=true){
+  const wrap=document.getElementById('page-wrap');
+  if(bg.type==='image'){
+    wrap.style.backgroundImage=`url(${bg.value})`;
+    wrap.style.backgroundSize='cover';
+    wrap.style.backgroundPosition='center';
+    wrap.style.backgroundAttachment='local';
+    const ov=bg.overlay||0;
+    wrap.style.setProperty('--bg-overlay', `rgba(0,0,0,${ov/100})`);
+    let ovEl=document.getElementById('bg-overlay-el');
+    if(!ovEl){ovEl=document.createElement('div');ovEl.id='bg-overlay-el';ovEl.style.cssText='position:absolute;inset:0;pointer-events:none;z-index:0';document.getElementById('page-wrap').prepend(ovEl);}
+    ovEl.style.background=`rgba(0,0,0,${ov/100})`;
+    wrap.style.backgroundColor='';
+  } else if(bg.type==='color'){
+    wrap.style.backgroundImage='';
+    wrap.style.backgroundColor=bg.value;
+    const ovEl=document.getElementById('bg-overlay-el');
+    if(ovEl)ovEl.style.background='none';
+  } else {
+    wrap.style.backgroundImage='';
+    wrap.style.backgroundColor='var(--bg)';
+    const ovEl=document.getElementById('bg-overlay-el');
+    if(ovEl)ovEl.style.background='none';
+  }
+  if(save){
+    try{
+      if(bg.type==='image'){
+        // Save bg photo in sessionStorage (no strict quota), metadata in localStorage
+        try{ sessionStorage.setItem('sp_bg_img', bg.value); }catch(e){}
+        const meta={type:'image', overlay:bg.overlay||0, hasImg:true};
+        pageInfo.bg=meta;
+      } else {
+        sessionStorage.removeItem('sp_bg_img');
+        pageInfo.bg=bg;
+      }
+      // Remove old image data from sp_info to avoid filling localStorage
+      const infoToSave={...pageInfo};
+      if(infoToSave.bg && infoToSave.bg.type==='image' && infoToSave.bg.value){
+        delete infoToSave.bg.value; // jangan simpan base64 di localStorage
+      }
+      localStorage.setItem('sp_info', JSON.stringify(infoToSave));
+    } catch(e){
+      toast('⚠ Failed to save background: storage full');
+    }
+  }
+}
+
+function applyBg(){
+  applyBgToPage(_bgPending, true);
+  closeModal('bg');
+  toast('✓ Background updated!');
+}
+
+function resetBg(){
+  _bgPending={type:'none', value:'', overlay:0};
+  const prev=document.getElementById('bg-preview');
+  prev.style.backgroundImage='';
+  prev.style.backgroundColor='';
+  document.getElementById('bg-preview-label').style.display='flex';
+  document.getElementById('bg-overlay-row').style.display='none';
+  document.querySelectorAll('.bg-color-swatch').forEach(s=>s.classList.remove('active'));
+  sessionStorage.removeItem('sp_bg_img');
+  applyBgToPage({type:'none'}, true);
+  toast('↺ Background direset');
+}
+
+function initBg(){
+  const bg=pageInfo.bg;
+  if(!bg || bg.type==='none') return;
+  if(bg.type==='image'){
+    // Ambil foto dari sessionStorage
+    const imgData = sessionStorage.getItem('sp_bg_img');
+    if(imgData){
+      applyBgToPage({type:'image', value:imgData, overlay:bg.overlay||0}, false);
+    }
+    // If not found (new tab/refresh), bg photo won't show — user must re-set
+    // tapi setidaknya tidak crash
+  } else {
+    applyBgToPage(bg, false);
+  }
+}
+
+const SHARE_KEY = 'sp_share_id';
+const CLOUDINARY_CLOUD = 'djc9oemca';
+const CLOUDINARY_PRESET = 'vibeprofile';
+
+// ── INIT ──
+function init(){
+  buildHeaderWidgets();
+  if(pageInfo.ig)setIg(pageInfo.ig);
+  if(pageInfo.profileImg){
+    const img=document.getElementById('profile-img');
+    if(img){img.src=pageInfo.profileImg;img.style.display='block';const ph=document.getElementById('profile-ph');if(ph)ph.style.display='none';}
+  }
+  restoreEls();
+  updatePlayCountLabel();
+  renderQueue();
+  initBg();
+  initShareId();
+}
+init();
+
+// ── ASK ME WIDGET ────────────────────────────────────────────────────────────
+function addAskWidget() {
+  // Check if already exists
+  if (document.querySelector('[data-el-type="ask"]')) {
+    toast('⚠ Widget Ask Me sudah ada di halaman!');
+    return;
+  }
+  const zone = document.getElementById('free-zone');
+  const zW = zone.offsetWidth || 700;
+  const el = document.createElement('div');
+  el.dataset.elType = 'ask';
+  el.dataset.askTheme = 'yellow';
+
+  const _askPreviewThemes = {
+    yellow: { border:'#c49a00', hBg:'linear-gradient(180deg,#f5c842 0%,#e8b800 100%)', hBdr:'#c49a00', bBg:'linear-gradient(180deg,#fffef5 0%,#fdfbec 100%)', tColor:'#3a2e00', sColor:'rgba(60,46,0,0.7)', btnBg:'linear-gradient(135deg,#f0c800,#d4a800)', btnC:'#3a2e00', dot:'#f5c842' },
+    pink:   { border:'#c4006a', hBg:'linear-gradient(180deg,#ff6eb4 0%,#e8006a 100%)', hBdr:'#c4006a', bBg:'linear-gradient(180deg,#fff5fa 0%,#fdeef6 100%)', tColor:'#3a0020', sColor:'rgba(80,0,40,0.7)', btnBg:'linear-gradient(135deg,#ff6eb4,#e8006a)', btnC:'#fff', dot:'#ff6eb4' },
+    blue:   { border:'#0062c4', hBg:'linear-gradient(180deg,#42a8f5 0%,#0062e8 100%)', hBdr:'#0062c4', bBg:'linear-gradient(180deg,#f5faff 0%,#eef4fd 100%)', tColor:'#00213a', sColor:'rgba(0,40,80,0.7)', btnBg:'linear-gradient(135deg,#42a8f5,#0062e8)', btnC:'#fff', dot:'#42a8f5' },
+    green:  { border:'#00994a', hBg:'linear-gradient(180deg,#4cd97a 0%,#00a84a 100%)', hBdr:'#00994a', bBg:'linear-gradient(180deg,#f5fff8 0%,#edfbf2 100%)', tColor:'#003a18', sColor:'rgba(0,60,25,0.7)', btnBg:'linear-gradient(135deg,#4cd97a,#00a84a)', btnC:'#003a18', dot:'#4cd97a' },
+    purple: { border:'#7a00c4', hBg:'linear-gradient(180deg,#b86eff 0%,#7800e8 100%)', hBdr:'#7a00c4', bBg:'linear-gradient(180deg,#faf5ff 0%,#f4eeff 100%)', tColor:'#26003a', sColor:'rgba(50,0,80,0.7)', btnBg:'linear-gradient(135deg,#b86eff,#7800e8)', btnC:'#fff', dot:'#b86eff' },
+    dark:   { border:'#444', hBg:'linear-gradient(180deg,#3a3a3a 0%,#222 100%)', hBdr:'#444', bBg:'linear-gradient(180deg,#1e1e1e 0%,#181818 100%)', tColor:'#fff', sColor:'rgba(255,255,255,0.55)', btnBg:'linear-gradient(135deg,#555,#333)', btnC:'#fff', dot:'#555' }
+  };
+
+  function _applyAskThemePreview(wrapper, key) {
+    const t = _askPreviewThemes[key] || _askPreviewThemes.yellow;
+    const preview = wrapper.querySelector('.ask-widget-preview');
+    const header  = wrapper.querySelector('.ask-preview-header');
+    const body    = wrapper.querySelector('.ask-preview-body');
+    const title   = wrapper.querySelector('.ask-preview-title');
+    const inputM  = wrapper.querySelector('.ask-preview-input-mock');
+    const btnM    = wrapper.querySelector('.ask-preview-btn-mock');
+    const xbtn    = wrapper.querySelector('.ask-preview-header-xbtn');
+    if (!preview) return;
+    preview.style.borderColor = t.border;
+    header.style.background = t.hBg;
+    header.style.borderBottomColor = t.hBdr;
+    body.style.background = t.bBg;
+    title.style.color = t.tColor;
+    if (inputM) inputM.style.borderColor = t.border.replace('c4','66').replace('00','55');
+    if (btnM) { btnM.style.background = t.btnBg; btnM.style.color = t.btnC; }
+    if (xbtn) { xbtn.style.color = t.tColor; }
+    // highlight selected dot
+    wrapper.querySelectorAll('.ask-dot-btn').forEach(d => {
+      d.style.outline = d.dataset.theme === key ? '2.5px solid #fff' : '';
+      d.style.outlineOffset = d.dataset.theme === key ? '2px' : '';
+    });
+  }
+
+  const colorDots = Object.entries(_askPreviewThemes).map(([k, th]) =>
+    `<button class="ask-dot-btn" data-theme="${k}" onclick="(function(btn){var el=btn.closest('[data-el-type=ask]');el.dataset.askTheme='${k}';var fn=el._applyTheme;if(fn)fn('${k}');})(this)" style="width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,0.3);background:${th.dot};cursor:pointer;flex-shrink:0;transition:all .15s;" title="${k}"></button>`
+  ).join('');
+
+  el.innerHTML = `
+    <div class="w-inner" style="height:100%">
+      <div class="ask-widget-preview" style="border-color:#c49a00;">
+        <div class="ask-preview-header" style="background:linear-gradient(180deg,#f5c842 0%,#e8b800 100%);border-bottom:2px solid #c49a00;">
+          <div class="ask-preview-title" style="color:#3a2e00;">Ask me something</div>
+          <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap;">${colorDots}</div>
+          <div class="ask-preview-header-xbtn" style="color:#3a2e00;">✕</div>
+        </div>
+        <div class="ask-preview-body" style="background:linear-gradient(180deg,#fffef5 0%,#fdfbec 100%);">
+          <div class="ask-preview-input-mock">Write your message or question...</div>
+          <div class="ask-preview-btn-mock" style="background:linear-gradient(135deg,#f0c800,#d4a800);color:#3a2e00;">Send</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Attach theme function to element after insert
+  el._applyTheme = function(key) { _applyAskThemePreview(el, key); };
+  // Apply to dots immediately after DOM is set
+  setTimeout(() => _applyAskThemePreview(el, 'yellow'), 0);
+
+  makeWidget(el, {
+    zone,
+    label: 'ASK',
+    type: 'ask',
+    x: Math.round(zW * 0.05),
+    y: Math.round(zW * 0.6),
+    w: Math.round(zW * 0.9),
+    h: 200,
+    saveKey: 'sp_els',
+  });
+  el.dataset.elType = 'ask';
+  // Add to elData so it saves
+  const wid2 = el.dataset.wid;
+  if (wid2) {
+    elData.push({ id: wid2, type: 'ask', theme: 'yellow', x: Math.round(zW*0.05), y: Math.round(zW*0.6), w: Math.round(zW*0.9), h: 200, rotation: 0 });
+    try { localStorage.setItem('sp_els', JSON.stringify(elData)); } catch(e) {}
+  }
+  selectWidget(el);
+  toast('💬 Widget Ask Me ditambahkan!');
+}
+
+// ── SHARE SYSTEM (Firebase Realtime DB + Cloudinary) ────────────────────────
+function initShareId() {
+  if (!localStorage.getItem(SHARE_KEY)) {
+    const id = 'sp' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+    localStorage.setItem(SHARE_KEY, id);
+  }
+}
+
+function getShareId() {
+  return localStorage.getItem(SHARE_KEY);
+}
+
+function getShareLink() {
+  const id = getShareId();
+  const base = window.location.href.replace(/vibeprofile\.html.*$/, '');
+  return base + 'vibeprofile-view.html?id=' + id;
+}
+
+// ── Helpers: base64 <-> Blob ──────────────────────────────────────────────
+function isBase64Img(str) {
+  return typeof str === 'string' && str.startsWith('data:image');
+}
+
+// ── Upload satu gambar base64 ke Firebase Storage, return URL ─────────────
+async function uploadImgToStorage(base64) {
+  const formData = new FormData();
+  formData.append('file', base64);
+  formData.append('upload_preset', CLOUDINARY_PRESET);
+  formData.append('folder', 'vibeprofiles');
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, {
+    method: 'POST',
+    body: formData
+  });
+  if (!res.ok) throw new Error('Cloudinary upload gagal: ' + res.status);
+  const data = await res.json();
+  return data.secure_url;
+}
+
+// ── Scan semua elemen, upload gambar base64, ganti dengan URL ────────────
+async function processElementsForUpload(sid, els) {
+  const processed = [];
+  for (let i = 0; i < els.length; i++) {
+    const el = { ...els[i] };
+    let html = el.html;
+
+    // Find all src="data:image..." in the html string
+    const base64Matches = [...html.matchAll(/src="(data:image[^"]+)"/g)];
+    for (let j = 0; j < base64Matches.length; j++) {
+      const [fullMatch, b64] = base64Matches[j];
+      try {
+        const url = await uploadImgToStorage(b64);
+        if (url) html = html.replace(fullMatch, `src="${url}"`);
+      } catch(e) { console.warn('Failed to upload image:', e); }
+    }
+
+    // Background di pageInfo.bg juga bisa base64
+    el.html = html;
+    processed.push(el);
+  }
+  return processed;
+}
+
+// ── Upload background jika base64 ─────────────────────────────────────────
+async function processBgForUpload(sid, bg) {
+  if (!bg || bg.type !== 'image') return bg;
+  // Ambil data foto dari sessionStorage (disimpan di sana untuk hemat localStorage)
+  let imgData = bg.value;
+  if (!imgData || !isBase64Img(imgData)) {
+    imgData = sessionStorage.getItem('sp_bg_img');
+  }
+  if (!imgData || !isBase64Img(imgData)) return bg; // tidak ada foto, skip
+  try {
+    const url = await uploadImgToStorage(imgData);
+    if (url) return { ...bg, value: url };
+  } catch(e) { console.warn('Failed to upload background:', e); }
+  return bg;
+}
+
+// ── Upload profile photo jika base64 ──────────────────────────────────────
+async function processProfileForUpload(sid, info) {
+  if (!info.profileImg || !isBase64Img(info.profileImg)) return info;
+  try {
+    const url = await uploadImgToStorage(info.profileImg);
+    if (url) return { ...info, profileImg: url };
+  } catch(e) { console.warn('Failed to upload profile:', e); }
+  return info;
+}
+
+// ── Main publish: kumpulkan data, upload gambar, simpan ke Firebase DB ─────
+async function publishAndCopy() {
+  const btn = document.getElementById('share-publish-btn');
+  const statusEl = document.getElementById('share-publish-status');
+  btn.disabled = true;
+  btn.textContent = '⏳ Memproses gambar...';
+  statusEl.innerHTML = '<span style="color:var(--sub)">Mengupload gambar ke cloud...</span>';
+
+  try {
+    const sid = getShareId();
+    const fn = window._fbFunctions;
+    const db = window._firebaseDb;
+
+    // Kumpulkan semua elemen halaman
+    const rawEls = [];
+    const zone = document.getElementById('free-zone');
+    const zoneW = zone.offsetWidth || 700;
+    const REF_W = 700; // Lebar kanvas referensi (harus sama dengan vibeprofile-view.html)
+
+    document.querySelectorAll("#free-zone [data-wid]").forEach(el => {
+      const left     = parseFloat(el.style.left)  || 0;
+      const top      = parseFloat(el.style.top)   || 0;
+      const width    = el.offsetWidth;
+      const height   = el.offsetHeight;
+      const rotation = parseFloat(el.dataset.rotation) || 0;
+
+      // Normalisasi ke koordinat REF_W=700 agar view selalu merender di ruang 700px
+      // kemudian view men-scale seluruh zone ke lebar layar HP
+      const scaleToRef = REF_W / zoneW;
+      rawEls.push({
+        type:     el.dataset.elType || "unknown",
+        style:    el.style.cssText || "",
+        html:     el.innerHTML || "",
+        theme:    el.dataset.elType === 'ask' ? (el.dataset.askTheme || 'yellow') : undefined,
+        // Posisi dalam pixel di ruang 700px (view akan scale sesuai layar)
+        px: {
+          left:   Math.round(left   * scaleToRef),
+          top:    Math.round(top    * scaleToRef),
+          width:  Math.round(width  * scaleToRef),
+          height: Math.round(height * scaleToRef),
+          rotation,
+        },
+        // Juga simpan pct untuk kompatibilitas
+        pct: {
+          left:   left   / zoneW,
+          top:    top    / zoneW,
+          width:  width  / zoneW,
+          height: height / zoneW,
+          rotation,
+          refW: zoneW,
+        }
+      });
+    });
+
+    // Upload semua gambar base64 → Cloudinary URL
+    btn.textContent = '⏳ Mengupload gambar...';
+    const els = await processElementsForUpload(sid, rawEls);
+    const bg  = await processBgForUpload(sid, pageInfo.bg || null);
+    const info = await processProfileForUpload(sid, { ...pageInfo });
+
+    // Jika bg foto berhasil diupload ke Cloudinary, simpan URL-nya agar permanen
+    if (bg && bg.type === 'image' && bg.value && bg.value.startsWith('http')) {
+      pageInfo.bg = bg;
+      try { localStorage.setItem('sp_info', JSON.stringify(pageInfo)); } catch(e) {}
+      // Terapkan ke halaman agar langsung terlihat dari URL (bukan base64)
+      const wrap = document.getElementById('page-wrap');
+      wrap.style.backgroundImage = `url(${bg.value})`;
+    }
+
+    // Bersihkan base64 yang tersisa dari info (profile sudah diproses)
+    delete info.profileImg; // sudah diganti URL, simpan terpisah jika ada
+
+    btn.textContent = '⏳ Menyimpan ke database...';
+
+    // Save metadata + elements to Realtime DB (WITHOUT base64, URLs only)
+    const snapshot = {
+      info,
+      els,
+      bg,
+      exportedAt: Date.now(),
+      title: info.name || 'My Straw Page',
+      ownerUid: window._currentUserUid || null,
+    };
+
+    if (fn && db) {
+      // Tunggu auth siap sebelum write (anonymous sign-in butuh waktu)
+      if (!window._currentUserUid) {
+        await new Promise(resolve => {
+          const unsub = window._fbAuthUnsubscribe || (() => {});
+          const checkAuth = setInterval(() => {
+            if (window._currentUserUid !== undefined) { clearInterval(checkAuth); resolve(); }
+          }, 100);
+          setTimeout(() => { clearInterval(checkAuth); resolve(); }, 5000);
+        });
+      }
+      const cleanSnapshot = JSON.parse(JSON.stringify(snapshot, (k, v) => v === undefined ? null : v));
+      await fn.set(fn.ref(db, 'vibeprofiles/' + sid), cleanSnapshot);
+      statusEl.innerHTML = '<span style="color:var(--green)">✓ Dipublikasikan ke cloud</span> · ' + new Date().toLocaleTimeString('id-ID');
+    } else {
+      // Fallback: simpan ke localStorage jika Firebase belum ada
+      localStorage.setItem('sp_pub_' + sid, JSON.stringify(snapshot));
+      statusEl.innerHTML = '<span style="color:#ffb347">⚠ Disimpan lokal (Firebase tidak tersambung)</span>';
+    }
+
+    // Salin link
+    const link = getShareLink();
+    navigator.clipboard.writeText(link).then(() => {
+      toast('🔗 Link disalin! Halaman sudah bisa dibuka di perangkat lain.');
+    }).catch(() => {
+      document.getElementById('share-link-input').select();
+      toast('📋 Pilih teks di kotak untuk menyalin');
+    });
+
+  } catch(err) {
+    console.error('Publish error:', err);
+    statusEl.innerHTML = '<span style="color:#ff5555">✗ Gagal: ' + (err.message || 'Unknown error') + '</span>';
+    toast('⚠ Failed to publish, please try again');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📤 Publish & Copy Link';
+  }
+}
+
+function openShareModal() {
+  document.getElementById('modal-share').classList.add('open');
+  const link = getShareLink();
+  document.getElementById('share-link-input').value = link;
+  updateShareQR(link);
+}
+
+function closeShareModal() {
+  document.getElementById('modal-share').classList.remove('open');
+}
+
+function updateShareQR(link) {
+  const qrEl = document.getElementById('share-qr-img');
+  const enc = encodeURIComponent(link);
+  qrEl.src = 'https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=' + enc + '&bgcolor=1a1a1a&color=1ed760&margin=10';
+}
+
+function shareToSocial(platform) {
+  const link = getShareLink();
+  const text = 'Lihat vibeprofile-ku di Vibexa 🎵';
+  const urls = {
+    twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(link)}`,
+    whatsapp: `https://wa.me/?text=${encodeURIComponent(text + ' ' + link)}`,
+  };
+  if (urls[platform]) window.open(urls[platform], '_blank');
+}
+</script>
+
+<!-- MODAL SHARE -->
+<div class="modal-overlay" id="modal-share" onclick="if(event.target===this)closeShareModal()">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <span class="modal-title">🔗 Share VibeProfile</span>
+      <button class="modal-close" onclick="closeShareModal()">×</button>
+    </div>
+
+    <!-- QR + link preview -->
+    <div style="display:flex;gap:16px;align-items:flex-start;margin-bottom:18px">
+      <div style="flex-shrink:0;background:#1a1a1a;border:1px solid var(--border);border-radius:12px;padding:6px;overflow:hidden">
+        <img id="share-qr-img" src="" alt="QR" width="100" height="100" style="display:block;border-radius:8px">
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.7rem;color:var(--sub);font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">Public Page Link</div>
+        <div style="position:relative">
+          <input id="share-link-input" readonly style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:9px 40px 9px 12px;color:var(--text);font-family:var(--fm);font-size:.68rem;outline:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer" onclick="this.select()" title="Klik untuk pilih">
+          <button onclick="publishAndCopy()" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--sub);padding:4px;border-radius:6px;transition:color .2s;display:flex;align-items:center" title="Salin link">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          </button>
+        </div>
+        <div id="share-publish-status" style="font-size:.65rem;color:var(--muted);margin-top:5px;min-height:16px"></div>
+      </div>
+    </div>
+
+    <!-- Publish CTA -->
+    <button id="share-publish-btn" onclick="publishAndCopy()" style="width:100%;padding:13px;background:var(--green);border:none;border-radius:12px;color:#000;font-family:var(--f);font-weight:800;font-size:.88rem;cursor:pointer;transition:all .2s;margin-bottom:14px;letter-spacing:-.2px" onmouseenter="this.style.opacity='.85'" onmouseleave="this.style.opacity='1'">
+      📤 Publish & Copy Link
+    </button>
+
+    <div style="font-size:.7rem;color:var(--muted);text-align:center;margin-bottom:14px;line-height:1.6">
+      Anyone with the link can view your page.<br>Click "Publish" each time you want to update the display.
+    </div>
+
+    <!-- Social share -->
+    <div style="display:flex;gap:8px;justify-content:center">
+      <button onclick="shareToSocial('whatsapp')" style="flex:1;padding:9px;background:rgba(37,211,102,0.1);border:1px solid rgba(37,211,102,0.3);border-radius:10px;color:#25d366;font-family:var(--f);font-size:.72rem;font-weight:700;cursor:pointer;transition:all .2s" onmouseenter="this.style.background='rgba(37,211,102,0.2)'" onmouseleave="this.style.background='rgba(37,211,102,0.1)'">
+        WhatsApp
+      </button>
+      <button onclick="shareToSocial('twitter')" style="flex:1;padding:9px;background:rgba(29,161,242,0.1);border:1px solid rgba(29,161,242,0.3);border-radius:10px;color:#1da1f2;font-family:var(--f);font-size:.72rem;font-weight:700;cursor:pointer;transition:all .2s" onmouseenter="this.style.background='rgba(29,161,242,0.2)'" onmouseleave="this.style.background='rgba(29,161,242,0.1)'">
+        Twitter / X
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MOBILE WIDGET TOOLBAR -->
+<div id="mob-widget-bar">
+  <div class="mwb-row">
+    <span class="mwb-label">Putar</span>
+    <input type="range" class="mwb-slider" id="mwb-rot-slider" min="-180" max="180" value="0" step="1" oninput="mwbOnRotSlider(this.value)">
+    <span class="mwb-val" id="mwb-rot-val">0°</span>
+    <div class="mwb-btns">
+      <button class="mwb-btn" onclick="mwbRotReset()">0°</button>
+    </div>
+  </div>
+  <div class="mwb-row" id="mwb-size-row">
+    <span class="mwb-label">Lebar</span>
+    <button class="mwb-btn" style="padding:4px 10px;font-size:1rem;line-height:1" onclick="mwbNudgeSize('w',-10)">−</button>
+    <input type="range" class="mwb-slider" id="mwb-w-slider" min="40" max="700" value="120" step="5" oninput="mwbOnSizeSlider()">
+    <button class="mwb-btn" style="padding:4px 10px;font-size:1rem;line-height:1" onclick="mwbNudgeSize('w',10)">+</button>
+    <span class="mwb-val" id="mwb-w-val">120</span>
+  </div>
+  <div class="mwb-row" id="mwb-h-row">
+    <span class="mwb-label">Tinggi</span>
+    <button class="mwb-btn" style="padding:4px 10px;font-size:1rem;line-height:1" onclick="mwbNudgeSize('h',-10)">−</button>
+    <input type="range" class="mwb-slider" id="mwb-h-slider" min="30" max="700" value="120" step="5" oninput="mwbOnSizeSlider()">
+    <button class="mwb-btn" style="padding:4px 10px;font-size:1rem;line-height:1" onclick="mwbNudgeSize('h',10)">+</button>
+    <span class="mwb-val" id="mwb-h-val">120</span>
+  </div>
+  <div class="mwb-row" id="mwb-edit-row" style="display:none">
+    <span class="mwb-hint" style="flex:1">✎ Edit atau rapihkan teks</span>
+    <button class="mwb-btn" onclick="if(_mwbWid)rapikanTeks(_mwbWid)">✦ Rapihkan</button>
+    <button class="mwb-btn" onclick="if(_mwbWid)openEditTextModal(_mwbWid)">Edit Teks</button>
+  </div>
+  <div class="mwb-row">
+    <span class="mwb-hint" style="flex:1">✦ Cubit 2 jari pada elemen untuk resize+rotate sekaligus</span>
+    <button class="mwb-btn danger" id="mwb-del-btn" onclick="mwbDelete()">Hapus</button>
+  </div>
+</div>
+
+<!-- Firebase SDK (Storage + DB untuk share lintas perangkat) -->
+<script type="module">
+  import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+  import { getDatabase, ref, set, get } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+  import { getAuth, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCeMRU4JgIOlS_M9hgZfDKrkIHyAFncVjE",
+    authDomain: "nevermind-c246a.firebaseapp.com",
+    databaseURL: "https://nevermind-c246a-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "nevermind-c246a",
+    storageBucket: "nevermind-c246a.firebasestorage.app",
+    messagingSenderId: "703998258491",
+    appId: "1:703998258491:web:ea9cceaa10af71db61db1e"
+  };
+
+  const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  const auth = getAuth(app);
+
+  window._firebaseDb = db;
+  window._fbFunctions = { ...(window._fbFunctions || {}), ref, set, get };
+
+  // Gunakan undefined sebagai sentinel "belum tahu" (null = sudah tahu, tidak login)
+  window._currentUserUid = undefined;
+
+  onAuthStateChanged(auth, user => {
+    window._currentUserUid = user ? user.uid : null;
+    console.log('[Auth]', user ? 'Login anonim: ' + user.uid : 'Tidak login');
+  });
+
+  // Login anonim otomatis agar Firebase write diizinkan
+  signInAnonymously(auth).catch(err => {
+    console.warn('Anonymous sign-in gagal:', err.message);
+  });
+</script>
+</body>
+</html>
