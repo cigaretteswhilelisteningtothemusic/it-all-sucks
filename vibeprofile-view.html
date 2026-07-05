@@ -911,6 +911,7 @@ let _isPlaying = false;
 let _queue = [];
 let _queueIdx = -1;
 let _raf = null;
+let _playCheckTimer = null;
 
 // Load YouTube IFrame API
 (function(){
@@ -940,9 +941,26 @@ function _createPlayer(videoId) {
     width: '1', height: '1', videoId,
     playerVars: { autoplay: 1, controls: 0, playsinline: 1, rel: 0 },
     events: {
-      onReady(e) { e.target.setVolume(80); e.target.playVideo(); },
+      onReady(e) {
+        e.target.setVolume(80);
+        e.target.playVideo();
+        // Banyak browser selain Chrome (Safari, Firefox, dll) memblokir
+        // autoplay video tanpa suara ter-mute, sehingga lagu tidak jalan
+        // TANPA memicu onError. Cek beberapa saat kemudian: kalau statusnya
+        // masih belum PLAYING/BUFFERING, kemungkinan besar itu diblokir browser.
+        clearTimeout(_playCheckTimer);
+        _playCheckTimer = setTimeout(() => {
+          try {
+            const st = _YTP && _YTP.getPlayerState ? _YTP.getPlayerState() : null;
+            if (st !== 1 /* PLAYING */ && st !== 3 /* BUFFERING */) {
+              _showToast('🎵 Music can only be played in Chrome', 4500);
+            }
+          } catch(err) {}
+        }, 2500);
+      },
       onStateChange(e) {
         if (e.data === YT.PlayerState.PLAYING) {
+          clearTimeout(_playCheckTimer);
           _isPlaying = true;
           document.getElementById('mp-icon-play').style.display = 'none';
           document.getElementById('mp-icon-pause').style.display = '';
@@ -962,7 +980,7 @@ function _createPlayer(videoId) {
           _nextTrack();
         }
       },
-      onError() { _showToast('⚠ Video tidak bisa diputar'); }
+      onError() { clearTimeout(_playCheckTimer); _showToast('🎵 Music can only be played in Chrome', 4500); }
     }
   });
 }
@@ -1026,9 +1044,12 @@ async function _playIdx(idx) {
       document.body.appendChild(audio);
     }
     audio.src = t.preview;
-    audio.play().catch(() => {});
-    _isPlaying = true;
-    _showToast('▶ ' + t.title + ' (preview)');
+    audio.play().then(() => {
+      _isPlaying = true;
+      _showToast('▶ ' + t.title + ' (preview)');
+    }).catch(() => {
+      _showToast('🎵 Music can only be played in Chrome', 4500);
+    });
   } else {
     _showToast('⚠ Video tidak ditemukan');
   }
@@ -1127,7 +1148,7 @@ function _syncBigPlayBtn() {
   }
 }
 
-function _showToast(msg) {
+function _showToast(msg, ms) {
   let t = document.getElementById('_vtoast');
   if (!t) {
     t = document.createElement('div');
@@ -1138,7 +1159,7 @@ function _showToast(msg) {
   t.textContent = msg;
   t.style.opacity = '1';
   clearTimeout(t._to);
-  t._to = setTimeout(() => { t.style.opacity = '0'; }, 2800);
+  t._to = setTimeout(() => { t.style.opacity = '0'; }, ms || 2800);
 }
 </script>
 

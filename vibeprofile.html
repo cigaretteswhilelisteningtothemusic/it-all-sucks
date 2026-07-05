@@ -2065,8 +2065,13 @@ function restoreEls(){
       el.innerHTML=`<div class="gif-el"><img src="${data.url||''}" alt="gif"></div>`;
     } else if(data.type==='sticker'){
       el.innerHTML=`<div class="sticker-el"><img src="${data.src||''}" alt="sticker"></div>`;
+    } else if(data.type==='ask'){
+      el.innerHTML=buildAskWidgetInnerHTML();
+      el.dataset.askTheme=data.theme||'yellow';
+      el._applyTheme=function(key){ applyAskThemePreview(el,key); };
+      setTimeout(()=>applyAskThemePreview(el,data.theme||'yellow'),0);
     }
-    const labels={music:'🎵 Music',photo:'📷 Photo',text:'✍ Text',gif:'✨ GIF',sticker:'🎨 Stiker'};
+    const labels={music:'🎵 Music',photo:'📷 Photo',text:'✍ Text',gif:'✨ GIF',sticker:'🎨 Stiker',ask:'💬 ASK'};
     makeWidget(el,{zone,id:data.id,saveKey:'els',label:labels[data.type]||'Element',...data});
     el.dataset.wid=data.id;
     // Double-click to edit text widgets
@@ -2747,57 +2752,47 @@ function init(){
 init();
 
 // ── ASK ME WIDGET ────────────────────────────────────────────────────────────
-function addAskWidget() {
-  // Check if already exists
-  if (document.querySelector('[data-el-type="ask"]')) {
-    toast('⚠ Widget Ask Me sudah ada di halaman!');
-    return;
-  }
-  const zone = document.getElementById('free-zone');
-  const zW = zone.offsetWidth || 700;
-  const el = document.createElement('div');
-  el.dataset.elType = 'ask';
-  el.dataset.askTheme = 'yellow';
+// ── ASK ME ANONYMOUS: theme data + builder (dipakai saat membuat widget baru
+// maupun saat restore setelah refresh, supaya tampilannya selalu konsisten) ──
+const ASK_PREVIEW_THEMES = {
+  yellow: { border:'#c49a00', hBg:'linear-gradient(180deg,#f5c842 0%,#e8b800 100%)', hBdr:'#c49a00', bBg:'linear-gradient(180deg,#fffef5 0%,#fdfbec 100%)', tColor:'#3a2e00', sColor:'rgba(60,46,0,0.7)', btnBg:'linear-gradient(135deg,#f0c800,#d4a800)', btnC:'#3a2e00', dot:'#f5c842' },
+  pink:   { border:'#c4006a', hBg:'linear-gradient(180deg,#ff6eb4 0%,#e8006a 100%)', hBdr:'#c4006a', bBg:'linear-gradient(180deg,#fff5fa 0%,#fdeef6 100%)', tColor:'#3a0020', sColor:'rgba(80,0,40,0.7)', btnBg:'linear-gradient(135deg,#ff6eb4,#e8006a)', btnC:'#fff', dot:'#ff6eb4' },
+  blue:   { border:'#0062c4', hBg:'linear-gradient(180deg,#42a8f5 0%,#0062e8 100%)', hBdr:'#0062c4', bBg:'linear-gradient(180deg,#f5faff 0%,#eef4fd 100%)', tColor:'#00213a', sColor:'rgba(0,40,80,0.7)', btnBg:'linear-gradient(135deg,#42a8f5,#0062e8)', btnC:'#fff', dot:'#42a8f5' },
+  green:  { border:'#00994a', hBg:'linear-gradient(180deg,#4cd97a 0%,#00a84a 100%)', hBdr:'#00994a', bBg:'linear-gradient(180deg,#f5fff8 0%,#edfbf2 100%)', tColor:'#003a18', sColor:'rgba(0,60,25,0.7)', btnBg:'linear-gradient(135deg,#4cd97a,#00a84a)', btnC:'#003a18', dot:'#4cd97a' },
+  purple: { border:'#7a00c4', hBg:'linear-gradient(180deg,#b86eff 0%,#7800e8 100%)', hBdr:'#7a00c4', bBg:'linear-gradient(180deg,#faf5ff 0%,#f4eeff 100%)', tColor:'#26003a', sColor:'rgba(50,0,80,0.7)', btnBg:'linear-gradient(135deg,#b86eff,#7800e8)', btnC:'#fff', dot:'#b86eff' },
+  dark:   { border:'#444', hBg:'linear-gradient(180deg,#3a3a3a 0%,#222 100%)', hBdr:'#444', bBg:'linear-gradient(180deg,#1e1e1e 0%,#181818 100%)', tColor:'#fff', sColor:'rgba(255,255,255,0.55)', btnBg:'linear-gradient(135deg,#555,#333)', btnC:'#fff', dot:'#555' }
+};
 
-  const _askPreviewThemes = {
-    yellow: { border:'#c49a00', hBg:'linear-gradient(180deg,#f5c842 0%,#e8b800 100%)', hBdr:'#c49a00', bBg:'linear-gradient(180deg,#fffef5 0%,#fdfbec 100%)', tColor:'#3a2e00', sColor:'rgba(60,46,0,0.7)', btnBg:'linear-gradient(135deg,#f0c800,#d4a800)', btnC:'#3a2e00', dot:'#f5c842' },
-    pink:   { border:'#c4006a', hBg:'linear-gradient(180deg,#ff6eb4 0%,#e8006a 100%)', hBdr:'#c4006a', bBg:'linear-gradient(180deg,#fff5fa 0%,#fdeef6 100%)', tColor:'#3a0020', sColor:'rgba(80,0,40,0.7)', btnBg:'linear-gradient(135deg,#ff6eb4,#e8006a)', btnC:'#fff', dot:'#ff6eb4' },
-    blue:   { border:'#0062c4', hBg:'linear-gradient(180deg,#42a8f5 0%,#0062e8 100%)', hBdr:'#0062c4', bBg:'linear-gradient(180deg,#f5faff 0%,#eef4fd 100%)', tColor:'#00213a', sColor:'rgba(0,40,80,0.7)', btnBg:'linear-gradient(135deg,#42a8f5,#0062e8)', btnC:'#fff', dot:'#42a8f5' },
-    green:  { border:'#00994a', hBg:'linear-gradient(180deg,#4cd97a 0%,#00a84a 100%)', hBdr:'#00994a', bBg:'linear-gradient(180deg,#f5fff8 0%,#edfbf2 100%)', tColor:'#003a18', sColor:'rgba(0,60,25,0.7)', btnBg:'linear-gradient(135deg,#4cd97a,#00a84a)', btnC:'#003a18', dot:'#4cd97a' },
-    purple: { border:'#7a00c4', hBg:'linear-gradient(180deg,#b86eff 0%,#7800e8 100%)', hBdr:'#7a00c4', bBg:'linear-gradient(180deg,#faf5ff 0%,#f4eeff 100%)', tColor:'#26003a', sColor:'rgba(50,0,80,0.7)', btnBg:'linear-gradient(135deg,#b86eff,#7800e8)', btnC:'#fff', dot:'#b86eff' },
-    dark:   { border:'#444', hBg:'linear-gradient(180deg,#3a3a3a 0%,#222 100%)', hBdr:'#444', bBg:'linear-gradient(180deg,#1e1e1e 0%,#181818 100%)', tColor:'#fff', sColor:'rgba(255,255,255,0.55)', btnBg:'linear-gradient(135deg,#555,#333)', btnC:'#fff', dot:'#555' }
-  };
+function applyAskThemePreview(wrapper, key) {
+  const t = ASK_PREVIEW_THEMES[key] || ASK_PREVIEW_THEMES.yellow;
+  const preview = wrapper.querySelector('.ask-widget-preview');
+  const header  = wrapper.querySelector('.ask-preview-header');
+  const body    = wrapper.querySelector('.ask-preview-body');
+  const title   = wrapper.querySelector('.ask-preview-title');
+  const inputM  = wrapper.querySelector('.ask-preview-input-mock');
+  const btnM    = wrapper.querySelector('.ask-preview-btn-mock');
+  const xbtn    = wrapper.querySelector('.ask-preview-header-xbtn');
+  if (!preview) return;
+  preview.style.borderColor = t.border;
+  header.style.background = t.hBg;
+  header.style.borderBottomColor = t.hBdr;
+  body.style.background = t.bBg;
+  title.style.color = t.tColor;
+  if (inputM) inputM.style.borderColor = t.border.replace('c4','66').replace('00','55');
+  if (btnM) { btnM.style.background = t.btnBg; btnM.style.color = t.btnC; }
+  if (xbtn) { xbtn.style.color = t.tColor; }
+  // highlight selected dot
+  wrapper.querySelectorAll('.ask-dot-btn').forEach(d => {
+    d.style.outline = d.dataset.theme === key ? '2.5px solid #fff' : '';
+    d.style.outlineOffset = d.dataset.theme === key ? '2px' : '';
+  });
+}
 
-  function _applyAskThemePreview(wrapper, key) {
-    const t = _askPreviewThemes[key] || _askPreviewThemes.yellow;
-    const preview = wrapper.querySelector('.ask-widget-preview');
-    const header  = wrapper.querySelector('.ask-preview-header');
-    const body    = wrapper.querySelector('.ask-preview-body');
-    const title   = wrapper.querySelector('.ask-preview-title');
-    const inputM  = wrapper.querySelector('.ask-preview-input-mock');
-    const btnM    = wrapper.querySelector('.ask-preview-btn-mock');
-    const xbtn    = wrapper.querySelector('.ask-preview-header-xbtn');
-    if (!preview) return;
-    preview.style.borderColor = t.border;
-    header.style.background = t.hBg;
-    header.style.borderBottomColor = t.hBdr;
-    body.style.background = t.bBg;
-    title.style.color = t.tColor;
-    if (inputM) inputM.style.borderColor = t.border.replace('c4','66').replace('00','55');
-    if (btnM) { btnM.style.background = t.btnBg; btnM.style.color = t.btnC; }
-    if (xbtn) { xbtn.style.color = t.tColor; }
-    // highlight selected dot
-    wrapper.querySelectorAll('.ask-dot-btn').forEach(d => {
-      d.style.outline = d.dataset.theme === key ? '2.5px solid #fff' : '';
-      d.style.outlineOffset = d.dataset.theme === key ? '2px' : '';
-    });
-  }
-
-  const colorDots = Object.entries(_askPreviewThemes).map(([k, th]) =>
+function buildAskWidgetInnerHTML() {
+  const colorDots = Object.entries(ASK_PREVIEW_THEMES).map(([k, th]) =>
     `<button class="ask-dot-btn" data-theme="${k}" onclick="(function(btn){var el=btn.closest('[data-el-type=ask]');el.dataset.askTheme='${k}';var fn=el._applyTheme;if(fn)fn('${k}');})(this)" style="width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,0.3);background:${th.dot};cursor:pointer;flex-shrink:0;transition:all .15s;" title="${k}"></button>`
   ).join('');
-
-  el.innerHTML = `
+  return `
     <div class="w-inner" style="height:100%">
       <div class="ask-widget-preview" style="border-color:#c49a00;">
         <div class="ask-preview-header" style="background:linear-gradient(180deg,#f5c842 0%,#e8b800 100%);border-bottom:2px solid #c49a00;">
@@ -2812,11 +2807,26 @@ function addAskWidget() {
       </div>
     </div>
   `;
+}
+
+function addAskWidget() {
+  // Check if already exists
+  if (document.querySelector('[data-el-type="ask"]')) {
+    toast('⚠ Widget Ask Me sudah ada di halaman!');
+    return;
+  }
+  const zone = document.getElementById('free-zone');
+  const zW = zone.offsetWidth || 700;
+  const el = document.createElement('div');
+  el.dataset.elType = 'ask';
+  el.dataset.askTheme = 'yellow';
+
+  el.innerHTML = buildAskWidgetInnerHTML();
 
   // Attach theme function to element after insert
-  el._applyTheme = function(key) { _applyAskThemePreview(el, key); };
+  el._applyTheme = function(key) { applyAskThemePreview(el, key); };
   // Apply to dots immediately after DOM is set
-  setTimeout(() => _applyAskThemePreview(el, 'yellow'), 0);
+  setTimeout(() => applyAskThemePreview(el, 'yellow'), 0);
 
   makeWidget(el, {
     zone,
@@ -2826,7 +2836,7 @@ function addAskWidget() {
     y: Math.round(zW * 0.6),
     w: Math.round(zW * 0.9),
     h: 200,
-    saveKey: 'sp_els',
+    saveKey: 'els',
   });
   el.dataset.elType = 'ask';
   // Add to elData so it saves
@@ -2838,6 +2848,7 @@ function addAskWidget() {
   selectWidget(el);
   toast('💬 Widget Ask Me ditambahkan!');
 }
+
 
 // ── SHARE SYSTEM (Firebase Realtime DB + Cloudinary) ────────────────────────
 function initShareId() {
