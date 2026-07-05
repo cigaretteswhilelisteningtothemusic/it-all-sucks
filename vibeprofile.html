@@ -901,6 +901,34 @@ if(pageInfo.bg && pageInfo.bg.type==='image' && pageInfo.bg.value && pageInfo.bg
 let hwState   = JSON.parse(localStorage.getItem('sp_hw')||'{}');
 let elData    = JSON.parse(localStorage.getItem('sp_els')||'[]');
 let wCounter  = 0;
+// FIX: sinkronkan wCounter dengan ID tertinggi yang sudah pernah dipakai,
+// supaya elemen baru setelah refresh TIDAK bentrok ID dengan elemen lama.
+// (Bentrok ID inilah akar penyebab elemen "berantakan"/salah kehapus setelah refresh.)
+(function syncWCounter(){
+  elData.forEach(d=>{
+    if(typeof d.id==='string'){
+      const m=/^w-(\d+)$/.exec(d.id);
+      if(m){ const n=parseInt(m[1],10); if(n>wCounter) wCounter=n; }
+    }
+  });
+})();
+// FIX (self-healing): jika data lama sudah terlanjur punya ID kembar akibat bug
+// di atas (dua elemen berbagi ID yang sama), beri ID baru yang unik ke duplikatnya
+// supaya elemen tidak lagi saling tertimpa/terhapus.
+(function dedupeElIds(){
+  const seen=new Set();
+  let changed=false;
+  elData.forEach(d=>{
+    if(d.id && seen.has(d.id)){
+      d.id = 'w-'+(++wCounter);
+      changed=true;
+    }
+    if(d.id) seen.add(d.id);
+  });
+  if(changed){
+    try{ localStorage.setItem('sp_els', JSON.stringify(elData)); }catch(e){}
+  }
+})();
 
 // ── YOUTUBE PLAYER ──
 let YTP = null;
