@@ -1648,9 +1648,9 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 
 /* ── Modal zoom pesan anonim / notifikasi ── */
 #notif-zoom-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,.65);
+  position: fixed; inset: 0; background: transparent;
   z-index: 950; display: none; align-items: center; justify-content: center;
-  padding: 20px; backdrop-filter: blur(3px);
+  padding: 20px;
 }
 #notif-zoom-overlay.show { display: flex; }
 .notif-zoom-card {
@@ -2919,7 +2919,6 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
       <div id="notif-zoom-avatar"></div>
       <div class="notif-zoom-head-text">
         <div class="notif-zoom-name" id="notif-zoom-name">Anonymous</div>
-        <div class="notif-zoom-time" id="notif-zoom-time"></div>
       </div>
       <button class="notif-zoom-close" onclick="closeNotifZoom()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
@@ -5950,7 +5949,6 @@ function openNotifZoom(id) {
   else actionText = `mengomentari playlist "${n.playlistName || 'playlist'}"mu`;
 
   document.getElementById('notif-zoom-name').textContent = n.fromName || 'Seseorang';
-  document.getElementById('notif-zoom-time').textContent = timeAgo(n.ts || 0);
 
   const avatarWrap = document.getElementById('notif-zoom-avatar');
   if (n.fromPhoto) {
