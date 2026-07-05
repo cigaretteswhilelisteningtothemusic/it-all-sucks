@@ -1590,6 +1590,112 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 }
 #notif-overlay.show { display: block; }
 
+/* ── Mode pilih notifikasi (untuk hapus manual) ── */
+.notif-select-btn {
+  background: none; border: 1px solid var(--border);
+  border-radius: 50px; padding: 4px 12px;
+  color: var(--sub); font-family: var(--f);
+  font-size: .7rem; cursor: pointer; transition: all .18s;
+}
+.notif-select-btn:hover { color: var(--text); border-color: var(--green); }
+.notif-select-btn.active { color: #000; background: var(--green); border-color: var(--green); }
+
+.notif-item.selectable { cursor: pointer; }
+.notif-checkbox-wrap {
+  width: 22px; height: 40px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.notif-checkbox {
+  width: 18px; height: 18px; border-radius: 5px;
+  border: 2px solid var(--border); background: transparent;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s; flex-shrink: 0;
+}
+.notif-checkbox svg {
+  width: 12px; height: 12px; opacity: 0; transform: scale(.5);
+  transition: all .15s; stroke: #000;
+}
+.notif-item.checked .notif-checkbox {
+  background: var(--green); border-color: var(--green);
+}
+.notif-item.checked .notif-checkbox svg { opacity: 1; transform: scale(1); }
+.notif-item.checked { background: rgba(30,215,96,.06); }
+
+/* Bar aksi hapus terpilih, muncul di atas list saat mode pilih aktif */
+.notif-bulk-bar {
+  display: none; align-items: center; justify-content: space-between;
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+.notif-bulk-bar.show { display: flex; }
+.notif-bulk-count { font-size: .75rem; color: var(--sub); }
+.notif-bulk-actions { display: flex; gap: 8px; }
+.notif-bulk-delete {
+  background: rgba(255,90,90,.15); border: 1px solid rgba(255,90,90,.4);
+  color: #ff5a5a; border-radius: 50px; padding: 5px 13px;
+  font-family: var(--f); font-size: .72rem; font-weight: 600;
+  cursor: pointer; transition: all .18s;
+}
+.notif-bulk-delete:hover { background: rgba(255,90,90,.28); }
+.notif-bulk-delete:disabled { opacity: .4; cursor: not-allowed; }
+.notif-bulk-selectall {
+  background: none; border: 1px solid var(--border);
+  color: var(--sub); border-radius: 50px; padding: 5px 13px;
+  font-family: var(--f); font-size: .72rem;
+  cursor: pointer; transition: all .18s;
+}
+.notif-bulk-selectall:hover { color: var(--text); border-color: var(--green); }
+
+/* ── Modal zoom pesan anonim / notifikasi ── */
+#notif-zoom-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.65);
+  z-index: 950; display: none; align-items: center; justify-content: center;
+  padding: 20px; backdrop-filter: blur(3px);
+}
+#notif-zoom-overlay.show { display: flex; }
+.notif-zoom-card {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 16px; max-width: 420px; width: 100%;
+  max-height: 80vh; display: flex; flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  animation: notifZoomIn .18s cubic-bezier(.22,1,.36,1);
+}
+@keyframes notifZoomIn {
+  from { opacity: 0; transform: scale(.94) translateY(6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.notif-zoom-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 16px 18px 12px; border-bottom: 1px solid var(--border);
+}
+.notif-zoom-head .notif-avatar,
+.notif-zoom-head .notif-icon-wrap { width: 36px; height: 36px; }
+.notif-zoom-head-text { flex: 1; min-width: 0; }
+.notif-zoom-name { font-size: .85rem; font-weight: 700; color: var(--text); }
+.notif-zoom-time { font-size: .68rem; color: var(--muted); margin-top: 2px; }
+.notif-zoom-close {
+  background: none; border: none; color: var(--sub);
+  cursor: pointer; padding: 6px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; transition: all .18s;
+}
+.notif-zoom-close:hover { color: var(--text); background: var(--hover); }
+.notif-zoom-close svg { width: 18px; height: 18px; }
+.notif-zoom-body {
+  padding: 18px; overflow-y: auto;
+  font-size: .92rem; line-height: 1.75; color: var(--text);
+  white-space: pre-wrap; word-break: break-word;
+}
+.notif-zoom-foot {
+  padding: 12px 18px 16px; display: flex; justify-content: flex-end;
+}
+.notif-zoom-delete-btn {
+  background: rgba(255,90,90,.15); border: 1px solid rgba(255,90,90,.4);
+  color: #ff5a5a; border-radius: 50px; padding: 6px 15px;
+  font-family: var(--f); font-size: .74rem; font-weight: 600;
+  cursor: pointer; transition: all .18s;
+}
+.notif-zoom-delete-btn:hover { background: rgba(255,90,90,.28); }
+
 /* Mobile adjustments */
 @media(max-width:660px) {
   #notif-panel {
@@ -2784,16 +2890,44 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
       Notifikasi
     </div>
     <div class="notif-panel-actions">
+      <button class="notif-select-btn" id="notif-select-toggle" onclick="toggleNotifSelectMode()">Pilih</button>
       <button class="notif-clear-btn" onclick="clearAllNotifications()">Hapus semua</button>
       <button class="notif-close-btn" onclick="closeNotifPanel()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
       </button>
     </div>
   </div>
+  <div class="notif-bulk-bar" id="notif-bulk-bar">
+    <span class="notif-bulk-count" id="notif-bulk-count">0 dipilih</span>
+    <div class="notif-bulk-actions">
+      <button class="notif-bulk-selectall" id="notif-bulk-selectall-btn" onclick="toggleNotifSelectAll()">Pilih semua</button>
+      <button class="notif-bulk-delete" id="notif-bulk-delete-btn" onclick="deleteSelectedNotifications()" disabled>Hapus</button>
+    </div>
+  </div>
   <div id="notif-list">
     <div class="notif-empty">
       <span></span>
       No notifications yet.<br>Saat ada yang like atau<br>komentar playlistmu,<br>akan muncul di sini.
+    </div>
+  </div>
+</div>
+
+<!-- Modal zoom isi notifikasi / pesan anonim -->
+<div id="notif-zoom-overlay" onclick="if(event.target===this) closeNotifZoom()">
+  <div class="notif-zoom-card">
+    <div class="notif-zoom-head">
+      <div id="notif-zoom-avatar"></div>
+      <div class="notif-zoom-head-text">
+        <div class="notif-zoom-name" id="notif-zoom-name">Anonymous</div>
+        <div class="notif-zoom-time" id="notif-zoom-time"></div>
+      </div>
+      <button class="notif-zoom-close" onclick="closeNotifZoom()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="notif-zoom-body" id="notif-zoom-body"></div>
+    <div class="notif-zoom-foot">
+      <button class="notif-zoom-delete-btn" id="notif-zoom-delete-btn" onclick="deleteNotifFromZoom()">Hapus notifikasi ini</button>
     </div>
   </div>
 </div>
@@ -5652,6 +5786,9 @@ function updatePublishBtn(isPublic) {
 // Listener real-time untuk like & komentar di semua playlist publik milik user
 
 let _notifListeners = []; // simpan ref agar bisa di-detach
+let _notifCache = [];           // cache notifikasi terakhir yang dirender
+let _notifSelectMode = false;   // apakah mode pilih sedang aktif
+let _selectedNotifIds = new Set(); // id notifikasi yang sedang dicentang
 
 function timeAgo(ts) {
   const diff = Date.now() - ts;
@@ -5680,6 +5817,8 @@ function toggleNotifPanel() {
 function closeNotifPanel() {
   document.getElementById('notif-panel').classList.remove('open');
   document.getElementById('notif-overlay').classList.remove('show');
+  // Keluar dari mode pilih saat panel ditutup
+  if (_notifSelectMode) exitNotifSelectMode();
 }
 
 async function markAllRead() {
@@ -5701,6 +5840,81 @@ async function clearAllNotifications() {
   updateNotifBadge(0);
 }
 
+// ── Mode pilih notifikasi ──
+function toggleNotifSelectMode() {
+  if (_notifSelectMode) {
+    exitNotifSelectMode();
+  } else {
+    _notifSelectMode = true;
+    _selectedNotifIds.clear();
+    document.getElementById('notif-select-toggle').classList.add('active');
+    document.getElementById('notif-select-toggle').textContent = 'Batal';
+    document.getElementById('notif-bulk-bar').classList.add('show');
+    renderNotifications(_notifCache);
+  }
+}
+
+function exitNotifSelectMode() {
+  _notifSelectMode = false;
+  _selectedNotifIds.clear();
+  const toggleBtn = document.getElementById('notif-select-toggle');
+  if (toggleBtn) { toggleBtn.classList.remove('active'); toggleBtn.textContent = 'Pilih'; }
+  const bar = document.getElementById('notif-bulk-bar');
+  if (bar) bar.classList.remove('show');
+  renderNotifications(_notifCache);
+}
+
+function toggleNotifCheck(id) {
+  if (_selectedNotifIds.has(id)) {
+    _selectedNotifIds.delete(id);
+  } else {
+    _selectedNotifIds.add(id);
+  }
+  updateNotifBulkBar();
+  const item = document.querySelector(`.notif-item[data-id="${CSS.escape(id)}"]`);
+  if (item) item.classList.toggle('checked', _selectedNotifIds.has(id));
+}
+
+function toggleNotifSelectAll() {
+  const allIds = _notifCache.map(n => n._id);
+  const allSelected = allIds.length > 0 && allIds.every(id => _selectedNotifIds.has(id));
+  if (allSelected) {
+    _selectedNotifIds.clear();
+  } else {
+    allIds.forEach(id => _selectedNotifIds.add(id));
+  }
+  renderNotifications(_notifCache);
+}
+
+function updateNotifBulkBar() {
+  const count = _selectedNotifIds.size;
+  const countEl = document.getElementById('notif-bulk-count');
+  const delBtn = document.getElementById('notif-bulk-delete-btn');
+  const selAllBtn = document.getElementById('notif-bulk-selectall-btn');
+  if (countEl) countEl.textContent = count + ' dipilih';
+  if (delBtn) delBtn.disabled = count === 0;
+  if (selAllBtn) {
+    const allIds = _notifCache.map(n => n._id);
+    const allSelected = allIds.length > 0 && allIds.every(id => _selectedNotifIds.has(id));
+    selAllBtn.textContent = allSelected ? 'Batal pilih' : 'Pilih semua';
+  }
+}
+
+async function deleteSelectedNotifications() {
+  if (!currentUser || _selectedNotifIds.size === 0) return;
+  const ids = [..._selectedNotifIds];
+  if (!confirm(`Hapus ${ids.length} notifikasi terpilih?`)) return;
+  const updates = {};
+  ids.forEach(id => { updates[id] = null; });
+  await db.ref('users/' + currentUser.uid + '/notifications').update(updates).catch(() => {});
+  exitNotifSelectMode();
+}
+
+async function deleteSingleNotification(id) {
+  if (!currentUser || !id) return;
+  await db.ref('users/' + currentUser.uid + '/notifications/' + id).remove().catch(() => {});
+}
+
 function updateNotifBadge(count) {
   const badge = document.getElementById('notif-badge');
   const mobBadge = document.getElementById('mob-notif-badge');
@@ -5715,18 +5929,79 @@ function updateNotifBadge(count) {
   }
 }
 
+// ── Modal zoom: melihat isi notifikasi secara utuh (tidak terpotong) ──
+let _notifZoomCurrentId = null;
+
+function openNotifZoom(id) {
+  const n = _notifCache.find(x => x._id === id);
+  if (!n) return;
+  _notifZoomCurrentId = id;
+
+  const isAsk = n.type === 'ask_message';
+  const isLike = n.type === 'like';
+  const isCommentLike = n.type === 'comment_like';
+  const isReply = n.type === 'comment_reply';
+
+  let actionText;
+  if (isAsk) actionText = 'mengirim pesan anonim ke vibeprofile-mu';
+  else if (isLike) actionText = `menyukai playlist "${n.playlistName || 'playlist'}"mu`;
+  else if (isCommentLike) actionText = `menyukai komentarmu di "${n.playlistName || 'playlist'}"`;
+  else if (isReply) actionText = `membalas komentarmu di "${n.playlistName || 'playlist'}"`;
+  else actionText = `mengomentari playlist "${n.playlistName || 'playlist'}"mu`;
+
+  document.getElementById('notif-zoom-name').textContent = n.fromName || 'Seseorang';
+  document.getElementById('notif-zoom-time').textContent = timeAgo(n.ts || 0);
+
+  const avatarWrap = document.getElementById('notif-zoom-avatar');
+  if (n.fromPhoto) {
+    avatarWrap.innerHTML = `<div class="notif-avatar"><img src="${esc(n.fromPhoto)}" alt=""></div>`;
+  } else if (isAsk) {
+    avatarWrap.innerHTML = `<div class="notif-icon-wrap notif-icon-ask">💬</div>`;
+  } else if (isLike) {
+    avatarWrap.innerHTML = `<div class="notif-icon-wrap notif-icon-like"></div>`;
+  } else {
+    avatarWrap.innerHTML = `<div class="notif-icon-wrap notif-icon-comment"></div>`;
+  }
+
+  const bodyEl = document.getElementById('notif-zoom-body');
+  const fullText = isAsk ? (n.text || '') : (n.comment || '');
+  if (fullText) {
+    bodyEl.innerHTML = `<div style="margin-bottom:10px;color:var(--sub);font-size:.8rem;">${esc(n.fromName || 'Seseorang')} ${esc(actionText)}</div><div>${esc(fullText)}</div>`;
+  } else {
+    bodyEl.innerHTML = `<div>${esc(n.fromName || 'Seseorang')} ${esc(actionText)}</div>`;
+  }
+
+  document.getElementById('notif-zoom-overlay').classList.add('show');
+}
+
+function closeNotifZoom() {
+  document.getElementById('notif-zoom-overlay').classList.remove('show');
+  _notifZoomCurrentId = null;
+}
+
+async function deleteNotifFromZoom() {
+  if (!_notifZoomCurrentId) return;
+  if (!confirm('Hapus notifikasi ini?')) return;
+  await deleteSingleNotification(_notifZoomCurrentId);
+  closeNotifZoom();
+}
+
 function renderNotifications(notifs) {
+  _notifCache = notifs || [];
   const list = document.getElementById('notif-list');
   if (!list) return;
   if (!notifs || !notifs.length) {
     list.innerHTML = `<div class="notif-empty"><span></span>No notifications yet.<br>When someone likes, comments,<br>or sends an anonymous message to<br>your vibeprofile, it will appear here.</div>`;
+    updateNotifBulkBar();
     return;
   }
   const sorted = [...notifs].sort((a, b) => (b.ts || 0) - (a.ts || 0));
   list.innerHTML = '';
   sorted.forEach(n => {
     const item = document.createElement('div');
-    item.className = 'notif-item' + (n.read ? '' : ' unread');
+    const isChecked = _selectedNotifIds.has(n._id);
+    item.className = 'notif-item' + (n.read ? '' : ' unread') + (_notifSelectMode ? ' selectable' : '') + (isChecked ? ' checked' : '');
+    item.dataset.id = n._id;
 
     const isLike = n.type === 'like';
     const isCommentLike = n.type === 'comment_like';
@@ -5763,7 +6038,12 @@ function renderNotifications(notifs) {
       ? `<div class="notif-comment-preview notif-ask-preview">❝ ${esc(n.text.slice(0, 100))}${n.text.length > 100 ? '…' : ''} ❞</div>`
       : '';
 
+    const checkboxHtml = _notifSelectMode
+      ? `<div class="notif-checkbox-wrap"><div class="notif-checkbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div></div>`
+      : '';
+
     item.innerHTML = `
+      ${checkboxHtml}
       ${n.fromPhoto ? photo : icon}
       <div class="notif-body">
         <div class="notif-msg">
@@ -5778,8 +6058,19 @@ function renderNotifications(notifs) {
         </div>
       </div>
     `;
+
+    // Klik item: mode pilih -> toggle centang, mode normal -> buka zoom (lihat pesan utuh)
+    item.addEventListener('click', () => {
+      if (_notifSelectMode) {
+        toggleNotifCheck(n._id);
+      } else {
+        openNotifZoom(n._id);
+      }
+    });
+
     list.appendChild(item);
   });
+  updateNotifBulkBar();
 }
 
 // Mulai listen notifikasi dari Firebase
