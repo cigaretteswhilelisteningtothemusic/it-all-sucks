@@ -1563,6 +1563,20 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   font-size: .68rem; color: var(--muted);
   display: flex; align-items: center; gap: 4px;
 }
+.notif-read-status {
+  font-size: .68rem; display: flex; align-items: center; gap: 5px;
+  margin-top: 2px; font-weight: 600;
+}
+.notif-read-status--read {
+  color: var(--muted); font-weight: 400;
+}
+.notif-read-status--read svg { color: var(--green); flex-shrink: 0; }
+.notif-read-status--unread { color: var(--green); }
+.notif-unread-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green); flex-shrink: 0;
+  box-shadow: 0 0 0 3px rgba(30,215,96,.18);
+}
 .notif-comment-preview {
   margin-top: 6px; background: var(--card);
   border-left: 2px solid var(--green);
@@ -5809,7 +5823,6 @@ function toggleNotifPanel() {
   } else {
     panel.classList.add('open');
     overlay.classList.add('show');
-    markAllRead();
   }
 }
 
@@ -5829,6 +5842,12 @@ async function markAllRead() {
   db.ref('users/' + currentUser.uid + '/notifications').update(updates).catch(() => {});
   // Update badge
   updateNotifBadge(0);
+}
+
+// Tandai satu notifikasi sebagai sudah dibaca (dipanggil saat notifikasi dibuka/di-zoom)
+function markNotifRead(id) {
+  if (!currentUser || !id) return;
+  db.ref('users/' + currentUser.uid + '/notifications/' + id + '/read').set(true).catch(() => {});
 }
 
 async function clearAllNotifications() {
@@ -5935,6 +5954,7 @@ function openNotifZoom(id) {
   const n = _notifCache.find(x => x._id === id);
   if (!n) return;
   _notifZoomCurrentId = id;
+  if (!n.read) markNotifRead(id);
 
   const isAsk = n.type === 'ask_message';
   const isLike = n.type === 'like';
@@ -5970,6 +5990,11 @@ function openNotifZoom(id) {
   }
 
   document.getElementById('notif-zoom-overlay').classList.add('show');
+
+  // Tutup panel notifikasi di belakangnya supaya pesan anonim lain tidak
+  // ikut terlihat/ter-screenshot bersamaan dengan pesan yang sedang di-zoom.
+  document.getElementById('notif-panel').classList.remove('open');
+  document.getElementById('notif-overlay').classList.remove('show');
 }
 
 function closeNotifZoom() {
@@ -6040,6 +6065,16 @@ function renderNotifications(notifs) {
       ? `<div class="notif-checkbox-wrap"><div class="notif-checkbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div></div>`
       : '';
 
+    // Untuk pesan anonim: jam pengiriman disembunyikan, diganti status baca
+    const bottomLine = isAsk
+      ? (n.read
+          ? `<div class="notif-read-status notif-read-status--read"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="11" height="11"><path d="M20 6 9 17l-5-5"/></svg> Sudah dibaca</div>`
+          : `<div class="notif-read-status notif-read-status--unread"><span class="notif-unread-dot"></span> Belum dibaca</div>`)
+      : `<div class="notif-time">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          ${timeAgo(n.ts || 0)}
+        </div>`;
+
     item.innerHTML = `
       ${checkboxHtml}
       ${n.fromPhoto ? photo : icon}
@@ -6050,10 +6085,7 @@ function renderNotifications(notifs) {
         </div>
         ${commentPrev}
         ${askPrev}
-        <div class="notif-time">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-          ${timeAgo(n.ts || 0)}
-        </div>
+        ${bottomLine}
       </div>
     `;
 
@@ -6091,9 +6123,7 @@ function startNotifListeners() {
 
     // Hitung unread
     const unread = notifs.filter(n => !n.read).length;
-    // Hanya update badge kalau panel tidak sedang terbuka
-    const panelOpen = document.getElementById('notif-panel').classList.contains('open');
-    updateNotifBadge(panelOpen ? 0 : unread);
+    updateNotifBadge(unread);
   });
   _notifListeners.push(() => notifRef.off('value', allOff));
 
