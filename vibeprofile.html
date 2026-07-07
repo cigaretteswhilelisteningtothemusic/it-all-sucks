@@ -889,17 +889,49 @@ const WORKER='https://fancy-band-d65b.alpinofficial26.workers.dev';
 const MIN_W=60, MIN_H=40;
 const ZONE_MIN_H=380;
 
-let favorites = JSON.parse(localStorage.getItem('sp_favorites')||'[]');
-let pageInfo  = JSON.parse(localStorage.getItem('sp_info')||'{}');
+// ── SAFE STORAGE LAYER ──────────────────────────────────────────────────
+// Root cause fix: sebelumnya semua data (background, kotak ASK/anonymous,
+// stiker, lagu, dsb) dibaca lewat JSON.parse(localStorage.getItem(...))
+// TANPA try/catch di bagian paling atas script. Jika salah satu key
+// tersimpan dalam bentuk rusak/tidak lengkap (misalnya karena kuota
+// localStorage sempat penuh saat menyimpan foto/stiker besar), JSON.parse
+// akan melempar error, SELURUH script berhenti dieksekusi di titik itu,
+// dan halaman terlihat kosong/"semua elemen hilang" — padahal datanya
+// sebenarnya masih ada di localStorage, hanya gagal dibaca.
+// safeGet/safeSet di bawah ini membuat setiap baca/tulis localStorage
+// tidak akan pernah menghentikan seluruh aplikasi.
+function safeGet(key, fallback){
+  try{
+    const raw = localStorage.getItem(key);
+    if(raw===null || raw===undefined) return fallback;
+    return JSON.parse(raw);
+  }catch(e){
+    console.error('[safeGet] Data tersimpan untuk "'+key+'" rusak, memakai default. Detail:', e);
+    try{ localStorage.setItem(key+'__corrupted_backup', localStorage.getItem(key)); }catch(e2){}
+    return fallback;
+  }
+}
+function safeSet(key, value){
+  try{
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  }catch(e){
+    console.error('[safeSet] Gagal menyimpan "'+key+'" ke localStorage:', e);
+    if(typeof _warnSaveFailed==='function') _warnSaveFailed(e);
+    return false;
+  }
+}
+let favorites = safeGet('sp_favorites', []);
+let pageInfo  = safeGet('sp_info', {});
 // Bersihkan foto bg lama yang tersimpan sebagai base64 di localStorage (penyebab QuotaExceededError)
 if(pageInfo.bg && pageInfo.bg.type==='image' && pageInfo.bg.value && pageInfo.bg.value.startsWith('data:')){
   try{ localStorage.setItem('sp_bg_img', pageInfo.bg.value); }catch(e){}
   delete pageInfo.bg.value;
   pageInfo.bg.hasImg=true;
-  try{ localStorage.setItem('sp_info', JSON.stringify(pageInfo)); }catch(e){}
+  try{ safeSet('sp_info', pageInfo); }catch(e){}
 }
-let hwState   = JSON.parse(localStorage.getItem('sp_hw')||'{}');
-let elData    = JSON.parse(localStorage.getItem('sp_els')||'[]');
+let hwState   = safeGet('sp_hw', {});
+let elData    = safeGet('sp_els', []);
 let wCounter  = 0;
 // FIX: sinkronkan wCounter dengan ID tertinggi yang sudah pernah dipakai,
 // supaya elemen baru setelah refresh TIDAK bentrok ID dengan elemen lama.
@@ -926,7 +958,7 @@ let wCounter  = 0;
     if(d.id) seen.add(d.id);
   });
   if(changed){
-    try{ localStorage.setItem('sp_els', JSON.stringify(elData)); }catch(e){}
+    try{ safeSet('sp_els', elData); }catch(e){}
   }
 })();
 
@@ -1707,10 +1739,10 @@ function removeWidget(wid, saveKey){
   el.remove();
   if(saveKey==='els'){
     elData=elData.filter(d=>d.id!==wid);
-    localStorage.setItem('sp_els',JSON.stringify(elData));
+    safeSet('sp_els', elData);
   } else if(saveKey==='hw'){
     delete hwState[wid];
-    localStorage.setItem('sp_hw',JSON.stringify(hwState));
+    safeSet('sp_hw', hwState);
   }
   toast('Dihapus');
 }
@@ -1729,7 +1761,7 @@ function saveWidgetState(el){
 
   if(el.dataset.hwKey){
     hwState[el.dataset.hwKey]={x:px,y:py,w:pw,h:ph,rotation,pct};
-    try{ localStorage.setItem('sp_hw',JSON.stringify(hwState)); }catch(e){ _warnSaveFailed(e); }
+    try{ safeSet('sp_hw', hwState); }catch(e){ _warnSaveFailed(e); }
   }
   if(!el.dataset.hwKey){
     const idx=elData.findIndex(d=>d.id===wid);
@@ -1738,7 +1770,7 @@ function saveWidgetState(el){
       elData[idx].w=pw;elData[idx].h=ph;
       elData[idx].rotation=rotation;
       elData[idx].pct=pct;
-      try{ localStorage.setItem('sp_els',JSON.stringify(elData)); }catch(e){ _warnSaveFailed(e); }
+      try{ safeSet('sp_els', elData); }catch(e){ _warnSaveFailed(e); }
     }
   }
 }
@@ -1767,7 +1799,7 @@ function merge(key){
 function buildHeaderWidgets(){
   const zone=document.getElementById('free-zone');
   // skip if already removed
-  const removedHW=JSON.parse(localStorage.getItem('sp_hw_removed')||'[]');
+  const removedHW=safeGet('sp_hw_removed', []);
 
   function makeHW(key,html,extraStyle){
     if(removedHW.includes(key))return;
@@ -1835,7 +1867,7 @@ function addToFreeZone(el,data){
   const id=makeWidget(el,{zone,label:data.label||'Element',saveKey:'els',...data});
   data.id=id;
   elData.push(data);
-  localStorage.setItem('sp_els',JSON.stringify(elData));
+  safeSet('sp_els', elData);
   updatePlayCountLabel();
   // Double-click to edit text widgets
   if(data.type==='text'){
@@ -1960,7 +1992,7 @@ function rapikanTeks(wid){
   const idx = elData.findIndex(d=>d.id===wid);
   if(idx>-1){
     elData[idx].fontSize = best;
-    localStorage.setItem('sp_els', JSON.stringify(elData));
+    safeSet('sp_els', elData);
   }
   toast('✦ Teks dirapihkan!');
 }
@@ -2023,7 +2055,7 @@ function saveEditText(){
     elData[idx].fontSize=fontSize;
     elData[idx].fontWeight=fontWeight;
     elData[idx].color=color;
-    localStorage.setItem('sp_els',JSON.stringify(elData));
+    safeSet('sp_els', elData);
   }
   document.getElementById('modal-edit-text').classList.remove('open');
   toast('✎ Text updated!');
@@ -2093,7 +2125,7 @@ function handleProfileUpload(e){
     const img=document.getElementById('profile-img');
     if(img){img.src=src;img.style.display='block';document.getElementById('profile-ph').style.display='none';}
     pageInfo.profileImg=src;
-    localStorage.setItem('sp_info',JSON.stringify(pageInfo));
+    safeSet('sp_info', pageInfo);
     toast('✓ Profile photo updated!');
   };
   r.readAsDataURL(file);
@@ -2210,8 +2242,8 @@ async function searchGifs(){
 
 // ── TITLE/DESC SAVE ──
 document.addEventListener('input',e=>{
-  if(e.target.id==='page-title'){pageInfo.title=e.target.textContent;localStorage.setItem('sp_info',JSON.stringify(pageInfo));}
-  if(e.target.id==='page-desc'){pageInfo.desc=e.target.textContent;localStorage.setItem('sp_info',JSON.stringify(pageInfo));}
+  if(e.target.id==='page-title'){pageInfo.title=e.target.textContent;safeSet('sp_info', pageInfo);}
+  if(e.target.id==='page-desc'){pageInfo.desc=e.target.textContent;safeSet('sp_info', pageInfo);}
 });
 
 // ── REMOVE HEADER WIDGET (track removal) ──
@@ -2221,9 +2253,9 @@ window.removeWidget = function(wid, saveKey){
   const el=document.querySelector(`[data-wid="${wid}"]`);
   if(!el)return;
   if(saveKey==='hw'){
-    const removed=JSON.parse(localStorage.getItem('sp_hw_removed')||'[]');
+    const removed=safeGet('sp_hw_removed', []);
     if(!removed.includes(wid))removed.push(wid);
-    localStorage.setItem('sp_hw_removed',JSON.stringify(removed));
+    safeSet('sp_hw_removed', removed);
   }
   // if music card, remove from queue
   const qIdx=queue.findIndex(q=>q.id===wid);
@@ -2231,11 +2263,11 @@ window.removeWidget = function(wid, saveKey){
   el.remove();
   if(saveKey==='els'){
     elData=elData.filter(d=>d.id!==wid);
-    localStorage.setItem('sp_els',JSON.stringify(elData));
+    safeSet('sp_els', elData);
     updatePlayCountLabel();
   } else if(saveKey==='hw'){
     delete hwState[wid];
-    localStorage.setItem('sp_hw',JSON.stringify(hwState));
+    safeSet('sp_hw', hwState);
   }
   toast('Dihapus');
 };
@@ -2314,7 +2346,7 @@ async function getStickerLibrary(){
     _stickerCache = data.stickers || [];
     return _stickerCache;
   }catch(e){
-    try{ return JSON.parse(localStorage.getItem('sp_stickers_local')||'[]'); }catch(e2){ return []; }
+    return safeGet('sp_stickers_local', []);
   }
 }
 
@@ -2330,9 +2362,9 @@ async function addStickerToCloud(sticker){
     return true;
   }catch(e){
     // fallback lokal
-    const lib = JSON.parse(localStorage.getItem('sp_stickers_local')||'[]');
+    const lib = safeGet('sp_stickers_local', []);
     lib.unshift(sticker); if(lib.length>50) lib.length=50;
-    localStorage.setItem('sp_stickers_local', JSON.stringify(lib));
+    safeSet('sp_stickers_local', lib);
     return false;
   }
 }
@@ -2691,7 +2723,7 @@ function applyBgToPage(bg, save=true){
       if(infoToSave.bg && infoToSave.bg.type==='image' && infoToSave.bg.value){
         delete infoToSave.bg.value; // jangan simpan base64 di localStorage
       }
-      localStorage.setItem('sp_info', JSON.stringify(infoToSave));
+      safeSet('sp_info', infoToSave);
     } catch(e){
       toast('⚠ Failed to save background: storage full');
     }
@@ -2739,17 +2771,28 @@ const CLOUDINARY_PRESET = 'vibeprofile';
 
 // ── INIT ──
 function init(){
-  buildHeaderWidgets();
-  if(pageInfo.ig)setIg(pageInfo.ig);
-  if(pageInfo.profileImg){
-    const img=document.getElementById('profile-img');
-    if(img){img.src=pageInfo.profileImg;img.style.display='block';const ph=document.getElementById('profile-ph');if(ph)ph.style.display='none';}
-  }
-  restoreEls();
-  updatePlayCountLabel();
-  renderQueue();
-  initBg();
-  initShareId();
+  // Setiap langkah dibungkus try/catch sendiri-sendiri: kalau satu bagian
+  // gagal (mis. profile foto korup), bagian lain (background, kotak ASK,
+  // stiker, lagu) TETAP dimuat, bukannya ikut hilang semua.
+  const steps=[
+    ['buildHeaderWidgets', ()=>buildHeaderWidgets()],
+    ['ig', ()=>{ if(pageInfo.ig) setIg(pageInfo.ig); }],
+    ['profileImg', ()=>{
+      if(pageInfo.profileImg){
+        const img=document.getElementById('profile-img');
+        if(img){img.src=pageInfo.profileImg;img.style.display='block';const ph=document.getElementById('profile-ph');if(ph)ph.style.display='none';}
+      }
+    }],
+    ['restoreEls', ()=>restoreEls()],
+    ['updatePlayCountLabel', ()=>updatePlayCountLabel()],
+    ['renderQueue', ()=>renderQueue()],
+    ['initBg', ()=>initBg()],
+    ['initShareId', ()=>initShareId()],
+  ];
+  steps.forEach(([name,fn])=>{
+    try{ fn(); }
+    catch(e){ console.error('[init] Langkah "'+name+'" gagal, lanjut ke langkah berikutnya:', e); }
+  });
 }
 init();
 
@@ -2845,7 +2888,7 @@ function addAskWidget() {
   const wid2 = el.dataset.wid;
   if (wid2) {
     elData.push({ id: wid2, type: 'ask', theme: 'yellow', x: Math.round(zW*0.05), y: Math.round(zW*0.6), w: Math.round(zW*0.9), h: 200, rotation: 0 });
-    try { localStorage.setItem('sp_els', JSON.stringify(elData)); } catch(e) {}
+    try { safeSet('sp_els', elData); } catch(e) {}
   }
   selectWidget(el);
   toast('💬 Widget Ask Me ditambahkan!');
@@ -3003,7 +3046,7 @@ async function publishAndCopy() {
     // Jika bg foto berhasil diupload ke Cloudinary, simpan URL-nya agar permanen
     if (bg && bg.type === 'image' && bg.value && bg.value.startsWith('http')) {
       pageInfo.bg = bg;
-      try { localStorage.setItem('sp_info', JSON.stringify(pageInfo)); } catch(e) {}
+      try { safeSet('sp_info', pageInfo); } catch(e) {}
       // Terapkan ke halaman agar langsung terlihat dari URL (bukan base64)
       const wrap = document.getElementById('page-wrap');
       wrap.style.backgroundImage = `url(${bg.value})`;
