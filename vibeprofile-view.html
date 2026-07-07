@@ -716,18 +716,13 @@ function _buildAskForm(themeKey, isOwner) {
     return `<button onclick="askChangeTheme(this,'${k}')" style="width:20px;height:20px;border-radius:50%;border:2px solid rgba(255,255,255,0.3);background:${hdrColor};cursor:pointer;flex-shrink:0;transition:all .15s;${sel}" title="${k}"></button>`;
   }).join('');
 
-  // ✅ Color picker hanya dirender untuk pemilik VibeProfile. Pengunjung lain
-  // tidak akan melihat/bisa mengklik tombol ganti warna sama sekali.
-  const colorPickerHtml = isOwner
-    ? `<div class="ask-widget-colors" style="display:flex;gap:5px;align-items:center;margin-top:5px;flex-wrap:wrap;">${colorDots}</div>`
-    : '';
+  // ✅ Tombol ganti warna dan tombol hapus (X) dihilangkan sepenuhnya dari
+  // tampilan publik/viewer — tidak dirender untuk siapa pun, termasuk pemilik.
 
   return `
     <div class="ask-widget-card" data-theme="${themeKey||'yellow'}" data-owner-only="${isOwner ? '1' : '0'}" style="border-color:${t.border};box-shadow:0 8px 32px ${t.shadow},0 2px 8px rgba(0,0,0,0.25),inset 0 1px 0 rgba(255,255,255,0.15);">
       <div class="ask-widget-header" style="background:${t.headerBg};border-bottom:2px solid ${t.headerBorder};">
         <div class="ask-widget-title" style="color:${t.titleColor};">Ask me something</div>
-        ${colorPickerHtml}
-        <div class="ask-widget-xbtn" style="background:${t.xbtnBg};color:${t.titleColor};"></div>
       </div>
       <div class="ask-widget-body" style="background:${t.bodyBg};">
         <div class="ask-input-wrap">

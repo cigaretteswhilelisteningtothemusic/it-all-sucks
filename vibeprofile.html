@@ -893,7 +893,7 @@ let favorites = JSON.parse(localStorage.getItem('sp_favorites')||'[]');
 let pageInfo  = JSON.parse(localStorage.getItem('sp_info')||'{}');
 // Bersihkan foto bg lama yang tersimpan sebagai base64 di localStorage (penyebab QuotaExceededError)
 if(pageInfo.bg && pageInfo.bg.type==='image' && pageInfo.bg.value && pageInfo.bg.value.startsWith('data:')){
-  try{ sessionStorage.setItem('sp_bg_img', pageInfo.bg.value); }catch(e){}
+  try{ localStorage.setItem('sp_bg_img', pageInfo.bg.value); }catch(e){}
   delete pageInfo.bg.value;
   pageInfo.bg.hasImg=true;
   try{ localStorage.setItem('sp_info', JSON.stringify(pageInfo)); }catch(e){}
@@ -2676,12 +2676,14 @@ function applyBgToPage(bg, save=true){
   if(save){
     try{
       if(bg.type==='image'){
-        // Save bg photo in sessionStorage (no strict quota), metadata in localStorage
-        try{ sessionStorage.setItem('sp_bg_img', bg.value); }catch(e){}
+        // Save bg photo in localStorage supaya tetap ada walau tab/halaman ditutup
+        try{ localStorage.setItem('sp_bg_img', bg.value); }catch(e){
+          toast('⚠ Gagal menyimpan foto background: penyimpanan penuh');
+        }
         const meta={type:'image', overlay:bg.overlay||0, hasImg:true};
         pageInfo.bg=meta;
       } else {
-        sessionStorage.removeItem('sp_bg_img');
+        localStorage.removeItem('sp_bg_img');
         pageInfo.bg=bg;
       }
       // Remove old image data from sp_info to avoid filling localStorage
@@ -2710,7 +2712,7 @@ function resetBg(){
   document.getElementById('bg-preview-label').style.display='flex';
   document.getElementById('bg-overlay-row').style.display='none';
   document.querySelectorAll('.bg-color-swatch').forEach(s=>s.classList.remove('active'));
-  sessionStorage.removeItem('sp_bg_img');
+  localStorage.removeItem('sp_bg_img');
   applyBgToPage({type:'none'}, true);
   toast('↺ Background direset');
 }
@@ -2719,12 +2721,12 @@ function initBg(){
   const bg=pageInfo.bg;
   if(!bg || bg.type==='none') return;
   if(bg.type==='image'){
-    // Ambil foto dari sessionStorage
-    const imgData = sessionStorage.getItem('sp_bg_img');
+    // Ambil foto dari localStorage (persisten walau tab ditutup)
+    const imgData = localStorage.getItem('sp_bg_img');
     if(imgData){
       applyBgToPage({type:'image', value:imgData, overlay:bg.overlay||0}, false);
     }
-    // If not found (new tab/refresh), bg photo won't show — user must re-set
+    // If not found (storage cleared/quota gagal), bg photo won't show — user must re-set
     // tapi setidaknya tidak crash
   } else {
     applyBgToPage(bg, false);
@@ -2915,10 +2917,10 @@ async function processElementsForUpload(sid, els) {
 // ── Upload background jika base64 ─────────────────────────────────────────
 async function processBgForUpload(sid, bg) {
   if (!bg || bg.type !== 'image') return bg;
-  // Ambil data foto dari sessionStorage (disimpan di sana untuk hemat localStorage)
+  // Ambil data foto dari localStorage (disimpan terpisah untuk hemat quota)
   let imgData = bg.value;
   if (!imgData || !isBase64Img(imgData)) {
-    imgData = sessionStorage.getItem('sp_bg_img');
+    imgData = localStorage.getItem('sp_bg_img');
   }
   if (!imgData || !isBase64Img(imgData)) return bg; // tidak ada foto, skip
   try {
