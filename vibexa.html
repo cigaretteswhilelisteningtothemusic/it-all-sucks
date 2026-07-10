@@ -117,7 +117,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 #btn-search:disabled{opacity:.5;cursor:not-allowed;transform:translateY(-50%)}
 
 /* ── SEARCH SUGGESTION DROPDOWN ─────────────────────────── */
-#search-suggestions{
+#search-suggestions,#home-search-suggestions{
   position:absolute;
   top:calc(100% + 8px);
   left:0;right:0;
@@ -138,7 +138,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   scrollbar-width:thin;
   scrollbar-color:var(--hover) transparent;
 }
-#search-suggestions.open{
+#search-suggestions.open,#home-search-suggestions.open{
   opacity:1;
   transform:translateY(0) scale(1);
   pointer-events:all;
@@ -868,6 +868,8 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   .mob-nav-vibeprofile{color:var(--green)!important;position:relative;}
   .mob-nav-vibeprofile svg{filter:drop-shadow(0 0 5px rgba(29,107,219,.4))!important;}
   .mob-nav-vibeprofile::before{content:'';position:absolute;top:5px;inset-inline:12px;height:2px;background:linear-gradient(90deg,var(--green),var(--teal));border-radius:2px;opacity:.5;}
+  #mob-btn-search{display:none}
+  #mob-btn-notif{display:none}
 
   /* ════════════════════════════════
      HOME VIEW
@@ -2333,8 +2335,10 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
     <div class="home-topbar">
       <div class="home-search-wrap">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input type="text" id="home-q" placeholder="Cari lagu, artis, atau playlist..." onkeydown="if(event.key==='Enter'){homeSearchGo()}">
+        <input type="text" id="home-q" placeholder="Cari lagu, artis, atau playlist..." autocomplete="off" spellcheck="false">
         <button id="home-btn-search" onclick="homeSearchGo()">Cari</button>
+        <!-- SEARCH SUGGESTIONS DROPDOWN -->
+        <div id="home-search-suggestions"></div>
       </div>
       <div class="notif-bell-wrap home-notif-wrap">
         <button class="notif-bell-btn" onclick="toggleNotifPanel()" title="Notifikasi">
@@ -4752,11 +4756,11 @@ document.getElementById('btn-search').addEventListener('click',doSearch);
   });
 })();
 
-// ─── SEARCH SUGGESTIONS ───────────────────────────────────
-(function initSearchSuggestions(){
-  const inp = document.getElementById('q');
-  const box = document.getElementById('search-suggestions');
-  if(!inp||!box) return;
+// ─── SEARCH SUGGESTIONS (dipakai untuk kotak search utama & kotak search Home) ───
+function initSearchSuggestions(inputId, boxId, onQuerySelect){
+  const inp = document.getElementById(inputId);
+  const box = document.getElementById(boxId);
+  if(!inp||!box) return null;
 
   const TRENDING = [
     {q:'Taylor Swift',sub:'Pop · Trending'},
@@ -4914,7 +4918,7 @@ document.getElementById('btn-search').addEventListener('click',doSearch);
         inp.value = q;
         saveHist(q);
         closeBox();
-        doSearch();
+        onQuerySelect(q);
       }
     });
     return el;
@@ -4993,17 +4997,31 @@ document.getElementById('btn-search').addEventListener('click',doSearch);
     if(_isOpen && !box.contains(e.target) && e.target!==inp) closeBox();
   });
 
-  // Hook doSearch to save history
-  const _origDoSearch = doSearch;
-  doSearch = function() {
-    const q = document.getElementById('q').value.trim();
-    if(q) saveHist(q);
-    closeBox();
-    _origDoSearch();
-  };
-})();
+  return { saveHist, closeBox };
+}
+
+const _mainSearchSuggest = initSearchSuggestions('q', 'search-suggestions', (q) => {
+  document.getElementById('q').value = q;
+  doSearch();
+});
+
+// Hook doSearch to save history & close main suggestion box
+const _origDoSearch = doSearch;
+doSearch = function() {
+  const q = document.getElementById('q').value.trim();
+  if(q && _mainSearchSuggest) _mainSearchSuggest.saveHist(q);
+  if(_mainSearchSuggest) _mainSearchSuggest.closeBox();
+  _origDoSearch();
+};
+
+// Kotak search di halaman Home — pilih saran akan pindah ke halaman Search lalu menjalankan pencarian
+initSearchSuggestions('home-q', 'home-search-suggestions', (q) => {
+  document.getElementById('home-q').value = q;
+  homeSearchGo();
+});
 
 document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')doSearch();});
+document.getElementById('home-q').addEventListener('keydown',e=>{if(e.key==='Enter')homeSearchGo();});
 document.getElementById('btn-play').addEventListener('click',()=>{
   _ensureAudioCtx(); _resumeAudioCtx();
   if(!curTrack||!YTP)return;
