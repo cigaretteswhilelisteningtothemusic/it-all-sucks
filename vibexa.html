@@ -2377,6 +2377,9 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
         </button>
       </div>
       <div class="rank-grid" id="rank-grid"></div>
+      <button class="home-new-pl-btn" id="rank-toggle-btn" onclick="toggleTrendingView()" style="display:none;margin:12px auto 0;background:none;border:1px solid var(--border);color:var(--sub);">
+        Tampilkan Semua
+      </button>
     </div>
 
     <!-- PUBLIC PLAYLISTS FEED -->
@@ -5575,7 +5578,7 @@ async function loadTrendingSongs(force) {
   if (grid) grid.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat lagu trending...</h3></div>';
 
   try {
-    const data = await _deezerJsonp('https://api.deezer.com/chart/0/tracks?limit=15');
+    const data = await _deezerJsonp('https://api.deezer.com/chart/0/tracks?limit=50');
     if (!data || data.error || !data.data || !data.data.length) throw new Error('Data trending tidak tersedia');
 
     const items = data.data.map(t => ({
@@ -5602,11 +5605,38 @@ async function loadTrendingSongs(force) {
   }
 }
 
-function renderTrendingSongs(items) {
+const TRENDING_PREVIEW_COUNT = 10;
+let _trendingAllItems = [];
+let _trendingShowAll = false;
+
+function toggleTrendingView() {
+  _trendingShowAll = !_trendingShowAll;
+  renderTrendingSongs(_trendingAllItems, true);
+}
+
+function renderTrendingSongs(items, _skipStore) {
   const c = document.getElementById('rank-grid');
+  const toggleBtn = document.getElementById('rank-toggle-btn');
   if (!c) return;
+
+  if (!_skipStore) {
+    _trendingAllItems = items;
+    _trendingShowAll = false;
+  }
+
+  const visibleItems = _trendingShowAll ? _trendingAllItems : _trendingAllItems.slice(0, TRENDING_PREVIEW_COUNT);
+
+  if (toggleBtn) {
+    if (_trendingAllItems.length > TRENDING_PREVIEW_COUNT) {
+      toggleBtn.style.display = 'flex';
+      toggleBtn.textContent = _trendingShowAll ? 'Tampilkan Lebih Sedikit' : 'Tampilkan Semua';
+    } else {
+      toggleBtn.style.display = 'none';
+    }
+  }
+
   c.innerHTML = '';
-  items.forEach((t, i) => {
+  visibleItems.forEach((t, i) => {
     const numClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
     const mins = Math.floor((t.duration || 0) / 60);
     const secs = String((t.duration || 0) % 60).padStart(2, '0');
