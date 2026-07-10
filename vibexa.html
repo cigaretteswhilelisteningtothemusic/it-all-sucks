@@ -5587,7 +5587,7 @@ async function loadTrendingSongs(force) {
 
   // Simple per-day cache so we don't re-hit the API on every page load,
   // but it naturally refreshes as soon as the date changes.
-  const todayKey = 'vibexa_trending_' + new Date().toISOString().slice(0, 10);
+  const todayKey = 'vibexa_trending5_' + new Date().toISOString().slice(0, 10);
   if (!force) {
     try {
       const cached = localStorage.getItem(todayKey);
@@ -5601,7 +5601,7 @@ async function loadTrendingSongs(force) {
   if (grid) grid.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat lagu trending...</h3></div>';
 
   try {
-    const items = await fetchDeezerChartTracks(10);
+    const items = await fetchDeezerChartTracks(5);
 
     try {
       localStorage.setItem(todayKey, JSON.stringify(items));
@@ -5646,7 +5646,7 @@ function playTrendingTrack(t) {
   loadPlay(track, null);
 }
 
-function buildRankItemEl(t, i) {
+function buildRankItemEl(t, i, showDuration = true) {
   const numClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
   const mins = Math.floor((t.duration || 0) / 60);
   const secs = String((t.duration || 0) % 60).padStart(2, '0');
@@ -5661,7 +5661,7 @@ function buildRankItemEl(t, i) {
     </div>
     <div class="rank-likes" title="Putar lagu">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-      ${t.duration ? `${mins}:${secs}` : ''}
+      ${showDuration && t.duration ? `${mins}:${secs}` : ''}
     </div>
   `;
   div.addEventListener('click', () => playTrendingTrack(t));
@@ -5672,7 +5672,7 @@ function renderTrendingSongs(items) {
   const c = document.getElementById('rank-grid');
   if (!c) return;
   c.innerHTML = '';
-  items.forEach((t, i) => c.appendChild(buildRankItemEl(t, i)));
+  items.forEach((t, i) => c.appendChild(buildRankItemEl(t, i, false)));
 }
 
 // ─── TOP SONGS — FULL LIST (100 lagu, Spotify-style "see all") ─────
@@ -5713,7 +5713,7 @@ function renderTrendingSongsFull(items) {
   const c = document.getElementById('top-songs-full-grid');
   if (!c) return;
   c.innerHTML = '';
-  items.forEach((t, i) => c.appendChild(buildRankItemEl(t, i)));
+  items.forEach((t, i) => c.appendChild(buildRankItemEl(t, i, false)));
 }
 
 function showTopSongsFullView() {
