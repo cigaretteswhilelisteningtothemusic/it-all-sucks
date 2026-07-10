@@ -312,6 +312,8 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 /* ── PLAYLIST VIEW (Spotify style) ────────────────────────── */
 #playlist-view{padding:0;display:none;}
 #playlist-view.active{display:block;}
+#top-songs-full-view{padding:22px 22px 16px;display:none;}
+#top-songs-full-view.active{display:block;}
 .pv-header{padding:28px 24px 20px;background:linear-gradient(180deg,rgba(29,107,219,0.18) 0%,transparent 100%);position:relative;}
 .pv-back{display:flex;align-items:center;gap:8px;background:none;border:none;color:var(--sub);font-family:var(--f);font-size:.82rem;cursor:pointer;padding:6px 0;margin-bottom:16px;transition:color .18s;}
 .pv-back:hover{color:var(--text)}
@@ -875,6 +877,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
      HOME VIEW
   ════════════════════════════════ */
   #home-view{padding:16px 14px 10px}
+  #top-songs-full-view{padding:16px 14px 10px}
   .home-greeting{font-size:1.2rem}
   .home-sub{font-size:.75rem;margin-bottom:14px}
 
@@ -2371,15 +2374,12 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
            Top Songs
           <span class="pub-badge">Trending Today</span>
         </div>
-        <button class="home-new-pl-btn" onclick="loadTrendingSongs(true)" style="background:none;border:1px solid var(--border);color:var(--sub);">
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
-          Refresh
+        <button class="home-new-pl-btn" onclick="showTopSongsFullView()" style="background:none;border:1px solid var(--border);color:var(--sub);">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+          Tampilkan Semua
         </button>
       </div>
       <div class="rank-grid" id="rank-grid"></div>
-      <button class="home-new-pl-btn" id="rank-toggle-btn" onclick="toggleTrendingView()" style="display:none;margin:12px auto 0;background:none;border:1px solid var(--border);color:var(--sub);">
-        Tampilkan Semua
-      </button>
     </div>
 
     <!-- PUBLIC PLAYLISTS FEED -->
@@ -2523,6 +2523,25 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
         <div class="comment-loading">Loading comments...</div>
       </div>
     </div>
+  </div>
+
+  <!-- TOP SONGS — FULL LIST VIEW (100 lagu, Spotify-style "see all") -->
+  <div id="top-songs-full-view" style="display:none;">
+    <button class="pv-back" onclick="backFromTopSongsFullView()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      Kembali
+    </button>
+    <div class="pub-section-header" style="margin-bottom:14px;">
+      <div class="pub-section-title">
+         Top 100 Songs
+        <span class="pub-badge">Trending Today</span>
+      </div>
+      <button class="home-new-pl-btn" onclick="loadTrendingSongsFull(true)" style="background:none;border:1px solid var(--border);color:var(--sub);">
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+        Refresh
+      </button>
+    </div>
+    <div class="rank-grid" id="top-songs-full-grid"></div>
   </div>
 
   <!-- SONG FINDER VIEW -->
@@ -3273,6 +3292,7 @@ function showHomeView() {
   document.getElementById('search-view').classList.remove('active');
   document.getElementById('finder-view').style.display = 'none';
   document.getElementById('playlist-view').style.display = 'none';
+  document.getElementById('top-songs-full-view').style.display = 'none';
   document.getElementById('nav-home').classList.add('on');
   document.getElementById('nav-search').classList.remove('on');
   document.getElementById('nav-finder').classList.remove('on');
@@ -3284,6 +3304,7 @@ function showSearchView() {
   document.getElementById('search-view').classList.add('active');
   document.getElementById('finder-view').style.display = 'none';
   document.getElementById('playlist-view').style.display = 'none';
+  document.getElementById('top-songs-full-view').style.display = 'none';
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.add('on');
   document.getElementById('nav-finder').classList.remove('on');
@@ -3308,6 +3329,7 @@ function showFinderView() {
   document.getElementById('search-view').classList.remove('active');
   document.getElementById('finder-view').style.display = 'block';
   document.getElementById('playlist-view').style.display = 'none';
+  document.getElementById('top-songs-full-view').style.display = 'none';
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.remove('on');
   document.getElementById('nav-finder').classList.add('on');
@@ -3323,6 +3345,7 @@ function showPlaylistView(plId) {
   document.getElementById('home-view').classList.remove('active');
   document.getElementById('search-view').classList.remove('active');
   document.getElementById('playlist-view').style.display = 'block';
+  document.getElementById('top-songs-full-view').style.display = 'none';
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.remove('on');
   // Restore edit actions for own playlists
@@ -5578,23 +5601,13 @@ async function loadTrendingSongs(force) {
   if (grid) grid.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat lagu trending...</h3></div>';
 
   try {
-    const data = await _deezerJsonp('https://api.deezer.com/chart/0/tracks?limit=50');
-    if (!data || data.error || !data.data || !data.data.length) throw new Error('Data trending tidak tersedia');
-
-    const items = data.data.map(t => ({
-      id: t.id,
-      title: t.title || t.title_short || 'Unknown',
-      artist: (t.artist && t.artist.name) || 'Unknown',
-      thumb: (t.album && (t.album.cover_xl || t.album.cover_big || t.album.cover_medium)) || '',
-      preview: t.preview || null,
-      duration: t.duration || 0
-    }));
+    const items = await fetchDeezerChartTracks(10);
 
     try {
       localStorage.setItem(todayKey, JSON.stringify(items));
       // Bersihkan cache hari-hari sebelumnya
       Object.keys(localStorage).forEach(k => {
-        if (k.startsWith('vibexa_trending_') && k !== todayKey) localStorage.removeItem(k);
+        if (k.startsWith('vibexa_trending_') && !k.startsWith('vibexa_trending_full_') && k !== todayKey) localStorage.removeItem(k);
       });
     } catch(e) {}
 
@@ -5605,70 +5618,120 @@ async function loadTrendingSongs(force) {
   }
 }
 
-const TRENDING_PREVIEW_COUNT = 10;
-let _trendingAllItems = [];
-let _trendingShowAll = false;
-
-function toggleTrendingView() {
-  _trendingShowAll = !_trendingShowAll;
-  renderTrendingSongs(_trendingAllItems, true);
+// Fetch N tracks from Deezer's live daily chart and normalize the shape.
+async function fetchDeezerChartTracks(limit) {
+  const data = await _deezerJsonp('https://api.deezer.com/chart/0/tracks?limit=' + limit);
+  if (!data || data.error || !data.data || !data.data.length) throw new Error('Data trending tidak tersedia');
+  return data.data.map(t => ({
+    id: t.id,
+    title: t.title || t.title_short || 'Unknown',
+    artist: (t.artist && t.artist.name) || 'Unknown',
+    thumb: (t.album && (t.album.cover_xl || t.album.cover_big || t.album.cover_medium)) || '',
+    preview: t.preview || null,
+    duration: t.duration || 0
+  }));
 }
 
-function renderTrendingSongs(items, _skipStore) {
+function playTrendingTrack(t) {
+  const track = {
+    title: t.title,
+    artist: t.artist,
+    thumb: t.thumb,
+    preview: t.preview,
+    videoId: null,
+    photo: null,
+    duration: t.duration,
+    _query: `${t.artist}|||${t.title}|||${t.id}`
+  };
+  loadPlay(track, null);
+}
+
+function buildRankItemEl(t, i) {
+  const numClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
+  const mins = Math.floor((t.duration || 0) / 60);
+  const secs = String((t.duration || 0) % 60).padStart(2, '0');
+  const div = document.createElement('div');
+  div.className = 'rank-item';
+  div.innerHTML = `
+    <div class="rank-num ${numClass}">${i + 1}</div>
+    <div class="rank-cover">${t.thumb ? `<img src="${esc(t.thumb)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}</div>
+    <div class="rank-info">
+      <div class="rank-name">${esc(t.title)}</div>
+      <div class="rank-owner">${esc(t.artist)}</div>
+    </div>
+    <div class="rank-likes" title="Putar lagu">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      ${t.duration ? `${mins}:${secs}` : ''}
+    </div>
+  `;
+  div.addEventListener('click', () => playTrendingTrack(t));
+  return div;
+}
+
+function renderTrendingSongs(items) {
   const c = document.getElementById('rank-grid');
-  const toggleBtn = document.getElementById('rank-toggle-btn');
   if (!c) return;
-
-  if (!_skipStore) {
-    _trendingAllItems = items;
-    _trendingShowAll = false;
-  }
-
-  const visibleItems = _trendingShowAll ? _trendingAllItems : _trendingAllItems.slice(0, TRENDING_PREVIEW_COUNT);
-
-  if (toggleBtn) {
-    if (_trendingAllItems.length > TRENDING_PREVIEW_COUNT) {
-      toggleBtn.style.display = 'flex';
-      toggleBtn.textContent = _trendingShowAll ? 'Tampilkan Lebih Sedikit' : 'Tampilkan Semua';
-    } else {
-      toggleBtn.style.display = 'none';
-    }
-  }
-
   c.innerHTML = '';
-  visibleItems.forEach((t, i) => {
-    const numClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
-    const mins = Math.floor((t.duration || 0) / 60);
-    const secs = String((t.duration || 0) % 60).padStart(2, '0');
-    const div = document.createElement('div');
-    div.className = 'rank-item';
-    div.innerHTML = `
-      <div class="rank-num ${numClass}">${i + 1}</div>
-      <div class="rank-cover">${t.thumb ? `<img src="${esc(t.thumb)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}</div>
-      <div class="rank-info">
-        <div class="rank-name">${esc(t.title)}</div>
-        <div class="rank-owner">${esc(t.artist)}</div>
-      </div>
-      <div class="rank-likes" title="Putar lagu">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-        ${t.duration ? `${mins}:${secs}` : ''}
-      </div>
-    `;
-    div.addEventListener('click', () => {
-      const track = {
-        title: t.title,
-        artist: t.artist,
-        thumb: t.thumb,
-        preview: t.preview,
-        videoId: null,
-        photo: null,
-        duration: t.duration,
-        _query: `${t.artist}|||${t.title}|||${t.id}`
-      };
-      loadPlay(track, null);
-    });
-    c.appendChild(div);
-  });
+  items.forEach((t, i) => c.appendChild(buildRankItemEl(t, i)));
+}
+
+// ─── TOP SONGS — FULL LIST (100 lagu, Spotify-style "see all") ─────
+async function loadTrendingSongsFull(force) {
+  const grid = document.getElementById('top-songs-full-grid');
+  const todayKey = 'vibexa_trending_full_' + new Date().toISOString().slice(0, 10);
+
+  if (!force) {
+    try {
+      const cached = localStorage.getItem(todayKey);
+      if (cached) {
+        const items = JSON.parse(cached);
+        if (items && items.length) { renderTrendingSongsFull(items); return; }
+      }
+    } catch(e) {}
+  }
+
+  if (grid) grid.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat 100 lagu trending...</h3></div>';
+
+  try {
+    const items = await fetchDeezerChartTracks(100);
+
+    try {
+      localStorage.setItem(todayKey, JSON.stringify(items));
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith('vibexa_trending_full_') && k !== todayKey) localStorage.removeItem(k);
+      });
+    } catch(e) {}
+
+    renderTrendingSongsFull(items);
+  } catch(e) {
+    console.error('loadTrendingSongsFull error:', e);
+    if (grid) grid.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;color:var(--sub)"> Gagal memuat lagu trending, coba lagi.</div>';
+  }
+}
+
+function renderTrendingSongsFull(items) {
+  const c = document.getElementById('top-songs-full-grid');
+  if (!c) return;
+  c.innerHTML = '';
+  items.forEach((t, i) => c.appendChild(buildRankItemEl(t, i)));
+}
+
+function showTopSongsFullView() {
+  document.getElementById('home-view').classList.remove('active');
+  document.getElementById('search-view').classList.remove('active');
+  document.getElementById('finder-view').style.display = 'none';
+  document.getElementById('playlist-view').style.display = 'none';
+  document.getElementById('top-songs-full-view').style.display = 'block';
+  // Tetap tandai nav Home sebagai aktif — halaman ini adalah bagian dari Home
+  document.getElementById('nav-home').classList.add('on');
+  document.getElementById('nav-search').classList.remove('on');
+  document.getElementById('nav-finder').classList.remove('on');
+  loadTrendingSongsFull(false);
+}
+
+function backFromTopSongsFullView() {
+  document.getElementById('top-songs-full-view').style.display = 'none';
+  showHomeView();
 }
 
 function renderRanking(items) {
@@ -5825,6 +5888,7 @@ async function openPublicPlaylist(pl) {
   document.getElementById('home-view').classList.remove('active');
   document.getElementById('search-view').classList.remove('active');
   document.getElementById('playlist-view').style.display = 'block';
+  document.getElementById('top-songs-full-view').style.display = 'none';
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.remove('on');
 
