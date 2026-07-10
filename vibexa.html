@@ -222,6 +222,22 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 }
 .sugg-item:hover .sugg-arrow,.sugg-item.focused .sugg-arrow{opacity:1;}
 .sugg-arrow svg{width:11px;height:11px;color:var(--green);}
+.sugg-add{
+  flex-shrink:0;
+  width:24px;height:24px;
+  background:var(--green);
+  border:none;
+  border-radius:50%;
+  color:#fff;
+  font-size:1rem;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;
+  cursor:pointer;
+  transition:all .15s;
+  margin-left:2px;
+}
+.sugg-item:hover .sugg-add,.sugg-item.focused .sugg-add{opacity:1;}
+.sugg-add:hover{transform:scale(1.15);}
 .sugg-divider{
   height:1px;
   background:var(--border);
@@ -360,6 +376,10 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .track-row:hover .tr-del{opacity:1;}
 .tr-del:hover{color:#ff5555;}
 .tr-del svg{width:14px;height:14px;}
+.tr-add{opacity:0;background:none;border:none;color:var(--green);cursor:pointer;padding:2px;border-radius:4px;display:flex;align-items:center;transition:all .15s;}
+.track-row:hover .tr-add{opacity:1;}
+.tr-add:hover{transform:scale(1.15);}
+.tr-add svg{width:16px;height:16px;}
 .pv-empty{text-align:center;padding:50px 20px;color:var(--muted);font-size:.83rem;line-height:1.8;}
 .pv-empty-icon{font-size:2.5rem;margin-bottom:12px;}
 
@@ -374,6 +394,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .tr-drag svg{width:14px;height:14px;}
 .reorder-mode .tr-drag{opacity:1;color:var(--green);}
 .reorder-mode .tr-del{display:none;}
+.reorder-mode .tr-add{display:none;}
 .reorder-mode .track-row{border-left:2px solid transparent;transition:border-color .15s,background .15s;}
 .reorder-mode .track-row:hover{border-left-color:var(--green);}
 .pv-reorder-btn{background:none;border:1px solid var(--border);border-radius:50px;padding:6px 16px;color:var(--sub);font-family:var(--f);font-size:.78rem;cursor:pointer;transition:all .18s;display:flex;align-items:center;gap:6px;}
@@ -3602,7 +3623,7 @@ function renderPlaylistView(plId) {
       <div class="tr-dur" style="display:flex;align-items:center;justify-content:flex-end;gap:4px;">
         ${_reorderMode
           ? `<button class="tr-drag" title="Seret untuk mengatur urutan"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 15h18v-2H3v2zm0 4h18v-2H3v2zm0-8h18V9H3v2zm0-6v2h18V5H3z"/></svg></button>`
-          : `<button class="tr-del" title="Hapus dari playlist"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>`
+          : `<button class="tr-add" title="Tambahkan ke playlist lain"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><button class="tr-del" title="Hapus dari playlist"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>`
         }
       </div>
     `;
@@ -3611,9 +3632,19 @@ function renderPlaylistView(plId) {
     row.addEventListener('click', (e) => {
       if (_reorderMode) return;
       if (e.target.closest('.tr-del')) return;
+      if (e.target.closest('.tr-add')) return;
       curQueue = pl.tracks.map((tr, idx) => ({ ...tr, _plIdx: idx }));
       loadPlay(t, plId);
     });
+
+    // Add to another playlist
+    const addBtn = row.querySelector('.tr-add');
+    if (addBtn) {
+      addBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openAddSongModal(t);
+      });
+    }
 
     // Delete
     const delBtn = row.querySelector('.tr-del');
@@ -4941,9 +4972,14 @@ function initSearchSuggestions(inputId, boxId, onQuerySelect){
     const el = document.createElement('div');
     el.className = 'sugg-item';
     const icon = customIcon || `<div class="sugg-icon ${iconClass}">${iconHTML}</div>`;
-    el.innerHTML = `${icon}<div class="sugg-text"><div class="sugg-main">${mainText}</div>${subText?`<div class="sugg-sub">${subText}</div>`:''}</div><div class="sugg-arrow">${arrowSVG}</div>`;
+    const addBtnHTML = (direct && track) ? `<button class="sugg-add" title="Tambahkan ke playlist">+</button>` : '';
+    el.innerHTML = `${icon}<div class="sugg-text"><div class="sugg-main">${mainText}</div>${subText?`<div class="sugg-sub">${subText}</div>`:''}</div>${addBtnHTML}<div class="sugg-arrow">${arrowSVG}</div>`;
     el.addEventListener('mousedown', e => {
       e.preventDefault();
+      if(e.target.closest('.sugg-add')){
+        openAddSongModal(track);
+        return;
+      }
       if(direct && track) {
         closeBox();
         loadPlay(track, null);
@@ -6004,14 +6040,22 @@ async function openPublicPlaylist(pl) {
         </div>
       </div>
       <div class="tr-album">${esc(t.artist)}</div>
-      <div class="tr-dur"></div>
+      <div class="tr-dur"><button class="tr-add" title="Tambahkan ke playlist"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
     `;
-    row.addEventListener('click', () => {
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('.tr-add')) return;
       curQueue = [...tracks];
       loadPlay(t, null);
       // Re-render to update playing highlight
       setTimeout(() => openPublicPlaylist(pl), 100);
     });
+    const addBtn = row.querySelector('.tr-add');
+    if (addBtn) {
+      addBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openAddSongModal(t);
+      });
+    }
     c.appendChild(row);
   });
 }
