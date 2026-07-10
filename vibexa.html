@@ -4111,6 +4111,12 @@ function esc(s){if(!s)return'';const d=document.createElement('div');d.textConte
 function toast(msg,d=2700){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),d);}
 
 // ─── SEARCH via iTunes ────────────────────────────────────
+async function fetchItunesResults(q, country){
+  const url=`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=200&country=${country}`;
+  const res=await fetch(url); if(!res.ok)throw new Error('iTunes tidak merespons ('+res.status+')');
+  const data=await res.json(); return data.results||[];
+}
+
 async function doSearch(){
   const q = document.getElementById('q').value.trim(); if(!q) return;
   document.getElementById('welcome').style.display='none';
@@ -4120,9 +4126,14 @@ async function doSearch(){
   const grid=document.getElementById('res-grid');
   grid.innerHTML=Array(8).fill('<div class="sk-card"><div class="sk sk-img"></div><div class="sk sk-l" style="margin-top:8px"></div><div class="sk sk-l s"></div></div>').join('');
   try{
-    const url=`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=200&country=ID`;
-    const res=await fetch(url); if(!res.ok)throw new Error('iTunes tidak merespons ('+res.status+')');
-    const data=await res.json(); const items=data.results||[];
+    let items = await fetchItunesResults(q, 'ID');
+    // Fallback: kalau storefront ID hasilnya kosong/minim, coba storefront US
+    // (banyak lagu/artis asli tidak terdaftar di katalog ID meski populer secara global)
+    if(items.length < 3){
+      const usItems = await fetchItunesResults(q, 'US');
+      const seen = new Set(items.map(it=>it.trackId));
+      usItems.forEach(it=>{ if(!seen.has(it.trackId)){ items.push(it); seen.add(it.trackId); } });
+    }
     grid.innerHTML='';
     if(!items.length){ grid.innerHTML='<div class="err-box">Tidak ada hasil ditemukan. Coba kata kunci lain.</div>'; return; }
     items.forEach(it=>{
