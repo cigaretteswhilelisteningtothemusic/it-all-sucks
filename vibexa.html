@@ -1474,6 +1474,58 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 }
 .notif-badge.show { display: block; }
 
+/* ══════════════════════════════════════════════════════════
+   HOME TOPBAR (search + notif, sejajar di atas halaman home)
+══════════════════════════════════════════════════════════ */
+.home-topbar{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  margin-bottom:22px;
+}
+.home-search-wrap{
+  position:relative;
+  flex:1;
+  min-width:0;
+}
+.home-search-wrap svg{
+  position:absolute;left:16px;top:50%;transform:translateY(-50%);
+  color:var(--sub);width:17px;height:17px;pointer-events:none;
+}
+#home-q{
+  width:100%;background:var(--card);border:1px solid var(--border);
+  border-radius:50px;padding:13px 100px 13px 46px;color:var(--text);
+  font-family:var(--f);font-size:.88rem;outline:none;transition:all .25s;
+}
+#home-q::placeholder{color:var(--muted)}
+#home-q:focus{border-color:var(--green);box-shadow:0 0 0 3px var(--green-dim)}
+#home-btn-search{
+  position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  background:var(--green);border:none;border-radius:50px;padding:8px 20px;
+  color:#fff;font-family:var(--f);font-weight:700;font-size:.8rem;
+  cursor:pointer;transition:all .2s;
+}
+#home-btn-search:hover{box-shadow:var(--green-glow);transform:translateY(-50%) scale(1.04)}
+.home-notif-wrap{flex-shrink:0;position:relative;}
+.home-notif-wrap .notif-bell-btn{
+  width:46px;height:46px;border-radius:50%;
+  background:var(--card);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  position:relative;padding:0;color:var(--sub);
+}
+.home-notif-wrap .notif-bell-btn:hover{color:var(--text);border-color:var(--green)}
+.home-notif-wrap .notif-bell-btn svg{width:19px;height:19px;}
+.home-notif-wrap .notif-badge{position:absolute;top:2px;right:2px;margin:0;}
+
+@media(max-width:660px){
+  .home-topbar{gap:10px;margin-bottom:16px;}
+  #home-q{font-size:.82rem;padding:11px 82px 11px 40px}
+  .home-search-wrap svg{left:14px;width:15px;height:15px}
+  #home-btn-search{padding:7px 14px;font-size:.74rem}
+  .home-notif-wrap .notif-bell-btn{width:40px;height:40px}
+  .home-notif-wrap .notif-bell-btn svg{width:17px;height:17px}
+}
+
 /* Panel notifikasi */
 #notif-panel {
   position: fixed; top: 0; right: -360px;
@@ -2237,7 +2289,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
       Home
     </div>
-    <div class="nav-i" id="nav-search" onclick="showSearchView()">
+    <div class="nav-i" id="nav-search" onclick="showSearchView()" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
       Search Songs
     </div>
@@ -2257,13 +2309,6 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
     <div class="cloud-indicator" id="cloud-indicator">
       <div class="cloud-dot" id="cloud-dot"></div>
       <span id="cloud-status">Not connected</span>
-    </div>
-    <div class="notif-bell-wrap">
-      <button class="notif-bell-btn" onclick="toggleNotifPanel()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-        Notifikasi
-        <span class="notif-badge" id="notif-badge">0</span>
-      </button>
     </div>
     <button class="side-nav-btn" onclick="window.location.href='vibeprofile.html'">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/><path d="M8 12h8M12 8v8"/></svg>
@@ -2285,6 +2330,19 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 
   <!-- HOME VIEW -->
   <div id="home-view" class="active">
+    <div class="home-topbar">
+      <div class="home-search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" id="home-q" placeholder="Cari lagu, artis, atau playlist..." onkeydown="if(event.key==='Enter'){homeSearchGo()}">
+        <button id="home-btn-search" onclick="homeSearchGo()">Cari</button>
+      </div>
+      <div class="notif-bell-wrap home-notif-wrap">
+        <button class="notif-bell-btn" onclick="toggleNotifPanel()" title="Notifikasi">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="notif-badge" id="notif-badge">0</span>
+        </button>
+      </div>
+    </div>
     <div class="home-greeting" id="home-greeting">Selamat datang </div>
     <div class="home-sub">Your playlists are automatically saved to this account.</div>
     <div class="home-section-title">
@@ -3218,6 +3276,19 @@ function showSearchView() {
   document.getElementById('nav-search').classList.add('on');
   document.getElementById('nav-finder').classList.remove('on');
   setTimeout(() => document.getElementById('q').focus(), 100);
+}
+
+function homeSearchGo() {
+  const homeInput = document.getElementById('home-q');
+  const query = homeInput ? homeInput.value.trim() : '';
+  if (!query) { homeInput && homeInput.focus(); return; }
+  showSearchView();
+  setTimeout(() => {
+    const q = document.getElementById('q');
+    if (q) { q.value = query; q.dispatchEvent(new Event('input')); }
+    const btn = document.getElementById('btn-search');
+    if (btn) btn.click();
+  }, 120);
 }
 
 function showFinderView() {
