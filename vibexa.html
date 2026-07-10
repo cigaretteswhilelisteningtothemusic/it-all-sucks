@@ -3041,51 +3041,90 @@ function setCloudStatus(state, text) {
   span.textContent = text;
 }
 
-function doLogout() {
-  if (confirm('Apakah kamu yakin ingin logout?')) {
-    auth.signOut().then(() => { window.location.href = 'index.html'; });
-  }
-}
-
 // ─── Cloud Playlist Sync ──────────────────────────────────
 function getPlRef() {
   if (!currentUser) return null;
   return db.ref('music_playlists_v2/' + currentUser.uid);
 }
 
+// Flag supaya tidak ada dua flush berjalan bersamaan / rebutan
+let _saveInFlight = null;
+
+// Menulis state `playlists` saat ini ke Firebase SEKARANG JUGA (tanpa delay).
+// Dipakai baik oleh debounce normal maupun oleh logout/tutup halaman.
+async function flushSave() {
+  if (!currentUser) return;
+  clearTimeout(saveTimeout);
+  try {
+    const toSave = {};
+    for (const id in playlists) {
+      const pl = playlists[id];
+      toSave[id] = {
+        id: pl.id,
+        name: pl.name,
+        coverThumb: pl.coverThumb || '',
+        public: pl.public || false,
+        tracks: (pl.tracks || []).map(t => ({
+          title: t.title || '',
+          artist: t.artist || '',
+          thumb: t.thumb || '',
+          photo: t.photo || '',
+          _query: t._query || ''
+        }))
+      };
+    }
+    _saveInFlight = getPlRef().set(toSave);
+    await _saveInFlight;
+    const count = Object.keys(playlists).length;
+    setCloudStatus('synced', 'Tersimpan · ' + count + ' playlist');
+    // Sync any public playlists with updated data
+    syncPublicPlaylists();
+  } catch(e) {
+    setCloudStatus('', 'Gagal simpan: ' + e.message);
+    throw e;
+  } finally {
+    _saveInFlight = null;
+  }
+}
+
 function scheduleSave() {
   clearTimeout(saveTimeout);
   setCloudStatus('saving', 'Menyimpan...');
-  saveTimeout = setTimeout(async () => {
-    if (!currentUser) return;
-    try {
-      const toSave = {};
-      for (const id in playlists) {
-        const pl = playlists[id];
-        toSave[id] = {
-          id: pl.id,
-          name: pl.name,
-          coverThumb: pl.coverThumb || '',
-          public: pl.public || false,
-          tracks: (pl.tracks || []).map(t => ({
-            title: t.title || '',
-            artist: t.artist || '',
-            thumb: t.thumb || '',
-            photo: t.photo || '',
-            _query: t._query || ''
-          }))
-        };
-      }
-      await getPlRef().set(toSave);
-      const count = Object.keys(playlists).length;
-      setCloudStatus('synced', 'Tersimpan · ' + count + ' playlist');
-      // Sync any public playlists with updated data
-      syncPublicPlaylists();
-    } catch(e) {
-      setCloudStatus('', 'Gagal simpan: ' + e.message);
-    }
-  }, 1200);
+  saveTimeout = setTimeout(() => { flushSave(); }, 1200);
 }
+
+// Pastikan semua perubahan yang masih tertunda benar-benar tersimpan
+// sebelum logout / halaman ditutup / berpindah.
+async function flushPendingSaveBeforeExit() {
+  // Ada perubahan yang masih menunggu debounce (belum sempat terkirim)
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
+    saveTimeout = null;
+    try { await flushSave(); } catch(e) {}
+    return;
+  }
+  // Ada penyimpanan yang sedang berjalan (in-flight) — tunggu selesai
+  if (_saveInFlight) {
+    try { await _saveInFlight; } catch(e) {}
+  }
+}
+
+function doLogout() {
+  if (confirm('Apakah kamu yakin ingin logout?')) {
+    setCloudStatus('saving', 'Menyimpan sebelum logout...');
+    flushPendingSaveBeforeExit().finally(() => {
+      auth.signOut().then(() => { window.location.href = 'index.html'; });
+    });
+  }
+}
+
+// Jaring pengaman tambahan: kalau tab/app ditutup atau dipindah ke
+// background saat masih ada perubahan yang belum tersimpan, coba
+// paksa simpan segera (best-effort, browser bisa saja tetap memotongnya).
+window.addEventListener('pagehide', () => { if (saveTimeout) flushSave(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && saveTimeout) flushSave();
+});
 
 // Sync updated playlist data to public_playlists node
 async function syncPublicPlaylists() {

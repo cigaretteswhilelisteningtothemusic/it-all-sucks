@@ -889,49 +889,17 @@ const WORKER='https://fancy-band-d65b.alpinofficial26.workers.dev';
 const MIN_W=60, MIN_H=40;
 const ZONE_MIN_H=380;
 
-// ── SAFE STORAGE LAYER ──────────────────────────────────────────────────
-// Root cause fix: sebelumnya semua data (background, kotak ASK/anonymous,
-// stiker, lagu, dsb) dibaca lewat JSON.parse(localStorage.getItem(...))
-// TANPA try/catch di bagian paling atas script. Jika salah satu key
-// tersimpan dalam bentuk rusak/tidak lengkap (misalnya karena kuota
-// localStorage sempat penuh saat menyimpan foto/stiker besar), JSON.parse
-// akan melempar error, SELURUH script berhenti dieksekusi di titik itu,
-// dan halaman terlihat kosong/"semua elemen hilang" — padahal datanya
-// sebenarnya masih ada di localStorage, hanya gagal dibaca.
-// safeGet/safeSet di bawah ini membuat setiap baca/tulis localStorage
-// tidak akan pernah menghentikan seluruh aplikasi.
-function safeGet(key, fallback){
-  try{
-    const raw = localStorage.getItem(key);
-    if(raw===null || raw===undefined) return fallback;
-    return JSON.parse(raw);
-  }catch(e){
-    console.error('[safeGet] Data tersimpan untuk "'+key+'" rusak, memakai default. Detail:', e);
-    try{ localStorage.setItem(key+'__corrupted_backup', localStorage.getItem(key)); }catch(e2){}
-    return fallback;
-  }
-}
-function safeSet(key, value){
-  try{
-    localStorage.setItem(key, JSON.stringify(value));
-    return true;
-  }catch(e){
-    console.error('[safeSet] Gagal menyimpan "'+key+'" ke localStorage:', e);
-    if(typeof _warnSaveFailed==='function') _warnSaveFailed(e);
-    return false;
-  }
-}
-let favorites = safeGet('sp_favorites', []);
-let pageInfo  = safeGet('sp_info', {});
+let favorites = JSON.parse(localStorage.getItem('sp_favorites')||'[]');
+let pageInfo  = JSON.parse(localStorage.getItem('sp_info')||'{}');
 // Bersihkan foto bg lama yang tersimpan sebagai base64 di localStorage (penyebab QuotaExceededError)
 if(pageInfo.bg && pageInfo.bg.type==='image' && pageInfo.bg.value && pageInfo.bg.value.startsWith('data:')){
   try{ localStorage.setItem('sp_bg_img', pageInfo.bg.value); }catch(e){}
   delete pageInfo.bg.value;
   pageInfo.bg.hasImg=true;
-  try{ safeSet('sp_info', pageInfo); }catch(e){}
+  try{ localStorage.setItem('sp_info', JSON.stringify(pageInfo)); }catch(e){}
 }
-let hwState   = safeGet('sp_hw', {});
-let elData    = safeGet('sp_els', []);
+let hwState   = JSON.parse(localStorage.getItem('sp_hw')||'{}');
+let elData    = JSON.parse(localStorage.getItem('sp_els')||'[]');
 let wCounter  = 0;
 // FIX: sinkronkan wCounter dengan ID tertinggi yang sudah pernah dipakai,
 // supaya elemen baru setelah refresh TIDAK bentrok ID dengan elemen lama.
@@ -958,7 +926,7 @@ let wCounter  = 0;
     if(d.id) seen.add(d.id);
   });
   if(changed){
-    try{ safeSet('sp_els', elData); }catch(e){}
+    try{ localStorage.setItem('sp_els', JSON.stringify(elData)); }catch(e){}
   }
 })();
 
@@ -1739,10 +1707,10 @@ function removeWidget(wid, saveKey){
   el.remove();
   if(saveKey==='els'){
     elData=elData.filter(d=>d.id!==wid);
-    safeSet('sp_els', elData);
+    localStorage.setItem('sp_els',JSON.stringify(elData));
   } else if(saveKey==='hw'){
     delete hwState[wid];
-    safeSet('sp_hw', hwState);
+    localStorage.setItem('sp_hw',JSON.stringify(hwState));
   }
   toast('Dihapus');
 }
@@ -1761,7 +1729,7 @@ function saveWidgetState(el){
 
   if(el.dataset.hwKey){
     hwState[el.dataset.hwKey]={x:px,y:py,w:pw,h:ph,rotation,pct};
-    try{ safeSet('sp_hw', hwState); }catch(e){ _warnSaveFailed(e); }
+    try{ localStorage.setItem('sp_hw',JSON.stringify(hwState)); }catch(e){ _warnSaveFailed(e); }
   }
   if(!el.dataset.hwKey){
     const idx=elData.findIndex(d=>d.id===wid);
@@ -1770,7 +1738,7 @@ function saveWidgetState(el){
       elData[idx].w=pw;elData[idx].h=ph;
       elData[idx].rotation=rotation;
       elData[idx].pct=pct;
-      try{ safeSet('sp_els', elData); }catch(e){ _warnSaveFailed(e); }
+      try{ localStorage.setItem('sp_els',JSON.stringify(elData)); }catch(e){ _warnSaveFailed(e); }
     }
   }
 }
@@ -1799,7 +1767,7 @@ function merge(key){
 function buildHeaderWidgets(){
   const zone=document.getElementById('free-zone');
   // skip if already removed
-  const removedHW=safeGet('sp_hw_removed', []);
+  const removedHW=JSON.parse(localStorage.getItem('sp_hw_removed')||'[]');
 
   function makeHW(key,html,extraStyle){
     if(removedHW.includes(key))return;
@@ -1867,7 +1835,7 @@ function addToFreeZone(el,data){
   const id=makeWidget(el,{zone,label:data.label||'Element',saveKey:'els',...data});
   data.id=id;
   elData.push(data);
-  safeSet('sp_els', elData);
+  localStorage.setItem('sp_els',JSON.stringify(elData));
   updatePlayCountLabel();
   // Double-click to edit text widgets
   if(data.type==='text'){
@@ -1992,7 +1960,7 @@ function rapikanTeks(wid){
   const idx = elData.findIndex(d=>d.id===wid);
   if(idx>-1){
     elData[idx].fontSize = best;
-    safeSet('sp_els', elData);
+    localStorage.setItem('sp_els', JSON.stringify(elData));
   }
   toast('✦ Teks dirapihkan!');
 }
@@ -2055,7 +2023,7 @@ function saveEditText(){
     elData[idx].fontSize=fontSize;
     elData[idx].fontWeight=fontWeight;
     elData[idx].color=color;
-    safeSet('sp_els', elData);
+    localStorage.setItem('sp_els',JSON.stringify(elData));
   }
   document.getElementById('modal-edit-text').classList.remove('open');
   toast('✎ Text updated!');
@@ -2125,7 +2093,7 @@ function handleProfileUpload(e){
     const img=document.getElementById('profile-img');
     if(img){img.src=src;img.style.display='block';document.getElementById('profile-ph').style.display='none';}
     pageInfo.profileImg=src;
-    safeSet('sp_info', pageInfo);
+    localStorage.setItem('sp_info',JSON.stringify(pageInfo));
     toast('✓ Profile photo updated!');
   };
   r.readAsDataURL(file);
@@ -2242,8 +2210,8 @@ async function searchGifs(){
 
 // ── TITLE/DESC SAVE ──
 document.addEventListener('input',e=>{
-  if(e.target.id==='page-title'){pageInfo.title=e.target.textContent;safeSet('sp_info', pageInfo);}
-  if(e.target.id==='page-desc'){pageInfo.desc=e.target.textContent;safeSet('sp_info', pageInfo);}
+  if(e.target.id==='page-title'){pageInfo.title=e.target.textContent;localStorage.setItem('sp_info',JSON.stringify(pageInfo));}
+  if(e.target.id==='page-desc'){pageInfo.desc=e.target.textContent;localStorage.setItem('sp_info',JSON.stringify(pageInfo));}
 });
 
 // ── REMOVE HEADER WIDGET (track removal) ──
@@ -2253,9 +2221,9 @@ window.removeWidget = function(wid, saveKey){
   const el=document.querySelector(`[data-wid="${wid}"]`);
   if(!el)return;
   if(saveKey==='hw'){
-    const removed=safeGet('sp_hw_removed', []);
+    const removed=JSON.parse(localStorage.getItem('sp_hw_removed')||'[]');
     if(!removed.includes(wid))removed.push(wid);
-    safeSet('sp_hw_removed', removed);
+    localStorage.setItem('sp_hw_removed',JSON.stringify(removed));
   }
   // if music card, remove from queue
   const qIdx=queue.findIndex(q=>q.id===wid);
@@ -2263,11 +2231,11 @@ window.removeWidget = function(wid, saveKey){
   el.remove();
   if(saveKey==='els'){
     elData=elData.filter(d=>d.id!==wid);
-    safeSet('sp_els', elData);
+    localStorage.setItem('sp_els',JSON.stringify(elData));
     updatePlayCountLabel();
   } else if(saveKey==='hw'){
     delete hwState[wid];
-    safeSet('sp_hw', hwState);
+    localStorage.setItem('sp_hw',JSON.stringify(hwState));
   }
   toast('Dihapus');
 };
@@ -2346,7 +2314,7 @@ async function getStickerLibrary(){
     _stickerCache = data.stickers || [];
     return _stickerCache;
   }catch(e){
-    return safeGet('sp_stickers_local', []);
+    try{ return JSON.parse(localStorage.getItem('sp_stickers_local')||'[]'); }catch(e2){ return []; }
   }
 }
 
@@ -2362,9 +2330,9 @@ async function addStickerToCloud(sticker){
     return true;
   }catch(e){
     // fallback lokal
-    const lib = safeGet('sp_stickers_local', []);
+    const lib = JSON.parse(localStorage.getItem('sp_stickers_local')||'[]');
     lib.unshift(sticker); if(lib.length>50) lib.length=50;
-    safeSet('sp_stickers_local', lib);
+    localStorage.setItem('sp_stickers_local', JSON.stringify(lib));
     return false;
   }
 }
@@ -2723,7 +2691,7 @@ function applyBgToPage(bg, save=true){
       if(infoToSave.bg && infoToSave.bg.type==='image' && infoToSave.bg.value){
         delete infoToSave.bg.value; // jangan simpan base64 di localStorage
       }
-      safeSet('sp_info', infoToSave);
+      localStorage.setItem('sp_info', JSON.stringify(infoToSave));
     } catch(e){
       toast('⚠ Failed to save background: storage full');
     }
@@ -2771,30 +2739,126 @@ const CLOUDINARY_PRESET = 'vibeprofile';
 
 // ── INIT ──
 function init(){
-  // Setiap langkah dibungkus try/catch sendiri-sendiri: kalau satu bagian
-  // gagal (mis. profile foto korup), bagian lain (background, kotak ASK,
-  // stiker, lagu) TETAP dimuat, bukannya ikut hilang semua.
-  const steps=[
-    ['buildHeaderWidgets', ()=>buildHeaderWidgets()],
-    ['ig', ()=>{ if(pageInfo.ig) setIg(pageInfo.ig); }],
-    ['profileImg', ()=>{
-      if(pageInfo.profileImg){
-        const img=document.getElementById('profile-img');
-        if(img){img.src=pageInfo.profileImg;img.style.display='block';const ph=document.getElementById('profile-ph');if(ph)ph.style.display='none';}
-      }
-    }],
-    ['restoreEls', ()=>restoreEls()],
-    ['updatePlayCountLabel', ()=>updatePlayCountLabel()],
-    ['renderQueue', ()=>renderQueue()],
-    ['initBg', ()=>initBg()],
-    ['initShareId', ()=>initShareId()],
-  ];
-  steps.forEach(([name,fn])=>{
-    try{ fn(); }
-    catch(e){ console.error('[init] Langkah "'+name+'" gagal, lanjut ke langkah berikutnya:', e); }
-  });
+  buildHeaderWidgets();
+  if(pageInfo.ig)setIg(pageInfo.ig);
+  if(pageInfo.profileImg){
+    const img=document.getElementById('profile-img');
+    if(img){img.src=pageInfo.profileImg;img.style.display='block';const ph=document.getElementById('profile-ph');if(ph)ph.style.display='none';}
+  }
+  restoreEls();
+  updatePlayCountLabel();
+  renderQueue();
+  initBg();
+  initShareId();
 }
-init();
+
+// ── AKUN CLOUD: ikat data VibeProfile ke akun login, bukan hanya ke device ──
+// (Sebelumnya editor ini hanya baca/tulis localStorage, dan fitur publish
+// memakai sesi anonim terpisah — jadi VibeProfile bisa "hilang" begitu
+// pindah browser/device atau localStorage-nya bersih. Sekarang: kalau user
+// sudah login (akun asli, bukan anonim), data disinkron ke Firebase di
+// path 'vibeprofile_data/{uid}' sehingga ikut akun ke mana pun dia login.)
+let _vpSaveTimer = null;
+async function cloudSaveVibeProfile(){
+  if (!window._vpRealUid || !window._firebaseDb || !window._fbFunctions) return;
+  try {
+    await window._fbFunctions.set(
+      window._fbFunctions.ref(window._firebaseDb, 'vibeprofile_data/' + window._vpRealUid),
+      { info: pageInfo || {}, els: elData || [], hw: hwState || {}, updatedAt: Date.now() }
+    );
+  } catch(e) { console.warn('Gagal sinkron VibeProfile ke cloud:', e.message); }
+}
+function scheduleCloudSave(){
+  if (!window._vpRealUid) return; // hanya untuk akun yang benar-benar login
+  clearTimeout(_vpSaveTimer);
+  _vpSaveTimer = setTimeout(() => { _vpSaveTimer = null; cloudSaveVibeProfile(); }, 1000);
+}
+// Pantau tiap kali sp_info/sp_els/sp_hw ditulis ke localStorage (dari mana pun
+// kode lama memanggilnya) lalu jadwalkan sinkron ke akun cloud juga — jadi
+// kita tidak perlu ubah puluhan tempat localStorage.setItem yang sudah ada.
+function setupCloudAutoSave(){
+  const origSetItem = localStorage.setItem.bind(localStorage);
+  localStorage.setItem = function(key, value){
+    origSetItem(key, value);
+    if (key === 'sp_info' || key === 'sp_els' || key === 'sp_hw') scheduleCloudSave();
+  };
+}
+// Jaring pengaman: kalau tab/app ditutup atau diminimize saat masih ada
+// perubahan tertunda, paksa simpan ke cloud sekarang (best-effort).
+window.addEventListener('pagehide', () => { if (_vpSaveTimer) { clearTimeout(_vpSaveTimer); _vpSaveTimer = null; cloudSaveVibeProfile(); } });
+document.addEventListener('visibilitychange', () => { if (document.hidden && _vpSaveTimer) { clearTimeout(_vpSaveTimer); _vpSaveTimer = null; cloudSaveVibeProfile(); } });
+
+async function startEditor(){
+  try {
+    const [{ initializeApp, getApps }, { getDatabase, ref, set, get }, { getAuth, onAuthStateChanged, signInAnonymously }] = await Promise.all([
+      import("https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js"),
+      import("https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js"),
+      import("https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js")
+    ]);
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCeMRU4JgIOlS_M9hgZfDKrkIHyAFncVjE",
+      authDomain: "nevermind-c246a.firebaseapp.com",
+      databaseURL: "https://nevermind-c246a-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "nevermind-c246a",
+      storageBucket: "nevermind-c246a.firebasestorage.app",
+      messagingSenderId: "703998258491",
+      appId: "1:703998258491:web:ea9cceaa10af71db61db1e"
+    };
+
+    const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+    const db  = getDatabase(app);
+    const auth = getAuth(app);
+
+    window._firebaseDb = db;
+    window._fbFunctions = { ref, set, get };
+
+    // Tunggu status login SEBENARNYA (sesi yang sama dipakai di vibexa.html/
+    // profile.html) sebelum lanjut, supaya kita tahu ini akun asli atau guest.
+    const user = await new Promise(resolve => {
+      let settled = false;
+      const unsub = onAuthStateChanged(auth, u => {
+        if (!settled) { settled = true; unsub(); resolve(u); }
+      });
+      setTimeout(() => { if (!settled) { settled = true; try{unsub();}catch(e){} resolve(auth.currentUser); } }, 4000);
+    });
+
+    if (user && !user.isAnonymous) {
+      // Login dengan akun asli — coba muat VibeProfile dari cloud milik akun ini.
+      window._currentUserUid = user.uid;
+      window._vpRealUid = user.uid;
+      try {
+        const snap = await get(ref(db, 'vibeprofile_data/' + user.uid));
+        if (snap.exists()) {
+          const cloud = snap.val();
+          if (cloud && typeof cloud === 'object') {
+            if (cloud.info) { pageInfo = cloud.info; try{ localStorage.setItem('sp_info', JSON.stringify(pageInfo)); }catch(e){} }
+            if (cloud.els)  { elData  = cloud.els;  try{ localStorage.setItem('sp_els',  JSON.stringify(elData));  }catch(e){} }
+            if (cloud.hw)   { hwState = cloud.hw;   try{ localStorage.setItem('sp_hw',   JSON.stringify(hwState)); }catch(e){} }
+          }
+        } else {
+          // Belum ada data cloud untuk akun ini — kirim apa pun yang ada
+          // secara lokal sekarang juga (migrasi data lama supaya ikut akun).
+          setTimeout(cloudSaveVibeProfile, 0);
+        }
+      } catch(e) { console.warn('Gagal memuat VibeProfile dari cloud:', e.message); }
+    } else {
+      // Belum login (guest) — editor tetap bisa dipakai secara lokal, dan
+      // fitur publish/share tetap jalan pakai identitas anonim seperti biasa.
+      window._currentUserUid = null;
+      try {
+        const cred = await signInAnonymously(auth);
+        window._currentUserUid = cred?.user?.uid || null;
+      } catch(e) { console.warn('Anonymous sign-in gagal:', e.message); }
+    }
+  } catch(e) {
+    console.warn('Firebase init gagal, VibeProfile lanjut mode lokal saja:', e.message);
+  }
+
+  init();
+  setupCloudAutoSave();
+}
+startEditor();
 
 // ── ASK ME WIDGET ────────────────────────────────────────────────────────────
 // ── ASK ME ANONYMOUS: theme data + builder (dipakai saat membuat widget baru
@@ -2888,7 +2952,7 @@ function addAskWidget() {
   const wid2 = el.dataset.wid;
   if (wid2) {
     elData.push({ id: wid2, type: 'ask', theme: 'yellow', x: Math.round(zW*0.05), y: Math.round(zW*0.6), w: Math.round(zW*0.9), h: 200, rotation: 0 });
-    try { safeSet('sp_els', elData); } catch(e) {}
+    try { localStorage.setItem('sp_els', JSON.stringify(elData)); } catch(e) {}
   }
   selectWidget(el);
   toast('💬 Widget Ask Me ditambahkan!');
@@ -3046,7 +3110,7 @@ async function publishAndCopy() {
     // Jika bg foto berhasil diupload ke Cloudinary, simpan URL-nya agar permanen
     if (bg && bg.type === 'image' && bg.value && bg.value.startsWith('http')) {
       pageInfo.bg = bg;
-      try { safeSet('sp_info', pageInfo); } catch(e) {}
+      try { localStorage.setItem('sp_info', JSON.stringify(pageInfo)); } catch(e) {}
       // Terapkan ke halaman agar langsung terlihat dari URL (bukan base64)
       const wrap = document.getElementById('page-wrap');
       wrap.style.backgroundImage = `url(${bg.value})`;
@@ -3215,41 +3279,8 @@ function shareToSocial(platform) {
   </div>
 </div>
 
-<!-- Firebase SDK (Storage + DB untuk share lintas perangkat) -->
-<script type="module">
-  import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-  import { getDatabase, ref, set, get } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
-  import { getAuth, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyCeMRU4JgIOlS_M9hgZfDKrkIHyAFncVjE",
-    authDomain: "nevermind-c246a.firebaseapp.com",
-    databaseURL: "https://nevermind-c246a-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "nevermind-c246a",
-    storageBucket: "nevermind-c246a.firebasestorage.app",
-    messagingSenderId: "703998258491",
-    appId: "1:703998258491:web:ea9cceaa10af71db61db1e"
-  };
-
-  const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-  const db = getDatabase(app);
-  const auth = getAuth(app);
-
-  window._firebaseDb = db;
-  window._fbFunctions = { ...(window._fbFunctions || {}), ref, set, get };
-
-  // Gunakan undefined sebagai sentinel "belum tahu" (null = sudah tahu, tidak login)
-  window._currentUserUid = undefined;
-
-  onAuthStateChanged(auth, user => {
-    window._currentUserUid = user ? user.uid : null;
-    console.log('[Auth]', user ? 'Login anonim: ' + user.uid : 'Tidak login');
-  });
-
-  // Login anonim otomatis agar Firebase write diizinkan
-  signInAnonymously(auth).catch(err => {
-    console.warn('Anonymous sign-in gagal:', err.message);
-  });
-</script>
+<!-- Firebase (init + auth akun asli + sinkron cloud) sekarang ditangani oleh
+     startEditor() di script utama di atas, supaya VibeProfile terikat ke akun
+     login yang sama dengan vibexa.html/profile.html, bukan sesi anonim terpisah. -->
 </body>
 </html>
