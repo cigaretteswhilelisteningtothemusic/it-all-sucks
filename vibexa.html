@@ -677,6 +677,8 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .rank-owner{font-size:.71rem;color:var(--sub);}
 .rank-likes{display:flex;align-items:center;gap:4px;font-size:.75rem;color:#ff7eb3;font-weight:700;flex-shrink:0;}
 .rank-likes svg{width:13px;height:13px;}
+.rank-add{width:26px;height:26px;background:var(--green);border:none;border-radius:50%;color:#fff;font-size:1.05rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .15s;}
+.rank-add:hover{transform:scale(1.15);}
 
 /* Publish toggle btn */
 .pv-publish-btn{background:none;border:1px solid var(--border);border-radius:50px;padding:6px 16px;color:var(--sub);font-family:var(--f);font-size:.78rem;cursor:pointer;transition:all .18s;display:flex;align-items:center;gap:6px;}
@@ -5663,8 +5665,22 @@ function buildRankItemEl(t, i, showDuration = true) {
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
       ${showDuration && t.duration ? `${mins}:${secs}` : ''}
     </div>
+    <button class="rank-add" title="Tambahkan lagu ke playlist">+</button>
   `;
   div.addEventListener('click', () => playTrendingTrack(t));
+  div.querySelector('.rank-add').addEventListener('click', e => {
+    e.stopPropagation();
+    openAddSongModal({
+      title: t.title,
+      artist: t.artist,
+      thumb: t.thumb || '',
+      preview: t.preview || null,
+      videoId: null,
+      photo: null,
+      duration: t.duration,
+      _query: `${t.artist}|||${t.title}|||${t.id}`
+    });
+  });
   return div;
 }
 
