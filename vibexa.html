@@ -4126,14 +4126,33 @@ async function doSearch(){
   const grid=document.getElementById('res-grid');
   grid.innerHTML=Array(8).fill('<div class="sk-card"><div class="sk sk-img"></div><div class="sk sk-l" style="margin-top:8px"></div><div class="sk sk-l s"></div></div>').join('');
   try{
-    let items = await fetchItunesResults(q, 'ID');
-    // Fallback: kalau storefront ID hasilnya kosong/minim, coba storefront US
-    // (banyak lagu/artis asli tidak terdaftar di katalog ID meski populer secara global)
-    if(items.length < 3){
-      const usItems = await fetchItunesResults(q, 'US');
-      const seen = new Set(items.map(it=>it.trackId));
-      usItems.forEach(it=>{ if(!seen.has(it.trackId)){ items.push(it); seen.add(it.trackId); } });
-    }
+    // Selalu gabungkan hasil dari storefront ID + US secara paralel — banyak lagu/artis
+    // asli (mis. Tame Impala) tidak lengkap di katalog ID meski jumlah hasil ID sudah "cukup"
+    // (isinya cover/remix), jadi tidak bisa cuma andalkan fallback bersyarat.
+    const [idItems, usItems] = await Promise.all([
+      fetchItunesResults(q, 'ID').catch(()=>[]),
+      fetchItunesResults(q, 'US').catch(()=>[])
+    ]);
+    const seen = new Set();
+    let items = [];
+    [...idItems, ...usItems].forEach(it=>{
+      if(!seen.has(it.trackId)){ items.push(it); seen.add(it.trackId); }
+    });
+    if(!idItems.length && !usItems.length) throw new Error('iTunes tidak merespons');
+
+    // Urutkan: versi resmi/orisinal (judul tanpa embel-embel cover/remix/mix/live/dll) duluan
+    const qLower = q.toLowerCase();
+    const noisyWords = /(remix|cover|mix|edit|instrumental|karaoke|live|tribute|acoustic|sped up|slowed|8d audio|lofi|bootleg)/i;
+    items.sort((a,b)=>{
+      const aNoisy = noisyWords.test(a.trackName||'') ? 1:0;
+      const bNoisy = noisyWords.test(b.trackName||'') ? 1:0;
+      if(aNoisy!==bNoisy) return aNoisy-bNoisy;
+      const aExact = (a.trackName||'').toLowerCase().includes(qLower) ? 0:1;
+      const bExact = (b.trackName||'').toLowerCase().includes(qLower) ? 0:1;
+      if(aExact!==bExact) return aExact-bExact;
+      return 0;
+    });
+
     grid.innerHTML='';
     if(!items.length){ grid.innerHTML='<div class="err-box">Tidak ada hasil ditemukan. Coba kata kunci lain.</div>'; return; }
     items.forEach(it=>{
