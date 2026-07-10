@@ -4111,10 +4111,67 @@ function esc(s){if(!s)return'';const d=document.createElement('div');d.textConte
 function toast(msg,d=2700){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),d);}
 
 // ─── SEARCH via iTunes ────────────────────────────────────
-async function fetchItunesResults(q, country){
-  const url=`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=200&country=${country}`;
-  const res=await fetch(url); if(!res.ok)throw new Error('iTunes tidak merespons ('+res.status+')');
+async function fetchItunesResults(q, country, entity){
+  entity = entity || 'song';
+  const url=`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=${entity}&limit=200&country=${country}`;
+  const res=await fetch(url,{signal:AbortSignal.timeout(8000)}); if(!res.ok)throw new Error('iTunes tidak merespons ('+res.status+')');
   const data=await res.json(); return data.results||[];
+}
+
+async function lookupArtistSongs(artistId, country){
+  const url=`https://itunes.apple.com/lookup?id=${artistId}&entity=song&limit=200&country=${country}`;
+  const res=await fetch(url,{signal:AbortSignal.timeout(8000)}); if(!res.ok) return [];
+  const data=await res.json();
+  return (data.results||[]).filter(r=>r.wrapperType==='track');
+}
+
+// Kadang track ASLI dari artis populer tidak muncul di endpoint /search (keterbatasan
+// index iTunes untuk lagu dengan ratusan cover/remix), padahal artisnya sendiri
+// terindeks. Fungsi ini mendeteksi nama artis asli dari judul cover/tribute
+// (mis. "(Tame Impala Cover)", "Performs Tame Impala") lalu lookup katalog artis itu
+// langsung by artistId untuk menemukan track aslinya.
+async function findOfficialTracks(q, items){
+  const patterns = [
+    /\(([^)]+?)\s+Cover\)/i,
+    /Performs?\s+([A-Za-z0-9&'.\s]+?)(\s*[\(\[]|$)/i,
+    /Versions? of\s+([A-Za-z0-9&'.\s]+?)(\s*[\(\[]|$)/i,
+    /Originally Performed By\s+([A-Za-z0-9&'.\s]+?)(\s*[\(\[]|$)/i,
+    /Tribute to\s+([A-Za-z0-9&'.\s]+?)(\s*[\(\[]|$)/i
+  ];
+  const candidates = new Set();
+  items.forEach(it=>{
+    [it.trackName, it.collectionName].forEach(txt=>{
+      if(!txt) return;
+      patterns.forEach(re=>{ const m=txt.match(re); if(m && m[1]) candidates.add(m[1].trim()); });
+    });
+  });
+  if(!candidates.size) return [];
+
+  const qNorm = q.toLowerCase().replace(/[^a-z0-9 ]/g,'').trim();
+  let officialTracks = [];
+  let tried = 0;
+  for(const name of candidates){
+    if(tried >= 2) break; // batasi biar tidak terlalu banyak request tambahan
+    tried++;
+    let artistId = null;
+    const known = items.find(it=>(it.artistName||'').toLowerCase()===name.toLowerCase());
+    if(known) artistId = known.artistId;
+    if(!artistId){
+      try{
+        const found = await fetchItunesResults(name, 'US', 'musicArtist');
+        if(found.length) artistId = found[0].artistId;
+      }catch(e){}
+    }
+    if(!artistId) continue;
+    try{
+      const songs = await lookupArtistSongs(artistId, 'US');
+      songs.forEach(s=>{
+        const tNorm=(s.trackName||'').toLowerCase().replace(/[^a-z0-9 ]/g,'').trim();
+        if(tNorm===qNorm || tNorm.includes(qNorm) || qNorm.includes(tNorm)) officialTracks.push(s);
+      });
+    }catch(e){}
+  }
+  return officialTracks;
 }
 
 async function doSearch(){
@@ -4139,6 +4196,14 @@ async function doSearch(){
       if(!seen.has(it.trackId)){ items.push(it); seen.add(it.trackId); }
     });
     if(!idItems.length && !usItems.length) throw new Error('iTunes tidak merespons');
+
+    // Coba temukan track resmi/asli via deteksi artis dari judul cover, lalu prioritaskan di atas
+    try{
+      const officialTracks = await findOfficialTracks(q, items);
+      officialTracks.forEach(ot=>{
+        if(!seen.has(ot.trackId)){ items.unshift(ot); seen.add(ot.trackId); }
+      });
+    }catch(e){ /* biarkan hasil biasa tampil walau lookup tambahan gagal */ }
 
     // Urutkan: versi resmi/orisinal (judul tanpa embel-embel cover/remix/mix/live/dll) duluan
     const qLower = q.toLowerCase();
