@@ -4943,6 +4943,16 @@ function initSearchSuggestions(inputId, boxId, onQuerySelect){
     _items[_focused].el.scrollIntoView({block:'nearest'});
   }
 
+  // iTunes search ranks by its own relevance score, not literal substring match —
+  // so short/ambiguous queries can return results that don't actually contain
+  // what was typed. Filter to only items whose title or artist really match.
+  function isRelevant(it, q) {
+    const ql = q.toLowerCase();
+    const t = (it.trackName||'').toLowerCase();
+    const a = (it.artistName||'').toLowerCase();
+    return t.includes(ql) || a.includes(ql);
+  }
+
   async function fetchSuggestions(q) {
     if(_abortCtrl) _abortCtrl.abort();
     _abortCtrl = new AbortController();
@@ -4950,11 +4960,12 @@ function initSearchSuggestions(inputId, boxId, onQuerySelect){
     renderSuggestions(q, null);
     openBox();
     try {
-      const url = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=10&country=ID`;
+      const url = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=25&country=ID`;
       const res = await fetch(url, {signal:_abortCtrl.signal});
       if(!res.ok) throw new Error('err');
       const data = await res.json();
-      if(_isOpen) renderSuggestions(q, data.results||[]);
+      const filtered = (data.results||[]).filter(it => isRelevant(it, q));
+      if(_isOpen) renderSuggestions(q, filtered);
     } catch(e) {
       if(e.name!=='AbortError' && _isOpen) renderSuggestions(q, []);
     }
