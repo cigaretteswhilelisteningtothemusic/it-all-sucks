@@ -831,6 +831,49 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .comment-photo-remove{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.78rem;padding:2px 5px;border-radius:5px;transition:color .15s;}
 .comment-photo-remove:hover{color:#ff5555;}
 
+/* ─── SONG PREVIEW (TikTok-style vertical feed, 30s iTunes previews) ─── */
+#song-preview-view{position:fixed;inset:0;z-index:100000;background:#0a0a0a;display:none;flex-direction:column;font-family:var(--f);}
+#song-preview-view.open{display:flex;}
+.sp-topbar{position:relative;z-index:5;display:flex;align-items:center;gap:10px;padding:14px 14px 10px;flex-shrink:0;}
+.sp-back-btn,.sp-mute-btn,.sp-search-btn{background:rgba(0,0,0,.35);border:none;color:#fff;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:background .15s;}
+.sp-back-btn:hover,.sp-mute-btn:hover,.sp-search-btn:hover{background:rgba(255,255,255,.18);}
+.sp-back-btn svg,.sp-mute-btn svg,.sp-search-btn svg{width:19px;height:19px;}
+.sp-topbar-title{flex:1;text-align:center;color:#fff;font-weight:700;font-size:.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px;}
+.sp-search-bar{position:relative;z-index:5;padding:0 14px 10px;display:none;flex-shrink:0;}
+.sp-search-bar.open{display:block;}
+.sp-search-input{width:100%;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);color:#fff;font-family:var(--f);font-size:.85rem;padding:9px 14px;border-radius:50px;outline:none;}
+.sp-search-input::placeholder{color:rgba(255,255,255,.55);}
+.sp-feed{flex:1;overflow-y:scroll;scroll-snap-type:y mandatory;scrollbar-width:none;}
+.sp-feed::-webkit-scrollbar{display:none;}
+.sp-slide{position:relative;height:100%;scroll-snap-align:start;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;}
+.sp-bg{position:absolute;inset:-20px;background-size:cover;background-position:center;filter:blur(28px) brightness(.55) saturate(1.15);transform:scale(1.15);}
+.sp-scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.15) 0%,rgba(0,0,0,.1) 40%,rgba(0,0,0,.75) 100%);}
+.sp-slide-content{position:relative;z-index:2;padding:0 16px 18px;display:flex;flex-direction:column;gap:12px;}
+.sp-release-badge{align-self:flex-start;display:flex;align-items:center;gap:6px;background:rgba(20,20,20,.55);color:#fff;font-size:.72rem;font-weight:600;padding:7px 13px;border-radius:50px;backdrop-filter:blur(6px);}
+.sp-release-badge svg{width:14px;height:14px;flex-shrink:0;}
+.sp-artist-row{display:flex;align-items:center;gap:10px;}
+.sp-artist-photo{width:42px;height:42px;border-radius:50%;object-fit:cover;background:rgba(255,255,255,.12);flex-shrink:0;}
+.sp-artist-info{flex:1;min-width:0;}
+.sp-artist-name{color:#fff;font-weight:700;font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sp-artist-sub{color:rgba(255,255,255,.65);font-size:.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sp-follow-btn{background:transparent;border:1px solid rgba(255,255,255,.55);color:#fff;font-family:var(--f);font-size:.75rem;font-weight:600;padding:6px 15px;border-radius:50px;cursor:pointer;flex-shrink:0;transition:all .15s;}
+.sp-follow-btn:hover{background:rgba(255,255,255,.14);}
+.sp-follow-btn.following{border-color:rgba(255,255,255,.3);color:rgba(255,255,255,.65);}
+.sp-dots-btn{background:none;border:none;color:#fff;cursor:pointer;padding:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.sp-dots-btn svg{width:19px;height:19px;}
+.sp-genre-tags{display:flex;flex-wrap:wrap;gap:8px 12px;}
+.sp-tag{color:#fff;font-size:.82rem;font-weight:600;}
+.sp-bottom-card{display:flex;align-items:center;gap:11px;background:rgba(30,30,30,.55);backdrop-filter:blur(10px);border-radius:14px;padding:10px 12px;}
+.sp-bottom-thumb{width:44px;height:44px;border-radius:8px;object-fit:cover;background:rgba(255,255,255,.1);flex-shrink:0;}
+.sp-bottom-info{flex:1;min-width:0;}
+.sp-bottom-title{color:#fff;font-size:.83rem;font-weight:700;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+.sp-bottom-artist{color:rgba(255,255,255,.65);font-size:.74rem;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sp-add-btn{background:rgba(255,255,255,.14);border:1.5px solid rgba(255,255,255,.5);color:#fff;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:background .15s;}
+.sp-add-btn:hover{background:rgba(255,255,255,.28);}
+.sp-add-btn svg{width:17px;height:17px;}
+.sp-loading{color:rgba(255,255,255,.75);text-align:center;padding:60px 20px;font-size:.85rem;height:100%;display:flex;align-items:center;justify-content:center;}
+@media(max-width:1050px){.sp-slide-content{padding-bottom:78px;}}
+
 /* Fullscreen image viewer */
 #img-viewer{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.92);display:none;align-items:center;justify-content:center;cursor:zoom-out;backdrop-filter:blur(8px);}
 #img-viewer.open{display:flex;}
@@ -2435,6 +2478,10 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
       Genre Musik
     </div>
+    <div class="nav-i" id="nav-songpreview" onclick="openSongPreviewView()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M10 9.2v5.6l4.8-2.8z" fill="currentColor" stroke="none"/></svg>
+      Song Preview
+    </div>
   </nav>
 
   <!-- TENTANG ARTIS (widget artis dari songs yang sedang diputar) -->
@@ -3006,6 +3053,28 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
     <div id="lyr-translate-toast"> Loading translation...</div>
   </div>
 </aside>
+
+<!-- SONG PREVIEW (feed vertikal ala TikTok, preview 30 detik dari iTunes) -->
+<div id="song-preview-view">
+  <div class="sp-topbar">
+    <button class="sp-back-btn" onclick="closeSongPreviewView()" title="Kembali">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    </button>
+    <div class="sp-topbar-title" id="sp-topbar-title">Song Preview</div>
+    <button class="sp-search-btn" onclick="toggleSpSearchBar()" title="Cari lagu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+    </button>
+    <button class="sp-mute-btn" id="sp-mute-btn" onclick="toggleSongPreviewMute()" title="Bisukan">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+    </button>
+  </div>
+  <div class="sp-search-bar" id="sp-search-bar">
+    <input type="text" class="sp-search-input" id="sp-search-input" placeholder="Cari lagu untuk preview 30 detik..." onkeydown="if(event.key==='Enter')searchSongPreview(this.value)">
+  </div>
+  <div class="sp-feed" id="sp-feed">
+    <div class="sp-loading">Memuat preview populer...</div>
+  </div>
+</div>
 
 <!-- PLAYER BAR -->
 <div id="bar">
@@ -9479,6 +9548,202 @@ function timeAgo(timestamp) {
   if (hrs < 24) return hrs + ' hours ago';
   return Math.floor(hrs / 24) + ' days ago';
 }
+
+// ─── SONG PREVIEW (feed vertikal ala TikTok, preview 30 detik dari iTunes) ──
+// Halaman ini murni memutar cuplikan 30 detik (previewUrl) dari iTunes Search
+// API — bukan lagu penuh — jadi terpisah dari sistem pemutaran utama (YouTube).
+// Daftar "populer" diambil dari RSS Top Songs iTunes lalu di-lookup satu per
+// satu untuk mendapatkan previewUrl-nya. Setiap kartu bisa discroll vertikal
+// (snap, mirip TikTok/Reels) dan preview yang sedang terlihat otomatis diputar.
+let spTracks = [];
+let spAudio = null;
+let spMuted = false;
+let spObserver = null;
+let spCurrentIndex = -1;
+
+function openSongPreviewView() {
+  document.getElementById('song-preview-view').classList.add('open');
+  document.getElementById('nav-songpreview')?.classList.add('on');
+  if (!spTracks.length) loadSpPopular();
+}
+
+function closeSongPreviewView() {
+  document.getElementById('song-preview-view').classList.remove('open');
+  document.getElementById('nav-songpreview')?.classList.remove('on');
+  if (spAudio) { spAudio.pause(); }
+  spCurrentIndex = -1;
+}
+
+function toggleSpSearchBar() {
+  const bar = document.getElementById('sp-search-bar');
+  bar.classList.toggle('open');
+  if (bar.classList.contains('open')) {
+    setTimeout(() => document.getElementById('sp-search-input')?.focus(), 50);
+  }
+}
+
+async function loadSpPopular() {
+  const feed = document.getElementById('sp-feed');
+  document.getElementById('sp-topbar-title').textContent = 'Song Preview';
+  feed.innerHTML = '<div class="sp-loading">Memuat preview populer...</div>';
+  try {
+    const rssRes = await fetch('https://itunes.apple.com/us/rss/topsongs/limit=50/json', { signal: AbortSignal.timeout(9000) });
+    if (!rssRes.ok) throw new Error('RSS gagal (' + rssRes.status + ')');
+    const rssData = await rssRes.json();
+    const entries = (rssData.feed && rssData.feed.entry) || [];
+    const ids = entries.map(e => e.id && e.id.attributes && e.id.attributes['im:id']).filter(Boolean);
+    if (!ids.length) throw new Error('Chart kosong');
+
+    const lookupRes = await fetch('https://itunes.apple.com/lookup?id=' + ids.join(',') + '&country=US', { signal: AbortSignal.timeout(9000) });
+    if (!lookupRes.ok) throw new Error('Lookup gagal (' + lookupRes.status + ')');
+    const lookupData = await lookupRes.json();
+    const tracks = (lookupData.results || []).filter(r => r.wrapperType === 'track' && r.previewUrl);
+    if (!tracks.length) throw new Error('Tidak ada preview tersedia');
+
+    spTracks = tracks;
+    renderSpSlides();
+  } catch (e) {
+    console.error('loadSpPopular error:', e);
+    feed.innerHTML = '<div class="sp-loading">Gagal memuat preview populer, coba lagi.</div>';
+  }
+}
+
+async function searchSongPreview(q) {
+  q = (q || '').trim();
+  if (!q) { loadSpPopular(); return; }
+  const feed = document.getElementById('sp-feed');
+  document.getElementById('sp-topbar-title').textContent = '"' + q + '"';
+  feed.innerHTML = '<div class="sp-loading">Mencari "' + esc(q) + '"...</div>';
+  try {
+    const results = await fetchItunesResults(q, 'US', 'song');
+    const tracks = (results || []).filter(r => r.previewUrl);
+    if (!tracks.length) {
+      feed.innerHTML = '<div class="sp-loading">Tidak ada hasil untuk "' + esc(q) + '".</div>';
+      return;
+    }
+    spTracks = tracks;
+    renderSpSlides();
+  } catch (e) {
+    console.error('searchSongPreview error:', e);
+    feed.innerHTML = '<div class="sp-loading">Gagal mencari, coba lagi.</div>';
+  }
+}
+
+function renderSpSlides() {
+  const feed = document.getElementById('sp-feed');
+  feed.innerHTML = '';
+  spCurrentIndex = -1;
+  spTracks.forEach((t, i) => feed.appendChild(buildSpSlideEl(t, i)));
+  feed.scrollTop = 0;
+  setupSpObserver();
+}
+
+function buildSpSlideEl(t, i) {
+  const div = document.createElement('div');
+  div.className = 'sp-slide';
+  div.dataset.idx = i;
+  const bigArt = (t.artworkUrl100 || '').replace('100x100bb', '600x600bb');
+  const genre = t.primaryGenreName || 'Musik';
+  div.innerHTML = `
+    <div class="sp-bg" style="background-image:url('${esc(bigArt)}')"></div>
+    <div class="sp-scrim"></div>
+    <div class="sp-slide-content">
+      <div class="sp-release-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        Preview 30 Detik
+      </div>
+      <div class="sp-artist-row">
+        <img class="sp-artist-photo" src="${esc(t.artworkUrl100 || '')}" onerror="this.style.visibility='hidden'">
+        <div class="sp-artist-info">
+          <div class="sp-artist-name">${esc(t.artistName || 'Unknown')}</div>
+          <div class="sp-artist-sub">${esc(t.collectionName || '')}</div>
+        </div>
+        <button class="sp-follow-btn" onclick="event.stopPropagation();toggleSpFollow(this)">Ikuti</button>
+        <button class="sp-dots-btn" onclick="event.stopPropagation()" title="Lainnya">
+          <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="6" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="18" r="1.8"/></svg>
+        </button>
+      </div>
+      <div class="sp-genre-tags">
+        <span class="sp-tag">#${esc(genre.replace(/\s+/g, ''))}</span>
+        <span class="sp-tag">#previewlagu</span>
+        <span class="sp-tag">#30detik</span>
+      </div>
+      <div class="sp-bottom-card">
+        <img class="sp-bottom-thumb" src="${esc(t.artworkUrl100 || '')}" onerror="this.style.visibility='hidden'">
+        <div class="sp-bottom-info">
+          <div class="sp-bottom-title">${esc(t.trackName || 'Unknown')}</div>
+          <div class="sp-bottom-artist">${esc(t.artistName || '')}</div>
+        </div>
+        <button class="sp-add-btn" onclick="event.stopPropagation();addSpTrackToPlaylist(${i})" title="Tambah ke playlist">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </div>
+    </div>
+  `;
+  div.addEventListener('click', () => togglePauseSpPreview());
+  return div;
+}
+
+function toggleSpFollow(btn) {
+  const following = btn.classList.toggle('following');
+  btn.textContent = following ? 'Mengikuti' : 'Ikuti';
+}
+
+function setupSpObserver() {
+  if (spObserver) spObserver.disconnect();
+  const feed = document.getElementById('sp-feed');
+  spObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+        playSpPreview(parseInt(entry.target.dataset.idx, 10));
+      }
+    });
+  }, { root: feed, threshold: [0.6] });
+  feed.querySelectorAll('.sp-slide').forEach(el => spObserver.observe(el));
+}
+
+function playSpPreview(idx) {
+  if (spCurrentIndex === idx) return;
+  spCurrentIndex = idx;
+  const t = spTracks[idx];
+  if (!t || !t.previewUrl) return;
+  if (!spAudio) spAudio = new Audio();
+  spAudio.pause();
+  spAudio.src = t.previewUrl;
+  spAudio.loop = true;
+  spAudio.muted = spMuted;
+  spAudio.currentTime = 0;
+  spAudio.play().catch(() => {});
+}
+
+function togglePauseSpPreview() {
+  if (!spAudio) return;
+  if (spAudio.paused) spAudio.play().catch(() => {}); else spAudio.pause();
+}
+
+function toggleSongPreviewMute() {
+  spMuted = !spMuted;
+  if (spAudio) spAudio.muted = spMuted;
+  const btn = document.getElementById('sp-mute-btn');
+  btn.innerHTML = spMuted
+    ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3z"/><path d="M16 9l6 6M22 9l-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>';
+}
+
+// Tombol "+" di kartu songs bawah: pakai modal "Add to Playlist" yang sudah
+// ada di app (openAddSongModal), jadi user tetap bisa simpan judul/artis
+// yang ditemukan lewat Song Preview ke playlist mereka.
+function addSpTrackToPlaylist(idx) {
+  const t = spTracks[idx];
+  if (!t) return;
+  openAddSongModal({
+    title: t.trackName || 'Unknown',
+    artist: t.artistName || 'Unknown',
+    thumb: t.artworkUrl100 || '',
+    _query: `${t.artistName || ''}|||${t.trackName || ''}|||${t.trackId || ''}`
+  });
+}
+
 </script>
 </body>
 </html>
