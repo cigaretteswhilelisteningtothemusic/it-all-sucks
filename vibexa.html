@@ -701,8 +701,11 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .genre-menu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px;}
 .genre-tile{position:relative;height:112px;border-radius:16px;padding:16px;display:flex;align-items:flex-end;cursor:pointer;overflow:hidden;font-weight:800;font-size:1.05rem;color:#fff;letter-spacing:.2px;transition:transform .18s,box-shadow .18s;border:1px solid rgba(255,255,255,0.08);}
 .genre-tile:hover{transform:translateY(-4px) scale(1.02);box-shadow:0 12px 28px rgba(0,0,0,.4);}
-.genre-tile .genre-tile-emoji{position:absolute;right:-6px;bottom:-14px;font-size:3.6rem;opacity:.45;transform:rotate(18deg);pointer-events:none;line-height:1;}
-.genre-tile .genre-tile-label{position:relative;z-index:1;text-shadow:0 2px 6px rgba(0,0,0,.35);}
+.genre-tile-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .4s ease;z-index:0;}
+.genre-tile-img.loaded{opacity:1;}
+.genre-tile-scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.1) 0%,rgba(0,0,0,.35) 55%,rgba(0,0,0,.8) 100%);z-index:1;}
+.genre-tile-flag{position:absolute;top:10px;right:12px;font-size:1.15rem;z-index:2;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));}
+.genre-tile .genre-tile-label{position:relative;z-index:2;text-shadow:0 2px 6px rgba(0,0,0,.5);}
 .rank-grid{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
 .rank-item{display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:var(--rs);background:var(--card);border:1px solid transparent;cursor:pointer;transition:all .18s;}
 .rank-item:hover{background:var(--hover);border-color:var(--border);}
@@ -951,7 +954,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   ════════════════════════════════ */
   .genre-menu-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
   .genre-tile{height:92px;padding:12px;font-size:.9rem;border-radius:13px}
-  .genre-tile .genre-tile-emoji{font-size:2.8rem}
+  .genre-tile-flag{font-size:1rem;top:8px;right:9px}
   .rank-grid{gap:5px}
   .rank-item{
     padding:8px 10px;gap:8px;
@@ -6590,10 +6593,73 @@ function renderGenreMenu() {
     const tile = document.createElement('div');
     tile.className = 'genre-tile';
     tile.style.background = def.color;
-    tile.innerHTML = `<span class="genre-tile-emoji">${def.emoji}</span><span class="genre-tile-label">${esc(def.label)}</span>`;
+    tile.innerHTML = `
+      <img class="genre-tile-img" id="genre-tile-img-${key}" alt="" loading="lazy">
+      <div class="genre-tile-scrim"></div>
+      ${def.emoji ? `<span class="genre-tile-flag">${def.emoji}</span>` : ''}
+      <span class="genre-tile-label">${esc(def.label)}</span>
+    `;
     tile.addEventListener('click', () => openGenreView(key));
     grid.appendChild(tile);
   });
+  _loadGenreTileCovers();
+}
+
+// Ambil satu foto sampul album dari lagu yang sedang populer di tiap genre,
+// lalu tempelkan sebagai foto latar kotak genre di menu.
+function _loadGenreTileCovers() {
+  Object.keys(GENRE_DEFS).forEach(key => {
+    _getGenreCoverImage(key).then(url => {
+      if (!url) return;
+      const img = document.getElementById('genre-tile-img-' + key);
+      if (!img) return;
+      img.onload = () => img.classList.add('loaded');
+      img.onerror = () => { img.remove(); };
+      img.src = url;
+    }).catch(() => {});
+  });
+}
+
+async function _getGenreCoverImage(genreKey) {
+  const def = GENRE_DEFS[genreKey];
+  if (!def) return null;
+  const cacheKey = 'vibexa_genre_cover_' + genreKey + '_' + new Date().toISOString().slice(0, 10);
+  try {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) return cached;
+  } catch (e) {}
+
+  let url = null;
+  // 1) Coba ambil dari chart resmi genre tsb (lagu #1 yang sedang tren)
+  try {
+    const gid = await _getDeezerGenreId(def.genreNames);
+    if (gid) {
+      const data = await _deezerJsonp('https://api.deezer.com/chart/' + gid + '/tracks?limit=1');
+      const t = data && data.data && data.data[0];
+      if (t) url = _normalizeDeezerTrack(t).thumb || null;
+    }
+  } catch (e) {}
+
+  // 2) Kalau tidak ada chart resmi (mis. K-Pop, Phonk, Lo-fi, Afrobeats),
+  // ambil dari lagu teratas hasil pencarian yang diurutkan berdasarkan popularitas
+  if (!url) {
+    try {
+      const searchUrl = 'https://api.deezer.com/search?q=' + encodeURIComponent(def.query) + '&order=RANKING&limit=1';
+      const data = await _deezerJsonp(searchUrl);
+      const t = data && data.data && data.data[0];
+      if (t) url = _normalizeDeezerTrack(t).thumb || null;
+    } catch (e) {}
+  }
+
+  if (url) {
+    try {
+      localStorage.setItem(cacheKey, url);
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith('vibexa_genre_cover_' + genreKey + '_') && k !== cacheKey) localStorage.removeItem(k);
+      });
+    } catch (e) {}
+  }
+  return url;
 }
 
 function showGenreMenuView() {
