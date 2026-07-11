@@ -2285,7 +2285,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .side-artist-card:hover{background:var(--hover);border-color:var(--green);}
 .side-artist-card.show{display:flex;}
 .side-artist-photo-wrap{width:46px;height:46px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--hover);display:flex;align-items:center;justify-content:center;}
-.side-artist-photo{width:100%;height:100%;object-fit:cover;display:block;}
+.side-artist-photo{width:100%;height:100%;object-fit:cover;object-position:center 20%;display:block;}
 .side-artist-body{flex:1;min-width:0;}
 .side-artist-label{font-size:.58rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:2px;}
 .side-artist-name{font-size:.8rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -2302,7 +2302,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 /* ── Halaman Profil Artis (spt Spotify) ───────────────────── */
 #artist-view{display:none;}
 .artist-banner{position:relative;border-radius:18px;overflow:hidden;padding:70px 26px 24px;margin-bottom:18px;min-height:230px;display:flex;flex-direction:column;justify-content:flex-end;background:var(--card);}
-.artist-banner-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;filter:brightness(.5);}
+.artist-banner-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 20%;z-index:0;filter:brightness(.5);}
 .artist-banner-scrim{position:absolute;inset:0;z-index:0;background:linear-gradient(180deg,rgba(0,0,0,.05) 0%,rgba(8,11,18,.92) 100%);}
 .artist-banner-content{position:relative;z-index:1;}
 .artist-verified{display:inline-flex;align-items:center;gap:6px;font-size:.72rem;font-weight:600;color:#fff;margin-bottom:10px;}
