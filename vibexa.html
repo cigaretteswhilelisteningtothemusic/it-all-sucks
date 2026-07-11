@@ -698,8 +698,10 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .rank-owner{font-size:.71rem;color:var(--sub);}
 .rank-likes{display:flex;align-items:center;gap:4px;font-size:.75rem;color:#ff7eb3;font-weight:700;flex-shrink:0;}
 .rank-likes svg{width:13px;height:13px;}
-.rank-add{width:26px;height:26px;background:var(--green);border:none;border-radius:50%;color:#fff;font-size:1.05rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .15s;}
-.rank-add:hover{transform:scale(1.15);}
+.rank-add{width:26px;height:26px;background:transparent;border:1.5px solid var(--muted);border-radius:50%;color:var(--sub);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;}
+.rank-add:hover{transform:scale(1.15);border-color:var(--green);color:var(--green);}
+.rank-add.saved{background:var(--green);border-color:var(--green);color:#fff;box-shadow:0 0 10px rgba(29,107,219,.4);}
+.rank-add.saved:hover{transform:scale(1.1);background:var(--green);color:#fff;}
 
 /* Publish toggle btn */
 .pv-publish-btn{background:none;border:1px solid var(--border);border-radius:50px;padding:6px 16px;color:var(--sub);font-family:var(--f);font-size:.78rem;cursor:pointer;transition:all .18s;display:flex;align-items:center;gap:6px;}
@@ -3302,6 +3304,7 @@ async function loadAllPlaylistsFromCloud() {
     }
     renderSidebarPlaylists();
     renderHomeGrid();
+    if (typeof syncRankAddButtons === 'function') syncRankAddButtons();
     setCloudStatus('synced', 'Tersimpan · ' + Object.keys(playlists).length + ' playlist');
   } catch(e) {
     setCloudStatus('', 'Failed to load: ' + e.message);
@@ -3476,6 +3479,7 @@ function addTrackToPlaylist(plId, track) {
   renderSidebarPlaylists();
   renderHomeGrid();
   scheduleSave();
+  if (typeof syncRankAddButtons === 'function') syncRankAddButtons();
   return true;
 }
 
@@ -3487,7 +3491,39 @@ function removeTrackFromPlaylist(plId, idx) {
   renderSidebarPlaylists();
   renderHomeGrid();
   scheduleSave();
+  if (typeof syncRankAddButtons === 'function') syncRankAddButtons();
   toast(' ' + (removed?.title || 'Lagu') + ' dihapus');
+}
+
+// Cari semua playlist yang berisi lagu tertentu (dicocokkan dari artis + judul)
+function _findPlaylistsWithTrack(artist, title) {
+  const matches = [];
+  for (const plId in playlists) {
+    const pl = playlists[plId];
+    const idx = pl.tracks.findIndex(tr => {
+      const p = (tr._query || '').split('|||');
+      return p[0] === artist && p[1] === title;
+    });
+    if (idx !== -1) matches.push({ plId, idx });
+  }
+  return matches;
+}
+
+// Hapus lagu dari semua playlist yang menyimpannya (dipakai oleh tombol checklist ala Spotify)
+function removeTrackFromAllMatchingPlaylists(artist, title) {
+  const matches = _findPlaylistsWithTrack(artist, title);
+  if (!matches.length) return;
+  matches.forEach(({ plId, idx }) => {
+    const pl = playlists[plId];
+    if (!pl) return;
+    pl.tracks.splice(idx, 1);
+    if (currentPlaylistId === plId) renderPlaylistView(plId);
+  });
+  renderSidebarPlaylists();
+  renderHomeGrid();
+  scheduleSave();
+  if (typeof syncRankAddButtons === 'function') syncRankAddButtons();
+  toast(' Dihapus dari playlist');
 }
 
 // ─── Open Add Song Modal (from search, add to which playlist) ─
@@ -5688,6 +5724,7 @@ function buildRankItemEl(t, i, showDuration = true) {
   const numClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
   const mins = Math.floor((t.duration || 0) / 60);
   const secs = String((t.duration || 0) % 60).padStart(2, '0');
+  const isSaved = _findPlaylistsWithTrack(t.artist, t.title).length > 0;
   const div = document.createElement('div');
   div.className = 'rank-item';
   div.innerHTML = `
@@ -5695,17 +5732,20 @@ function buildRankItemEl(t, i, showDuration = true) {
     <div class="rank-cover">${t.thumb ? `<img src="${esc(t.thumb)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}</div>
     <div class="rank-info">
       <div class="rank-name">${esc(t.title)}</div>
-      <div class="rank-owner">${esc(t.artist)}</div>
+      <div class="rank-owner">${esc(t.artist)}${showDuration && t.duration ? ` · ${mins}:${secs}` : ''}</div>
     </div>
-    <div class="rank-likes" title="Putar lagu">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-      ${showDuration && t.duration ? `${mins}:${secs}` : ''}
-    </div>
-    <button class="rank-add" title="Tambahkan lagu ke playlist">+</button>
+    <button class="rank-add${isSaved ? ' saved' : ''}" data-artist="${esc(t.artist)}" data-title="${esc(t.title)}" title="${isSaved ? 'Tersimpan di playlist' : 'Tambahkan lagu ke playlist'}">${isSaved
+      ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+      : '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>'}</button>
   `;
   div.addEventListener('click', () => playTrendingTrack(t));
   div.querySelector('.rank-add').addEventListener('click', e => {
     e.stopPropagation();
+    const btn = e.currentTarget;
+    if (btn.classList.contains('saved')) {
+      removeTrackFromAllMatchingPlaylists(t.artist, t.title);
+      return;
+    }
     openAddSongModal({
       title: t.title,
       artist: t.artist,
@@ -5718,6 +5758,20 @@ function buildRankItemEl(t, i, showDuration = true) {
     });
   });
   return div;
+}
+
+// Perbarui tampilan semua tombol checklist (rank-add) di halaman sesuai status playlist saat ini
+function syncRankAddButtons() {
+  document.querySelectorAll('.rank-add[data-artist]').forEach(btn => {
+    const artist = btn.dataset.artist || '';
+    const title = btn.dataset.title || '';
+    const saved = _findPlaylistsWithTrack(artist, title).length > 0;
+    btn.classList.toggle('saved', saved);
+    btn.title = saved ? 'Tersimpan di playlist' : 'Tambahkan lagu ke playlist';
+    btn.innerHTML = saved
+      ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+      : '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+  });
 }
 
 function renderTrendingSongs(items) {
