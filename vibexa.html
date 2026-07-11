@@ -2299,6 +2299,39 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .lyr-album-artist:hover{text-decoration:underline;}
 .lyr-album-name{font-size:.72rem;color:var(--sub);margin-top:8px;}
 
+/* ── Kotak "Tentang Artis" gaya Spotify di panel kanan ────── */
+.lyr-artist-card{display:none;width:100%;max-width:220px;margin-top:18px;border-radius:14px;overflow:hidden;background:var(--card);border:1px solid var(--border);text-align:left;}
+.lyr-artist-card.show{display:block;}
+.lyr-artist-banner{position:relative;width:100%;aspect-ratio:16/11;cursor:pointer;background:var(--hover);overflow:hidden;}
+.lyr-artist-banner-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;}
+.lyr-artist-banner-scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(8,11,18,.05) 40%,rgba(8,11,18,.85) 100%);}
+.lyr-artist-banner-label{position:absolute;left:12px;bottom:10px;z-index:1;font-size:.92rem;font-weight:800;color:#fff;}
+.lyr-artist-card-body{padding:12px 14px 14px;}
+.lyr-artist-card-name-row{display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:8px;}
+.lyr-artist-card-name{font-size:1rem;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.lyr-artist-card-name-row:hover .lyr-artist-card-name{color:var(--green);}
+.lyr-artist-verified{flex-shrink:0;}
+.lyr-artist-card-fans-row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.lyr-artist-card-fans{min-width:0;}
+.lyr-artist-card-fans-num{display:block;font-size:.85rem;font-weight:700;color:var(--text);line-height:1.3;}
+.lyr-artist-card-fans-lbl{display:block;font-size:.68rem;color:var(--sub);line-height:1.3;}
+.lyr-artist-follow-btn{flex-shrink:0;background:none;border:1.5px solid var(--sub);color:var(--text);font-family:var(--f);font-weight:700;font-size:.7rem;padding:6px 14px;border-radius:50px;cursor:pointer;transition:all .18s;}
+.lyr-artist-follow-btn:hover{border-color:var(--text);transform:scale(1.03);}
+.lyr-artist-follow-btn.following{border-color:var(--green);color:var(--green);}
+
+/* ── Kotak Daftar Album Artis (scrollable) ────────────────── */
+.lyr-albums-box{display:none;width:100%;max-width:220px;margin-top:14px;text-align:left;}
+.lyr-albums-box.show{display:block;}
+.lyr-albums-label{font-size:.62rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+.lyr-albums-scroll{display:flex;flex-direction:column;gap:5px;max-height:210px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;padding-right:3px;}
+.lyr-album-item{display:flex;align-items:center;gap:8px;padding:6px;border-radius:9px;cursor:pointer;transition:all .15s;}
+.lyr-album-item:hover{background:var(--hover);}
+.lyr-album-item-cover{width:34px;height:34px;border-radius:6px;object-fit:cover;background:var(--hover);flex-shrink:0;}
+.lyr-album-item-info{flex:1;min-width:0;}
+.lyr-album-item-title{font-size:.72rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.lyr-album-item-year{font-size:.62rem;color:var(--sub);}
+.lyr-albums-loading,.lyr-albums-empty{font-size:.7rem;color:var(--sub);padding:6px 2px;}
+
 /* ── Halaman Profil Artis (spt Spotify) ───────────────────── */
 #artist-view{display:none;}
 .artist-banner{position:relative;border-radius:18px;overflow:hidden;padding:70px 26px 24px;margin-bottom:18px;min-height:230px;display:flex;flex-direction:column;justify-content:flex-end;background:var(--card);}
@@ -2820,7 +2853,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 <!-- LYRICS -->
 <aside id="lyr">
   <div class="lyr-head">
-    <div class="lyr-ttl">Album <span class="lyr-badge">Now Playing</span></div>
+    <div class="lyr-ttl"><span id="lyr-header-title">Album</span> <span class="lyr-badge">Now Playing</span></div>
     <div style="display:flex;align-items:center;gap:4px;">
     <button id="lyr-translate-btn" onclick="toggleLyricsTranslation()" title="Translate lyrics to English" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>
@@ -2851,6 +2884,37 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
       <div class="lyr-album-title" id="lyr-album-title">Belum ada songs diputar</div>
       <div class="lyr-album-artist" id="lyr-album-artist" onclick="event.stopPropagation();openArtistView(curTrack && curTrack.artist)">—</div>
       <div class="lyr-album-name" id="lyr-album-name"></div>
+
+      <!-- Kotak "Tentang Artis" gaya Spotify: banner foto + info -->
+      <div class="lyr-artist-card" id="lyr-artist-card">
+        <div class="lyr-artist-banner" id="lyr-artist-banner" onclick="openArtistView(curTrack && curTrack.artist)" title="Lihat profil artis">
+          <img class="lyr-artist-banner-img" id="lyr-artist-banner-img" src="" alt="" onerror="this.style.display='none'">
+          <div class="lyr-artist-banner-scrim"></div>
+          <div class="lyr-artist-banner-label">Tentang artis</div>
+        </div>
+        <div class="lyr-artist-card-body">
+          <div class="lyr-artist-card-name-row" onclick="openArtistView(curTrack && curTrack.artist)">
+            <span class="lyr-artist-card-name" id="lyr-artist-card-name">—</span>
+            <svg class="lyr-artist-verified" viewBox="0 0 24 24" width="16" height="16" title="Artis Terverifikasi">
+              <path fill="#3dda6e" d="M12 2 9.5 4.5 6 4l-.5 3.5L2 9l2 3-2 3 3.5 1.5L6 20l3.5-.5L12 22l2.5-2.5 3.5.5.5-3.5L22 15l-2-3 2-3-3.5-1.5L18 4l-3.5.5z"/>
+              <path d="M9 12l2 2 4-4" stroke="#0E1220" stroke-width="2.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="lyr-artist-card-fans-row">
+            <div class="lyr-artist-card-fans">
+              <span class="lyr-artist-card-fans-num" id="lyr-artist-card-fans-num">—</span>
+              <span class="lyr-artist-card-fans-lbl">pendengar bulanan</span>
+            </div>
+            <button class="lyr-artist-follow-btn" id="lyr-artist-follow-btn" onclick="event.stopPropagation();toggleLyrArtistFollow()">Ikuti</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Kotak Daftar Album dari Artis: bisa discroll -->
+      <div class="lyr-albums-box" id="lyr-albums-box">
+        <div class="lyr-albums-label">Album Lainnya</div>
+        <div class="lyr-albums-scroll" id="lyr-albums-scroll"></div>
+      </div>
     </div>
     <!-- Mesin lirik tersinkron tetap berjalan di balik layar, dipakai oleh mode layar penuh -->
     <div class="lyr-fade-t" style="display:none"></div>
@@ -5811,6 +5875,8 @@ function _updateArtistWidgets(track) {
   const titleEl = document.getElementById('lyr-album-title');
   const artistEl = document.getElementById('lyr-album-artist');
   const albumEl = document.getElementById('lyr-album-name');
+  const headerTitleEl = document.getElementById('lyr-header-title');
+  if (headerTitleEl) headerTitleEl.textContent = track.title || 'Album';
   if (artEl) { if (track.thumb) { artEl.style.display = 'block'; artEl.src = track.thumb; } else { artEl.style.display = 'none'; } }
   if (titleEl) titleEl.textContent = track.title || '—';
   if (artistEl) artistEl.textContent = track.artist || '—';
@@ -5825,6 +5891,125 @@ function _updateArtistWidgets(track) {
     if (nameEl) nameEl.textContent = track.artist;
     _loadArtistPhotoInto(photoEl, track.artist);
   }
+
+  // Panel kanan: kotak artis + daftar album artis (bisa discroll)
+  _updateLyrArtistBox(track);
+}
+
+// ─── Kotak "Tentang Artis" + Daftar Album di panel lirik kanan ──
+let _lyrArtistAlbumsCache = {}; // nama artis (lowercase) -> daftar album
+let _lyrArtistFansCache = {}; // nama artis (lowercase) -> jumlah pendengar
+let _lyrArtistReqGen = 0;
+let _lyrLastArtist = '';
+let _lyrFollowedArtists = {}; // nama artis (lowercase) -> true jika diikuti (sesi ini saja)
+
+async function _updateLyrArtistBox(track) {
+  const card = document.getElementById('lyr-artist-card');
+  const nameEl = document.getElementById('lyr-artist-card-name');
+  const bannerImg = document.getElementById('lyr-artist-banner-img');
+  const fansEl = document.getElementById('lyr-artist-card-fans-num');
+  const followBtn = document.getElementById('lyr-artist-follow-btn');
+  const albumsBox = document.getElementById('lyr-albums-box');
+  const albumsScroll = document.getElementById('lyr-albums-scroll');
+
+  if (!track || !track.artist) {
+    if (card) card.classList.remove('show');
+    if (albumsBox) albumsBox.classList.remove('show');
+    return;
+  }
+
+  if (card) card.classList.add('show');
+  if (nameEl) nameEl.textContent = track.artist;
+  _loadArtistPhotoInto(bannerImg, track.artist);
+  if (followBtn) {
+    const following = !!_lyrFollowedArtists[track.artist.toLowerCase()];
+    followBtn.textContent = following ? 'Mengikuti' : 'Ikuti';
+    followBtn.classList.toggle('following', following);
+  }
+
+  const key = track.artist.toLowerCase();
+  if (fansEl) fansEl.textContent = _lyrArtistFansCache[key] != null ? formatFanCount(_lyrArtistFansCache[key]) : '—';
+
+  if (key === _lyrLastArtist && _lyrArtistAlbumsCache[key]) {
+    renderLyrAlbumsList(_lyrArtistAlbumsCache[key]);
+    return;
+  }
+  _lyrLastArtist = key;
+
+  if (_lyrArtistAlbumsCache[key]) {
+    renderLyrAlbumsList(_lyrArtistAlbumsCache[key]);
+    return;
+  }
+
+  const myGen = ++_lyrArtistReqGen;
+  if (albumsBox) albumsBox.classList.add('show');
+  if (albumsScroll) albumsScroll.innerHTML = '<div class="lyr-albums-loading">Memuat album...</div>';
+
+  try {
+    const searchData = await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(track.artist) + '&limit=1');
+    const artist = searchData && searchData.data && searchData.data[0];
+    if (myGen !== _lyrArtistReqGen) return;
+    if (!artist) {
+      if (albumsScroll) albumsScroll.innerHTML = '<div class="lyr-albums-empty">Album tidak ditemukan</div>';
+      return;
+    }
+    _lyrArtistFansCache[key] = artist.nb_fan || 0;
+    if (fansEl && _lyrLastArtist === key) fansEl.textContent = formatFanCount(artist.nb_fan);
+
+    const albumData = await _deezerJsonp('https://api.deezer.com/artist/' + artist.id + '/albums?limit=20');
+    if (myGen !== _lyrArtistReqGen) return;
+    const albums = ((albumData && albumData.data) || []).map(a => ({
+      id: a.id,
+      title: a.title || 'Unknown',
+      cover: a.cover_medium || a.cover_big || a.cover_xl || '',
+      year: (a.release_date || '').slice(0, 4)
+    }));
+    _lyrArtistAlbumsCache[key] = albums;
+    renderLyrAlbumsList(albums);
+  } catch (e) {
+    if (myGen !== _lyrArtistReqGen) return;
+    console.error('_updateLyrArtistBox error:', e);
+    if (albumsScroll) albumsScroll.innerHTML = '<div class="lyr-albums-empty">Gagal memuat album</div>';
+  }
+}
+
+// Tombol "Ikuti" bersifat lokal (belum ada backend follow sungguhan)
+function toggleLyrArtistFollow() {
+  if (!curTrack || !curTrack.artist) return;
+  const key = curTrack.artist.toLowerCase();
+  const nowFollowing = !_lyrFollowedArtists[key];
+  _lyrFollowedArtists[key] = nowFollowing;
+  const followBtn = document.getElementById('lyr-artist-follow-btn');
+  if (followBtn) {
+    followBtn.textContent = nowFollowing ? 'Mengikuti' : 'Ikuti';
+    followBtn.classList.toggle('following', nowFollowing);
+  }
+  toast(nowFollowing ? ` Mengikuti ${curTrack.artist}` : ` Berhenti mengikuti ${curTrack.artist}`);
+}
+
+function renderLyrAlbumsList(albums) {
+  const albumsBox = document.getElementById('lyr-albums-box');
+  const c = document.getElementById('lyr-albums-scroll');
+  if (!c) return;
+  c.innerHTML = '';
+  if (albumsBox) albumsBox.classList.add('show');
+  if (!albums.length) {
+    c.innerHTML = '<div class="lyr-albums-empty">Tidak ada album ditemukan</div>';
+    return;
+  }
+  albums.forEach(a => {
+    const div = document.createElement('div');
+    div.className = 'lyr-album-item';
+    div.innerHTML = `
+      <img class="lyr-album-item-cover" src="${esc(a.cover)}" alt="" loading="lazy" onerror="this.style.display='none'">
+      <div class="lyr-album-item-info">
+        <div class="lyr-album-item-title">${esc(a.title)}</div>
+        <div class="lyr-album-item-year">${esc(a.year || '')}</div>
+      </div>
+    `;
+    div.addEventListener('click', (e) => { e.stopPropagation(); openAlbumView(a.id, a.title); });
+    c.appendChild(div);
+  });
 }
 
 // Ambil foto artis dari Deezer (di-cache per nama) lalu pasang ke elemen <img> tertentu.
