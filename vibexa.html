@@ -2876,10 +2876,6 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
         <span id="genre-songs-title">Genre</span>
         <span class="pub-badge">Trending &amp; Populer</span>
       </div>
-      <button class="home-new-pl-btn" id="genre-refresh-btn" onclick="refreshCurrentGenreSongs()" style="background:none;border:1px solid var(--border);color:var(--sub);">
-        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
-        Refresh
-      </button>
     </div>
     <div class="genre-songs-count" id="genre-songs-count" style="font-size:.75rem;color:var(--sub);margin-bottom:8px;"></div>
     <div class="rank-grid" id="genre-songs-grid"></div>
@@ -6499,11 +6495,15 @@ const GENRE_DEFS = {
   rock:      { label: 'Rock',      emoji: '', color: 'linear-gradient(135deg,#e74c3c,#6e1f16)', genreNames: ['rock'],                       query: 'Rock hits',       mbTag: 'rock' },
   edm:       { label: 'EDM',       emoji: '', color: 'linear-gradient(135deg,#00b4db,#005a70)', genreNames: ['dance','electro','house'],    query: 'EDM dance hits',  mbTag: 'electronic' },
   latin:     { label: 'Latin',     emoji: '', color: 'linear-gradient(135deg,#f39c12,#8a5406)', genreNames: ['latin','latina'],             query: 'Latin hits',      mbTag: 'latin' },
-  kpop:      { label: 'K-Pop',     emoji: '🇰🇷', color: 'linear-gradient(135deg,#ff6fb1,#8a2a56)', genreNames: ['k-pop','kpop'],              query: 'K-pop hits',      mbTag: 'k-pop' },
+  kpop:      { label: 'K-Pop',     emoji: '🇰🇷', color: 'linear-gradient(135deg,#ff6fb1,#8a2a56)', genreNames: ['k-pop','kpop'],              query: 'K-pop hits',      mbTag: 'k-pop',
+    seedArtists: ['BTS','BLACKPINK','TWICE','Stray Kids','SEVENTEEN','NewJeans','IVE','aespa','EXO','TOMORROW X TOGETHER','ENHYPEN','ITZY','(G)I-DLE','NCT DREAM','NCT 127','Red Velvet','ATEEZ','LE SSERAFIM','IU','TREASURE'] },
   indie:     { label: 'Indie',     emoji: '', color: 'linear-gradient(135deg,#27ae60,#155c33)', genreNames: ['alternative','indie'],        query: 'Indie hits',      mbTag: 'indie' },
-  phonk:     { label: 'Phonk',     emoji: '', color: 'linear-gradient(135deg,#5c5c66,#232329)', genreNames: ['phonk'],                      query: 'Phonk',           mbTag: 'phonk' },
-  lofi:      { label: 'Lo-fi',     emoji: '', color: 'linear-gradient(135deg,#6c5b7b,#33283d)', genreNames: ['lo-fi','lofi','chill'],       query: 'Lofi chill beats',mbTag: 'lo-fi' },
-  afrobeats: { label: 'Afrobeats', emoji: '', color: 'linear-gradient(135deg,#e67e22,#7a3f08)', genreNames: ['afrobeat','afro'],            query: 'Afrobeats hits',  mbTag: 'afrobeats' },
+  phonk:     { label: 'Phonk',     emoji: '', color: 'linear-gradient(135deg,#5c5c66,#232329)', genreNames: ['phonk'],                      query: 'Phonk',           mbTag: 'phonk',
+    seedArtists: ['Kordhell','DVRST','Interworld','Freddie Dredd','$UICIDEBOY$','Pharmacist','Playa Phonk','KSLV Noh','Soudiere','Ghostrifle'] },
+  lofi:      { label: 'Lo-fi',     emoji: '', color: 'linear-gradient(135deg,#6c5b7b,#33283d)', genreNames: ['lo-fi','lofi','chill'],       query: 'Lofi chill beats',mbTag: 'lo-fi',
+    seedArtists: ['Idealism','Kupla','WYS','Jinsang','Tomppabeats','Aso','Potsu','Yasper','Mondo Loops','Aviino'] },
+  afrobeats: { label: 'Afrobeats', emoji: '', color: 'linear-gradient(135deg,#e67e22,#7a3f08)', genreNames: ['afrobeat','afro'],            query: 'Afrobeats hits',  mbTag: 'afrobeats',
+    seedArtists: ['Burna Boy','Wizkid','Davido','Rema','Tems','Asake','Ayra Starr','CKay','Omah Lay','Fireboy DML','Tiwa Savage','Kizz Daniel'] },
 };
 const GENRE_TARGET_COUNT = 100;
 let _deezerGenreListCache = null;
@@ -6604,10 +6604,13 @@ function _isJunkGenreTrack(t) {
 
 // Ambil sampai GENRE_TARGET_COUNT lagu yang sedang tren/populer untuk satu genre.
 // Urutan sumber (dari paling akurat ke paling umum):
+// 0) Daftar artis inti yang dikurasi manual (hanya untuk genre yang rawan
+//    salah kaprah: K-Pop, Phonk, Lo-fi, Afrobeats) — paling akurat karena
+//    artisnya sudah pasti benar, tidak bergantung pada pencarian teks.
 // 1) Chart resmi per-genre Deezer (kalau genre-nya tersedia di taksonomi Deezer)
 // 2) Lagu-lagu teratas dari artis yang menurut data genre/tag MusicBrainz benar-benar
-//    terasosiasi dengan genre ini — sangat penting untuk genre yang tidak
-//    punya chart resmi di Deezer (K-Pop, Phonk, Lo-fi, Afrobeats)
+//    terasosiasi dengan genre ini — pelengkap untuk genre yang tidak
+//    punya chart resmi di Deezer
 // 3) Pencarian umum yang diurutkan berdasarkan popularitas (order=RANKING),
 //    sebagai pelengkap terakhir saja, dengan penyaringan versi cover/
 //    instrumental/karaoke supaya tidak mengotori hasil.
@@ -6625,6 +6628,21 @@ async function fetchGenreSongs(genreKey) {
       out.push(t);
     }
   };
+
+  // 0) PALING PRIORITAS: daftar artis inti yang sudah dikurasi manual untuk
+  // genre yang tidak punya chart resmi di Deezer dan rawan salah kaprah kalau
+  // hanya mengandalkan pencarian teks (K-Pop, Phonk, Lo-fi, Afrobeats). Karena
+  // ini didahulukan, lagu #1 (dan foto kotak genre yang mengikuti lagu #1)
+  // dijamin berasal dari artis yang benar-benar dikenal luas sebagai genre ini.
+  if (def.seedArtists && def.seedArtists.length) {
+    for (const artistName of def.seedArtists) {
+      if (out.length >= GENRE_TARGET_COUNT) break;
+      try {
+        const tracks = await _deezerArtistTopTracksByName(artistName, 10);
+        addTracks(tracks, true);
+      } catch (e) {}
+    }
+  }
 
   // 1) Chart resmi per-genre Deezer (lagu yang sedang trending di genre tsb)
   try {
@@ -6713,7 +6731,7 @@ function _loadGenreTileCovers() {
 async function _getGenreCoverImage(genreKey) {
   const def = GENRE_DEFS[genreKey];
   if (!def) return null;
-  const cacheKey = 'vibexa_genre_cover_' + genreKey + '_' + new Date().toISOString().slice(0, 10);
+  const cacheKey = 'vibexa_genre_cover_' + GENRE_CACHE_VERSION + '_' + genreKey + '_' + new Date().toISOString().slice(0, 10);
   try {
     const cached = localStorage.getItem(cacheKey);
     if (cached) return cached;
@@ -6733,7 +6751,8 @@ async function _getGenreCoverImage(genreKey) {
     try {
       localStorage.setItem(cacheKey, url);
       Object.keys(localStorage).forEach(k => {
-        if (k.startsWith('vibexa_genre_cover_' + genreKey + '_') && k !== cacheKey) localStorage.removeItem(k);
+        if (k.startsWith('vibexa_genre_cover_' + GENRE_CACHE_VERSION + '_' + genreKey + '_') && k !== cacheKey) localStorage.removeItem(k);
+        if (k.startsWith('vibexa_genre_cover_' + genreKey + '_')) localStorage.removeItem(k);
       });
     } catch (e) {}
   }
@@ -6799,8 +6818,12 @@ function refreshCurrentGenreSongs() {
 // sama-sama minta data genre yang sama secara bersamaan, tidak dobel fetch.
 const _genreSongsFetchInFlight = {};
 
+// Versi cache genre — dinaikkan setiap kali logika pengambilan lagu genre
+// diperbaiki, supaya cache lama (yang mungkin masih berisi hasil kurang
+// akurat dari versi sebelumnya) otomatis diabaikan dan diambil ulang.
+const GENRE_CACHE_VERSION = 'v2';
 function _genreSongsCacheKey(genreKey) {
-  return 'vibexa_genre_' + genreKey + '_' + new Date().toISOString().slice(0, 10);
+  return 'vibexa_genre_' + GENRE_CACHE_VERSION + '_' + genreKey + '_' + new Date().toISOString().slice(0, 10);
 }
 
 // Sumber tunggal untuk daftar lagu satu genre (dipakai bareng oleh foto
@@ -6827,7 +6850,9 @@ async function _getOrFetchGenreSongsList(genreKey, force) {
     try {
       localStorage.setItem(todayKey, JSON.stringify(items));
       Object.keys(localStorage).forEach(k => {
-        if (k.startsWith('vibexa_genre_' + genreKey + '_') && k !== todayKey) localStorage.removeItem(k);
+        if (k.startsWith('vibexa_genre_' + GENRE_CACHE_VERSION + '_' + genreKey + '_') && k !== todayKey) localStorage.removeItem(k);
+        // Sekalian bersihkan sisa cache versi lama (sebelum perbaikan akurasi ini)
+        if (k.startsWith('vibexa_genre_' + genreKey + '_')) localStorage.removeItem(k);
       });
     } catch (e) {}
     return items;
