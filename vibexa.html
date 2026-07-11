@@ -706,6 +706,10 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .genre-tile-scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.1) 0%,rgba(0,0,0,.35) 55%,rgba(0,0,0,.8) 100%);z-index:1;}
 .genre-tile-flag{position:absolute;top:10px;right:12px;font-size:1.15rem;z-index:2;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));}
 .genre-tile .genre-tile-label{position:relative;z-index:2;text-shadow:0 2px 6px rgba(0,0,0,.5);}
+.genre-mb-info{background:var(--card);border:1px solid var(--border);border-radius:var(--rs);padding:10px 14px;margin-bottom:14px;font-size:.75rem;color:var(--sub);line-height:1.7;}
+.genre-mb-info b{color:var(--text);}
+.genre-mb-info .mb-chip{display:inline-block;background:var(--hover);color:var(--text);border-radius:50px;padding:2px 10px;margin:2px 3px 0 0;font-size:.7rem;}
+.genre-mb-source{color:var(--muted);font-size:.65rem;letter-spacing:.5px;text-transform:uppercase;margin-top:6px;display:block;}
 .rank-grid{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
 .rank-item{display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:var(--rs);background:var(--card);border:1px solid transparent;cursor:pointer;transition:all .18s;}
 .rank-item:hover{background:var(--hover);border-color:var(--border);}
@@ -2881,7 +2885,8 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
         Refresh
       </button>
     </div>
-    <div class="genre-songs-count" id="genre-songs-count" style="font-size:.75rem;color:var(--sub);margin-bottom:12px;"></div>
+    <div class="genre-songs-count" id="genre-songs-count" style="font-size:.75rem;color:var(--sub);margin-bottom:8px;"></div>
+    <div class="genre-mb-info" id="genre-mb-info" style="display:none;"></div>
     <div class="rank-grid" id="genre-songs-grid"></div>
   </div>
 
@@ -6492,18 +6497,18 @@ async function fetchDeezerChartTracks(limit, genreId) {
 // chart resmi di Deezer (K-Pop, Phonk, Lo-fi, Afrobeats) atau untuk
 // melengkapi daftar sampai target 300 lagu.
 const GENRE_DEFS = {
-  pop:       { label: 'Pop',       emoji: '', color: 'linear-gradient(135deg,#e0458c,#8e2a63)', genreNames: ['pop'],                       query: 'Pop hits' },
-  hiphop:    { label: 'Hip-Hop',   emoji: '', color: 'linear-gradient(135deg,#8e44ad,#4a2360)', genreNames: ['rap/hip hop','hip hop'],      query: 'Hip Hop hits' },
-  rap:       { label: 'Rap',       emoji: '', color: 'linear-gradient(135deg,#c0392b,#6e1f16)', genreNames: ['rap/hip hop','rap'],          query: 'Rap hits' },
-  rnb:       { label: 'R&B',       emoji: '', color: 'linear-gradient(135deg,#9b59b6,#4c2a5c)', genreNames: ['r&b','rnb','randb'],          query: 'R&B hits' },
-  rock:      { label: 'Rock',      emoji: '', color: 'linear-gradient(135deg,#e74c3c,#6e1f16)', genreNames: ['rock'],                       query: 'Rock hits' },
-  edm:       { label: 'EDM',       emoji: '', color: 'linear-gradient(135deg,#00b4db,#005a70)', genreNames: ['dance','electro','house'],    query: 'EDM dance hits' },
-  latin:     { label: 'Latin',     emoji: '', color: 'linear-gradient(135deg,#f39c12,#8a5406)', genreNames: ['latin','latina'],             query: 'Latin hits' },
-  kpop:      { label: 'K-Pop',     emoji: '🇰🇷', color: 'linear-gradient(135deg,#ff6fb1,#8a2a56)', genreNames: ['k-pop','kpop'],              query: 'K-pop hits' },
-  indie:     { label: 'Indie',     emoji: '', color: 'linear-gradient(135deg,#27ae60,#155c33)', genreNames: ['alternative','indie'],        query: 'Indie hits' },
-  phonk:     { label: 'Phonk',     emoji: '', color: 'linear-gradient(135deg,#5c5c66,#232329)', genreNames: ['phonk'],                      query: 'Phonk' },
-  lofi:      { label: 'Lo-fi',     emoji: '', color: 'linear-gradient(135deg,#6c5b7b,#33283d)', genreNames: ['lo-fi','lofi','chill'],       query: 'Lofi chill beats' },
-  afrobeats: { label: 'Afrobeats', emoji: '', color: 'linear-gradient(135deg,#e67e22,#7a3f08)', genreNames: ['afrobeat','afro'],            query: 'Afrobeats hits' },
+  pop:       { label: 'Pop',       emoji: '', color: 'linear-gradient(135deg,#e0458c,#8e2a63)', genreNames: ['pop'],                       query: 'Pop hits',        mbTag: 'pop' },
+  hiphop:    { label: 'Hip-Hop',   emoji: '', color: 'linear-gradient(135deg,#8e44ad,#4a2360)', genreNames: ['rap/hip hop','hip hop'],      query: 'Hip Hop hits',    mbTag: 'hip hop' },
+  rap:       { label: 'Rap',       emoji: '', color: 'linear-gradient(135deg,#c0392b,#6e1f16)', genreNames: ['rap/hip hop','rap'],          query: 'Rap hits',        mbTag: 'rap' },
+  rnb:       { label: 'R&B',       emoji: '', color: 'linear-gradient(135deg,#9b59b6,#4c2a5c)', genreNames: ['r&b','rnb','randb'],          query: 'R&B hits',        mbTag: 'r&b' },
+  rock:      { label: 'Rock',      emoji: '', color: 'linear-gradient(135deg,#e74c3c,#6e1f16)', genreNames: ['rock'],                       query: 'Rock hits',       mbTag: 'rock' },
+  edm:       { label: 'EDM',       emoji: '', color: 'linear-gradient(135deg,#00b4db,#005a70)', genreNames: ['dance','electro','house'],    query: 'EDM dance hits',  mbTag: 'electronic' },
+  latin:     { label: 'Latin',     emoji: '', color: 'linear-gradient(135deg,#f39c12,#8a5406)', genreNames: ['latin','latina'],             query: 'Latin hits',      mbTag: 'latin' },
+  kpop:      { label: 'K-Pop',     emoji: '🇰🇷', color: 'linear-gradient(135deg,#ff6fb1,#8a2a56)', genreNames: ['k-pop','kpop'],              query: 'K-pop hits',      mbTag: 'k-pop' },
+  indie:     { label: 'Indie',     emoji: '', color: 'linear-gradient(135deg,#27ae60,#155c33)', genreNames: ['alternative','indie'],        query: 'Indie hits',      mbTag: 'indie' },
+  phonk:     { label: 'Phonk',     emoji: '', color: 'linear-gradient(135deg,#5c5c66,#232329)', genreNames: ['phonk'],                      query: 'Phonk',           mbTag: 'phonk' },
+  lofi:      { label: 'Lo-fi',     emoji: '', color: 'linear-gradient(135deg,#6c5b7b,#33283d)', genreNames: ['lo-fi','lofi','chill'],       query: 'Lofi chill beats',mbTag: 'lo-fi' },
+  afrobeats: { label: 'Afrobeats', emoji: '', color: 'linear-gradient(135deg,#e67e22,#7a3f08)', genreNames: ['afrobeat','afro'],            query: 'Afrobeats hits',  mbTag: 'afrobeats' },
 };
 const GENRE_TARGET_COUNT = 300;
 let _deezerGenreListCache = null;
@@ -6536,9 +6541,60 @@ async function _getDeezerGenreId(nameList) {
   return null;
 }
 
+// ─── MUSICBRAINZ (khusus untuk menu Genre saja — tidak dipakai di fitur lain) ──
+// MusicBrainz adalah database metadata musik terbuka. Di sini dipakai untuk
+// mengetahui artis-artis mana yang benar-benar terasosiasi dengan sebuah
+// genre/tag (misalnya "k-pop", "phonk", "lo-fi", "afrobeats") berdasarkan
+// folksonomy tag milik MusicBrainz, lalu nama artis tsb dipakai untuk
+// melengkapi daftar lagu dari Deezer supaya lebih akurat sesuai genre.
+async function _getMusicBrainzGenreArtists(genreKey) {
+  const def = GENRE_DEFS[genreKey];
+  if (!def || !def.mbTag) return [];
+  const cacheKey = 'vibexa_mb_genre_artists_' + genreKey;
+  try {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed && parsed.artists && parsed.ts && (Date.now() - parsed.ts) < 7 * 24 * 3600 * 1000) {
+        return parsed.artists;
+      }
+    }
+  } catch (e) {}
+
+  let artists = [];
+  try {
+    const url = 'https://musicbrainz.org/ws/2/artist/?query=' + encodeURIComponent('tag:"' + def.mbTag + '"') +
+      '&fmt=json&limit=25';
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    if (res.ok) {
+      const data = await res.json();
+      artists = ((data && data.artists) || [])
+        .filter(a => (a.score || 0) >= 40 && a.name)
+        .sort((a, b) => (b.score || 0) - (a.score || 0))
+        .map(a => a.name);
+    }
+  } catch (e) {}
+
+  try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), artists })); } catch (e) {}
+  return artists;
+}
+
+// Ambil top track (Deezer) milik seorang artis berdasarkan namanya
+async function _deezerArtistTopTracksByName(artistName, limit) {
+  try {
+    const searchData = await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(artistName) + '&limit=1');
+    const artist = searchData && searchData.data && searchData.data[0];
+    if (!artist) return [];
+    const topData = await _deezerJsonp('https://api.deezer.com/artist/' + artist.id + '/top?limit=' + (limit || 10));
+    return ((topData && topData.data) || []).map(_normalizeDeezerTrack);
+  } catch (e) { return []; }
+}
+
 // Ambil sampai GENRE_TARGET_COUNT lagu yang sedang tren/populer untuk satu genre,
-// menggabungkan chart resmi Deezer (jika genre-nya tersedia) dengan hasil
-// pencarian yang diurutkan berdasarkan popularitas (order=RANKING) sebagai pelengkap.
+// menggabungkan chart resmi Deezer (jika genre-nya tersedia), hasil pencarian
+// yang diurutkan berdasarkan popularitas (order=RANKING), dan sebagai pelengkap
+// terakhir — daftar artis yang menurut data genre MusicBrainz benar-benar
+// terasosiasi dengan genre tsb.
 async function fetchGenreSongs(genreKey) {
   const def = GENRE_DEFS[genreKey];
   if (!def) return [];
@@ -6582,6 +6638,21 @@ async function fetchGenreSongs(genreKey) {
       } catch (e) { break; }
     }
   }
+
+  // 3) Kalau masih kurang dari target, lengkapi dari artis yang menurut
+  // MusicBrainz benar-benar terasosiasi dengan genre ini (berguna terutama
+  // untuk genre yang tidak punya chart resmi di Deezer: K-Pop, Phonk, Lo-fi, Afrobeats)
+  if (out.length < GENRE_TARGET_COUNT) {
+    try {
+      const mbArtists = await _getMusicBrainzGenreArtists(genreKey);
+      for (const artistName of mbArtists) {
+        if (out.length >= GENRE_TARGET_COUNT) break;
+        const tracks = await _deezerArtistTopTracksByName(artistName, 10);
+        addTracks(tracks);
+      }
+    } catch (e) {}
+  }
+
   return out;
 }
 
@@ -6705,7 +6776,26 @@ function openGenreView(genreKey) {
   document.getElementById('genre-songs-emoji').textContent = def.emoji || '';
   document.getElementById('genre-songs-title').textContent = def.label;
   const mainEl = document.getElementById('main'); if (mainEl) mainEl.scrollTop = 0;
+  loadGenreMbInfoBox(genreKey);
   loadGenreSongsView(genreKey, false);
+}
+
+// Tampilkan info genre (artis yang terasosiasi menurut data tag/genre MusicBrainz)
+function loadGenreMbInfoBox(genreKey) {
+  const box = document.getElementById('genre-mb-info');
+  if (!box) return;
+  box.style.display = 'none';
+  box.innerHTML = '';
+  const def = GENRE_DEFS[genreKey];
+  _getMusicBrainzGenreArtists(genreKey).then(artists => {
+    if (!artists || !artists.length) return;
+    const chips = artists.slice(0, 8).map(a => '<span class="mb-chip">' + esc(a) + '</span>').join('');
+    box.innerHTML = '<b>Tentang genre ' + esc(def.label) + '</b><br>' +
+      'Artis yang terasosiasi dengan genre ini menurut data genre MusicBrainz:<br>' +
+      chips +
+      '<span class="genre-mb-source">Sumber data genre: MusicBrainz</span>';
+    box.style.display = 'block';
+  }).catch(() => {});
 }
 
 function backFromGenreSongsView() {
