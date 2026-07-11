@@ -836,14 +836,24 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
    sidebar kiri dan panel lirik/artis kanan tetap terlihat, tidak tertutup. */
 #song-preview-view{display:none;position:absolute;inset:0;z-index:20;background:#0a0a0a;flex-direction:column;font-family:var(--f);overflow:hidden;}
 .sp-topbar{position:relative;z-index:5;display:flex;align-items:center;gap:10px;padding:14px 14px 10px;flex-shrink:0;}
-.sp-back-btn,.sp-mute-btn,.sp-search-btn{background:rgba(0,0,0,.35);border:none;color:#fff;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:background .15s;}
-.sp-back-btn:hover,.sp-mute-btn:hover,.sp-search-btn:hover{background:rgba(255,255,255,.18);}
-.sp-back-btn svg,.sp-mute-btn svg,.sp-search-btn svg{width:19px;height:19px;}
+.sp-back-btn,.sp-genre-btn,.sp-search-btn{background:rgba(0,0,0,.35);border:none;color:#fff;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:background .15s;}
+.sp-back-btn:hover,.sp-genre-btn:hover,.sp-search-btn:hover{background:rgba(255,255,255,.18);}
+.sp-back-btn svg,.sp-genre-btn svg,.sp-search-btn svg{width:19px;height:19px;}
+.sp-genre-btn.active{background:var(--green);}
 .sp-topbar-title{flex:1;text-align:center;color:#fff;font-weight:700;font-size:.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px;}
 .sp-search-bar{position:relative;z-index:5;padding:0 14px 10px;display:none;flex-shrink:0;}
 .sp-search-bar.open{display:block;}
 .sp-search-input{width:100%;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);color:#fff;font-family:var(--f);font-size:.85rem;padding:9px 14px;border-radius:50px;outline:none;}
 .sp-search-input::placeholder{color:rgba(255,255,255,.55);}
+/* MENU GENRE — dropdown chip list untuk memfilter Song Preview per genre */
+.sp-genre-menu{position:relative;z-index:6;padding:0 14px 12px;display:none;flex-shrink:0;}
+.sp-genre-menu.open{display:block;}
+.sp-genre-menu-inner{background:rgba(20,20,20,.7);backdrop-filter:blur(18px) saturate(1.5);-webkit-backdrop-filter:blur(18px) saturate(1.5);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:12px;}
+.sp-genre-menu-title{color:rgba(255,255,255,.6);font-size:.68rem;font-weight:800;letter-spacing:2px;text-transform:uppercase;padding:2px 4px 10px;}
+.sp-genre-grid{display:flex;flex-wrap:wrap;gap:8px;max-height:180px;overflow-y:auto;scrollbar-width:thin;}
+.sp-genre-chip{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);color:#fff;font-family:var(--f);font-size:.78rem;font-weight:600;padding:7px 15px;border-radius:50px;cursor:pointer;transition:all .15s;white-space:nowrap;}
+.sp-genre-chip:hover{background:rgba(255,255,255,.16);}
+.sp-genre-chip.active{background:var(--green);border-color:var(--green);color:#fff;}
 .sp-feed{flex:1;overflow-y:scroll;scroll-snap-type:y mandatory;scrollbar-width:none;}
 .sp-feed::-webkit-scrollbar{display:none;}
 .sp-slide{position:relative;height:100%;scroll-snap-align:start;display:flex;flex-direction:column;overflow:hidden;}
@@ -2982,12 +2992,18 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
       <button class="sp-search-btn" onclick="toggleSpSearchBar()" title="Cari lagu">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
       </button>
-      <button class="sp-mute-btn" id="sp-mute-btn" onclick="toggleSongPreviewMute()" title="Bisukan">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+      <button class="sp-genre-btn" id="sp-genre-btn" onclick="toggleSpGenreMenu()" title="Pilih genre">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="14" y2="17"/></svg>
       </button>
     </div>
     <div class="sp-search-bar" id="sp-search-bar">
       <input type="text" class="sp-search-input" id="sp-search-input" placeholder="Cari lagu untuk preview 30 detik..." onkeydown="if(event.key==='Enter')searchSongPreview(this.value)">
+    </div>
+    <div class="sp-genre-menu" id="sp-genre-menu">
+      <div class="sp-genre-menu-inner">
+        <div class="sp-genre-menu-title">Pilih Genre</div>
+        <div class="sp-genre-grid" id="sp-genre-grid"></div>
+      </div>
     </div>
     <div class="sp-feed" id="sp-feed">
       <div class="sp-loading">Memuat preview populer...</div>
@@ -3792,6 +3808,9 @@ function toggleArtistViewFollow() {
 
 // ─── Views ────────────────────────────────────────────────
 function showHomeView() {
+  // Jika sedang di halaman Song Preview, hentikan audio preview-nya dulu
+  if (spAudio) { spAudio.pause(); }
+  spCurrentIndex = -1;
   document.getElementById('home-view').classList.add('active');
   document.getElementById('search-view').classList.remove('active');
   document.getElementById('finder-view').style.display = 'none';
@@ -9759,18 +9778,146 @@ function closeSongPreviewView() {
 
 function toggleSpSearchBar() {
   const bar = document.getElementById('sp-search-bar');
+  closeSpGenreMenu(); // tutup menu genre kalau lagi terbuka, biar tidak tumpang tindih
   bar.classList.toggle('open');
   if (bar.classList.contains('open')) {
     setTimeout(() => document.getElementById('sp-search-input')?.focus(), 50);
   }
 }
 
+// ─── MENU GENRE (Song Preview) ──────────────────────────────
+// Memakai daftar genre yang sama (GENRE_DEFS) dengan fitur "Genre" di Home,
+// supaya labelnya konsisten di seluruh app.
+let _currentSpGenreKey = null; // null = mode Populer (belum difilter genre)
+let _spGenreChipsBuilt = false;
+
+function toggleSpGenreMenu() {
+  const menu = document.getElementById('sp-genre-menu');
+  document.getElementById('sp-search-bar')?.classList.remove('open'); // tutup search bar kalau lagi terbuka
+  if (!_spGenreChipsBuilt) renderSpGenreChips();
+  menu.classList.toggle('open');
+}
+
+function closeSpGenreMenu() {
+  document.getElementById('sp-genre-menu')?.classList.remove('open');
+}
+
+function renderSpGenreChips() {
+  const grid = document.getElementById('sp-genre-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  // Chip "Populer" untuk kembali ke chart teratas (tanpa filter genre)
+  const allChip = document.createElement('button');
+  allChip.type = 'button';
+  allChip.className = 'sp-genre-chip' + (!_currentSpGenreKey ? ' active' : '');
+  allChip.textContent = 'Populer';
+  allChip.dataset.genreKey = '';
+  allChip.addEventListener('click', () => {
+    _currentSpGenreKey = null;
+    _syncSpGenreChipsActive();
+    closeSpGenreMenu();
+    document.getElementById('sp-genre-btn')?.classList.remove('active');
+    loadSpPopular();
+  });
+  grid.appendChild(allChip);
+
+  Object.keys(GENRE_DEFS).forEach(key => {
+    const def = GENRE_DEFS[key];
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'sp-genre-chip' + (_currentSpGenreKey === key ? ' active' : '');
+    chip.textContent = def.label;
+    chip.dataset.genreKey = key;
+    chip.addEventListener('click', () => {
+      closeSpGenreMenu();
+      loadSpByGenre(key);
+    });
+    grid.appendChild(chip);
+  });
+
+  _spGenreChipsBuilt = true;
+}
+
+function _syncSpGenreChipsActive() {
+  const grid = document.getElementById('sp-genre-grid');
+  if (!grid) return;
+  grid.querySelectorAll('.sp-genre-chip').forEach(chip => {
+    const key = chip.dataset.genreKey || null;
+    chip.classList.toggle('active', key === _currentSpGenreKey);
+  });
+}
+
+// Muat Song Preview yang hanya berisi lagu dari genre tertentu. Memakai
+// daftar seed artist genre tsb (sama seperti fitur Genre di Home) supaya
+// hasil pencarian iTunes benar-benar relevan dengan genre yang dipilih.
+async function loadSpByGenre(genreKey) {
+  const def = GENRE_DEFS[genreKey];
+  if (!def) return;
+  const feed = document.getElementById('sp-feed');
+  document.getElementById('sp-topbar-title').textContent = def.label;
+  document.getElementById('sp-genre-btn')?.classList.add('active');
+  feed.innerHTML = '<div class="sp-loading">Memuat lagu ' + esc(def.label) + '...</div>';
+  try {
+    const seeds = (def.seedArtists && def.seedArtists.length) ? _shuffleArray(def.seedArtists).slice(0, 6) : [];
+    const queries = seeds.length ? seeds : [def.query || def.label];
+    const resultsArr = await Promise.all(
+      queries.map(qStr => fetchItunesResults(qStr, 'US', 'song').catch(() => []))
+    );
+    let combined = resultsArr.flat();
+    if (combined.length < 10) {
+      // Cadangan: kalau hasil dari seed artist kurang, coba query umum genrenya
+      const fallback = await fetchItunesResults(def.query || def.label, 'US', 'song').catch(() => []);
+      combined = combined.concat(fallback);
+    }
+    const seen = new Set();
+    const tracks = combined.filter(r => {
+      if (!r || r.wrapperType !== 'track' || !r.previewUrl) return false;
+      const key = r.trackId || (r.artistName + '|||' + r.trackName);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    if (!tracks.length) throw new Error('Tidak ada lagu ' + def.label + ' ditemukan');
+
+    _currentSpGenreKey = genreKey;
+    _syncSpGenreChipsActive();
+    spTracks = _shuffleArray(tracks);
+    renderSpSlides();
+  } catch (e) {
+    console.error('loadSpByGenre error:', e);
+    feed.innerHTML = '<div class="sp-loading">Gagal memuat lagu ' + esc(def.label) + ', coba lagi.</div>';
+  }
+}
+
+// Kunci localStorage untuk mengingat lagu-lagu yang baru saja ditampilkan,
+// supaya saat user keluar dari web lalu masuk lagi, Song Preview tidak
+// menampilkan deretan lagu yang persis sama (chart iTunes sendiri statis).
+const SP_RECENT_KEY = 'sp_recent_track_ids';
+function _spGetRecentIds() {
+  try { return JSON.parse(localStorage.getItem(SP_RECENT_KEY) || '[]'); } catch (e) { return []; }
+}
+function _spSaveRecentIds(ids) {
+  try { localStorage.setItem(SP_RECENT_KEY, JSON.stringify(ids.slice(-120))); } catch (e) {}
+}
+function _shuffleArray(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 async function loadSpPopular() {
   const feed = document.getElementById('sp-feed');
   document.getElementById('sp-topbar-title').textContent = 'Song Preview';
+  _currentSpGenreKey = null;
+  document.getElementById('sp-genre-btn')?.classList.remove('active');
+  _syncSpGenreChipsActive();
   feed.innerHTML = '<div class="sp-loading">Memuat preview populer...</div>';
   try {
-    const rssRes = await fetch('https://itunes.apple.com/us/rss/topsongs/limit=50/json', { signal: AbortSignal.timeout(9000) });
+    const rssRes = await fetch('https://itunes.apple.com/us/rss/topsongs/limit=100/json', { signal: AbortSignal.timeout(9000) });
     if (!rssRes.ok) throw new Error('RSS gagal (' + rssRes.status + ')');
     const rssData = await rssRes.json();
     const entries = (rssData.feed && rssData.feed.entry) || [];
@@ -9780,10 +9927,18 @@ async function loadSpPopular() {
     const lookupRes = await fetch('https://itunes.apple.com/lookup?id=' + ids.join(',') + '&country=US', { signal: AbortSignal.timeout(9000) });
     if (!lookupRes.ok) throw new Error('Lookup gagal (' + lookupRes.status + ')');
     const lookupData = await lookupRes.json();
-    const tracks = (lookupData.results || []).filter(r => r.wrapperType === 'track' && r.previewUrl);
+    let tracks = (lookupData.results || []).filter(r => r.wrapperType === 'track' && r.previewUrl);
     if (!tracks.length) throw new Error('Tidak ada preview tersedia');
 
-    spTracks = tracks;
+    // Hindari lagu yang baru saja ditampilkan di sesi/kunjungan sebelumnya
+    const recentIds = _spGetRecentIds();
+    const fresh = tracks.filter(t => !recentIds.includes(t.trackId));
+    // Kalau setelah difilter jumlahnya masih cukup banyak, pakai itu.
+    // Kalau terlalu sedikit (semua sudah pernah muncul), reset saja histori-nya.
+    tracks = fresh.length >= 15 ? fresh : tracks;
+
+    spTracks = _shuffleArray(tracks);
+    _spSaveRecentIds(spTracks.map(t => t.trackId));
     renderSpSlides();
   } catch (e) {
     console.error('loadSpPopular error:', e);
@@ -9794,6 +9949,9 @@ async function loadSpPopular() {
 async function searchSongPreview(q) {
   q = (q || '').trim();
   if (!q) { loadSpPopular(); return; }
+  _currentSpGenreKey = null;
+  document.getElementById('sp-genre-btn')?.classList.remove('active');
+  _syncSpGenreChipsActive();
   const feed = document.getElementById('sp-feed');
   document.getElementById('sp-topbar-title').textContent = '"' + q + '"';
   feed.innerHTML = '<div class="sp-loading">Mencari "' + esc(q) + '"...</div>';
@@ -9816,9 +9974,12 @@ function renderSpSlides() {
   const feed = document.getElementById('sp-feed');
   feed.innerHTML = '';
   spCurrentIndex = -1;
+  // Buang cache preload dari daftar lagu sebelumnya (indeksnya sudah tidak relevan)
+  if (spPreloadCache) { spPreloadCache.forEach(a => { a.src = ''; }); spPreloadCache.clear(); }
   spTracks.forEach((t, i) => feed.appendChild(buildSpSlideEl(t, i)));
   feed.scrollTop = 0;
   setupSpObserver();
+  _spPreloadIndex(0); _spPreloadIndex(1); _spPreloadIndex(2); // siapkan beberapa slide pertama lebih awal
 }
 
 function buildSpSlideEl(t, i) {
@@ -9920,16 +10081,53 @@ function toggleSpFollow(btn) {
   btn.textContent = nowFollowing ? 'Mengikuti' : 'Ikuti';
 }
 
+// ── Prefetch audio preview: siapkan buffer beberapa slide di depan agar
+// transisi saat scroll terasa instan, tidak menunggu koneksi dari nol. ──
+let spPreloadCache = new Map(); // idx -> HTMLAudioElement (sudah di-preload, belum tentu diputar)
+const SP_PRELOAD_WINDOW = 2;
+
+function _spPreloadIndex(idx) {
+  if (idx == null || idx < 0 || idx >= spTracks.length) return;
+  if (spPreloadCache.has(idx)) return;
+  const t = spTracks[idx];
+  if (!t || !t.previewUrl) return;
+  const a = new Audio();
+  a.preload = 'auto';
+  a.muted = true;
+  a.src = t.previewUrl;
+  try { a.load(); } catch (e) {}
+  spPreloadCache.set(idx, a);
+}
+
+// Buang audio yang sudah di-preload tapi jauh dari posisi sekarang, supaya
+// tidak boros koneksi/memori.
+function _spTrimPreloadCache(centerIdx) {
+  spPreloadCache.forEach((a, idx) => {
+    if (Math.abs(idx - centerIdx) > SP_PRELOAD_WINDOW + 1) {
+      a.src = '';
+      spPreloadCache.delete(idx);
+    }
+  });
+}
+
 function setupSpObserver() {
   if (spObserver) spObserver.disconnect();
   const feed = document.getElementById('sp-feed');
   spObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
-      if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
-        playSpPreview(parseInt(entry.target.dataset.idx, 10));
+      const idx = parseInt(entry.target.dataset.idx, 10);
+      if (!entry.isIntersecting) return;
+      // Begitu slide mulai kelihatan sebagian, langsung mulai buffer audionya
+      // (dan slide berikutnya) supaya saat scroll sampai, tinggal diputar.
+      if (entry.intersectionRatio >= 0.15) {
+        _spPreloadIndex(idx);
+        _spPreloadIndex(idx + 1);
+      }
+      if (entry.intersectionRatio >= 0.6) {
+        playSpPreview(idx);
       }
     });
-  }, { root: feed, threshold: [0.6] });
+  }, { root: feed, threshold: [0.15, 0.6], rootMargin: '100px 0px' });
   feed.querySelectorAll('.sp-slide').forEach(el => spObserver.observe(el));
 }
 
@@ -9938,27 +10136,30 @@ function playSpPreview(idx) {
   spCurrentIndex = idx;
   const t = spTracks[idx];
   if (!t || !t.previewUrl) return;
-  if (!spAudio) spAudio = new Audio();
-  spAudio.pause();
-  spAudio.src = t.previewUrl;
+  if (spAudio) spAudio.pause();
+  // Pakai audio yang sudah di-preload kalau tersedia, biar tidak menunggu
+  // buffer dari nol saat slide ini diputar.
+  const preloaded = spPreloadCache.get(idx);
+  if (preloaded) {
+    spAudio = preloaded;
+    spPreloadCache.delete(idx);
+  } else {
+    spAudio = new Audio();
+    spAudio.src = t.previewUrl;
+  }
   spAudio.loop = true;
   spAudio.muted = spMuted;
   spAudio.currentTime = 0;
   spAudio.play().catch(() => {});
+  // Siapkan slide-slide berikutnya lebih awal
+  _spPreloadIndex(idx + 1);
+  _spPreloadIndex(idx + 2);
+  _spTrimPreloadCache(idx);
 }
 
 function togglePauseSpPreview() {
   if (!spAudio) return;
   if (spAudio.paused) spAudio.play().catch(() => {}); else spAudio.pause();
-}
-
-function toggleSongPreviewMute() {
-  spMuted = !spMuted;
-  if (spAudio) spAudio.muted = spMuted;
-  const btn = document.getElementById('sp-mute-btn');
-  btn.innerHTML = spMuted
-    ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3z"/><path d="M16 9l6 6M22 9l-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>'
-    : '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>';
 }
 
 // Tombol "+" di kartu songs bawah: pakai modal "Add to Playlist" yang sudah
