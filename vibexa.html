@@ -6455,23 +6455,22 @@ function wireAddBtn(btn, track) {
   });
 }
 
-// ─── DAILY MIX (Spotify-style, powered by Deezer's per-genre live charts) ──
-// Every calendar day we pick DM_MIX_COUNT genres (seeded by the date so they
-// stay put during the day) and build a 30-song mix for each from Deezer's
-// own trending/popular chart for that genre. The cover shown is simply the
-// album art of the first song in the mix. Everything is cached under a
+// ─── DAILY MIX (Spotify-style, powered by Deezer's overall live top chart) ──
+// Genre no longer matters here — every day we take Deezer's current overall
+// top/trending chart (all genres combined), keep only songs by well-known
+// artists, shuffle that pool with a date-based seed (so it's stable all day
+// but different tomorrow), and slice it into DM_MIX_COUNT mixes of
+// DM_TRACKS_PER_MIX songs each. The cover shown for a mix is simply the
+// album art of the first song in that mix. Everything is cached under a
 // date-stamped localStorage key, so once the date rolls over the old mixes
-// are gone and fresh ones are generated automatically.
+// are gone and fresh ones are generated automatically from that day's chart.
 //
-// SCOPE: songs from any country/language are allowed, but every track must
-// come from a well-known artist. "Well-known" is measured using Deezer's
-// own nb_fan (fan count) figure on the Artist object — an artist below the
-// threshold is treated as too obscure and skipped, even if one of their
-// songs happens to show up in a genre chart.
+// "Well-known" is measured using Deezer's own nb_fan (fan count) figure on
+// the Artist object — an artist below the threshold is skipped even if one
+// of their songs happens to be sitting in the top chart right now.
 const DM_MIX_COUNT = 8;
 const DM_TRACKS_PER_MIX = 30;
 const DM_COLORS = ['#26e0ff', '#eaff2e', '#ff5a4d', '#5ce87c', '#c17bff', '#4d8bff', '#ff6fc9', '#ffb238'];
-const DM_GENRE_BLACKLIST = ['films/games', 'audiobooks', 'enfants', 'kids', 'speech', 'sport', 'fitness', 'tv shows', 'séries tv', 'books & spoken', 'all'];
 // Minimum Deezer fan count for an artist to count as "terkenal" (well-known).
 const DM_FAMOUS_FAN_THRESHOLD = 300000;
 
@@ -6535,91 +6534,19 @@ async function _dmFilterFamousTracks(tracks, cap) {
   return result;
 }
 
-async function fetchDeezerGenres() {
-  const data = await _deezerJsonp('https://api.deezer.com/genre');
-  if (!data || data.error || !data.data) throw new Error('Gagal memuat genre Deezer');
-  return data.data.filter(g => g && g.id !== 0 && g.name && !DM_GENRE_BLACKLIST.includes(String(g.name).toLowerCase()));
-}
-
-// Build one 30-song mix for a genre using Deezer's live chart for that
-// genre (this IS the "trending/popular" data source), then narrow it down
-// to tracks by well-known artists only. If the chart doesn't have enough
-// after filtering, that genre's own top artists (already ranked by
-// popularity, and already carrying nb_fan) are used to fill in the rest.
-async function buildDeezerMixForGenre(genre, targetCount) {
-  targetCount = targetCount || DM_TRACKS_PER_MIX;
-  const poolTarget = targetCount * 2;
-  let rawCandidates = [];
-  try { rawCandidates = await fetchDeezerChartTracks(Math.max(poolTarget, 50), genre.id); } catch (e) { rawCandidates = []; }
-
-  const seen = new Set(rawCandidates.map(t => t.id));
-  // fetchDeezerChartTracks() doesn't expose the artist's numeric id, so we
-  // need it back to look up nb_fan — re-fetch the raw chart response once
-  // more lightly mapped, or just re-derive via a parallel raw call.
-  let candidatesWithArtistId = [];
-  try {
-    const rawData = await _deezerJsonp('https://api.deezer.com/chart/' + genre.id + '/tracks?limit=' + Math.max(poolTarget, 50));
-    candidatesWithArtistId = ((rawData && rawData.data) || []).map(t => ({
-      id: t.id,
-      artistId: (t.artist && t.artist.id) || 0,
-      title: t.title || t.title_short || 'Unknown',
-      artist: (t.artist && t.artist.name) || 'Unknown',
-      thumb: (t.album && (t.album.cover_xl || t.album.cover_big || t.album.cover_medium)) || '',
-      preview: t.preview || null,
-      duration: t.duration || 0
-    }));
-  } catch (e) { candidatesWithArtistId = []; }
-
-  let tracks = await _dmFilterFamousTracks(candidatesWithArtistId, targetCount);
-
-  if (tracks.length < targetCount) {
-    try {
-      const artistData = await _deezerJsonp('https://api.deezer.com/genre/' + genre.id + '/artists?limit=15');
-      const artists = ((artistData && artistData.data) || []).filter(a => (a.nb_fan || 0) >= DM_FAMOUS_FAN_THRESHOLD);
-      for (const artist of artists) {
-        if (tracks.length >= targetCount) break;
-        try {
-          const topData = await _deezerJsonp('https://api.deezer.com/artist/' + artist.id + '/top?limit=20');
-          const items = (topData && topData.data) || [];
-          for (const t of items) {
-            if (tracks.length >= targetCount) break;
-            if (seen.has(t.id)) continue;
-            seen.add(t.id);
-            tracks.push({
-              id: t.id,
-              artistId: artist.id,
-              title: t.title || t.title_short || 'Unknown',
-              artist: (t.artist && t.artist.name) || artist.name || 'Unknown',
-              thumb: (t.album && (t.album.cover_xl || t.album.cover_big || t.album.cover_medium)) || '',
-              preview: t.preview || null,
-              duration: t.duration || 0
-            });
-          }
-        } catch (e) {}
-      }
-    } catch (e) {}
-  }
-
-  if (tracks.length < 10) return null; // genre ini datanya terlalu sedikit setelah disaring, lewati
-
-  tracks = tracks.slice(0, targetCount);
-
-  // Nama mix mengikuti gaya Spotify: 2 artis paling dominan di mix ini
-  const uniqueArtists = [];
-  for (const t of tracks) {
-    if (!uniqueArtists.includes(t.artist)) uniqueArtists.push(t.artist);
-    if (uniqueArtists.length >= 2) break;
-  }
-  const title = uniqueArtists.length >= 2 ? `${uniqueArtists[0]} dan ${uniqueArtists[1]}` : (uniqueArtists[0] || genre.name);
-
-  return {
-    id: 'dm_' + genre.id,
-    genreId: genre.id,
-    genreName: genre.name,
-    title,
-    cover: tracks[0].thumb || genre.picture_xl || genre.picture_big || genre.picture || '',
-    tracks: tracks.map(t => ({ ...t, _query: `${t.artist}|||${t.title}|||${t.id}` }))
-  };
+// Raw fetch helper that keeps the artist's numeric id around (needed for
+// the nb_fan lookup above) — fetchDeezerChartTracks() normalizes that away.
+async function _dmFetchRawTracks(url) {
+  const data = await _deezerJsonp(url);
+  return ((data && data.data) || []).map(t => ({
+    id: t.id,
+    artistId: (t.artist && t.artist.id) || 0,
+    title: t.title || t.title_short || 'Unknown',
+    artist: (t.artist && t.artist.name) || 'Unknown',
+    thumb: (t.album && (t.album.cover_xl || t.album.cover_big || t.album.cover_medium)) || '',
+    preview: t.preview || null,
+    duration: t.duration || 0
+  }));
 }
 
 async function loadDailyMixes(force) {
@@ -6631,14 +6558,15 @@ async function loadDailyMixes(force) {
 
   // Date-stamped cache key: once the date changes, the old mixes are simply
   // no longer looked up and get cleaned up below — fresh ones are built.
-  const todayKey = 'vibexa_dailymix_famous_v3_' + new Date().toISOString().slice(0, 10);
+  const todayKey = 'vibexa_dailymix_topsongs_v4_' + new Date().toISOString().slice(0, 10);
+  const neededTotal = DM_MIX_COUNT * DM_TRACKS_PER_MIX; // minimal 240 lagu (8 x 30)
 
   if (!force) {
     try {
       const cached = localStorage.getItem(todayKey);
       if (cached) {
         const mixes = JSON.parse(cached);
-        if (mixes && mixes.length) { renderDailyMixes(mixes); return; }
+        if (mixes && mixes.length >= DM_MIX_COUNT) { renderDailyMixes(mixes); return; }
       }
     } catch (e) {}
   }
@@ -6646,51 +6574,57 @@ async function loadDailyMixes(force) {
   if (grid) grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;"><i></i><h3>Menyiapkan Daily Mix...</h3></div>';
 
   try {
-    const genres = await fetchDeezerGenres();
-    if (!genres.length) throw new Error('Tidak ada genre tersedia');
+    // 1) Ambil chart top/trending Deezer saat ini (gabungan semua genre).
+    const seen = new Set();
+    let rawPool = [];
+    try {
+      const chartTracks = await _dmFetchRawTracks('https://api.deezer.com/chart/0/tracks?limit=100');
+      chartTracks.forEach(t => { if (!seen.has(t.id)) { seen.add(t.id); rawPool.push(t); } });
+    } catch (e) {}
 
-    const shuffled = _dmSeededShuffle(genres, todayKey);
-    const mixes = [];
-    let idx = 0;
-    while (mixes.length < DM_MIX_COUNT && idx < shuffled.length) {
-      const genre = shuffled[idx++];
-      const mix = await buildDeezerMixForGenre(genre, DM_TRACKS_PER_MIX);
-      if (mix) mixes.push(mix);
-    }
+    // 2) Saring: hanya lagu dari artis yang benar-benar terkenal (nb_fan tinggi).
+    let pool = await _dmFilterFamousTracks(rawPool, neededTotal);
 
-    // Fallback kalau genre-genre tadi belum cukup menghasilkan cukup mix:
-    // isi slot sisa dari chart umum Deezer (tetap disaring artis terkenal),
-    // dipecah per rentang 30 lagu.
-    if (mixes.length < DM_MIX_COUNT) {
+    // 3) Kalau chart top saja belum cukup untuk 8 x 30 lagu, lengkapi dari
+    // lagu-lagu top milik artis-artis paling populer saat ini (top artists
+    // chart Deezer), tanpa peduli genre — tetap "lagu yang lagi naik daun".
+    if (pool.length < neededTotal) {
       try {
-        const slotsNeeded = DM_MIX_COUNT - mixes.length;
-        const rawData = await _deezerJsonp('https://api.deezer.com/chart/0/tracks?limit=200');
-        const rawPool = ((rawData && rawData.data) || []).map(t => ({
-          id: t.id,
-          artistId: (t.artist && t.artist.id) || 0,
-          title: t.title || t.title_short || 'Unknown',
-          artist: (t.artist && t.artist.name) || 'Unknown',
-          thumb: (t.album && (t.album.cover_xl || t.album.cover_big || t.album.cover_medium)) || '',
-          preview: t.preview || null,
-          duration: t.duration || 0
-        }));
-        const generalTracks = await _dmFilterFamousTracks(rawPool, slotsNeeded * DM_TRACKS_PER_MIX);
-        let offset = 0;
-        while (mixes.length < DM_MIX_COUNT && offset + DM_TRACKS_PER_MIX <= generalTracks.length) {
-          const slice = generalTracks.slice(offset, offset + DM_TRACKS_PER_MIX).map(t => ({ ...t, _query: `${t.artist}|||${t.title}|||${t.id}` }));
-          const uniqueArtists = [];
-          for (const t of slice) { if (!uniqueArtists.includes(t.artist)) uniqueArtists.push(t.artist); if (uniqueArtists.length >= 2) break; }
-          mixes.push({
-            id: 'dm_general_' + offset,
-            genreId: 0,
-            genreName: 'Populer',
-            title: uniqueArtists.length >= 2 ? `${uniqueArtists[0]} dan ${uniqueArtists[1]}` : (uniqueArtists[0] || 'Mix Populer'),
-            cover: slice[0].thumb,
-            tracks: slice
-          });
-          offset += DM_TRACKS_PER_MIX;
+        const artistData = await _deezerJsonp('https://api.deezer.com/chart/0/artists?limit=40');
+        const topArtists = ((artistData && artistData.data) || []).filter(a => (a.nb_fan || 0) >= DM_FAMOUS_FAN_THRESHOLD);
+        for (const artist of topArtists) {
+          if (pool.length >= neededTotal) break;
+          try {
+            const topTracks = await _dmFetchRawTracks('https://api.deezer.com/artist/' + artist.id + '/top?limit=25');
+            for (const t of topTracks) {
+              if (pool.length >= neededTotal) break;
+              if (seen.has(t.id)) continue;
+              seen.add(t.id);
+              pool.push({ ...t, artistId: artist.id, artist: t.artist || artist.name });
+            }
+          } catch (e) {}
         }
       } catch (e) {}
+    }
+
+    if (pool.length < DM_TRACKS_PER_MIX) throw new Error('Data lagu trending tidak cukup');
+
+    // 4) Acak urutan dengan seed tanggal hari ini (stabil sepanjang hari,
+    // berubah otomatis besok) lalu potong jadi beberapa mix isi 30 lagu.
+    const shuffledPool = _dmSeededShuffle(pool, todayKey);
+    const mixes = [];
+    let offset = 0;
+    while (mixes.length < DM_MIX_COUNT && offset + DM_TRACKS_PER_MIX <= shuffledPool.length) {
+      const slice = shuffledPool.slice(offset, offset + DM_TRACKS_PER_MIX).map(t => ({ ...t, _query: `${t.artist}|||${t.title}|||${t.id}` }));
+      const uniqueArtists = [];
+      for (const t of slice) { if (!uniqueArtists.includes(t.artist)) uniqueArtists.push(t.artist); if (uniqueArtists.length >= 2) break; }
+      mixes.push({
+        id: 'dm_top_' + offset,
+        title: uniqueArtists.length >= 2 ? `${uniqueArtists[0]} dan ${uniqueArtists[1]}` : (uniqueArtists[0] || 'Mix Populer'),
+        cover: slice[0].thumb,
+        tracks: slice
+      });
+      offset += DM_TRACKS_PER_MIX;
     }
 
     if (!mixes.length) throw new Error('Gagal membuat Daily Mix');
