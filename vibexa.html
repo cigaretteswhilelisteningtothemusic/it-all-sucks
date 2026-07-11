@@ -1251,25 +1251,37 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .np-track-title{font-size:1.55rem;font-weight:800;letter-spacing:-.4px;color:#fff;margin-top:22px;max-width:520px;}
 .np-track-artist{font-size:.92rem;color:rgba(255,255,255,.72);margin-top:6px;cursor:pointer;}
 .np-track-artist:hover{color:#fff;text-decoration:underline}
-.np-lyrics-btn{margin-top:22px;display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.22);color:#fff;font-family:var(--f);font-weight:700;font-size:.8rem;padding:10px 22px;border-radius:50px;cursor:pointer;transition:all .2s;}
-.np-lyrics-btn:hover{background:#fff;color:#000;transform:translateY(-1px);box-shadow:0 8px 24px rgba(0,0,0,.35)}
-.np-lyrics-btn svg{width:16px;height:16px}
-.np-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:920px;margin:0 auto;}
+.np-grid{display:grid;grid-template-columns:1.15fr 1fr;gap:16px;max-width:980px;margin:0 auto;align-items:stretch;}
 .np-card{background:rgba(10,13,22,0.78);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:18px 20px;min-height:150px;}
 .np-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
 .np-card-head h4{font-size:1.02rem;font-weight:800;color:#fff;letter-spacing:-.2px;}
 .np-card-head .np-showall{font-size:.68rem;color:rgba(255,255,255,.55);font-weight:700;text-transform:uppercase;letter-spacing:.6px;cursor:pointer;}
 .np-card-head .np-showall:hover{color:#fff}
-.np-about-body{display:flex;align-items:center;gap:14px;}
-.np-about-photo,.np-about-ph{width:64px;height:64px;border-radius:50%;object-fit:cover;background:rgba(255,255,255,.08);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.5rem;}
-.np-about-info{flex:1;min-width:0;}
-.np-about-name{font-size:.98rem;font-weight:800;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;}
-.np-about-name:hover{text-decoration:underline}
-.np-about-fans{font-size:.72rem;color:rgba(255,255,255,.55);margin-top:3px;}
-.np-about-follow{margin-top:10px;background:none;border:1.5px solid rgba(255,255,255,.4);color:#fff;font-family:var(--f);font-weight:700;font-size:.68rem;padding:6px 15px;border-radius:50px;cursor:pointer;transition:all .18s;}
+/* Big "About the artist" card — full photo background like real Spotify */
+.np-about-card-big{position:relative;padding:0;overflow:hidden;min-height:440px;display:flex;flex-direction:column;justify-content:flex-end;}
+.np-about-bgimg,.np-about-bgimg-ph{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;}
+.np-about-bgimg-ph{background:linear-gradient(135deg,var(--card),var(--hover));display:flex;align-items:center;justify-content:center;font-size:3.4rem;}
+.np-card-label{position:absolute;top:18px;left:20px;z-index:2;font-size:1.1rem;font-weight:800;color:#fff;letter-spacing:-.2px;text-shadow:0 2px 12px rgba(0,0,0,.7);}
+.np-about-overlay{position:relative;z-index:1;padding:22px;background:linear-gradient(to top, rgba(0,0,0,.88) 25%, rgba(0,0,0,.35) 65%, transparent);}
+.np-about-overlay .np-about-name{font-size:1.35rem;font-weight:800;color:#fff;cursor:pointer;}
+.np-about-overlay .np-about-name:hover{text-decoration:underline}
+.np-about-overlay .np-about-fans{font-size:.82rem;color:rgba(255,255,255,.75);margin:6px 0 14px;}
+.np-about-follow{background:none;border:1.5px solid rgba(255,255,255,.5);color:#fff;font-family:var(--f);font-weight:700;font-size:.72rem;padding:7px 18px;border-radius:50px;cursor:pointer;transition:all .18s;}
 .np-about-follow:hover{border-color:#fff;transform:scale(1.03)}
 .np-about-follow.following{border-color:var(--green);color:var(--green);}
-.np-pl-list{display:flex;flex-direction:column;gap:2px;max-height:170px;overflow-y:auto;scrollbar-width:none;}
+.np-about-bio{font-size:.8rem;line-height:1.65;color:rgba(255,255,255,.82);margin-top:14px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
+.np-right-col{display:flex;flex-direction:column;gap:16px;}
+.np-right-col .np-card{flex:1;display:flex;flex-direction:column;min-height:0;}
+.np-albums-list{display:flex;flex-direction:column;gap:2px;overflow-y:auto;scrollbar-width:none;flex:1;max-height:170px;}
+.np-albums-list::-webkit-scrollbar{display:none}
+.np-album-row{display:flex;align-items:center;gap:10px;padding:6px 6px;border-radius:9px;cursor:pointer;transition:background .15s;}
+.np-album-row:hover{background:rgba(255,255,255,.07)}
+.np-album-cover,.np-album-cover-ph{width:38px;height:38px;border-radius:6px;object-fit:cover;background:rgba(255,255,255,.08);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.9rem;}
+.np-album-info{flex:1;min-width:0}
+.np-album-title{font-size:.8rem;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.np-album-year{font-size:.68rem;color:rgba(255,255,255,.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.np-albums-empty,.np-albums-loading{font-size:.76rem;color:rgba(255,255,255,.5);text-align:center;padding:24px 8px;line-height:1.7;}
+.np-pl-list{display:flex;flex-direction:column;gap:2px;overflow-y:auto;scrollbar-width:none;flex:1;max-height:170px;}
 .np-pl-list::-webkit-scrollbar{display:none}
 .np-pl-item{display:flex;align-items:center;gap:10px;padding:6px 6px;border-radius:9px;cursor:pointer;transition:background .15s;}
 .np-pl-item:hover{background:rgba(255,255,255,.07)}
@@ -1281,6 +1293,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 @media(max-width:800px){
   .np-grid{grid-template-columns:1fr;}
   .np-track-title{font-size:1.25rem}
+  .np-about-card-big{min-height:320px;}
 }
 @media(max-width:660px){
   #np-view{bottom:var(--np-bottom);}
@@ -3205,6 +3218,9 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
       <button class="c-btn" id="btn-next">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="m6 18 8.5-6L6 6v12zm2-6 8.5 6V6L8 12z"/></svg>
       </button>
+      <button class="c-btn" id="btn-lyrics" onclick="openFS()" title="Show Lyrics">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+      </button>
     </div>
     <div class="prog-wrap">
       <span class="t-lbl" id="t-cur">0:00</span>
@@ -3296,27 +3312,28 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
       <div class="np-art-ph" id="np-art-ph" style="display:none"></div>
       <div class="np-track-title" id="np-track-title">—</div>
       <div class="np-track-artist" id="np-track-artist" onclick="openArtistView(curTrack && curTrack.artist)">—</div>
-      <button class="np-lyrics-btn" onclick="openFS()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-        Show Lyrics
-      </button>
     </div>
     <div class="np-grid">
-      <div class="np-card">
-        <div class="np-card-head"><h4>About the artist</h4></div>
-        <div class="np-about-body">
-          <img class="np-about-photo" id="np-about-photo" src="" alt="" style="display:none" onerror="this.style.display='none';document.getElementById('np-about-ph').style.display='flex'">
-          <div class="np-about-ph" id="np-about-ph"></div>
-          <div class="np-about-info">
-            <div class="np-about-name" id="np-about-name" onclick="openArtistView(curTrack && curTrack.artist)">—</div>
-            <div class="np-about-fans" id="np-about-fans">—</div>
-            <button class="np-about-follow" id="np-about-follow" onclick="toggleNPArtistFollow()">Ikuti</button>
-          </div>
+      <div class="np-card np-about-card-big" id="np-about-card">
+        <img class="np-about-bgimg" id="np-about-bgimg" src="" alt="" style="display:none" onerror="this.style.display='none';document.getElementById('np-about-bgimg-ph').style.display='flex'">
+        <div class="np-about-bgimg-ph" id="np-about-bgimg-ph"></div>
+        <div class="np-card-label">About the artist</div>
+        <div class="np-about-overlay">
+          <div class="np-about-name" id="np-about-name" onclick="openArtistView(curTrack && curTrack.artist)">—</div>
+          <div class="np-about-fans" id="np-about-fans">—</div>
+          <button class="np-about-follow" id="np-about-follow" onclick="toggleNPArtistFollow()">Ikuti</button>
+          <p class="np-about-bio" id="np-about-bio"></p>
         </div>
       </div>
-      <div class="np-card">
-        <div class="np-card-head"><h4>Your Playlists</h4><span class="np-showall" onclick="closeNP();showHomeView()">Show all</span></div>
-        <div class="np-pl-list" id="np-pl-list"></div>
+      <div class="np-right-col">
+        <div class="np-card">
+          <div class="np-card-head"><h4>Albums</h4></div>
+          <div class="np-albums-list" id="np-albums-list"></div>
+        </div>
+        <div class="np-card">
+          <div class="np-card-head"><h4>Your Playlists</h4><span class="np-showall" onclick="closeNP();showHomeView()">Show all</span></div>
+          <div class="np-pl-list" id="np-pl-list"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -3382,6 +3399,9 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
       <span class="fs-t r" id="fs-t-tot">0:00</span>
     </div>
     <div id="fs-ctrl">
+      <button class="fs-btn" id="fs-btn-nowplaying" title="Back to Now Playing">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="m9 10 3 3 3-3"/></svg>
+      </button>
       <button class="fs-btn" id="fs-btn-prev">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
       </button>
@@ -6053,20 +6073,40 @@ function openNP(track){
   document.getElementById('np-track-artist').textContent=track.artist || '—';
   pickNPColor(track);
   _updateNPArtistCard(track);
+  _updateNPAlbumsBox(track);
   _renderNPPlaylists();
 }
 function closeNP(){ document.getElementById('np-view').classList.remove('open'); }
 
+// ── Kotak "About the artist" besar (foto latar penuh + bio singkat) ──
+let _npBioCache={}; // nama artis (lowercase) -> teks bio singkat
+let _npBioReqGen=0;
+
+async function _fetchArtistBioShort(name){
+  const key=name.toLowerCase();
+  if(_npBioCache[key]!=null) return _npBioCache[key];
+  try{
+    const res=await fetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(name), {headers:{'Accept':'application/json'}});
+    if(!res.ok) throw new Error('bio not found');
+    const data=await res.json();
+    let extract=(data && data.extract) || '';
+    if(extract.length > 260) extract=extract.slice(0,257).replace(/\s+\S*$/, '') + '…';
+    _npBioCache[key]=extract;
+    return extract;
+  }catch(e){ _npBioCache[key]=''; return ''; }
+}
+
 async function _updateNPArtistCard(track){
   const nameEl=document.getElementById('np-about-name');
-  const photoEl=document.getElementById('np-about-photo');
-  const phEl=document.getElementById('np-about-ph');
+  const bgEl=document.getElementById('np-about-bgimg');
+  const bgPhEl=document.getElementById('np-about-bgimg-ph');
   const fansEl=document.getElementById('np-about-fans');
   const followBtn=document.getElementById('np-about-follow');
-  if(!track || !track.artist){ if(nameEl) nameEl.textContent='—'; if(fansEl) fansEl.textContent=''; return; }
+  const bioEl=document.getElementById('np-about-bio');
+  if(!track || !track.artist){ if(nameEl) nameEl.textContent='—'; if(fansEl) fansEl.textContent=''; if(bioEl) bioEl.textContent=''; return; }
   nameEl.textContent=track.artist;
-  photoEl.style.display='none'; phEl.style.display='flex';
-  _loadArtistPhotoInto(photoEl, track.artist).then(pic=>{ if(pic && nameEl.textContent===track.artist){ photoEl.style.display='block'; phEl.style.display='none'; } });
+  bgEl.style.display='none'; bgPhEl.style.display='flex';
+  _loadArtistPhotoInto(bgEl, track.artist).then(pic=>{ if(pic && nameEl.textContent===track.artist){ bgEl.style.display='block'; bgPhEl.style.display='none'; } });
   if(followBtn){
     const following=isArtistFavorited(track.artist);
     followBtn.textContent=following ? 'Mengikuti' : 'Ikuti';
@@ -6075,25 +6115,78 @@ async function _updateNPArtistCard(track){
   const key=track.artist.toLowerCase();
   if(_lyrArtistFansCache[key]!=null){
     fansEl.textContent=formatFanCount(_lyrArtistFansCache[key]) + ' monthly listeners';
-    return;
+  } else {
+    fansEl.textContent='—';
+    _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(track.artist) + '&limit=1').then(searchData=>{
+      const artist=searchData && searchData.data && searchData.data[0];
+      if(artist){
+        _lyrArtistFansCache[key]=artist.nb_fan || 0;
+        if(nameEl.textContent===track.artist) fansEl.textContent=formatFanCount(artist.nb_fan) + ' monthly listeners';
+      }
+    }).catch(()=>{});
   }
-  fansEl.textContent='—';
-  try{
-    const searchData=await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(track.artist) + '&limit=1');
-    const artist=searchData && searchData.data && searchData.data[0];
-    if(artist){
-      _lyrArtistFansCache[key]=artist.nb_fan || 0;
-      if(nameEl.textContent===track.artist) fansEl.textContent=formatFanCount(artist.nb_fan) + ' monthly listeners';
-    }
-  }catch(e){ /* biarkan tanpa jumlah pendengar jika gagal */ }
+  const myGen=++_npBioReqGen;
+  bioEl.textContent='';
+  const bio=await _fetchArtistBioShort(track.artist);
+  if(myGen===_npBioReqGen && nameEl.textContent===track.artist) bioEl.textContent=bio;
 }
 
 function toggleNPArtistFollow(){
   if(!curTrack || !curTrack.artist) return;
-  const photoEl=document.getElementById('np-about-photo');
+  const bgEl=document.getElementById('np-about-bgimg');
   const key=curTrack.artist.toLowerCase();
-  const photo=(photoEl && photoEl.src && photoEl.style.display!=='none') ? photoEl.src : (_artistPhotoCache[key] || '');
+  const photo=(bgEl && bgEl.src && bgEl.style.display!=='none') ? bgEl.src : (_artistPhotoCache[key] || '');
   toggleFollowArtist(curTrack.artist, photo);
+}
+
+// ── Kotak "Albums" — daftar album dari artis lagu yang sedang diputar ──
+let _npAlbumsReqGen=0;
+let _npAlbumsLastArtist='';
+
+async function _updateNPAlbumsBox(track){
+  const c=document.getElementById('np-albums-list');
+  if(!c) return;
+  if(!track || !track.artist){ c.innerHTML=''; return; }
+  const key=track.artist.toLowerCase();
+  _npAlbumsLastArtist=key;
+  if(_lyrArtistAlbumsCache[key]){ _renderNPAlbums(_lyrArtistAlbumsCache[key]); return; }
+  const myGen=++_npAlbumsReqGen;
+  c.innerHTML='<div class="np-albums-loading">Memuat album...</div>';
+  try{
+    const searchData=await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(track.artist) + '&limit=1');
+    const artist=searchData && searchData.data && searchData.data[0];
+    if(myGen!==_npAlbumsReqGen || _npAlbumsLastArtist!==key) return;
+    if(!artist){ c.innerHTML='<div class="np-albums-empty">Album tidak ditemukan</div>'; return; }
+    const albumData=await _deezerJsonp('https://api.deezer.com/artist/' + artist.id + '/albums?limit=20');
+    if(myGen!==_npAlbumsReqGen || _npAlbumsLastArtist!==key) return;
+    const albums=((albumData && albumData.data) || []).map(a=>({
+      id:a.id, title:a.title || 'Unknown',
+      cover:a.cover_medium || a.cover_big || a.cover_xl || '',
+      year:(a.release_date || '').slice(0,4)
+    }));
+    _lyrArtistAlbumsCache[key]=albums;
+    _renderNPAlbums(albums);
+  }catch(e){ if(myGen===_npAlbumsReqGen && _npAlbumsLastArtist===key) c.innerHTML='<div class="np-albums-empty">Gagal memuat album</div>'; }
+}
+
+function _renderNPAlbums(albums){
+  const c=document.getElementById('np-albums-list');
+  if(!c) return;
+  if(!albums.length){ c.innerHTML='<div class="np-albums-empty">Tidak ada album ditemukan</div>'; return; }
+  c.innerHTML='';
+  albums.forEach(a=>{
+    const d=document.createElement('div');
+    d.className='np-album-row';
+    d.innerHTML=`
+      ${a.cover ? `<img class="np-album-cover" src="${esc(a.cover)}" alt="" loading="lazy" onerror="this.style.display='none'">` : `<div class="np-album-cover-ph"></div>`}
+      <div class="np-album-info">
+        <div class="np-album-title">${esc(a.title)}</div>
+        <div class="np-album-year">${esc(a.year || '')}</div>
+      </div>
+    `;
+    d.addEventListener('click', (e)=>{ e.stopPropagation(); closeNP(); openAlbumView(a.id, a.title); });
+    c.appendChild(d);
+  });
 }
 
 function _renderNPPlaylists(){
@@ -6179,14 +6272,16 @@ function toggleFSTranslation() {
 function updateFSProg(){document.getElementById('fs-t-cur').textContent=ft(cur);document.getElementById('fs-t-tot').textContent=ft(tot);document.getElementById('fs-prog-fill').style.width=(tot?(cur/tot)*100:0)+'%';}
 function updateFSPB(p){document.getElementById('fs-ico-play').style.display=p?'none':'block';document.getElementById('fs-ico-pause').style.display=p?'block':'none';}
 
-document.getElementById('fs-back').addEventListener('click', () => {
+function _fsBackAction(){
   // Jika sedang pure mode, keluar pure mode dulu, bukan tutup fullscreen
   if (document.getElementById('fs-lyr').classList.contains('pure-mode')) {
     togglePureMode();
     return;
   }
   closeFS();
-});
+}
+document.getElementById('fs-back').addEventListener('click', _fsBackAction);
+document.getElementById('fs-btn-nowplaying').addEventListener('click', _fsBackAction);
 document.getElementById('fs-btn-play').addEventListener('click',()=>{
   _ensureAudioCtx(); _resumeAudioCtx();
   if(!curTrack||!YTP)return;
