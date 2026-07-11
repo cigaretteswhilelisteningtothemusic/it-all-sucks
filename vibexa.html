@@ -342,8 +342,10 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .pv-cover-wrap{position:relative;flex-shrink:0;}
 .pv-cover{width:160px;height:160px;border-radius:12px;object-fit:cover;background:var(--hover);box-shadow:0 12px 40px rgba(0,0,0,.6);display:block;}
 .pv-cover-ph{width:160px;height:160px;border-radius:12px;background:var(--hover);display:flex;align-items:center;justify-content:center;font-size:4rem;box-shadow:0 12px 40px rgba(0,0,0,.6);}
-.pv-cover-edit{position:absolute;inset:0;border-radius:12px;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s;cursor:pointer;font-size:.72rem;color:#fff;flex-direction:column;gap:4px;}
-.pv-cover-wrap:hover .pv-cover-edit{opacity:1;}
+.pv-cover-edit{display:none;}
+/* ─── Auto playlist cover collage (Spotify-style: 2x2 grid built from the playlist's own track arts) ─── */
+.pl-collage{display:grid !important;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;overflow:hidden;background:rgba(0,0,0,.4);}
+.pl-collage img{width:100%;height:100%;object-fit:cover;display:block;}
 .pv-meta{flex:1;min-width:0;}
 .pv-type{font-size:.65rem;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:var(--sub);margin-bottom:6px;}
 .pv-title{font-size:2rem;font-weight:800;letter-spacing:-.5px;line-height:1.15;margin-bottom:8px;word-break:break-word;}
@@ -664,7 +666,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .modal-pl-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--rs);cursor:pointer;transition:background .15s;}
 .modal-pl-item:hover{background:var(--hover);}
 .modal-pl-item.selected{background:var(--green-dim);border:1px solid rgba(29,107,219,.3);}
-.modal-pl-icon{width:36px;height:36px;border-radius:6px;background:var(--hover);display:flex;align-items:center;justify-content:center;font-size:.9rem;flex-shrink:0;}
+.modal-pl-icon{width:36px;height:36px;border-radius:6px;background:var(--hover);display:flex;align-items:center;justify-content:center;font-size:.9rem;flex-shrink:0;overflow:hidden;}
 .modal-pl-name{font-size:.82rem;font-weight:600;}
 .modal-pl-count{font-size:.7rem;color:var(--sub);}
 
@@ -1296,7 +1298,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .np-pl-list::-webkit-scrollbar{display:none}
 .np-pl-item{display:flex;align-items:center;gap:10px;padding:6px 6px;border-radius:9px;cursor:pointer;transition:background .15s;}
 .np-pl-item:hover{background:rgba(255,255,255,.07)}
-.np-pl-thumb,.np-pl-ph{width:38px;height:38px;border-radius:7px;object-fit:cover;background:rgba(255,255,255,.08);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.95rem;}
+.np-pl-thumb,.np-pl-ph{width:38px;height:38px;border-radius:7px;object-fit:cover;background:rgba(255,255,255,.08);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.95rem;overflow:hidden;}
 .np-pl-info{flex:1;min-width:0}
 .np-pl-name{font-size:.8rem;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .np-pl-count{font-size:.68rem;color:rgba(255,255,255,.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -2800,12 +2802,8 @@ body.np-is-fullscreen #bar{display:none !important;}
         Kembali
       </button>
       <div class="pv-top">
-        <div class="pv-cover-wrap" onclick="openCoverModal()">
+        <div class="pv-cover-wrap">
           <div class="pv-cover-ph" id="pv-cover"></div>
-          <div class="pv-cover-edit">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
-            Ganti Foto
-          </div>
         </div>
         <div class="pv-meta">
           <div class="pv-type">Playlist</div>
@@ -3273,24 +3271,6 @@ body.np-is-fullscreen #bar{display:none !important;}
   <div id="yt-player"></div>
 </div>
 
-<!-- Cover Photo Modal -->
-<div id="ph-modal" class="modal-bg" style="display:none">
-  <div class="modal">
-    <h3>Change Playlist Photo</h3>
-    <p id="ph-sub">Pilih foto cover untuk playlist ini</p>
-    <div class="drop-z" id="drop-z">
-      <i></i>
-      <div>Click or drag photo here</div>
-      <small>JPG · PNG · WebP</small>
-    </div>
-    <input type="file" id="ph-inp" accept="image/*">
-    <div class="mbtns">
-      <button class="btn-s" id="ph-cancel">Cancel</button>
-      <button class="btn-p" id="ph-save">Save</button>
-    </div>
-  </div>
-</div>
-
 <!-- New Playlist Modal -->
 <div id="new-pl-modal" class="modal-bg" style="display:none">
   <div class="modal">
@@ -3644,7 +3624,6 @@ let _prefetching   = new Set(); // query yang sedang di-fetch
 // Multi-playlist: { [id]: { id, name, cover, tracks: [] } }
 let playlists = {};
 let currentPlaylistId = null; // playlist yang sedang dibuka di view
-let pendingCoverData = null;
 
 // Artis Favorit: { [namaArtisLowercase]: { name, photo } } — disimpan per akun di Firebase
 let favoriteArtists = {};
@@ -4249,7 +4228,7 @@ function renderAddSongPLList() {
     const d = document.createElement('div');
     d.className = 'modal-pl-item';
     d.innerHTML = `
-      <div class="modal-pl-icon">${pl.cover ? `<img src="${esc(pl.cover)}" style="width:36px;height:36px;border-radius:6px;object-fit:cover;">` : ''}</div>
+      <div class="modal-pl-icon">${plCoverInnerHTML(pl)}</div>
       <div><div class="modal-pl-name">${esc(pl.name)}</div><div class="modal-pl-count">${pl.tracks.length} songs</div></div>
     `;
     d.onclick = () => {
@@ -4302,15 +4281,9 @@ function renderPlaylistView(plId) {
   const pl = playlists[plId];
   if (!pl) return;
 
-  // Cover
+  // Cover — otomatis disusun dari art songs di dalam playlist (gaya Spotify), tidak lagi bisa diupload manual
   const coverEl = document.getElementById('pv-cover');
-  if (pl.cover) {
-    coverEl.outerHTML = `<img class="pv-cover" id="pv-cover" src="${esc(pl.cover)}" alt="cover" onclick="openCoverModal()">`;
-  } else {
-    if (coverEl.tagName === 'IMG') {
-      coverEl.outerHTML = `<div class="pv-cover-ph" id="pv-cover"></div>`;
-    }
-  }
+  coverEl.outerHTML = plCoverHTML(pl, 'pv-cover', 'pv-cover-ph', 'pv-cover');
   document.getElementById('pv-title').textContent = pl.name;
   document.getElementById('pv-sub').textContent = pl.tracks.length + ' songs';
 
@@ -4477,6 +4450,42 @@ function playAllPlaylist() {
 }
 
 // ─── Sidebar Playlists Render ─────────────────────────────
+// ─── Auto Playlist Cover (Spotify-style) ───────────────────
+// Playlist tidak lagi punya foto custom upload-an sendiri. Fotonya otomatis
+// diambil/disusun dari cover album songs yang ada di dalam playlist itu:
+//  - 0 songs   -> kotak placeholder kosong (pakai class placeholder yang dikasih)
+//  - 1 art unik -> tampil 1 foto penuh (persis kayak Spotify kalau isinya baru dikit)
+//  - 2+ art unik -> collage grid 2x2 dari sampai 4 art album (diulang kalau art-nya kurang dari 4)
+function _plCoverThumbs(pl) {
+  const seen = [];
+  (pl.tracks || []).forEach(t => { if (t && t.thumb && !seen.includes(t.thumb)) seen.push(t.thumb); });
+  return seen;
+}
+function _plCoverCells(thumbs) {
+  const cells = thumbs.slice(0, 4);
+  let i = 0;
+  while (cells.length < 4 && thumbs.length) { cells.push(thumbs[i % thumbs.length]); i++; }
+  return cells;
+}
+// Kembalikan markup <img> atau <div class="...pl-collage"> lengkap (untuk mengganti elemen berdiri sendiri)
+function plCoverHTML(pl, boxClass, phClass, elId) {
+  phClass = phClass || boxClass;
+  const idAttr = elId ? ` id="${esc(elId)}"` : '';
+  const thumbs = _plCoverThumbs(pl);
+  if (!thumbs.length) return `<div class="${phClass}"${idAttr}></div>`;
+  if (thumbs.length === 1) return `<img class="${boxClass}"${idAttr} src="${esc(thumbs[0])}" alt="cover" onerror="this.style.display='none'">`;
+  const inner = _plCoverCells(thumbs).map(s => `<img src="${esc(s)}" alt="" onerror="this.style.display='none'">`).join('');
+  return `<div class="${boxClass} pl-collage"${idAttr}>${inner}</div>`;
+}
+// Kembalikan HANYA isi dalam (untuk ditaruh di dalam container yang sudah punya ukuran+overflow:hidden sendiri, mis. .rank-cover / .modal-pl-icon)
+function plCoverInnerHTML(pl) {
+  const thumbs = _plCoverThumbs(pl);
+  if (!thumbs.length) return '';
+  if (thumbs.length === 1) return `<img src="${esc(thumbs[0])}" alt="" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">`;
+  const inner = _plCoverCells(thumbs).map(s => `<img src="${esc(s)}" alt="" onerror="this.style.display='none'">`).join('');
+  return `<div class="pl-collage" style="width:100%;height:100%">${inner}</div>`;
+}
+
 function renderSidebarPlaylists() {
   const c = document.getElementById('pl-list');
   const keys = Object.keys(playlists);
@@ -4490,9 +4499,8 @@ function renderSidebarPlaylists() {
     const isActive = currentPlaylistId === id;
     const d = document.createElement('div');
     d.className = 'pl-item' + (isActive ? ' now' : '');
-    const src = pl.cover;
     d.innerHTML = `
-      ${src ? `<img class="pl-thumb" src="${esc(src)}" onerror="this.style.display='none'" alt="">` : `<div class="pl-ph"></div>`}
+      ${plCoverHTML(pl, 'pl-thumb', 'pl-ph')}
       <div class="pl-info">
         <div class="pl-name">${esc(pl.name)}</div>
         <div class="pl-art">${pl.tracks.length} songs</div>
@@ -4530,9 +4538,8 @@ function renderHomeGrid() {
     const pl = playlists[id];
     const card = document.createElement('div');
     card.className = 'pg-card';
-    const src = pl.cover;
     card.innerHTML = `
-      ${src ? `<img class="pg-img" src="${esc(src)}" alt="cover" onerror="this.style.display='none'">` : `<div class="pg-cover"></div>`}
+      ${plCoverHTML(pl, 'pg-img', 'pg-cover')}
       <div class="pg-name">${esc(pl.name)}</div>
       <div class="pg-count">${pl.tracks.length} songs</div>
       <button class="pg-play-btn" title="Putar semua">
@@ -4550,40 +4557,6 @@ function renderHomeGrid() {
   });
 }
 
-// ─── Cover Photo Modal ────────────────────────────────────
-function openCoverModal() {
-  if (!currentPlaylistId) return;
-  pendingCoverData = null;
-  document.getElementById('drop-z').innerHTML = '<i></i><div>Click or drag photo here</div><small>JPG · PNG · WebP</small>';
-  document.getElementById('ph-modal').style.display = 'flex';
-}
-document.getElementById('drop-z').addEventListener('click', () => document.getElementById('ph-inp').click());
-document.getElementById('drop-z').addEventListener('dragover', e => { e.preventDefault(); document.getElementById('drop-z').style.borderColor = 'var(--green)'; });
-document.getElementById('drop-z').addEventListener('dragleave', () => { document.getElementById('drop-z').style.borderColor = ''; });
-document.getElementById('drop-z').addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files[0]) handleCoverPh(e.dataTransfer.files[0]); });
-document.getElementById('ph-inp').addEventListener('change', e => { if (e.target.files[0]) handleCoverPh(e.target.files[0]); });
-function handleCoverPh(file) {
-  const r = new FileReader();
-  r.onload = e => {
-    pendingCoverData = e.target.result;
-    document.getElementById('drop-z').innerHTML = `<img src="${pendingCoverData}" style="width:100%;height:100px;object-fit:cover;border-radius:8px"><p style="margin-top:6px;font-size:.72rem;color:var(--green)"> Foto dipilih</p>`;
-  };
-  r.readAsDataURL(file);
-}
-document.getElementById('ph-cancel').addEventListener('click', () => document.getElementById('ph-modal').style.display = 'none');
-document.getElementById('ph-modal').addEventListener('click', e => { if (e.target === document.getElementById('ph-modal')) document.getElementById('ph-modal').style.display = 'none'; });
-document.getElementById('ph-save').addEventListener('click', () => {
-  if (!pendingCoverData) { toast(' Pilih foto dulu'); return; }
-  if (!currentPlaylistId || !playlists[currentPlaylistId]) return;
-  playlists[currentPlaylistId].cover = pendingCoverData;
-  playlists[currentPlaylistId].coverThumb = pendingCoverData; // simpan sebagai coverThumb juga
-  document.getElementById('ph-modal').style.display = 'none';
-  renderPlaylistView(currentPlaylistId);
-  renderSidebarPlaylists();
-  renderHomeGrid();
-  scheduleSave();
-  toast(' Foto playlist diperbarui');
-});
 
 // ─── YouTube IFrame API ───────────────────────────────────
 (function loadYTApi() {
@@ -6149,10 +6122,13 @@ function _updateNPScrollFx(){
   const y=scrollEl.scrollTop;
   const THRESHOLD=64; // jarak scroll sampai header jadi solid + mini info muncul
   topbar.classList.toggle('np-scrolled', y > THRESHOLD);
-  const fadeRange=180;
+  // Judul lagu & nama artis besar memudar TOTAL (opacity 0) begitu discroll,
+  // sehingga hanya versi mini di header atas yang terlihat — gaya Spotify.
+  const fadeRange=90;
   const p=Math.min(1, y / fadeRange); // progres 0 -> 1
-  hero.style.opacity=String(1 - p * 0.55);
-  hero.style.transform=`translateY(${-p * 14}px) scale(${1 - p * 0.08})`;
+  hero.style.opacity=String(1 - p);
+  hero.style.transform=`translateY(${-p * 18}px) scale(${1 - p * 0.08})`;
+  hero.style.pointerEvents = p >= 1 ? 'none' : '';
 }
 (function(){
   const scrollEl=document.getElementById('np-scroll');
@@ -6295,11 +6271,10 @@ function _renderNPPlaylists(){
   c.innerHTML='';
   keys.forEach(id=>{
     const pl=playlists[id];
-    const src=pl.cover;
     const d=document.createElement('div');
     d.className='np-pl-item';
     d.innerHTML=`
-      ${src ? `<img class="np-pl-thumb" src="${esc(src)}" alt="" onerror="this.style.display='none'">` : `<div class="np-pl-ph"></div>`}
+      ${plCoverHTML(pl, 'np-pl-thumb', 'np-pl-ph')}
       <div class="np-pl-info">
         <div class="np-pl-name">${esc(pl.name)}</div>
         <div class="np-pl-count">${pl.tracks.length} songs</div>
@@ -8292,7 +8267,7 @@ function renderRanking(items) {
     div.className = 'rank-item';
     div.innerHTML = `
       <div class="rank-num ${numClass}">${numLabel}</div>
-      <div class="rank-cover">${pl.coverThumb ? `<img src="${esc(pl.coverThumb)}" alt="">` : ''}</div>
+      <div class="rank-cover">${plCoverInnerHTML(pl)}</div>
       <div class="rank-info">
         <div class="rank-name">${esc(pl.name || 'Playlist')}</div>
         <div class="rank-owner">by ${esc(pl.ownerName || 'Anonymous')} · ${(pl.tracks||[]).length} songs</div>
@@ -8344,9 +8319,7 @@ function renderPubGridItems() {
     const isOwn = pl.ownerUid === currentUser.uid;
     card.innerHTML = `
       <div class="pub-cover-wrap">
-        ${pl.coverThumb
-          ? `<img class="pub-card-img" src="${esc(pl.coverThumb)}" alt="cover" onerror="this.style.display='none'">`
-          : `<div class="pub-card-cover"></div>`}
+        ${plCoverHTML(pl, 'pub-card-img', 'pub-card-cover')}
         <div class="pub-cover-ov">
           <svg viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
         </div>
@@ -8480,14 +8453,9 @@ async function openPublicPlaylist(pl) {
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.remove('on');
 
-  // Fill playlist view with public data (read-only)
+  // Fill playlist view with public data (read-only) — cover otomatis dari art songs-nya juga
   const coverEl = document.getElementById('pv-cover');
-  if (pl.coverThumb) {
-    if (coverEl.tagName !== 'IMG') coverEl.outerHTML = `<img class="pv-cover" id="pv-cover" src="${esc(pl.coverThumb)}" alt="cover">`;
-    else { coverEl.src = pl.coverThumb; }
-  } else {
-    if (coverEl.tagName === 'IMG') coverEl.outerHTML = `<div class="pv-cover-ph" id="pv-cover"></div>`;
-  }
+  coverEl.outerHTML = plCoverHTML({ tracks }, 'pv-cover', 'pv-cover-ph', 'pv-cover');
   document.getElementById('pv-title').textContent = pl.name || 'Playlist';
   document.getElementById('pv-sub').textContent = `${tracks.length} songs`;
 
