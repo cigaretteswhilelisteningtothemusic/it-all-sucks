@@ -3631,7 +3631,7 @@ async function syncPublicPlaylists() {
   // Ambil foto profil terkini sekali saja
   const profileSnap = await db.ref('users/' + currentUser.uid + '/profile').get().catch(()=>null);
   const profileData = profileSnap?.val() || {};
-  const ownerName = profileData.displayName || currentUser.displayName || currentUser.email ? currentUser.email.split('@')[0] : 'User';
+  const ownerName = profileData.displayName || currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'User');
   const ownerPhoto = profileData.photoURL || profileData.photoBase64 || currentUser.photoURL || '';
 
   for (const id in playlists) {
@@ -3703,7 +3703,11 @@ async function loadAllPlaylistsFromCloud() {
 // tempat yang sama dan otomatis muncul di bagian "Artis Favorit" Home.
 function getFavArtistRef() {
   if (!currentUser) return null;
-  return db.ref('favorite_artists/' + currentUser.uid);
+  // Disimpan di bawah "users/{uid}/..." (sama seperti profile, notifications,
+  // lyricsBackground) karena path top-level terpisah "favorite_artists/{uid}"
+  // tidak tercakup oleh security rules akun, sehingga penulisan gagal secara
+  // diam-diam (hanya console.error) dan data hilang lagi setelah refresh.
+  return db.ref('users/' + currentUser.uid + '/favoriteArtists');
 }
 
 async function loadFavoriteArtistsFromCloud() {
@@ -4847,9 +4851,10 @@ function esc(s){if(!s)return'';const d=document.createElement('div');d.textConte
 function toast(msg,d=2700){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),d);}
 
 // ─── SEARCH via iTunes ────────────────────────────────────
-async function fetchItunesResults(q, country, entity){
+async function fetchItunesResults(q, country, entity, limit){
   entity = entity || 'song';
-  const url=`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=${entity}&limit=200&country=${country}`;
+  limit = limit || 200;
+  const url=`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=${entity}&limit=${limit}&country=${country}`;
   const res=await fetch(url,{signal:AbortSignal.timeout(8000)}); if(!res.ok)throw new Error('iTunes tidak merespons ('+res.status+')');
   const data=await res.json(); return data.results||[];
 }
@@ -6466,12 +6471,12 @@ function renderLyrAlbumsList(albums) {
 
 // Ambil foto artis dari Deezer (di-cache per nama) lalu pasang ke elemen <img> tertentu.
 async function _loadArtistPhotoInto(imgEl, artistName) {
-  if (!imgEl || !artistName) return;
+  if (!imgEl || !artistName) return null;
   imgEl.dataset.wanted = artistName;
   const key = artistName.toLowerCase();
   if (_artistPhotoCache[key]) {
     if (imgEl.dataset.wanted === artistName) { imgEl.style.display = 'block'; imgEl.src = _artistPhotoCache[key]; }
-    return;
+    return _artistPhotoCache[key];
   }
   try {
     const data = await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(artistName) + '&limit=1');
@@ -6479,7 +6484,8 @@ async function _loadArtistPhotoInto(imgEl, artistName) {
     const pic = a ? (a.picture_xl || a.picture_big || a.picture_medium) : '';
     if (pic) _artistPhotoCache[key] = pic;
     if (pic && imgEl.dataset.wanted === artistName) { imgEl.style.display = 'block'; imgEl.src = pic; }
-  } catch (e) { /* biarkan tanpa foto jika gagal, tidak fatal */ }
+    return pic || null;
+  } catch (e) { /* biarkan tanpa foto jika gagal, tidak fatal */ return null; }
 }
 
 function formatFanCount(n) {
@@ -7996,7 +8002,7 @@ async function toggleLike(e, key, currentlyLiked) {
           if (ownerUid && ownerUid !== currentUser.uid) {
             const profileSnap = await db.ref('users/' + currentUser.uid + '/profile').get().catch(() => null);
             const profile = profileSnap?.val() || {};
-            const fromName = profile.displayName || currentUser.displayName || currentUser.email ? currentUser.email.split('@')[0] : 'User';
+            const fromName = profile.displayName || currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'User');
             const fromPhoto = profile.photoURL || profile.photoBase64 || currentUser.photoURL || '';
             const notif = {
               type: 'like',
@@ -8195,7 +8201,7 @@ async function togglePublishPlaylist() {
     // Publish
     const profileSnap = await db.ref('users/' + currentUser.uid + '/profile').get().catch(()=>null);
     const profileData = profileSnap?.val() || {};
-    const ownerName = profileData.displayName || currentUser.displayName || currentUser.email ? currentUser.email.split('@')[0] : 'User';
+    const ownerName = profileData.displayName || currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'User');
     const ownerPhoto = profileData.photoURL || profileData.photoBase64 || currentUser.photoURL || '';
     try {
       await db.ref('public_playlists/' + key).set({
@@ -8852,7 +8858,7 @@ async function sendCommentNotif(playlistKey, commentText) {
 
     const profileSnap = await db.ref('users/' + currentUser.uid + '/profile').get().catch(() => null);
     const profile = profileSnap?.val() || {};
-    const fromName = profile.displayName || currentUser.displayName || currentUser.email ? currentUser.email.split('@')[0] : 'User';
+    const fromName = profile.displayName || currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'User');
     const fromPhoto = profile.photoURL || profile.photoBase64 || currentUser.photoURL || '';
 
     const notif = {
@@ -8880,7 +8886,7 @@ async function sendCommentLikeNotif(playlistKey, commentOwnerUid, commenterName,
   try {
     const profileSnap = await db.ref('users/' + currentUser.uid + '/profile').get().catch(() => null);
     const profile = profileSnap?.val() || {};
-    const fromName = profile.displayName || currentUser.displayName || currentUser.email ? currentUser.email.split('@')[0] : 'User';
+    const fromName = profile.displayName || currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'User');
     const fromPhoto = profile.photoURL || profile.photoBase64 || currentUser.photoURL || '';
 
     const plSnap = await db.ref('public_playlists/' + playlistKey).get().catch(() => null);
@@ -8911,7 +8917,7 @@ async function sendReplyNotif(playlistKey, commentOwnerUid, replyText) {
   try {
     const profileSnap = await db.ref('users/' + currentUser.uid + '/profile').get().catch(() => null);
     const profile = profileSnap?.val() || {};
-    const fromName = profile.displayName || currentUser.displayName || currentUser.email ? currentUser.email.split('@')[0] : 'User';
+    const fromName = profile.displayName || currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'User');
     const fromPhoto = profile.photoURL || profile.photoBase64 || currentUser.photoURL || '';
 
     const plSnap = await db.ref('public_playlists/' + playlistKey).get().catch(() => null);
@@ -9060,7 +9066,7 @@ async function submitReply(playlistKey, commentId, commentOwnerUid, textareaEl, 
   try {
     const profileSnap = await db.ref('users/' + currentUser.uid + '/profile').get().catch(() => null);
     const profile = profileSnap?.val() || {};
-    const name = profile.displayName || currentUser.displayName || currentUser.email ? currentUser.email.split('@')[0] : 'User';
+    const name = profile.displayName || currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'User');
     const photoURL = profile.photoURL || profile.photoBase64 || currentUser.photoURL || '';
     const reply = { uid: currentUser.uid, name, photoURL, text: text || '', ts: Date.now() };
     if (photoData) reply.photoData = photoData;
@@ -9193,7 +9199,7 @@ async function submitComment(playlistKey, textareaEl, sendBtn, photoDataRef) {
   try {
     const profileSnap = await db.ref('users/' + currentUser.uid + '/profile').get().catch(() => null);
     const profile = profileSnap?.val() || {};
-    const name = profile.displayName || currentUser.displayName || currentUser.email ? currentUser.email.split('@')[0] : 'User';
+    const name = profile.displayName || currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'User');
     const photoURL = profile.photoURL || profile.photoBase64 || currentUser.photoURL || '';
     const comment = { uid: currentUser.uid, name, photoURL, text: text || '', ts: Date.now() };
     if (photoData) comment.photoData = photoData;
@@ -9861,13 +9867,17 @@ async function loadSpByGenre(genreKey) {
   try {
     const seeds = (def.seedArtists && def.seedArtists.length) ? _shuffleArray(def.seedArtists).slice(0, 6) : [];
     const queries = seeds.length ? seeds : [def.query || def.label];
+    // Kita hanya butuh puluhan lagu untuk feed (bukan ratusan), jadi minta
+    // limit kecil per artis seed. Ini yang paling memperlambat loading genre
+    // sebelumnya: 6 request paralel @200 lagu = ~1200 item diunduh & di-parse
+    // padahal cuma dipakai sebagian kecil.
     const resultsArr = await Promise.all(
-      queries.map(qStr => fetchItunesResults(qStr, 'US', 'song').catch(() => []))
+      queries.map(qStr => fetchItunesResults(qStr, 'US', 'song', 25).catch(() => []))
     );
     let combined = resultsArr.flat();
     if (combined.length < 10) {
       // Cadangan: kalau hasil dari seed artist kurang, coba query umum genrenya
-      const fallback = await fetchItunesResults(def.query || def.label, 'US', 'song').catch(() => []);
+      const fallback = await fetchItunesResults(def.query || def.label, 'US', 'song', 50).catch(() => []);
       combined = combined.concat(fallback);
     }
     const seen = new Set();
@@ -9976,10 +9986,12 @@ function renderSpSlides() {
   spCurrentIndex = -1;
   // Buang cache preload dari daftar lagu sebelumnya (indeksnya sudah tidak relevan)
   if (spPreloadCache) { spPreloadCache.forEach(a => { a.src = ''; }); spPreloadCache.clear(); }
+  _spArtistPhotoLoaded.clear();
   spTracks.forEach((t, i) => feed.appendChild(buildSpSlideEl(t, i)));
   feed.scrollTop = 0;
   setupSpObserver();
   _spPreloadIndex(0); _spPreloadIndex(1); _spPreloadIndex(2); // siapkan beberapa slide pertama lebih awal
+  _spLoadArtistPhoto(0); _spLoadArtistPhoto(1); _spLoadArtistPhoto(2);
 }
 
 function buildSpSlideEl(t, i) {
@@ -10001,12 +10013,12 @@ function buildSpSlideEl(t, i) {
       </div>
       <div class="sp-slide-bottom">
       <div class="sp-artist-row">
-        <img class="sp-artist-photo" src="${esc(t.artworkUrl100 || '')}" onerror="this.style.visibility='hidden'">
+        <img class="sp-artist-photo" id="sp-artist-photo-${i}" alt="" onerror="this.style.visibility='hidden'">
         <div class="sp-artist-info">
           <div class="sp-artist-name">${esc(t.artistName || 'Unknown')}</div>
           <div class="sp-artist-sub">${esc(t.collectionName || '')}</div>
         </div>
-        <button class="sp-follow-btn${isArtistFavorited(t.artistName || '') ? ' following' : ''}" data-artist="${esc(t.artistName || '')}" data-photo="${esc(t.artworkUrl100 || '')}" onclick="event.stopPropagation();toggleSpFollow(this)">${isArtistFavorited(t.artistName || '') ? 'Mengikuti' : 'Ikuti'}</button>
+        <button class="sp-follow-btn${isArtistFavorited(t.artistName || '') ? ' following' : ''}" id="sp-follow-btn-${i}" data-artist="${esc(t.artistName || '')}" data-photo="" onclick="event.stopPropagation();toggleSpFollow(this)">${isArtistFavorited(t.artistName || '') ? 'Mengikuti' : 'Ikuti'}</button>
         <button class="sp-dots-btn" onclick="event.stopPropagation()" title="Lainnya">
           <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="6" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="18" r="1.8"/></svg>
         </button>
@@ -10122,6 +10134,10 @@ function setupSpObserver() {
       if (entry.intersectionRatio >= 0.15) {
         _spPreloadIndex(idx);
         _spPreloadIndex(idx + 1);
+        // Ambil foto asli artis (sama dengan yang dipakai di kotak "Tentang Artis")
+        // hanya untuk slide yang sudah/segera terlihat, bukan semuanya sekaligus.
+        _spLoadArtistPhoto(idx);
+        _spLoadArtistPhoto(idx + 1);
       }
       if (entry.intersectionRatio >= 0.6) {
         playSpPreview(idx);
@@ -10129,6 +10145,27 @@ function setupSpObserver() {
     });
   }, { root: feed, threshold: [0.15, 0.6], rootMargin: '100px 0px' });
   feed.querySelectorAll('.sp-slide').forEach(el => spObserver.observe(el));
+}
+
+// Ambil foto asli artis dari Deezer (sumber yang sama dengan kotak "Tentang Artis"
+// di sidebar/panel lirik) untuk 1 slide Song Preview, lalu tempelkan juga ke
+// tombol "Ikuti" supaya foto yang tersimpan ke Artis Favorit adalah foto artis
+// yang benar, bukan cover lagu. Di-cache per artis & dimuat lazy per-slide
+// (bukan untuk semua slide sekaligus) supaya tidak memperlambat feed.
+let _spArtistPhotoLoaded = new Set();
+async function _spLoadArtistPhoto(idx) {
+  if (idx == null || idx < 0 || idx >= spTracks.length) return;
+  if (_spArtistPhotoLoaded.has(idx)) return;
+  _spArtistPhotoLoaded.add(idx);
+  const t = spTracks[idx];
+  if (!t || !t.artistName) return;
+  const imgEl = document.getElementById('sp-artist-photo-' + idx);
+  if (!imgEl) return;
+  const pic = await _loadArtistPhotoInto(imgEl, t.artistName);
+  if (pic) {
+    const btn = document.getElementById('sp-follow-btn-' + idx);
+    if (btn) btn.dataset.photo = pic;
+  }
 }
 
 function playSpPreview(idx) {
