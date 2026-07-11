@@ -3302,9 +3302,14 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   <div id="np-bg"></div>
   <div id="np-topbar">
     <div id="np-top-title">Now Playing</div>
-    <button class="np-icon-btn" onclick="closeNP()" title="Minimize">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-    </button>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="np-icon-btn" onclick="openNPFullscreen()" title="Fullscreen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V3h4M21 7V3h-4M3 17v4h4M21 17v4h-4"/></svg>
+      </button>
+      <button class="np-icon-btn" onclick="closeNP()" title="Minimize">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+    </div>
   </div>
   <div id="np-scroll">
     <div class="np-hero">
@@ -3333,7 +3338,99 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
         <div class="np-card">
           <div class="np-card-head"><h4>Your Playlists</h4><span class="np-showall" onclick="closeNP();showHomeView()">Show all</span></div>
           <div class="np-pl-list" id="np-pl-list"></div>
-        </div>
+</div>
+
+<!-- NOW PLAYING FULLSCREEN (minimal) -->
+<div id="np-fs" aria-hidden="true">
+  <div id="np-fs-bg"></div>
+  <button class="np-fs-back" onclick="closeNPFullscreen()" title="Back">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+  </button>
+  <div class="np-fs-inner">
+    <img class="np-fs-art" id="np-fs-art" src="" alt="" onerror="this.style.visibility='hidden'">
+    <div class="np-fs-title" id="np-fs-title">—</div>
+    <div class="np-fs-artist" id="np-fs-artist" onclick="openArtistView(curTrack && curTrack.artist); closeNPFullscreen();">—</div>
+  </div>
+</div>
+
+<style>
+/* ── Scroll animations inside Now Playing ── */
+#np-scroll{scroll-behavior:smooth;}
+.np-hero{transition:transform .35s ease, opacity .35s ease; will-change:transform,opacity;}
+.np-art,.np-art-ph{transition:transform .5s cubic-bezier(.2,.7,.2,1), box-shadow .5s ease;}
+#np-view.np-scrolled .np-hero{transform:translateY(-14px) scale(.94);opacity:.85;}
+#np-view.np-scrolled .np-art,#np-view.np-scrolled .np-art-ph{transform:scale(.9);box-shadow:0 15px 40px rgba(0,0,0,.6);}
+#np-view.np-scrolled #np-topbar{background:linear-gradient(to bottom, rgba(0,0,0,.55), rgba(0,0,0,0));backdrop-filter:blur(8px);}
+#np-topbar{transition:background .35s ease, backdrop-filter .35s ease;}
+.np-grid{animation:npGridIn .45s ease both;}
+@keyframes npGridIn{from{transform:translateY(24px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+/* ensure artist is obviously clickable */
+.np-track-artist,.np-about-name{cursor:pointer;}
+.np-track-artist:hover{color:#fff;text-decoration:underline}
+
+/* ── Now Playing Fullscreen (minimal) ── */
+#np-fs{position:fixed;inset:0;z-index:1200;display:none;align-items:center;justify-content:center;background:#000;}
+#np-fs.open{display:flex;animation:npFsFade .35s ease both;}
+@keyframes npFsFade{from{opacity:0;transform:scale(.98)}to{opacity:1;transform:scale(1)}}
+#np-fs-bg{position:absolute;inset:0;background-size:cover;background-position:center;filter:blur(40px) brightness(.45);transform:scale(1.15);z-index:0;}
+#np-fs-bg::after{content:'';position:absolute;inset:0;background:rgba(0,0,0,.35);}
+.np-fs-back{position:absolute;top:22px;left:22px;z-index:3;background:rgba(0,0,0,.45);border:none;border-radius:50%;width:44px;height:44px;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .18s;}
+.np-fs-back:hover{background:rgba(0,0,0,.7);transform:scale(1.06);}
+.np-fs-back svg{width:20px;height:20px;}
+.np-fs-inner{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;text-align:center;padding:24px;max-width:90vw;}
+.np-fs-art{width:min(70vh,70vw);height:min(70vh,70vw);object-fit:cover;border-radius:16px;box-shadow:0 40px 100px rgba(0,0,0,.7);}
+.np-fs-title{margin-top:34px;font-size:clamp(1.5rem,3.2vw,2.4rem);font-weight:800;color:#fff;letter-spacing:-.5px;max-width:80vw;}
+.np-fs-artist{margin-top:10px;font-size:clamp(.95rem,1.4vw,1.15rem);color:rgba(255,255,255,.78);cursor:pointer;}
+.np-fs-artist:hover{color:#fff;text-decoration:underline;}
+</style>
+
+<script>
+(function(){
+  // Scroll-driven page transition animation in Now Playing
+  document.addEventListener('DOMContentLoaded', function(){
+    var scr = document.getElementById('np-scroll');
+    var view = document.getElementById('np-view');
+    if(scr && view){
+      scr.addEventListener('scroll', function(){
+        if(scr.scrollTop > 40) view.classList.add('np-scrolled');
+        else view.classList.remove('np-scrolled');
+      }, {passive:true});
+    }
+  });
+
+  // Fullscreen open/close
+  window.openNPFullscreen = function(){
+    var fs = document.getElementById('np-fs');
+    var art = document.getElementById('np-art');
+    var title = document.getElementById('np-track-title');
+    var artist = document.getElementById('np-track-artist');
+    var fsArt = document.getElementById('np-fs-art');
+    var fsTitle = document.getElementById('np-fs-title');
+    var fsArtist = document.getElementById('np-fs-artist');
+    var fsBg = document.getElementById('np-fs-bg');
+    var src = (art && art.src) ? art.src : '';
+    if(src){ fsArt.src = src; fsArt.style.visibility='visible'; fsBg.style.backgroundImage = 'url("'+src+'")'; }
+    else { fsArt.removeAttribute('src'); fsArt.style.visibility='hidden'; fsBg.style.backgroundImage=''; }
+    fsTitle.textContent = title ? title.textContent : '—';
+    fsArtist.textContent = artist ? artist.textContent : '—';
+    fs.classList.add('open');
+    fs.setAttribute('aria-hidden','false');
+  };
+  window.closeNPFullscreen = function(){
+    var fs = document.getElementById('np-fs');
+    fs.classList.remove('open');
+    fs.setAttribute('aria-hidden','true');
+  };
+  // ESC to exit fullscreen
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape'){
+      var fs = document.getElementById('np-fs');
+      if(fs && fs.classList.contains('open')) window.closeNPFullscreen();
+    }
+  });
+})();
+</script>
       </div>
     </div>
   </div>
