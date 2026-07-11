@@ -192,6 +192,15 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   padding:0;
 }
 .sugg-icon.result img{width:100%;height:100%;object-fit:cover;display:block;}
+.sugg-icon.artist{
+  width:36px;height:36px;
+  border-radius:50%;
+  overflow:hidden;
+  background:var(--hover);
+  border:1px solid var(--border);
+  padding:0;
+}
+.sugg-icon.artist img{width:100%;height:100%;object-fit:cover;display:block;}
 .sugg-text{flex:1;min-width:0;}
 .sugg-main{
   font-size:.83rem;font-weight:600;
@@ -5243,11 +5252,36 @@ function initSearchSuggestions(inputId, boxId, onQuerySelect){
   }
   const arrowSVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>`;
 
-  function renderSuggestions(query, iTunesResults) {
+  function renderSuggestions(query, iTunesResults, artistResults) {
     box.innerHTML = '';
     _items = [];
     _focused = -1;
     const q = query.trim();
+
+    // Bagian "Artis" — ditampilkan LEBIH DULU/diprioritaskan sebelum hasil lagu.
+    // Klik salah satu akan langsung membuka halaman profil artis tsb.
+    function renderArtistItems() {
+      if(!artistResults || !artistResults.length) return;
+      const lbl = document.createElement('div');
+      lbl.className = 'sugg-section-label';
+      lbl.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/></svg> Artis`;
+      box.appendChild(lbl);
+      artistResults.slice(0,4).forEach(a => {
+        const photo = a.picture_medium || a.picture_big || a.picture || a.picture_small || '';
+        const name = a.name || '';
+        const iconHTML = photo
+          ? `<div class="sugg-icon artist"><img src="${esc(photo)}" loading="lazy" onerror="this.parentNode.innerHTML=''"></div>`
+          : `<div class="sugg-icon artist"></div>`;
+        const mainText = highlightMatch(name, q);
+        const subText = 'Artis' + (a.nb_fan ? ' · ' + formatFanCount(a.nb_fan) + ' fans' : '');
+        const el = mkItem({mainText, subText, customIcon:iconHTML, isArtist:true, artistName:name});
+        box.appendChild(el);
+        _items.push({el, q:name});
+      });
+      const div = document.createElement('div');
+      div.className = 'sugg-divider';
+      box.appendChild(div);
+    }
 
     if(!q) {
       // Trending + history
@@ -5274,32 +5308,35 @@ function initSearchSuggestions(inputId, boxId, onQuerySelect){
         box.appendChild(el);
         _items.push({el, q:tr.q});
       });
-    } else if(iTunesResults && iTunesResults.length) {
-      // iTunes results (max 6)
-      const lbl = document.createElement('div');
-      lbl.className = 'sugg-section-label';
-      lbl.innerHTML = `Hasil Pencarian`;
-      box.appendChild(lbl);
-      iTunesResults.slice(0,6).forEach(it => {
-        const thumb = (it.artworkUrl60||it.artworkUrl100||'').replace('60x60bb','100x100bb');
-        const title = it.trackName||'';
-        const artist = it.artistName||'';
-        const iconHTML = thumb ? `<div class="sugg-icon result"><img src="${esc(thumb)}" loading="lazy" onerror="this.parentNode.innerHTML=''"></div>` : `<div class="sugg-icon result" style="font-size:1.2rem;display:flex;align-items:center;justify-content:center;"></div>`;
-        const mainText = highlightMatch(title, q);
-        const subText = esc(artist);
-        const searchQ = `${artist} ${title}`;
-        const el = mkItem({iconClass:'', iconHTML:'', mainText, subText, q:searchQ, customIcon:iconHTML, direct:true, track:{
-          title, artist,
-          thumb:(it.artworkUrl100||'').replace('100x100bb','600x600bb'),
-          preview:it.previewUrl||null,
-          duration:it.trackTimeMillis?Math.round(it.trackTimeMillis/1000):0,
-          videoId:null, photo:null,
-          _query:`${artist}|||${title}|||${it.trackId||Math.random()}`
-        }});
-        box.appendChild(el);
-        _items.push({el, q:searchQ});
-      });
-    } else if(iTunesResults && iTunesResults.length===0) {
+    } else if((iTunesResults && iTunesResults.length) || (artistResults && artistResults.length)) {
+      // Artis diprioritaskan/didahulukan, baru menyusul hasil lagu
+      renderArtistItems();
+      if(iTunesResults && iTunesResults.length) {
+        const lbl = document.createElement('div');
+        lbl.className = 'sugg-section-label';
+        lbl.innerHTML = `Lagu`;
+        box.appendChild(lbl);
+        iTunesResults.slice(0,6).forEach(it => {
+          const thumb = (it.artworkUrl60||it.artworkUrl100||'').replace('60x60bb','100x100bb');
+          const title = it.trackName||'';
+          const artist = it.artistName||'';
+          const iconHTML = thumb ? `<div class="sugg-icon result"><img src="${esc(thumb)}" loading="lazy" onerror="this.parentNode.innerHTML=''"></div>` : `<div class="sugg-icon result" style="font-size:1.2rem;display:flex;align-items:center;justify-content:center;"></div>`;
+          const mainText = highlightMatch(title, q);
+          const subText = esc(artist);
+          const searchQ = `${artist} ${title}`;
+          const el = mkItem({iconClass:'', iconHTML:'', mainText, subText, q:searchQ, customIcon:iconHTML, direct:true, track:{
+            title, artist,
+            thumb:(it.artworkUrl100||'').replace('100x100bb','600x600bb'),
+            preview:it.previewUrl||null,
+            duration:it.trackTimeMillis?Math.round(it.trackTimeMillis/1000):0,
+            videoId:null, photo:null,
+            _query:`${artist}|||${title}|||${it.trackId||Math.random()}`
+          }});
+          box.appendChild(el);
+          _items.push({el, q:searchQ});
+        });
+      }
+    } else if(iTunesResults && iTunesResults.length===0 && (!artistResults || artistResults.length===0)) {
       // Empty state
       const empty = document.createElement('div');
       empty.className = 'sugg-empty';
@@ -5344,7 +5381,7 @@ function initSearchSuggestions(inputId, boxId, onQuerySelect){
     }
   }
 
-  function mkItem({iconClass, iconHTML, mainText, subText, q, customIcon, direct, track}) {
+  function mkItem({iconClass, iconHTML, mainText, subText, q, customIcon, direct, track, isArtist, artistName}) {
     const el = document.createElement('div');
     el.className = 'sugg-item';
     const icon = customIcon || `<div class="sugg-icon ${iconClass}">${iconHTML}</div>`;
@@ -5356,7 +5393,10 @@ function initSearchSuggestions(inputId, boxId, onQuerySelect){
       if(e.target.closest('.add-btn')){
         return; // ditangani oleh wireAddBtn di atas
       }
-      if(direct && track) {
+      if(isArtist) {
+        closeBox();
+        openArtistView(artistName);
+      } else if(direct && track) {
         closeBox();
         loadPlay(track, null);
       } else {
@@ -5398,35 +5438,64 @@ function initSearchSuggestions(inputId, boxId, onQuerySelect){
     return t.includes(ql) || a.includes(ql);
   }
 
+  // Filter hasil pencarian artis Deezer supaya hanya artis yang namanya
+  // benar-benar memuat kata kunci yang diketik yang ditampilkan.
+  function isArtistRelevant(a, q) {
+    const ql = q.toLowerCase();
+    return (a.name||'').toLowerCase().includes(ql);
+  }
+
+  let _reqGen = 0;
   async function fetchSuggestions(q) {
     if(_abortCtrl) _abortCtrl.abort();
     _abortCtrl = new AbortController();
+    const myGen = ++_reqGen;
     // Show skeleton first
-    renderSuggestions(q, null);
+    renderSuggestions(q, null, null);
     openBox();
+
+    const songsPromise = (async () => {
+      try {
+        const url = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=25&country=ID`;
+        const res = await fetch(url, {signal:_abortCtrl.signal});
+        if(!res.ok) throw new Error('err');
+        const data = await res.json();
+        return (data.results||[]).filter(it => isRelevant(it, q));
+      } catch(e) {
+        if(e.name==='AbortError') throw e;
+        return [];
+      }
+    })();
+
+    // Cari artis lewat Deezer (nama + foto), berjalan bersamaan dengan pencarian lagu.
+    const artistsPromise = (async () => {
+      try {
+        const data = await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(q) + '&limit=6');
+        return ((data && data.data) || []).filter(a => isArtistRelevant(a, q));
+      } catch(e) {
+        return [];
+      }
+    })();
+
     try {
-      const url = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=25&country=ID`;
-      const res = await fetch(url, {signal:_abortCtrl.signal});
-      if(!res.ok) throw new Error('err');
-      const data = await res.json();
-      const filtered = (data.results||[]).filter(it => isRelevant(it, q));
-      if(_isOpen) renderSuggestions(q, filtered);
+      const [songs, artists] = await Promise.all([songsPromise, artistsPromise]);
+      if(myGen === _reqGen && _isOpen) renderSuggestions(q, songs, artists);
     } catch(e) {
-      if(e.name!=='AbortError' && _isOpen) renderSuggestions(q, []);
+      if(e.name!=='AbortError' && myGen === _reqGen && _isOpen) renderSuggestions(q, [], []);
     }
   }
 
   inp.addEventListener('focus', () => {
     const q = inp.value.trim();
-    if(!q) { renderSuggestions('', null); openBox(); }
+    if(!q) { renderSuggestions('', null, null); openBox(); }
     else fetchSuggestions(q);
   });
 
   inp.addEventListener('input', () => {
     const q = inp.value.trim();
     clearTimeout(_debounceT);
-    if(!q) { renderSuggestions('', null); openBox(); return; }
-    renderSuggestions(q, null); // show skeleton immediately
+    if(!q) { renderSuggestions('', null, null); openBox(); return; }
+    renderSuggestions(q, null, null); // show skeleton immediately
     openBox();
     _debounceT = setTimeout(() => fetchSuggestions(q), 280);
   });
