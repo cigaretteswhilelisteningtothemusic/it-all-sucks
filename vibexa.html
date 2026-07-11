@@ -7207,7 +7207,8 @@ async function loadDailyMixes(force) {
 
   // Date-stamped cache key: once the date changes, the old mixes are simply
   // no longer looked up and get cleaned up below — fresh ones are built.
-  const todayKey = 'vibexa_dailymix_topsongs_v4_' + new Date().toISOString().slice(0, 10);
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const todayKey = 'vibexa_dailymix_topsongs_v4_' + dateStr;
   const neededTotal = DM_MIX_COUNT * DM_TRACKS_PER_MIX; // minimal 240 lagu (8 x 30)
 
   if (!force) {
@@ -7218,6 +7219,25 @@ async function loadDailyMixes(force) {
         if (mixes && mixes.length >= DM_MIX_COUNT) { renderDailyMixes(mixes); return; }
       }
     } catch (e) {}
+  }
+
+  // Daily Mix BERSAMA untuk semua user: sebelum generate sendiri (yang berarti
+  // puluhan panggilan ke API Deezer), coba dulu ambil hasil yang sudah dibuat
+  // user lain hari ini dari Firebase. Kalau sudah ada, semua user tinggal
+  // pakai data yang sama persis — jauh lebih ringan daripada tiap orang
+  // generate ulang dari nol.
+  if (!force) {
+    try {
+      const sharedSnap = await db.ref('daily_mix_shared/' + dateStr).get();
+      if (sharedSnap.exists()) {
+        const sharedMixes = sharedSnap.val();
+        if (Array.isArray(sharedMixes) && sharedMixes.length >= DM_MIX_COUNT) {
+          try { localStorage.setItem(todayKey, JSON.stringify(sharedMixes)); } catch (e) {}
+          renderDailyMixes(sharedMixes);
+          return;
+        }
+      }
+    } catch (e) { /* Firebase gagal dibaca -> lanjut generate lokal di bawah */ }
   }
 
   if (grid) grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;"><i></i><h3>Menyiapkan Daily Mix...</h3></div>';
@@ -7295,7 +7315,7 @@ async function loadDailyMixes(force) {
     // 4) Acak urutan dengan seed tanggal hari ini (stabil sepanjang hari,
     // berubah otomatis besok) lalu potong jadi beberapa mix isi 30 lagu.
     const shuffledPool = _dmSeededShuffle(pool, todayKey);
-    const mixes = [];
+    let mixes = [];
     let offset = 0;
     while (mixes.length < DM_MIX_COUNT && offset + DM_TRACKS_PER_MIX <= shuffledPool.length) {
       const slice = shuffledPool.slice(offset, offset + DM_TRACKS_PER_MIX).map(t => ({ ...t, _query: `${t.artist}|||${t.title}|||${t.id}` }));
@@ -7311,6 +7331,30 @@ async function loadDailyMixes(force) {
     }
 
     if (!mixes.length) throw new Error('Gagal membuat Daily Mix');
+
+    // Simpan hasil generate ini sebagai mix BERSAMA di Firebase supaya user
+    // lain hari ini tinggal membaca, bukan generate ulang (hemat beban ke
+    // Deezer). Pakai transaction: kalau ternyata sudah ada yang lebih dulu
+    // menyimpan (dua user generate hampir bersamaan), jangan ditimpa — pakai
+    // versi yang sudah tersimpan supaya semua user tetap dapat mix yang
+    // sama persis, bukan versi masing-masing.
+    try {
+      const txResult = await db.ref('daily_mix_shared/' + dateStr).transaction(current => {
+        if (current) return; // sudah ada -> batalkan, jangan timpa
+        return mixes;
+      });
+      if (txResult && txResult.snapshot && txResult.snapshot.exists()) {
+        const finalMixes = txResult.snapshot.val();
+        if (Array.isArray(finalMixes) && finalMixes.length) mixes = finalMixes;
+      }
+      // Bersihkan entri tanggal-tanggal lama supaya node ini tidak menumpuk.
+      db.ref('daily_mix_shared').get().then(snap => {
+        if (!snap.exists()) return;
+        snap.forEach(child => {
+          if (child.key !== dateStr) db.ref('daily_mix_shared/' + child.key).remove().catch(() => {});
+        });
+      }).catch(() => {});
+    } catch (e) { /* gagal tulis ke Firebase tidak fatal, tetap pakai mix lokal */ }
 
     try {
       localStorage.setItem(todayKey, JSON.stringify(mixes));
