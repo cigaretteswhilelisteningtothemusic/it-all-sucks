@@ -864,6 +864,10 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .sp-follow-btn{background:transparent;border:1px solid rgba(255,255,255,.55);color:#fff;font-family:var(--f);font-size:.75rem;font-weight:600;padding:6px 15px;border-radius:50px;cursor:pointer;flex-shrink:0;transition:all .15s;}
 .sp-follow-btn:hover{background:rgba(255,255,255,.14);}
 .sp-follow-btn.following{border-color:rgba(255,255,255,.3);color:rgba(255,255,255,.65);}
+.sp-clickable-artist{cursor:pointer;transition:opacity .15s;}
+.sp-clickable-artist:hover{opacity:.75;text-decoration:underline;}
+.sp-clickable-title{cursor:pointer;transition:opacity .15s;}
+.sp-clickable-title:hover{opacity:.75;text-decoration:underline;}
 .sp-dots-btn{background:none;border:none;color:#fff;cursor:pointer;padding:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
 .sp-dots-btn svg{width:19px;height:19px;}
 .sp-genre-tags{display:flex;flex-wrap:wrap;gap:8px 12px;}
@@ -2433,7 +2437,22 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .artist-play-btn{width:56px;height:56px;background:var(--green);border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;box-shadow:var(--green-glow);flex-shrink:0;}
 .artist-play-btn:hover{transform:scale(1.06);}
 .artist-play-btn svg{width:24px;height:24px;color:#fff;}
+.artist-follow-btn{flex-shrink:0;background:none;border:1.5px solid var(--sub);color:var(--text);font-family:var(--f);font-weight:700;font-size:.82rem;padding:9px 22px;border-radius:50px;cursor:pointer;transition:all .18s;}
+.artist-follow-btn:hover{border-color:var(--text);transform:scale(1.03);}
+.artist-follow-btn.following{border-color:var(--green);color:var(--green);}
 .artist-section-title{font-size:1.15rem;font-weight:800;margin:22px 0 12px;}
+
+/* ARTIS FAVORIT (Home) */
+.fav-artist-grid{display:flex;gap:18px;overflow-x:auto;padding:4px 2px 12px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
+.fav-artist-card{flex:0 0 118px;width:118px;display:flex;flex-direction:column;align-items:center;gap:10px;cursor:pointer;transition:transform .18s;text-align:center;}
+.fav-artist-card:hover{transform:translateY(-3px);}
+.fav-artist-photo{width:104px;height:104px;border-radius:50%;object-fit:cover;background:var(--card);border:1px solid var(--border);flex-shrink:0;}
+.fav-artist-ph{display:flex;align-items:center;justify-content:center;font-size:2rem;color:var(--muted);}
+.fav-artist-name{font-size:.8rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+@media (max-width:900px){
+  .fav-artist-card{flex:0 0 92px;width:92px;}
+  .fav-artist-photo{width:84px;height:84px;}
+}
 .artist-albums-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;}
 .artist-album-card{background:var(--card);border-radius:var(--r);padding:13px;cursor:pointer;transition:all .22s;border:1px solid transparent;}
 .artist-album-card:hover{background:var(--hover);border-color:var(--border);transform:translateY(-2px);box-shadow:0 10px 30px rgba(0,0,0,.3);}
@@ -2562,6 +2581,16 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
         <h3>No Playlists Yet</h3>
         <p>Click &quot;+ Create Playlist&quot; to get started</p>
       </div>
+    </div>
+
+    <!-- ARTIS FAVORIT (artis yang diikuti user, foto + nama, klik untuk buka halaman artis) -->
+    <div class="pub-section" id="fav-artist-section" style="display:none;">
+      <div class="pub-section-header">
+        <div class="pub-section-title">
+           Artis Favorit
+        </div>
+      </div>
+      <div class="fav-artist-grid" id="fav-artist-grid"></div>
     </div>
 
     <!-- DAILY MIX (personalized per genre, powered by Deezer trending charts, auto-refreshes every 24h) -->
@@ -2775,6 +2804,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
       <button class="artist-play-btn" onclick="playArtistTopTracks()" title="Putar semua">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
       </button>
+      <button class="artist-follow-btn" id="artist-follow-btn" onclick="toggleArtistViewFollow()">Ikuti</button>
     </div>
     <div class="artist-section-title">Populer</div>
     <div class="rank-grid" id="artist-songs-grid">
@@ -3435,12 +3465,16 @@ let playlists = {};
 let currentPlaylistId = null; // playlist yang sedang dibuka di view
 let pendingCoverData = null;
 
+// Artis Favorit: { [namaArtisLowercase]: { name, photo } } — disimpan per akun di Firebase
+let favoriteArtists = {};
+
 // ─── Auth ─────────────────────────────────────────────────
 auth.onAuthStateChanged(user => {
   if (user) {
     currentUser = user;
     showApp(user);
     loadAllPlaylistsFromCloud();
+    loadFavoriteArtistsFromCloud();
     loadPublicFeed();
     loadTrendingSongs();
     loadDailyMixes();
@@ -3645,6 +3679,115 @@ async function loadAllPlaylistsFromCloud() {
     setCloudStatus('', 'Failed to load: ' + e.message);
     toast(' Failed to load playlist');
   }
+}
+
+// ─── Artis Favorit (follow artis) ──────────────────────────
+// Disimpan per akun di Firebase, jadi tombol "Ikuti" di mana pun (halaman
+// profil artis, panel lirik kanan, feed Song Preview) semuanya menulis ke
+// tempat yang sama dan otomatis muncul di bagian "Artis Favorit" Home.
+function getFavArtistRef() {
+  if (!currentUser) return null;
+  return db.ref('favorite_artists/' + currentUser.uid);
+}
+
+async function loadFavoriteArtistsFromCloud() {
+  if (!currentUser) return;
+  try {
+    const snap = await getFavArtistRef().get();
+    favoriteArtists = {};
+    if (snap.exists()) {
+      const data = snap.val() || {};
+      for (const key in data) {
+        const v = data[key];
+        if (v && v.name) favoriteArtists[key] = { name: v.name, photo: v.photo || '' };
+      }
+    }
+  } catch (e) {
+    console.error('loadFavoriteArtistsFromCloud error:', e);
+  }
+  renderFavoriteArtists();
+  syncAllFollowButtons();
+}
+
+function isArtistFavorited(name) {
+  if (!name) return false;
+  return !!favoriteArtists[name.toLowerCase()];
+}
+
+async function setArtistFavorited(name, photo, following) {
+  if (!name) return;
+  const key = name.toLowerCase();
+  if (following) {
+    favoriteArtists[key] = { name, photo: photo || (favoriteArtists[key] && favoriteArtists[key].photo) || '' };
+  } else {
+    delete favoriteArtists[key];
+  }
+  renderFavoriteArtists();
+  syncAllFollowButtons();
+  if (!currentUser) return;
+  try {
+    const ref = getFavArtistRef();
+    if (following) await ref.child(key).set({ name, photo: photo || '' });
+    else await ref.child(key).remove();
+  } catch (e) {
+    console.error('setArtistFavorited save error:', e);
+  }
+}
+
+// Fungsi bersama dipanggil oleh SEMUA tombol "Ikuti" di app supaya
+// perilakunya konsisten. Mengembalikan status baru (true = sekarang mengikuti).
+function toggleFollowArtist(name, photo) {
+  if (!name) return false;
+  const nowFollowing = !isArtistFavorited(name);
+  setArtistFavorited(name, photo, nowFollowing);
+  toast(nowFollowing ? ` Mengikuti ${name}` : ` Berhenti mengikuti ${name}`);
+  return nowFollowing;
+}
+
+// Render bagian "Artis Favorit" di Home: hanya foto + nama artis,
+// diklik akan membuka halaman profil artis tersebut.
+function renderFavoriteArtists() {
+  const section = document.getElementById('fav-artist-section');
+  const grid = document.getElementById('fav-artist-grid');
+  if (!section || !grid) return;
+  const list = Object.values(favoriteArtists);
+  if (!list.length) { section.style.display = 'none'; grid.innerHTML = ''; return; }
+  section.style.display = 'block';
+  grid.innerHTML = '';
+  list.forEach(a => {
+    const card = document.createElement('div');
+    card.className = 'fav-artist-card';
+    card.title = a.name;
+    card.innerHTML = a.photo
+      ? `<img class="fav-artist-photo" src="${esc(a.photo)}" alt="${esc(a.name)}" loading="lazy" onerror="this.outerHTML='<div class=&quot;fav-artist-photo fav-artist-ph&quot;>&#127908;</div>'">`
+      : `<div class="fav-artist-photo fav-artist-ph">🎤</div>`;
+    card.innerHTML += `<div class="fav-artist-name">${esc(a.name)}</div>`;
+    card.addEventListener('click', () => openArtistView(a.name));
+    grid.appendChild(card);
+  });
+}
+
+// Sinkronkan label semua tombol "Ikuti" yang mungkin sedang tampil
+// (halaman profil artis & panel lirik kanan) dengan status terbaru.
+function syncAllFollowButtons() {
+  const artistBtn = document.getElementById('artist-follow-btn');
+  if (artistBtn && _currentArtistData && _currentArtistData.name) {
+    const f = isArtistFavorited(_currentArtistData.name);
+    artistBtn.textContent = f ? 'Mengikuti' : 'Ikuti';
+    artistBtn.classList.toggle('following', f);
+  }
+  const lyrBtn = document.getElementById('lyr-artist-follow-btn');
+  if (lyrBtn && curTrack && curTrack.artist) {
+    const f = isArtistFavorited(curTrack.artist);
+    lyrBtn.textContent = f ? 'Mengikuti' : 'Ikuti';
+    lyrBtn.classList.toggle('following', f);
+  }
+}
+
+// Tombol "Ikuti" di halaman profil artis (Home > buka artis)
+function toggleArtistViewFollow() {
+  if (!_currentArtistData || !_currentArtistData.name) { toast(' Data artis belum dimuat'); return; }
+  toggleFollowArtist(_currentArtistData.name, _currentArtistData.photo || '');
 }
 
 // ─── Views ────────────────────────────────────────────────
@@ -6216,7 +6359,7 @@ async function _updateLyrArtistBox(track) {
   if (nameEl) nameEl.textContent = track.artist;
   _loadArtistPhotoInto(bannerImg, track.artist);
   if (followBtn) {
-    const following = !!_lyrFollowedArtists[track.artist.toLowerCase()];
+    const following = isArtistFavorited(track.artist);
     followBtn.textContent = following ? 'Mengikuti' : 'Ikuti';
     followBtn.classList.toggle('following', following);
   }
@@ -6267,18 +6410,14 @@ async function _updateLyrArtistBox(track) {
   }
 }
 
-// Tombol "Ikuti" bersifat lokal (belum ada backend follow sungguhan)
+// Tombol "Ikuti" di panel lirik kanan — memakai store follow global yang
+// sama dengan halaman profil artis, sehingga otomatis muncul di "Artis Favorit".
 function toggleLyrArtistFollow() {
   if (!curTrack || !curTrack.artist) return;
+  const bannerImg = document.getElementById('lyr-artist-banner-img');
   const key = curTrack.artist.toLowerCase();
-  const nowFollowing = !_lyrFollowedArtists[key];
-  _lyrFollowedArtists[key] = nowFollowing;
-  const followBtn = document.getElementById('lyr-artist-follow-btn');
-  if (followBtn) {
-    followBtn.textContent = nowFollowing ? 'Mengikuti' : 'Ikuti';
-    followBtn.classList.toggle('following', nowFollowing);
-  }
-  toast(nowFollowing ? ` Mengikuti ${curTrack.artist}` : ` Berhenti mengikuti ${curTrack.artist}`);
+  const photo = (bannerImg && bannerImg.src && bannerImg.style.display !== 'none') ? bannerImg.src : (_artistPhotoCache[key] || '');
+  toggleFollowArtist(curTrack.artist, photo);
 }
 
 function renderLyrAlbumsList(albums) {
@@ -6356,6 +6495,12 @@ function openArtistView(artistName) {
   const bg = document.getElementById('artist-banner-bg'); bg.style.display = 'none'; bg.src = '';
   document.getElementById('artist-songs-grid').innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat lagu...</h3></div>';
   document.getElementById('artist-albums-grid').innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat album...</h3></div>';
+  const followBtn = document.getElementById('artist-follow-btn');
+  if (followBtn) {
+    const f = isArtistFavorited(artistName);
+    followBtn.textContent = f ? 'Mengikuti' : 'Ikuti';
+    followBtn.classList.toggle('following', f);
+  }
 
   loadArtistProfile(artistName);
 }
@@ -6404,6 +6549,7 @@ async function loadArtistProfile(artistName) {
     const photo = artist.picture_xl || artist.picture_big || artist.picture_medium || '';
     _currentArtistData = { id: artist.id, name: artist.name, photo, fans: artist.nb_fan || 0, tracks: [], albums: [] };
     if (photo) _artistPhotoCache[artistName.toLowerCase()] = photo;
+    syncAllFollowButtons();
 
     document.getElementById('artist-banner-name').textContent = artist.name;
     document.getElementById('artist-banner-sub').textContent = formatFanCount(artist.nb_fan) + ' pendengar';
@@ -9699,7 +9845,7 @@ function buildSpSlideEl(t, i) {
           <div class="sp-artist-name">${esc(t.artistName || 'Unknown')}</div>
           <div class="sp-artist-sub">${esc(t.collectionName || '')}</div>
         </div>
-        <button class="sp-follow-btn" onclick="event.stopPropagation();toggleSpFollow(this)">Ikuti</button>
+        <button class="sp-follow-btn${isArtistFavorited(t.artistName || '') ? ' following' : ''}" data-artist="${esc(t.artistName || '')}" data-photo="${esc(t.artworkUrl100 || '')}" onclick="event.stopPropagation();toggleSpFollow(this)">${isArtistFavorited(t.artistName || '') ? 'Mengikuti' : 'Ikuti'}</button>
         <button class="sp-dots-btn" onclick="event.stopPropagation()" title="Lainnya">
           <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="6" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="18" r="1.8"/></svg>
         </button>
@@ -9723,12 +9869,55 @@ function buildSpSlideEl(t, i) {
     </div>
   `;
   div.addEventListener('click', () => togglePauseSpPreview());
+
+  // Nama artis (baris atas & baris bawah) bisa diklik -> buka halaman profil artis
+  div.querySelectorAll('.sp-artist-name, .sp-bottom-artist').forEach(el => {
+    el.classList.add('sp-clickable-artist');
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openArtistView(t.artistName);
+    });
+  });
+
+  // Judul lagu bisa diklik -> putar lagu tersebut versi lengkap (full durasi)
+  const titleEl = div.querySelector('.sp-bottom-title');
+  if (titleEl) {
+    titleEl.classList.add('sp-clickable-title');
+    titleEl.title = 'Putar lagu penuh';
+    titleEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      playSpTrackFull(i);
+    });
+  }
+
   return div;
 }
 
+// Putar lagu dari Song Preview dalam versi lengkap (bukan preview 30 detik),
+// memakai mesin pemutar utama app (cari & putar audio penuh + lirik).
+function playSpTrackFull(idx) {
+  const t = spTracks[idx];
+  if (!t) return;
+  if (spAudio) spAudio.pause(); // hentikan preview 30 detik dulu
+  const track = {
+    title: t.trackName || 'Unknown',
+    artist: t.artistName || 'Unknown',
+    thumb: (t.artworkUrl100 || '').replace('100x100bb', '600x600bb') || t.artworkUrl100 || '',
+    preview: null,
+    videoId: null,
+    photo: null,
+    duration: 0,
+    _query: `${t.artistName || ''}|||${t.trackName || ''}|||${t.trackId || ''}`
+  };
+  loadPlay(track, null);
+}
+
 function toggleSpFollow(btn) {
-  const following = btn.classList.toggle('following');
-  btn.textContent = following ? 'Mengikuti' : 'Ikuti';
+  const artistName = btn.dataset.artist;
+  if (!artistName) return;
+  const nowFollowing = toggleFollowArtist(artistName, btn.dataset.photo || '');
+  btn.classList.toggle('following', nowFollowing);
+  btn.textContent = nowFollowing ? 'Mengikuti' : 'Ikuti';
 }
 
 function setupSpObserver() {
