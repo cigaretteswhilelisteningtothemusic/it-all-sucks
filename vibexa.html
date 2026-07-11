@@ -664,9 +664,6 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .pub-section-title{font-size:1rem;font-weight:700;display:flex;align-items:center;gap:8px;}
 .pub-badge{background:linear-gradient(135deg,rgba(29,107,219,.25),rgba(61,157,214,.15));border:1px solid rgba(29,107,219,.4);color:var(--teal);font-size:.6rem;font-weight:700;letter-spacing:1.5px;padding:2px 9px;border-radius:50px;text-transform:uppercase;}
 .pub-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;}
-.pub-show-more-wrap{display:flex;justify-content:center;margin-top:16px;}
-.pub-show-more-btn{background:none;border:1px solid var(--border);color:var(--sub);font-family:var(--f);font-size:.78rem;font-weight:700;padding:8px 20px;border-radius:50px;cursor:pointer;transition:all .18s;display:flex;align-items:center;gap:6px;}
-.pub-show-more-btn:hover{background:var(--hover);color:var(--text);border-color:var(--green);}
 .pub-show-more-btn svg{transition:transform .18s;}
 .pub-show-more-btn.expanded svg{transform:rotate(180deg);}
 .pub-card{background:var(--card);border-radius:var(--r);padding:13px;cursor:pointer;transition:all .22s;border:1px solid transparent;position:relative;overflow:hidden;}
@@ -2496,9 +2493,9 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
            Public Playlists
           <span class="pub-badge">Live</span>
         </div>
-        <button class="home-new-pl-btn" onclick="loadPublicFeed()" style="background:none;border:1px solid var(--border);color:var(--sub);">
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
-          Refresh
+        <button class="home-new-pl-btn pub-show-more-btn" id="pub-show-more-btn" onclick="togglePubShowAll()" style="background:none;border:1px solid var(--border);color:var(--sub);display:none;">
+          <span id="pub-show-more-label">Tampilkan Semua</span>
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
         </button>
       </div>
       <div class="pub-grid" id="pub-grid">
@@ -2506,12 +2503,6 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
           <i></i>
           <h3>Loading public playlists...</h3>
         </div>
-      </div>
-      <div class="pub-show-more-wrap" id="pub-show-more-wrap" style="display:none;">
-        <button class="pub-show-more-btn" id="pub-show-more-btn" onclick="togglePubShowAll()">
-          <span id="pub-show-more-label">Tampilkan Semua</span>
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
-        </button>
       </div>
     </div>
   </div>
@@ -6574,7 +6565,6 @@ const PUB_GRID_LIMIT = 6;
 
 function renderPubGridItems() {
   const c = document.getElementById('pub-grid');
-  const wrap = document.getElementById('pub-show-more-wrap');
   const btn = document.getElementById('pub-show-more-btn');
   const label = document.getElementById('pub-show-more-label');
   if (!c) return;
@@ -6583,7 +6573,7 @@ function renderPubGridItems() {
   const sorted = _pubFullList;
   if (!sorted.length) {
     c.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:24px 0;font-size:.82rem;"><i></i><h3>No playlists yet publik</h3></div>';
-    if (wrap) wrap.style.display = 'none';
+    if (btn) btn.style.display = 'none';
     return;
   }
 
@@ -6626,14 +6616,14 @@ function renderPubGridItems() {
     c.appendChild(card);
   });
 
-  // Tombol "Tampilkan Semua" hanya muncul kalau playlist lebih banyak dari batas ringkas
-  if (wrap && btn && label) {
+  // Tombol "Tampilkan Semua" di header hanya muncul kalau playlist lebih banyak dari batas ringkas
+  if (btn && label) {
     if (sorted.length > PUB_GRID_LIMIT) {
-      wrap.style.display = 'flex';
+      btn.style.display = 'flex';
       label.textContent = _pubShowAll ? 'Tampilkan Lebih Sedikit' : `Tampilkan Semua (${sorted.length})`;
       btn.classList.toggle('expanded', _pubShowAll);
     } else {
-      wrap.style.display = 'none';
+      btn.style.display = 'none';
     }
   }
 }
@@ -6641,9 +6631,7 @@ function renderPubGridItems() {
 function togglePubShowAll() {
   _pubShowAll = !_pubShowAll;
   renderPubGridItems();
-  if (_pubShowAll) {
-    // Scroll dikit biar user lihat playlist baru yang muncul, bukan lompat jauh
-  } else {
+  if (!_pubShowAll) {
     // Balik ringkas: scroll ke section-nya biar tidak "hilang" ke atas halaman
     document.getElementById('public-feed-section')?.scrollIntoView({ block: 'nearest' });
   }
