@@ -224,20 +224,11 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .sugg-arrow svg{width:11px;height:11px;color:var(--green);}
 .sugg-add{
   flex-shrink:0;
-  width:24px;height:24px;
-  background:var(--green);
-  border:none;
-  border-radius:50%;
-  color:#fff;
-  font-size:1rem;font-weight:700;
-  display:flex;align-items:center;justify-content:center;
   opacity:0;
-  cursor:pointer;
-  transition:all .15s;
   margin-left:2px;
+  transition:opacity .15s;
 }
 .sugg-item:hover .sugg-add,.sugg-item.focused .sugg-add{opacity:1;}
-.sugg-add:hover{transform:scale(1.15);}
 .sugg-divider{
   height:1px;
   background:var(--border);
@@ -312,9 +303,13 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .r-play-ov svg{width:36px;height:36px;background:var(--green);border-radius:50%;padding:9px;color:#fff;box-shadow:0 3px 16px rgba(29,107,219,.5)}
 .r-name{font-size:.78rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
 .r-art{font-size:.7rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.r-add{position:absolute;bottom:10px;right:10px;width:26px;height:26px;background:var(--green);border:none;border-radius:50%;color:#fff;font-size:1.1rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:all .2s;box-shadow:0 3px 10px rgba(29,107,219,.4)}
+.r-add{position:absolute;bottom:10px;right:10px;opacity:0;transition:opacity .2s}
 .r-card:hover .r-add{opacity:1}
-.r-add:hover{transform:scale(1.15)}
+/* ── Tombol tambah ke playlist — tampilan disamakan di semua bagian (search card, saran, hero, top songs) ── */
+.add-btn{width:26px;height:26px;background:transparent;border:1.5px solid var(--muted);border-radius:50%;color:var(--sub);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;}
+.add-btn:hover{transform:scale(1.15);border-color:var(--green);color:var(--green);}
+.add-btn.saved{background:var(--green);border-color:var(--green);color:#fff;box-shadow:0 0 10px rgba(29,107,219,.4);}
+.add-btn.saved:hover{transform:scale(1.1);background:var(--green);color:#fff;}
 .sk{background:linear-gradient(90deg,var(--card) 25%,var(--hover) 50%,var(--card) 75%);background-size:200% 100%;animation:sk 1.4s infinite;border-radius:8px}
 @keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
 .sk-card{background:var(--card);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:7px}
@@ -698,8 +693,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .rank-owner{font-size:.71rem;color:var(--sub);}
 .rank-likes{display:flex;align-items:center;gap:4px;font-size:.75rem;color:#ff7eb3;font-weight:700;flex-shrink:0;}
 .rank-likes svg{width:13px;height:13px;}
-.rank-add{width:26px;height:26px;background:var(--green);border:none;border-radius:50%;color:#fff;font-size:1.05rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .15s;}
-.rank-add:hover{transform:scale(1.15);}
+/* .rank-add sekarang memakai class .add-btn bersama (lihat definisi di atas) */
 
 /* Publish toggle btn */
 .pv-publish-btn{background:none;border:1px solid var(--border);border-radius:50px;padding:6px 16px;color:var(--sub);font-family:var(--f);font-size:.78rem;cursor:pointer;transition:all .18s;display:flex;align-items:center;gap:6px;}
@@ -2444,9 +2438,8 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
           <div class="hero-title" id="h-title">—</div>
           <div class="hero-artist" id="h-artist">—</div>
           <div class="hero-btns">
-            <button class="hbtn" id="h-add-pl">
-              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-              Add to Playlist
+            <button class="add-btn" id="h-add-pl" title="Tambahkan lagu ke playlist">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
             </button>
           </div>
         </div>
@@ -3302,6 +3295,7 @@ async function loadAllPlaylistsFromCloud() {
     }
     renderSidebarPlaylists();
     renderHomeGrid();
+    if (typeof syncRankAddButtons === 'function') syncRankAddButtons();
     setCloudStatus('synced', 'Tersimpan · ' + Object.keys(playlists).length + ' playlist');
   } catch(e) {
     setCloudStatus('', 'Failed to load: ' + e.message);
@@ -3476,6 +3470,7 @@ function addTrackToPlaylist(plId, track) {
   renderSidebarPlaylists();
   renderHomeGrid();
   scheduleSave();
+  if (typeof syncRankAddButtons === 'function') syncRankAddButtons();
   return true;
 }
 
@@ -3487,7 +3482,39 @@ function removeTrackFromPlaylist(plId, idx) {
   renderSidebarPlaylists();
   renderHomeGrid();
   scheduleSave();
+  if (typeof syncRankAddButtons === 'function') syncRankAddButtons();
   toast(' ' + (removed?.title || 'Lagu') + ' dihapus');
+}
+
+// Cari semua playlist yang berisi lagu tertentu (dicocokkan dari artis + judul)
+function _findPlaylistsWithTrack(artist, title) {
+  const matches = [];
+  for (const plId in playlists) {
+    const pl = playlists[plId];
+    const idx = pl.tracks.findIndex(tr => {
+      const p = (tr._query || '').split('|||');
+      return p[0] === artist && p[1] === title;
+    });
+    if (idx !== -1) matches.push({ plId, idx });
+  }
+  return matches;
+}
+
+// Hapus lagu dari semua playlist yang menyimpannya (dipakai oleh tombol checklist ala Spotify)
+function removeTrackFromAllMatchingPlaylists(artist, title) {
+  const matches = _findPlaylistsWithTrack(artist, title);
+  if (!matches.length) return;
+  matches.forEach(({ plId, idx }) => {
+    const pl = playlists[plId];
+    if (!pl) return;
+    pl.tracks.splice(idx, 1);
+    if (currentPlaylistId === plId) renderPlaylistView(plId);
+  });
+  renderSidebarPlaylists();
+  renderHomeGrid();
+  scheduleSave();
+  if (typeof syncRankAddButtons === 'function') syncRankAddButtons();
+  toast(' Dihapus dari playlist');
 }
 
 // ─── Open Add Song Modal (from search, add to which playlist) ─
@@ -4408,13 +4435,13 @@ async function doSearch(){
         <div class="r-play-ov"><svg viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg></div>
         <div class="r-name">${esc(title)}</div>
         <div class="r-art">${esc(artist)}</div>
-        <button class="r-add" title="Tambah ke playlist">+</button>
+        ${buildAddBtnHTML(track, 'r-add')}
       `;
       const play=()=>loadPlay(track,null);
       card.querySelector('.r-play-ov').addEventListener('click',play);
       card.querySelector('.r-img').addEventListener('click',play);
       card.querySelector('.r-name').addEventListener('click',play);
-      card.querySelector('.r-add').addEventListener('click',e=>{e.stopPropagation();openAddSongModal(track);});
+      wireAddBtn(card.querySelector('.add-btn'), track);
       grid.appendChild(card);
     });
   }catch(err){
@@ -4431,6 +4458,18 @@ async function resolveVid(query){
   }catch(e){ return null; }
 }
 
+// Perbarui tombol "Tambah ke Playlist" di hero (search view) sesuai track yang sedang diputar
+function updateHeroAddBtn(track){
+  const btn = document.getElementById('h-add-pl');
+  if(!btn || !track) return;
+  btn.dataset.artist = track.artist || '';
+  btn.dataset.title = track.title || '';
+  const saved = _findPlaylistsWithTrack(track.artist, track.title).length > 0;
+  btn.classList.toggle('saved', saved);
+  btn.title = saved ? 'Tersimpan di playlist' : 'Tambahkan lagu ke playlist';
+  btn.innerHTML = _addBtnIconHTML(saved);
+}
+
 // Update UI (bar + media session) untuk track yang baru — dipanggil setelah loadVideoById di background
 function _updateUIForTrack(track){
   try{
@@ -4440,6 +4479,7 @@ function _updateUIForTrack(track){
     document.getElementById('h-title').textContent = track.title;
     document.getElementById('h-artist').textContent = track.artist;
     setHeroImg(track);
+    updateHeroAddBtn(track);
     setFSNowPlayingInfo(track);
     _setupMediaSession(track);
     if(currentPlaylistId) renderPlaylistView(currentPlaylistId);
@@ -4467,6 +4507,7 @@ async function loadPlay(track, fromPlId){
   document.getElementById('h-title').textContent=track.title;
   document.getElementById('h-artist').textContent=track.artist;
   setHeroImg(track);
+  updateHeroAddBtn(track);
 
   // Update bar
   setBarImg(track);
@@ -4902,7 +4943,7 @@ function initSearchSuggestions(inputId, boxId, onQuerySelect){
       // iTunes results (max 6)
       const lbl = document.createElement('div');
       lbl.className = 'sugg-section-label';
-      lbl.innerHTML = `${iconSVG('search')} Hasil Pencarian`;
+      lbl.innerHTML = `Hasil Pencarian`;
       box.appendChild(lbl);
       iTunesResults.slice(0,6).forEach(it => {
         const thumb = (it.artworkUrl60||it.artworkUrl100||'').replace('60x60bb','100x100bb');
@@ -4949,7 +4990,7 @@ function initSearchSuggestions(inputId, boxId, onQuerySelect){
       // Skeleton loaders
       const lbl2 = document.createElement('div');
       lbl2.className = 'sugg-section-label';
-      lbl2.innerHTML = `${iconSVG('search')} Mencari...`;
+      lbl2.innerHTML = `Mencari...`;
       box.appendChild(lbl2);
       for(let i=0;i<3;i++){
         const sk = document.createElement('div');
@@ -4972,13 +5013,13 @@ function initSearchSuggestions(inputId, boxId, onQuerySelect){
     const el = document.createElement('div');
     el.className = 'sugg-item';
     const icon = customIcon || `<div class="sugg-icon ${iconClass}">${iconHTML}</div>`;
-    const addBtnHTML = (direct && track) ? `<button class="sugg-add" title="Tambahkan ke playlist">+</button>` : '';
+    const addBtnHTML = (direct && track) ? buildAddBtnHTML(track, 'sugg-add') : '';
     el.innerHTML = `${icon}<div class="sugg-text"><div class="sugg-main">${mainText}</div>${subText?`<div class="sugg-sub">${subText}</div>`:''}</div>${addBtnHTML}<div class="sugg-arrow">${arrowSVG}</div>`;
+    if (direct && track) wireAddBtn(el.querySelector('.add-btn'), track);
     el.addEventListener('mousedown', e => {
       e.preventDefault();
-      if(e.target.closest('.sugg-add')){
-        openAddSongModal(track);
-        return;
+      if(e.target.closest('.add-btn')){
+        return; // ditangani oleh wireAddBtn di atas
       }
       if(direct && track) {
         closeBox();
@@ -5114,7 +5155,15 @@ document.getElementById('btn-next').addEventListener('click',playNext);
 document.getElementById('btn-prev').addEventListener('click',playPrev);
 document.getElementById('prog-track').addEventListener('click',e=>{if(!YTP||!tot)return;const r=e.currentTarget.getBoundingClientRect();const seekTo=((e.clientX-r.left)/r.width)*tot;if(YTP)YTP.seekTo(seekTo); cur=seekTo; _armSongTimer();});
 document.getElementById('vol').addEventListener('input',e=>{if(YTP)YTP.setVolume(parseInt(e.target.value));});
-document.getElementById('h-add-pl').addEventListener('click',()=>{ if(curTrack) openAddSongModal(curTrack); });
+document.getElementById('h-add-pl').addEventListener('click',(e)=>{
+  if(!curTrack) return;
+  const btn = e.currentTarget;
+  if(btn.classList.contains('saved')){
+    removeTrackFromAllMatchingPlaylists(curTrack.artist, curTrack.title);
+  } else {
+    openAddSongModal(curTrack);
+  }
+});
 
 // New Playlist modal Enter key
 document.getElementById('new-pl-name').addEventListener('keydown', e => { if(e.key==='Enter') createPlaylist(); });
@@ -5684,10 +5733,37 @@ function playTrendingTrack(t) {
   loadPlay(track, null);
 }
 
+// ── Tombol tambah ke playlist (dipakai di semua bagian: top songs, hasil pencarian, saran, hero) ──
+function _addBtnIconHTML(saved) {
+  return saved
+    ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+    : '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+}
+function buildAddBtnHTML(track, extraClass) {
+  const saved = _findPlaylistsWithTrack(track.artist, track.title).length > 0;
+  return `<button class="add-btn${extraClass ? ' ' + extraClass : ''}${saved ? ' saved' : ''}" data-artist="${esc(track.artist)}" data-title="${esc(track.title)}" title="${saved ? 'Tersimpan di playlist' : 'Tambahkan lagu ke playlist'}">${_addBtnIconHTML(saved)}</button>`;
+}
+// Pasang event klik pada tombol add-btn: buka modal jika belum tersimpan, hapus dari semua playlist jika sudah tersimpan
+function wireAddBtn(btn, track) {
+  if (!btn) return;
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (btn.classList.contains('saved')) {
+      removeTrackFromAllMatchingPlaylists(track.artist, track.title);
+    } else {
+      openAddSongModal(track);
+    }
+  });
+}
+
 function buildRankItemEl(t, i, showDuration = true) {
   const numClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
   const mins = Math.floor((t.duration || 0) / 60);
   const secs = String((t.duration || 0) % 60).padStart(2, '0');
+  const trackObj = {
+    title: t.title, artist: t.artist, thumb: t.thumb || '', preview: t.preview || null,
+    videoId: null, photo: null, duration: t.duration, _query: `${t.artist}|||${t.title}|||${t.id}`
+  };
   const div = document.createElement('div');
   div.className = 'rank-item';
   div.innerHTML = `
@@ -5695,29 +5771,25 @@ function buildRankItemEl(t, i, showDuration = true) {
     <div class="rank-cover">${t.thumb ? `<img src="${esc(t.thumb)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}</div>
     <div class="rank-info">
       <div class="rank-name">${esc(t.title)}</div>
-      <div class="rank-owner">${esc(t.artist)}</div>
+      <div class="rank-owner">${esc(t.artist)}${showDuration && t.duration ? ` · ${mins}:${secs}` : ''}</div>
     </div>
-    <div class="rank-likes" title="Putar lagu">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-      ${showDuration && t.duration ? `${mins}:${secs}` : ''}
-    </div>
-    <button class="rank-add" title="Tambahkan lagu ke playlist">+</button>
+    ${buildAddBtnHTML(trackObj)}
   `;
   div.addEventListener('click', () => playTrendingTrack(t));
-  div.querySelector('.rank-add').addEventListener('click', e => {
-    e.stopPropagation();
-    openAddSongModal({
-      title: t.title,
-      artist: t.artist,
-      thumb: t.thumb || '',
-      preview: t.preview || null,
-      videoId: null,
-      photo: null,
-      duration: t.duration,
-      _query: `${t.artist}|||${t.title}|||${t.id}`
-    });
-  });
+  wireAddBtn(div.querySelector('.add-btn'), trackObj);
   return div;
+}
+
+// Perbarui tampilan semua tombol tambah-ke-playlist di halaman (top songs, hasil pencarian, saran, hero)
+function syncRankAddButtons() {
+  document.querySelectorAll('.add-btn[data-artist]').forEach(btn => {
+    const artist = btn.dataset.artist || '';
+    const title = btn.dataset.title || '';
+    const saved = _findPlaylistsWithTrack(artist, title).length > 0;
+    btn.classList.toggle('saved', saved);
+    btn.title = saved ? 'Tersimpan di playlist' : 'Tambahkan lagu ke playlist';
+    btn.innerHTML = _addBtnIconHTML(saved);
+  });
 }
 
 function renderTrendingSongs(items) {
