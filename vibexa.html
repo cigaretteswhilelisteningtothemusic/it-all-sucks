@@ -6574,37 +6574,71 @@ async function loadDailyMixes(force) {
   if (grid) grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;"><i></i><h3>Menyiapkan Daily Mix...</h3></div>';
 
   try {
-    // 1) Ambil chart top/trending Deezer saat ini (gabungan semua genre).
+    // 1) Ambil chart top/trending Deezer saat ini (gabungan semua genre),
+    // lalu tambah dengan chart per-genre supaya pool lagu jauh lebih besar
+    // dan cukup untuk membentuk 8 mix x 30 lagu secara konsisten.
     const seen = new Set();
-    let rawPool = [];
+    let allRawTracks = []; // SEMUA lagu yang berhasil diambil (belum disaring "terkenal")
     try {
       const chartTracks = await _dmFetchRawTracks('https://api.deezer.com/chart/0/tracks?limit=100');
-      chartTracks.forEach(t => { if (!seen.has(t.id)) { seen.add(t.id); rawPool.push(t); } });
+      chartTracks.forEach(t => { if (!seen.has(t.id)) { seen.add(t.id); allRawTracks.push(t); } });
+    } catch (e) {}
+
+    // 1b) Lengkapi dari chart per-genre (diambil dinamis dari daftar genre Deezer)
+    // supaya pool lagu lebih beragam & lebih besar dari sekadar top chart global.
+    try {
+      const genreData = await _deezerJsonp('https://api.deezer.com/genre');
+      const genreIds = ((genreData && genreData.data) || [])
+        .map(g => g.id)
+        .filter(id => id && id !== 0)
+        .slice(0, 12);
+      for (const gid of genreIds) {
+        try {
+          const gTracks = await _dmFetchRawTracks('https://api.deezer.com/chart/' + gid + '/tracks?limit=50');
+          gTracks.forEach(t => { if (!seen.has(t.id)) { seen.add(t.id); allRawTracks.push(t); } });
+        } catch (e) {}
+      }
     } catch (e) {}
 
     // 2) Saring: hanya lagu dari artis yang benar-benar terkenal (nb_fan tinggi).
-    let pool = await _dmFilterFamousTracks(rawPool, neededTotal);
+    let pool = await _dmFilterFamousTracks(allRawTracks, neededTotal);
 
-    // 3) Kalau chart top saja belum cukup untuk 8 x 30 lagu, lengkapi dari
-    // lagu-lagu top milik artis-artis paling populer saat ini (top artists
-    // chart Deezer), tanpa peduli genre — tetap "lagu yang lagi naik daun".
+    // 3) Kalau masih belum cukup untuk 8 x 30 lagu, lengkapi dari lagu-lagu
+    // top milik artis-artis paling populer saat ini (top artists chart
+    // Deezer), tanpa peduli genre — tetap "lagu yang lagi naik daun".
     if (pool.length < neededTotal) {
       try {
-        const artistData = await _deezerJsonp('https://api.deezer.com/chart/0/artists?limit=40');
+        const artistData = await _deezerJsonp('https://api.deezer.com/chart/0/artists?limit=100');
         const topArtists = ((artistData && artistData.data) || []).filter(a => (a.nb_fan || 0) >= DM_FAMOUS_FAN_THRESHOLD);
         for (const artist of topArtists) {
           if (pool.length >= neededTotal) break;
           try {
-            const topTracks = await _dmFetchRawTracks('https://api.deezer.com/artist/' + artist.id + '/top?limit=25');
+            const topTracks = await _dmFetchRawTracks('https://api.deezer.com/artist/' + artist.id + '/top?limit=50');
             for (const t of topTracks) {
-              if (pool.length >= neededTotal) break;
               if (seen.has(t.id)) continue;
               seen.add(t.id);
-              pool.push({ ...t, artistId: artist.id, artist: t.artist || artist.name });
+              const track = { ...t, artistId: artist.id, artist: t.artist || artist.name };
+              allRawTracks.push(track);
+              if (pool.length < neededTotal) pool.push(track);
             }
           } catch (e) {}
         }
       } catch (e) {}
+    }
+
+    // 4) Jaring pengaman terakhir: kalau lagu dari artis "terkenal" saja tetap
+    // belum cukup untuk 8 mix x 30 lagu (misal koneksi API terbatas), isi sisa
+    // slot dengan lagu trending lain yang sudah terkumpul (tanpa syarat fan
+    // count) supaya jumlah 8 Daily Mix x 30 lagu selalu terpenuhi selama data
+    // dari Deezer tersedia.
+    if (pool.length < neededTotal) {
+      const poolIds = new Set(pool.map(t => t.id));
+      for (const t of allRawTracks) {
+        if (pool.length >= neededTotal) break;
+        if (poolIds.has(t.id)) continue;
+        poolIds.add(t.id);
+        pool.push(t);
+      }
     }
 
     if (pool.length < DM_TRACKS_PER_MIX) throw new Error('Data lagu trending tidak cukup');
