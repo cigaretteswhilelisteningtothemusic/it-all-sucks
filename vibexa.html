@@ -6490,7 +6490,7 @@ async function fetchDeezerChartTracks(limit, genreId) {
 // live-nya bila tersedia) + kata kunci pencarian cadangan (order=RANKING,
 // yaitu diurutkan berdasarkan popularitas) untuk genre yang tidak punya
 // chart resmi di Deezer (K-Pop, Phonk, Lo-fi, Afrobeats) atau untuk
-// melengkapi daftar sampai target 300 lagu.
+// melengkapi daftar sampai target 100 lagu.
 const GENRE_DEFS = {
   pop:       { label: 'Pop',       emoji: '', color: 'linear-gradient(135deg,#e0458c,#8e2a63)', genreNames: ['pop'],                       query: 'Pop hits',        mbTag: 'pop' },
   hiphop:    { label: 'Hip-Hop',   emoji: '', color: 'linear-gradient(135deg,#8e44ad,#4a2360)', genreNames: ['rap/hip hop','hip hop'],      query: 'Hip Hop hits',    mbTag: 'hip hop' },
@@ -6505,7 +6505,7 @@ const GENRE_DEFS = {
   lofi:      { label: 'Lo-fi',     emoji: '', color: 'linear-gradient(135deg,#6c5b7b,#33283d)', genreNames: ['lo-fi','lofi','chill'],       query: 'Lofi chill beats',mbTag: 'lo-fi' },
   afrobeats: { label: 'Afrobeats', emoji: '', color: 'linear-gradient(135deg,#e67e22,#7a3f08)', genreNames: ['afrobeat','afro'],            query: 'Afrobeats hits',  mbTag: 'afrobeats' },
 };
-const GENRE_TARGET_COUNT = 120;
+const GENRE_TARGET_COUNT = 100;
 let _deezerGenreListCache = null;
 let _currentGenreKey = null;
 
@@ -6528,6 +6528,13 @@ async function _getDeezerGenreId(nameList) {
       const data = await _deezerJsonp('https://api.deezer.com/genre');
       _deezerGenreListCache = (data && data.data) || [];
     }
+    // 1) Cari exact match dulu (case-insensitive) — paling akurat, supaya
+    // tidak salah nyantol ke genre lain yang namanya cuma mirip/mengandung kata yang sama.
+    for (const n of nameList) {
+      const found = _deezerGenreListCache.find(g => (g.name || '').toLowerCase() === n.toLowerCase());
+      if (found) return found.id;
+    }
+    // 2) Kalau tidak ada yang exact, baru coba partial match sebagai cadangan.
     for (const n of nameList) {
       const found = _deezerGenreListCache.find(g => (g.name || '').toLowerCase().includes(n));
       if (found) return found.id;
@@ -6559,12 +6566,14 @@ async function _getMusicBrainzGenreArtists(genreKey) {
   let artists = [];
   try {
     const url = 'https://musicbrainz.org/ws/2/artist/?query=' + encodeURIComponent('tag:"' + def.mbTag + '"') +
-      '&fmt=json&limit=40';
+      '&fmt=json&limit=60';
     const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
     if (res.ok) {
       const data = await res.json();
       artists = ((data && data.artists) || [])
-        .filter(a => (a.score || 0) >= 30 && a.name)
+        // skor dinaikkan dari 30 -> 45 supaya artis yang dipetakan ke genre ini
+        // benar-benar kuat asosiasinya, bukan sekadar nyerempet tag
+        .filter(a => (a.score || 0) >= 45 && a.name)
         .sort((a, b) => (b.score || 0) - (a.score || 0))
         .map(a => a.name);
     }
@@ -6588,7 +6597,7 @@ async function _deezerArtistTopTracksByName(artistName, limit) {
 // Saring lagu-lagu "sampah" yang sering muncul di hasil pencarian umum:
 // versi cover/instrumental/karaoke/tribute yang judulnya memuat kata kunci genre
 // tapi sebenarnya bukan lagu asli dari artis genre tsb.
-const _GENRE_JUNK_RX = /\b(cover|karaoke|tribute( to)?|instrumental|piano version|guitar version|harp version|violin version|flute version|music box version|made famous by|in the style of|originally performed by|backing track|8d audio|sped up|nightcore|remix by [a-z]|lo-?fi version)\b/i;
+const _GENRE_JUNK_RX = /\b(cover|karaoke|tribute( to)?|instrumental|piano version|guitar version|harp version|violin version|flute version|music box version|made famous by|in the style of|originally performed by|backing track|8d audio|sped up|nightcore|remix by [a-z]|lo-?fi version|type beat|tribute band|mashup|acapella|acoustic version|slowed( \+|and)? reverb|reverb version|8-bit|midi version|orchestral version|children'?s version|kids version|lullaby version|study version|meme version|fan made|parody|for kids)\b/i;
 function _isJunkGenreTrack(t) {
   return _GENRE_JUNK_RX.test(t.title || '') || _GENRE_JUNK_RX.test(t.artist || '');
 }
@@ -6641,7 +6650,7 @@ async function fetchGenreSongs(genreKey) {
       const mbArtists = await _getMusicBrainzGenreArtists(genreKey);
       for (const artistName of mbArtists) {
         if (out.length >= GENRE_TARGET_COUNT) break;
-        const tracks = await _deezerArtistTopTracksByName(artistName, 15);
+        const tracks = await _deezerArtistTopTracksByName(artistName, 20);
         addTracks(tracks, true);
       }
     } catch (e) {}
@@ -6711,26 +6720,14 @@ async function _getGenreCoverImage(genreKey) {
   } catch (e) {}
 
   let url = null;
-  // 1) Coba ambil dari chart resmi genre tsb (lagu #1 yang sedang tren)
+  // Ambil foto sampul dari lagu peringkat #1 pada daftar lagu genre ini —
+  // sumber datanya SAMA PERSIS dengan yang dipakai halaman daftar lagu
+  // (_getOrFetchGenreSongsList), jadi foto kotak genre dijamin selalu
+  // cocok dengan lagu #1 yang benar-benar tampil saat genre dibuka.
   try {
-    const gid = await _getDeezerGenreId(def.genreNames);
-    if (gid) {
-      const data = await _deezerJsonp('https://api.deezer.com/chart/' + gid + '/tracks?limit=1');
-      const t = data && data.data && data.data[0];
-      if (t) url = _normalizeDeezerTrack(t).thumb || null;
-    }
+    const items = await _getOrFetchGenreSongsList(genreKey, false);
+    if (items && items.length && items[0].thumb) url = items[0].thumb;
   } catch (e) {}
-
-  // 2) Kalau tidak ada chart resmi (mis. K-Pop, Phonk, Lo-fi, Afrobeats),
-  // ambil dari lagu teratas hasil pencarian yang diurutkan berdasarkan popularitas
-  if (!url) {
-    try {
-      const searchUrl = 'https://api.deezer.com/search?q=' + encodeURIComponent(def.query) + '&order=RANKING&limit=1';
-      const data = await _deezerJsonp(searchUrl);
-      const t = data && data.data && data.data[0];
-      if (t) url = _normalizeDeezerTrack(t).thumb || null;
-    } catch (e) {}
-  }
 
   if (url) {
     try {
@@ -6798,15 +6795,59 @@ function refreshCurrentGenreSongs() {
   if (_currentGenreKey) loadGenreSongsView(_currentGenreKey, true);
 }
 
-async function loadGenreSongsView(genreKey, force) {
-  const def = GENRE_DEFS[genreKey];
-  const grid = document.getElementById('genre-songs-grid');
-  const countEl = document.getElementById('genre-songs-count');
-  const todayKey = 'vibexa_genre_' + genreKey + '_' + new Date().toISOString().slice(0, 10);
+// In-flight promise cache supaya kalau kotak genre & halaman daftar lagu
+// sama-sama minta data genre yang sama secara bersamaan, tidak dobel fetch.
+const _genreSongsFetchInFlight = {};
+
+function _genreSongsCacheKey(genreKey) {
+  return 'vibexa_genre_' + genreKey + '_' + new Date().toISOString().slice(0, 10);
+}
+
+// Sumber tunggal untuk daftar lagu satu genre (dipakai bareng oleh foto
+// kotak genre di menu DAN halaman daftar lagu genre), supaya foto kotak
+// genre selalu 100% sama dengan lagu peringkat #1 yang benar-benar tampil
+// di daftar — bukan hasil query terpisah yang bisa beda.
+async function _getOrFetchGenreSongsList(genreKey, force) {
+  const todayKey = _genreSongsCacheKey(genreKey);
 
   if (!force) {
     try {
       const cached = localStorage.getItem(todayKey);
+      if (cached) {
+        const items = JSON.parse(cached);
+        if (items && items.length) return items;
+      }
+    } catch (e) {}
+  }
+
+  if (_genreSongsFetchInFlight[genreKey] && !force) return _genreSongsFetchInFlight[genreKey];
+
+  const p = (async () => {
+    const items = await fetchGenreSongs(genreKey);
+    try {
+      localStorage.setItem(todayKey, JSON.stringify(items));
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith('vibexa_genre_' + genreKey + '_') && k !== todayKey) localStorage.removeItem(k);
+      });
+    } catch (e) {}
+    return items;
+  })();
+  _genreSongsFetchInFlight[genreKey] = p;
+  try {
+    return await p;
+  } finally {
+    delete _genreSongsFetchInFlight[genreKey];
+  }
+}
+
+async function loadGenreSongsView(genreKey, force) {
+  const def = GENRE_DEFS[genreKey];
+  const grid = document.getElementById('genre-songs-grid');
+  const countEl = document.getElementById('genre-songs-count');
+
+  if (!force) {
+    try {
+      const cached = localStorage.getItem(_genreSongsCacheKey(genreKey));
       if (cached) {
         const items = JSON.parse(cached);
         if (items && items.length) {
@@ -6822,13 +6863,7 @@ async function loadGenreSongsView(genreKey, force) {
   if (countEl) countEl.textContent = '';
 
   try {
-    const items = await fetchGenreSongs(genreKey);
-    try {
-      localStorage.setItem(todayKey, JSON.stringify(items));
-      Object.keys(localStorage).forEach(k => {
-        if (k.startsWith('vibexa_genre_' + genreKey + '_') && k !== todayKey) localStorage.removeItem(k);
-      });
-    } catch (e) {}
+    const items = await _getOrFetchGenreSongsList(genreKey, force);
     renderGenreSongs(items);
     if (countEl) countEl.textContent = items.length
       ? 'Menampilkan ' + items.length + ' lagu ' + def.label + ' yang sedang tren & populer'
