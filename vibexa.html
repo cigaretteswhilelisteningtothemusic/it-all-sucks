@@ -2707,6 +2707,21 @@ body.np-is-fullscreen #bar{display:none !important;}
       <div class="fav-artist-grid" id="fav-artist-grid"></div>
     </div>
 
+    <!-- REKOMENDASI LAGU (berdasarkan artis yang diikuti user, gaya Spotify) -->
+    <div class="pub-section" id="reco-section" style="display:none;">
+      <div class="pub-section-header">
+        <div class="pub-section-title">
+           Rekomendasi Untuk Anda
+          <span class="pub-badge">Dari Artis yang Diikuti</span>
+        </div>
+        <button class="home-new-pl-btn" onclick="showRecommendFullView()" style="background:none;border:1px solid var(--border);color:var(--sub);">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+          Tampilkan Semua
+        </button>
+      </div>
+      <div class="rank-grid" id="reco-grid"></div>
+    </div>
+
     <!-- DAILY MIX (personalized per genre, powered by Deezer trending charts, auto-refreshes every 24h) -->
     <div class="pub-section" id="daily-mix-section" style="display:none;">
       <div class="pub-section-header">
@@ -2890,6 +2905,25 @@ body.np-is-fullscreen #bar{display:none !important;}
       </button>
     </div>
     <div class="rank-grid" id="top-songs-full-grid"></div>
+  </div>
+
+  <!-- REKOMENDASI LAGU — FULL LIST VIEW (50 lagu, Spotify-style "see all") -->
+  <div id="recommend-full-view" style="display:none;">
+    <button class="pv-back" onclick="backFromRecommendFullView()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      Kembali
+    </button>
+    <div class="pub-section-header" style="margin-bottom:14px;">
+      <div class="pub-section-title">
+         Rekomendasi Untuk Anda
+        <span class="pub-badge">50 Lagu · Dari Artis yang Diikuti</span>
+      </div>
+      <button class="home-new-pl-btn" onclick="loadRecommendedSongsFull(true)" style="background:none;border:1px solid var(--border);color:var(--sub);">
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+        Refresh
+      </button>
+    </div>
+    <div class="rank-grid" id="reco-full-grid"></div>
   </div>
 
   <!-- ARTIST PROFILE VIEW (cara kerja seperti Spotify) -->
@@ -3871,6 +3905,7 @@ async function loadFavoriteArtistsFromCloud() {
   }
   renderFavoriteArtists();
   syncAllFollowButtons();
+  loadRecommendedSongs(false);
 }
 
 function isArtistFavorited(name) {
@@ -3888,6 +3923,7 @@ async function setArtistFavorited(name, photo, following) {
   }
   renderFavoriteArtists();
   syncAllFollowButtons();
+  loadRecommendedSongs(true);
   if (!currentUser) return;
   try {
     const ref = getFavArtistRef();
@@ -3970,6 +4006,7 @@ function showHomeView() {
   document.getElementById('finder-view').style.display = 'none';
   document.getElementById('playlist-view').style.display = 'none';
   document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('recommend-full-view').style.display = 'none';
   document.getElementById('genre-menu-view').style.display = 'none';
   document.getElementById('genre-songs-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
@@ -3989,6 +4026,7 @@ function showSearchView() {
   document.getElementById('finder-view').style.display = 'none';
   document.getElementById('playlist-view').style.display = 'none';
   document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('recommend-full-view').style.display = 'none';
   document.getElementById('genre-menu-view').style.display = 'none';
   document.getElementById('genre-songs-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
@@ -4021,6 +4059,7 @@ function showFinderView() {
   document.getElementById('finder-view').style.display = 'block';
   document.getElementById('playlist-view').style.display = 'none';
   document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('recommend-full-view').style.display = 'none';
   document.getElementById('genre-menu-view').style.display = 'none';
   document.getElementById('genre-songs-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
@@ -4042,6 +4081,7 @@ function showPlaylistView(plId) {
   document.getElementById('search-view').classList.remove('active');
   document.getElementById('playlist-view').style.display = 'block';
   document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('recommend-full-view').style.display = 'none';
   document.getElementById('genre-menu-view').style.display = 'none';
   document.getElementById('genre-songs-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
@@ -6904,6 +6944,7 @@ function openArtistView(artistName) {
   document.getElementById('finder-view').style.display = 'none';
   document.getElementById('playlist-view').style.display = 'none';
   document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('recommend-full-view').style.display = 'none';
   document.getElementById('genre-menu-view').style.display = 'none';
   document.getElementById('genre-songs-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'block';
@@ -7066,6 +7107,7 @@ function openAlbumView(albumId, albumTitle) {
   document.getElementById('finder-view').style.display = 'none';
   document.getElementById('playlist-view').style.display = 'none';
   document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('recommend-full-view').style.display = 'none';
   document.getElementById('genre-menu-view').style.display = 'none';
   document.getElementById('genre-songs-view').style.display = 'none';
   document.getElementById('nav-home').classList.remove('on');
@@ -7579,6 +7621,7 @@ function showGenreMenuView() {
   document.getElementById('finder-view').style.display = 'none';
   document.getElementById('playlist-view').style.display = 'none';
   document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('recommend-full-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
@@ -7607,6 +7650,7 @@ function openGenreView(genreKey) {
   document.getElementById('finder-view').style.display = 'none';
   document.getElementById('playlist-view').style.display = 'none';
   document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('recommend-full-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
@@ -8083,6 +8127,7 @@ function openDailyMix(mix) {
   document.getElementById('search-view').classList.remove('active');
   document.getElementById('playlist-view').style.display = 'block';
   document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('recommend-full-view').style.display = 'none';
   document.getElementById('genre-menu-view').style.display = 'none';
   document.getElementById('genre-songs-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
@@ -8251,8 +8296,171 @@ function showTopSongsFullView() {
 
 function backFromTopSongsFullView() {
   document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('recommend-full-view').style.display = 'none';
   document.getElementById('genre-menu-view').style.display = 'none';
   document.getElementById('genre-songs-view').style.display = 'none';
+  showHomeView();
+}
+
+// ─── REKOMENDASI LAGU (Spotify-style: berdasarkan artis yang diikuti user) ──
+// Untuk setiap artis yang diikuti, ambil lagu-lagu terpopulernya langsung
+// dari Deezer (endpoint /artist/{id}/top), lalu gabungkan secara round-robin
+// (bergiliran per artis) supaya daftar tidak didominasi satu artis saja bila
+// user mengikuti lebih dari satu artis. Target total 50 lagu; Home hanya
+// menampilkan 8 teratas + tombol "Tampilkan Semua" menuju halaman berisi 50.
+const RECO_TARGET_COUNT = 50;
+const RECO_HOME_PREVIEW_COUNT = 8;
+let _recommendedSongsCache = null;
+
+// Cari id artis di Deezer lalu ambil daftar lagu terpopulernya
+async function fetchArtistTopTracks(artistName, limit) {
+  try {
+    const searchData = await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(artistName) + '&limit=1');
+    const artist = searchData && searchData.data && searchData.data[0];
+    if (!artist) return [];
+    const topData = await _deezerJsonp('https://api.deezer.com/artist/' + artist.id + '/top?limit=' + limit);
+    if (!topData || !topData.data) return [];
+    return topData.data.map(_normalizeDeezerTrack);
+  } catch (e) {
+    return [];
+  }
+}
+
+// Ambil (dengan cache harian) daftar rekomendasi gabungan dari semua artis favorit user
+async function fetchRecommendedSongs(force) {
+  const followed = Object.values(favoriteArtists);
+  if (!followed.length) { _recommendedSongsCache = []; return []; }
+
+  // Cache key mengikutsertakan tanggal + daftar artis yang diikuti, supaya
+  // otomatis di-refresh saat user follow/unfollow artis atau saat hari berganti.
+  const setKey = followed.map(a => a.name.toLowerCase()).sort().join('|');
+  const todayKey = 'vibexa_reco_' + new Date().toISOString().slice(0, 10) + '_' + setKey;
+
+  if (!force) {
+    try {
+      const cached = localStorage.getItem(todayKey);
+      if (cached) {
+        const items = JSON.parse(cached);
+        if (items && items.length) { _recommendedSongsCache = items; return items; }
+      }
+    } catch (e) {}
+  }
+
+  // Minta cukup banyak lagu per artis supaya gabungannya bisa mencapai 50,
+  // walau user hanya mengikuti 1 artis saja.
+  const perArtistLimit = Math.min(50, Math.max(15, Math.ceil(RECO_TARGET_COUNT / followed.length) + 5));
+  const perArtistResults = await Promise.all(
+    followed.map(a => fetchArtistTopTracks(a.name, perArtistLimit))
+  );
+
+  // Gabungkan secara round-robin (bergiliran per artis) supaya bervariasi
+  const merged = [];
+  const seen = new Set();
+  let idx = 0;
+  let addedAny = true;
+  while (merged.length < RECO_TARGET_COUNT && addedAny) {
+    addedAny = false;
+    for (let i = 0; i < perArtistResults.length; i++) {
+      const arr = perArtistResults[i];
+      if (arr && arr[idx]) {
+        const t = arr[idx];
+        if (!seen.has(t.id)) {
+          seen.add(t.id);
+          merged.push(t);
+          addedAny = true;
+        }
+        if (merged.length >= RECO_TARGET_COUNT) break;
+      }
+    }
+    idx++;
+  }
+
+  const items = merged.slice(0, RECO_TARGET_COUNT);
+  try {
+    localStorage.setItem(todayKey, JSON.stringify(items));
+    Object.keys(localStorage).forEach(k => {
+      if (k.startsWith('vibexa_reco_') && k !== todayKey) localStorage.removeItem(k);
+    });
+  } catch (e) {}
+
+  _recommendedSongsCache = items;
+  return items;
+}
+
+// Tampilkan 8 lagu teratas di Home
+function renderRecommendedSongs(items) {
+  const section = document.getElementById('reco-section');
+  const grid = document.getElementById('reco-grid');
+  if (!section || !grid) return;
+  if (!items || !items.length) { section.style.display = 'none'; grid.innerHTML = ''; return; }
+  section.style.display = 'block';
+  grid.innerHTML = '';
+  items.slice(0, RECO_HOME_PREVIEW_COUNT).forEach((t, i) => grid.appendChild(buildRankItemEl(t, i, false)));
+}
+
+async function loadRecommendedSongs(force) {
+  const section = document.getElementById('reco-section');
+  const grid = document.getElementById('reco-grid');
+  const followed = Object.values(favoriteArtists);
+  if (!followed.length) { if (section) section.style.display = 'none'; return; }
+  if (section) section.style.display = 'block';
+  if (grid) grid.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat rekomendasi untuk Anda...</h3></div>';
+  try {
+    const items = await fetchRecommendedSongs(force);
+    renderRecommendedSongs(items);
+  } catch (e) {
+    console.error('loadRecommendedSongs error:', e);
+    if (grid) grid.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;color:var(--sub)"> Gagal memuat rekomendasi, coba refresh.</div>';
+  }
+}
+
+// Tampilkan semua 50 lagu di halaman terpisah
+function renderRecommendedSongsFull(items) {
+  const c = document.getElementById('reco-full-grid');
+  if (!c) return;
+  c.innerHTML = '';
+  if (!items || !items.length) {
+    c.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;color:var(--sub)"> Ikuti artis favorit dulu untuk mendapatkan rekomendasi lagu.</div>';
+    return;
+  }
+  items.forEach((t, i) => c.appendChild(buildRankItemEl(t, i, false)));
+}
+
+async function loadRecommendedSongsFull(force) {
+  const grid = document.getElementById('reco-full-grid');
+  if (grid) grid.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat 50 lagu rekomendasi...</h3></div>';
+  try {
+    const items = await fetchRecommendedSongs(force);
+    renderRecommendedSongsFull(items);
+  } catch (e) {
+    console.error('loadRecommendedSongsFull error:', e);
+    if (grid) grid.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;color:var(--sub)"> Gagal memuat rekomendasi, coba lagi.</div>';
+  }
+}
+
+function showRecommendFullView() {
+  document.getElementById('home-view').classList.remove('active');
+  document.getElementById('search-view').classList.remove('active');
+  document.getElementById('finder-view').style.display = 'none';
+  document.getElementById('playlist-view').style.display = 'none';
+  document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('genre-menu-view').style.display = 'none';
+  document.getElementById('genre-songs-view').style.display = 'none';
+  document.getElementById('artist-view').style.display = 'none';
+  document.getElementById('album-view').style.display = 'none';
+  document.getElementById('song-preview-view').style.display = 'none';
+  document.getElementById('recommend-full-view').style.display = 'block';
+  // Tetap tandai nav Home sebagai aktif — halaman ini adalah bagian dari Home
+  document.getElementById('nav-home').classList.add('on');
+  document.getElementById('nav-search').classList.remove('on');
+  document.getElementById('nav-finder').classList.remove('on');
+  document.getElementById('nav-genre').classList.remove('on');
+  document.getElementById('nav-songpreview')?.classList.remove('on');
+  loadRecommendedSongsFull(false);
+}
+
+function backFromRecommendFullView() {
+  document.getElementById('recommend-full-view').style.display = 'none';
   showHomeView();
 }
 
@@ -8445,6 +8653,7 @@ async function openPublicPlaylist(pl) {
   document.getElementById('search-view').classList.remove('active');
   document.getElementById('playlist-view').style.display = 'block';
   document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('recommend-full-view').style.display = 'none';
   document.getElementById('genre-menu-view').style.display = 'none';
   document.getElementById('genre-songs-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
@@ -10156,6 +10365,7 @@ function openSongPreviewView() {
   document.getElementById('finder-view').style.display = 'none';
   document.getElementById('playlist-view').style.display = 'none';
   document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('recommend-full-view').style.display = 'none';
   document.getElementById('genre-menu-view').style.display = 'none';
   document.getElementById('genre-songs-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
