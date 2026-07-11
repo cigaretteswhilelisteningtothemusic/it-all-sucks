@@ -102,7 +102,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 
 /* MAIN */
-#main{grid-area:main;overflow-y:auto;z-index:1;scrollbar-width:thin;scrollbar-color:var(--hover) transparent}
+#main{grid-area:main;overflow-y:auto;z-index:1;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;position:relative}
 .main-view{padding:22px 22px 16px;display:none;}
 .main-view.active{display:block;}
 
@@ -832,8 +832,9 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .comment-photo-remove:hover{color:#ff5555;}
 
 /* ─── SONG PREVIEW (TikTok-style vertical feed, 30s iTunes previews) ─── */
-#song-preview-view{position:fixed;inset:0;z-index:100000;background:#0a0a0a;display:none;flex-direction:column;font-family:var(--f);}
-#song-preview-view.open{display:flex;}
+/* Posisinya absolute di dalam #main (bukan fixed ke seluruh layar) supaya
+   sidebar kiri dan panel lirik/artis kanan tetap terlihat, tidak tertutup. */
+#song-preview-view{display:none;position:absolute;inset:0;z-index:20;background:#0a0a0a;flex-direction:column;font-family:var(--f);overflow:hidden;}
 .sp-topbar{position:relative;z-index:5;display:flex;align-items:center;gap:10px;padding:14px 14px 10px;flex-shrink:0;}
 .sp-back-btn,.sp-mute-btn,.sp-search-btn{background:rgba(0,0,0,.35);border:none;color:#fff;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:background .15s;}
 .sp-back-btn:hover,.sp-mute-btn:hover,.sp-search-btn:hover{background:rgba(255,255,255,.18);}
@@ -845,12 +846,16 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .sp-search-input::placeholder{color:rgba(255,255,255,.55);}
 .sp-feed{flex:1;overflow-y:scroll;scroll-snap-type:y mandatory;scrollbar-width:none;}
 .sp-feed::-webkit-scrollbar{display:none;}
-.sp-slide{position:relative;height:100%;scroll-snap-align:start;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;}
-.sp-bg{position:absolute;inset:-20px;background-size:cover;background-position:center;filter:blur(28px) brightness(.55) saturate(1.15);transform:scale(1.15);}
-.sp-scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.15) 0%,rgba(0,0,0,.1) 40%,rgba(0,0,0,.75) 100%);}
-.sp-slide-content{position:relative;z-index:2;padding:0 16px 18px;display:flex;flex-direction:column;gap:12px;}
-.sp-release-badge{align-self:flex-start;display:flex;align-items:center;gap:6px;background:rgba(20,20,20,.55);color:#fff;font-size:.72rem;font-weight:600;padding:7px 13px;border-radius:50px;backdrop-filter:blur(6px);}
+.sp-slide{position:relative;height:100%;scroll-snap-align:start;display:flex;flex-direction:column;overflow:hidden;}
+.sp-bg{position:absolute;inset:-20px;background-size:cover;background-position:center;filter:blur(28px) brightness(.4) saturate(1.15);transform:scale(1.15);}
+.sp-scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.35) 0%,rgba(0,0,0,.15) 35%,rgba(0,0,0,.8) 100%);}
+.sp-slide-content{position:relative;z-index:2;flex:1;display:flex;flex-direction:column;padding:6px 16px 18px;min-height:0;}
+.sp-release-badge{align-self:flex-start;display:flex;align-items:center;gap:6px;background:rgba(20,20,20,.55);color:#fff;font-size:.72rem;font-weight:600;padding:7px 13px;border-radius:50px;backdrop-filter:blur(6px);flex-shrink:0;}
 .sp-release-badge svg{width:14px;height:14px;flex-shrink:0;}
+/* Album art besar & tajam di tengah, mirip tampilan preview lagu Spotify */
+.sp-album-wrap{flex:1;display:flex;align-items:center;justify-content:center;min-height:0;padding:14px 0;}
+.sp-album-art{width:min(64vw,300px);height:min(64vw,300px);max-height:38vh;border-radius:14px;object-fit:cover;box-shadow:0 20px 60px rgba(0,0,0,.55);background:rgba(255,255,255,.08);}
+.sp-slide-bottom{display:flex;flex-direction:column;gap:12px;flex-shrink:0;}
 .sp-artist-row{display:flex;align-items:center;gap:10px;}
 .sp-artist-photo{width:42px;height:42px;border-radius:50%;object-fit:cover;background:rgba(255,255,255,.12);flex-shrink:0;}
 .sp-artist-info{flex:1;min-width:0;}
@@ -872,7 +877,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .sp-add-btn:hover{background:rgba(255,255,255,.28);}
 .sp-add-btn svg{width:17px;height:17px;}
 .sp-loading{color:rgba(255,255,255,.75);text-align:center;padding:60px 20px;font-size:.85rem;height:100%;display:flex;align-items:center;justify-content:center;}
-@media(max-width:1050px){.sp-slide-content{padding-bottom:78px;}}
+@media(max-width:1050px){.sp-slide-bottom{padding-bottom:56px;}}
 
 /* Fullscreen image viewer */
 #img-viewer{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.92);display:none;align-items:center;justify-content:center;cursor:zoom-out;backdrop-filter:blur(8px);}
@@ -2937,6 +2942,28 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
     <div class="rank-grid" id="genre-songs-grid"></div>
   </div>
 
+  <!-- SONG PREVIEW (feed vertikal ala TikTok, preview 30 detik dari iTunes) -->
+  <div id="song-preview-view">
+    <div class="sp-topbar">
+      <button class="sp-back-btn" onclick="closeSongPreviewView()" title="Kembali">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="sp-topbar-title" id="sp-topbar-title">Song Preview</div>
+      <button class="sp-search-btn" onclick="toggleSpSearchBar()" title="Cari lagu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      </button>
+      <button class="sp-mute-btn" id="sp-mute-btn" onclick="toggleSongPreviewMute()" title="Bisukan">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+      </button>
+    </div>
+    <div class="sp-search-bar" id="sp-search-bar">
+      <input type="text" class="sp-search-input" id="sp-search-input" placeholder="Cari lagu untuk preview 30 detik..." onkeydown="if(event.key==='Enter')searchSongPreview(this.value)">
+    </div>
+    <div class="sp-feed" id="sp-feed">
+      <div class="sp-loading">Memuat preview populer...</div>
+    </div>
+  </div>
+
 </main>
 
 <!-- IMAGE VIEWER FULLSCREEN -->
@@ -3053,28 +3080,6 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
     <div id="lyr-translate-toast"> Loading translation...</div>
   </div>
 </aside>
-
-<!-- SONG PREVIEW (feed vertikal ala TikTok, preview 30 detik dari iTunes) -->
-<div id="song-preview-view">
-  <div class="sp-topbar">
-    <button class="sp-back-btn" onclick="closeSongPreviewView()" title="Kembali">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-    </button>
-    <div class="sp-topbar-title" id="sp-topbar-title">Song Preview</div>
-    <button class="sp-search-btn" onclick="toggleSpSearchBar()" title="Cari lagu">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-    </button>
-    <button class="sp-mute-btn" id="sp-mute-btn" onclick="toggleSongPreviewMute()" title="Bisukan">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
-    </button>
-  </div>
-  <div class="sp-search-bar" id="sp-search-bar">
-    <input type="text" class="sp-search-input" id="sp-search-input" placeholder="Cari lagu untuk preview 30 detik..." onkeydown="if(event.key==='Enter')searchSongPreview(this.value)">
-  </div>
-  <div class="sp-feed" id="sp-feed">
-    <div class="sp-loading">Memuat preview populer...</div>
-  </div>
-</div>
 
 <!-- PLAYER BAR -->
 <div id="bar">
@@ -3653,10 +3658,12 @@ function showHomeView() {
   document.getElementById('genre-songs-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
+  document.getElementById('song-preview-view').style.display = 'none';
   document.getElementById('nav-home').classList.add('on');
   document.getElementById('nav-search').classList.remove('on');
   document.getElementById('nav-finder').classList.remove('on');
   document.getElementById('nav-genre').classList.remove('on');
+  document.getElementById('nav-songpreview')?.classList.remove('on');
   renderHomeGrid();
 }
 
@@ -3670,10 +3677,12 @@ function showSearchView() {
   document.getElementById('genre-songs-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
+  document.getElementById('song-preview-view').style.display = 'none';
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.add('on');
   document.getElementById('nav-finder').classList.remove('on');
   document.getElementById('nav-genre').classList.remove('on');
+  document.getElementById('nav-songpreview')?.classList.remove('on');
   setTimeout(() => document.getElementById('q').focus(), 100);
 }
 
@@ -3700,6 +3709,7 @@ function showFinderView() {
   document.getElementById('genre-songs-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
+  document.getElementById('song-preview-view').style.display = 'none';
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.remove('on');
   document.getElementById('nav-finder').classList.add('on');
@@ -3720,6 +3730,7 @@ function showPlaylistView(plId) {
   document.getElementById('genre-songs-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
+  document.getElementById('song-preview-view').style.display = 'none';
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.remove('on');
   // Restore edit actions for own playlists
@@ -6332,10 +6343,12 @@ function openArtistView(artistName) {
   document.getElementById('genre-songs-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'block';
   document.getElementById('album-view').style.display = 'none';
+  document.getElementById('song-preview-view').style.display = 'none';
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.remove('on');
   document.getElementById('nav-finder').classList.remove('on');
   document.getElementById('nav-genre').classList.remove('on');
+  document.getElementById('nav-songpreview')?.classList.remove('on');
   const mainEl = document.getElementById('main'); if (mainEl) mainEl.scrollTop = 0;
 
   document.getElementById('artist-banner-name').textContent = artistName;
@@ -6350,6 +6363,7 @@ function openArtistView(artistName) {
 function backFromArtistView() {
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
+  document.getElementById('song-preview-view').style.display = 'none';
   showHomeView();
 }
 
@@ -6486,6 +6500,7 @@ function openAlbumView(albumId, albumTitle) {
   document.getElementById('nav-search').classList.remove('on');
   document.getElementById('nav-finder').classList.remove('on');
   document.getElementById('nav-genre').classList.remove('on');
+  document.getElementById('nav-songpreview')?.classList.remove('on');
   const mainEl = document.getElementById('main'); if (mainEl) mainEl.scrollTop = 0;
 
   document.getElementById('album-title').textContent = albumTitle || 'Album';
@@ -6499,6 +6514,7 @@ function openAlbumView(albumId, albumTitle) {
 // Kembali ke halaman artis jika ada, kalau tidak ke Home
 function backFromAlbumView() {
   document.getElementById('album-view').style.display = 'none';
+  document.getElementById('song-preview-view').style.display = 'none';
   if (_currentArtistData) {
     document.getElementById('artist-view').style.display = 'block';
   } else {
@@ -6993,12 +7009,14 @@ function showGenreMenuView() {
   document.getElementById('top-songs-full-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
+  document.getElementById('song-preview-view').style.display = 'none';
   document.getElementById('genre-songs-view').style.display = 'none';
   document.getElementById('genre-menu-view').style.display = 'block';
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.remove('on');
   document.getElementById('nav-finder').classList.remove('on');
   document.getElementById('nav-genre').classList.add('on');
+  document.getElementById('nav-songpreview')?.classList.remove('on');
   renderGenreMenu();
   const mainEl = document.getElementById('main'); if (mainEl) mainEl.scrollTop = 0;
 }
@@ -7019,12 +7037,14 @@ function openGenreView(genreKey) {
   document.getElementById('top-songs-full-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
+  document.getElementById('song-preview-view').style.display = 'none';
   document.getElementById('genre-menu-view').style.display = 'none';
   document.getElementById('genre-songs-view').style.display = 'block';
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.remove('on');
   document.getElementById('nav-finder').classList.remove('on');
   document.getElementById('nav-genre').classList.add('on');
+  document.getElementById('nav-songpreview')?.classList.remove('on');
   document.getElementById('genre-songs-emoji').textContent = def.emoji || '';
   document.getElementById('genre-songs-title').textContent = def.label;
   const mainEl = document.getElementById('main'); if (mainEl) mainEl.scrollTop = 0;
@@ -7495,6 +7515,7 @@ function openDailyMix(mix) {
   document.getElementById('genre-songs-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
+  document.getElementById('song-preview-view').style.display = 'none';
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.remove('on');
 
@@ -7646,11 +7667,13 @@ function showTopSongsFullView() {
   document.getElementById('top-songs-full-view').style.display = 'block';
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
+  document.getElementById('song-preview-view').style.display = 'none';
   // Tetap tandai nav Home sebagai aktif — halaman ini adalah bagian dari Home
   document.getElementById('nav-home').classList.add('on');
   document.getElementById('nav-search').classList.remove('on');
   document.getElementById('nav-finder').classList.remove('on');
   document.getElementById('nav-genre').classList.remove('on');
+  document.getElementById('nav-songpreview')?.classList.remove('on');
   loadTrendingSongsFull(false);
 }
 
@@ -7856,6 +7879,7 @@ async function openPublicPlaylist(pl) {
   document.getElementById('genre-songs-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
+  document.getElementById('song-preview-view').style.display = 'none';
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.remove('on');
 
@@ -9562,16 +9586,29 @@ let spObserver = null;
 let spCurrentIndex = -1;
 
 function openSongPreviewView() {
-  document.getElementById('song-preview-view').classList.add('open');
+  document.getElementById('home-view').classList.remove('active');
+  document.getElementById('search-view').classList.remove('active');
+  document.getElementById('finder-view').style.display = 'none';
+  document.getElementById('playlist-view').style.display = 'none';
+  document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('genre-menu-view').style.display = 'none';
+  document.getElementById('genre-songs-view').style.display = 'none';
+  document.getElementById('artist-view').style.display = 'none';
+  document.getElementById('album-view').style.display = 'none';
+  document.getElementById('nav-home').classList.remove('on');
+  document.getElementById('nav-search').classList.remove('on');
+  document.getElementById('nav-finder').classList.remove('on');
+  document.getElementById('nav-genre').classList.remove('on');
   document.getElementById('nav-songpreview')?.classList.add('on');
+  document.getElementById('song-preview-view').style.display = 'flex';
   if (!spTracks.length) loadSpPopular();
 }
 
 function closeSongPreviewView() {
-  document.getElementById('song-preview-view').classList.remove('open');
   document.getElementById('nav-songpreview')?.classList.remove('on');
   if (spAudio) { spAudio.pause(); }
   spCurrentIndex = -1;
+  showHomeView();
 }
 
 function toggleSpSearchBar() {
@@ -9652,6 +9689,10 @@ function buildSpSlideEl(t, i) {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
         Preview 30 Detik
       </div>
+      <div class="sp-album-wrap">
+        <img class="sp-album-art" src="${esc(bigArt)}" alt="${esc(t.collectionName || t.trackName || '')}" onerror="this.src='${esc(t.artworkUrl100 || '')}'">
+      </div>
+      <div class="sp-slide-bottom">
       <div class="sp-artist-row">
         <img class="sp-artist-photo" src="${esc(t.artworkUrl100 || '')}" onerror="this.style.visibility='hidden'">
         <div class="sp-artist-info">
@@ -9677,6 +9718,7 @@ function buildSpSlideEl(t, i) {
         <button class="sp-add-btn" onclick="event.stopPropagation();addSpTrackToPlaylist(${i})" title="Tambah ke playlist">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         </button>
+      </div>
       </div>
     </div>
   `;
