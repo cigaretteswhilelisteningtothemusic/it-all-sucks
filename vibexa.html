@@ -2321,6 +2321,24 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .artist-album-title{font-size:.8rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px;}
 .artist-album-year{font-size:.68rem;color:var(--sub);}
 #bar-artist:hover,#h-artist:hover{color:var(--green);text-decoration:underline;}
+
+/* ── Kartu "Tentang Artis" di halaman Album ─────────────────── */
+.album-artist-card{display:none;align-items:center;gap:14px;margin:18px 24px 6px;padding:16px;border-radius:var(--r);background:var(--card);border:1px solid var(--border);cursor:pointer;transition:all .2s;}
+.album-artist-card:hover{background:var(--hover);border-color:var(--green);transform:translateY(-1px);}
+.album-artist-photo-wrap{width:64px;height:64px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--hover);display:flex;align-items:center;justify-content:center;}
+.album-artist-photo{width:100%;height:100%;object-fit:cover;object-position:center 20%;display:block;}
+.album-artist-body{flex:1;min-width:0;}
+.album-artist-label{font-size:.62rem;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:var(--muted);margin-bottom:3px;}
+.album-artist-name{font-size:1rem;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.album-artist-fans{font-size:.74rem;color:var(--sub);margin-top:2px;}
+.album-artist-arrow{font-size:1.2rem;color:var(--sub);flex-shrink:0;transition:transform .2s;}
+.album-artist-card:hover .album-artist-arrow{transform:translateX(3px);color:var(--green);}
+.album-more-section{display:none;padding:6px 24px 20px;}
+@media(max-width:660px){
+  .album-artist-card{margin:14px 14px 4px;padding:13px;}
+  .album-artist-photo-wrap{width:52px;height:52px;}
+  .album-more-section{padding:4px 14px 16px;}
+}
 </style>
 <body>
 
@@ -2669,6 +2687,25 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
     </div>
     <div class="rank-grid" id="album-tracks">
       <div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat lagu album...</h3></div>
+    </div>
+
+    <!-- TENTANG ARTIS (klik -> buka halaman profil artis) -->
+    <div class="album-artist-card" id="album-artist-card">
+      <div class="album-artist-photo-wrap">
+        <img class="album-artist-photo" id="album-artist-photo" src="" alt="" onerror="this.style.display='none'">
+      </div>
+      <div class="album-artist-body">
+        <div class="album-artist-label">Tentang Artis</div>
+        <div class="album-artist-name" id="album-artist-name">—</div>
+        <div class="album-artist-fans" id="album-artist-fans"></div>
+      </div>
+      <div class="album-artist-arrow">→</div>
+    </div>
+
+    <!-- ALBUM LAINNYA DARI ARTIS (klik -> buka halaman album itu, semua lagu bisa diputar) -->
+    <div class="album-more-section" id="album-more-section">
+      <div class="artist-section-title" style="margin:14px 0 12px;font-size:1rem;">Album Lainnya dari Artis</div>
+      <div class="artist-albums-grid" id="album-more-albums"></div>
     </div>
   </div>
 
@@ -5996,6 +6033,8 @@ function openAlbumView(albumId, albumTitle) {
   document.getElementById('album-sub').textContent = 'Memuat...';
   document.getElementById('album-cover').src = '';
   document.getElementById('album-tracks').innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat lagu album...</h3></div>';
+  document.getElementById('album-artist-card').style.display = 'none';
+  document.getElementById('album-more-section').style.display = 'none';
 
   loadAlbumView(albumId, albumTitle);
 }
@@ -6044,10 +6083,80 @@ async function loadAlbumView(albumId, albumTitleHint) {
     }));
     _currentAlbumTracks = tracks;
     renderAlbumTracks(tracks);
+
+    // "Tentang Artis" + "Album Lainnya dari Artis" — pakai data artis dari respons album ini
+    const albumArtist = data.artist || null;
+    if (albumArtist && albumArtist.id) {
+      renderAlbumArtistCard(albumArtist);
+      loadAlbumMoreAlbums(albumArtist.id, albumId);
+    } else {
+      document.getElementById('album-artist-card').style.display = 'none';
+      document.getElementById('album-more-section').style.display = 'none';
+    }
   } catch (e) {
     console.error('loadAlbumView error:', e);
     document.getElementById('album-sub').textContent = 'Gagal memuat album';
     document.getElementById('album-tracks').innerHTML = '<div class="err-box"> Gagal memuat songs album. Coba lagi.</div>';
+  }
+}
+
+// Kartu "Tentang Artis" di halaman album: foto + nama, klik -> buka halaman profil artis tsb
+function renderAlbumArtistCard(albumArtist) {
+  const card = document.getElementById('album-artist-card');
+  const nameEl = document.getElementById('album-artist-name');
+  const photoEl = document.getElementById('album-artist-photo');
+  const fansEl = document.getElementById('album-artist-fans');
+  if (!card || !albumArtist) return;
+
+  card.style.display = 'flex';
+  nameEl.textContent = albumArtist.name || '—';
+  fansEl.textContent = 'Lihat profil artis →';
+  const photo = albumArtist.picture_xl || albumArtist.picture_big || albumArtist.picture_medium || '';
+  if (photo) { photoEl.style.display = 'block'; photoEl.src = photo; if (albumArtist.name) _artistPhotoCache[albumArtist.name.toLowerCase()] = photo; }
+  else { photoEl.style.display = 'none'; }
+  card.onclick = () => openArtistView(albumArtist.name);
+
+  // Ambil jumlah pendengar (nb_fan) secara terpisah, tidak menunda tampilnya kartu
+  if (albumArtist.id) {
+    _deezerJsonp('https://api.deezer.com/artist/' + albumArtist.id).then(ad => {
+      if (ad && typeof ad.nb_fan === 'number' && document.getElementById('album-artist-name').textContent === (albumArtist.name || '—')) {
+        fansEl.textContent = formatFanCount(ad.nb_fan) + ' pendengar · Lihat profil →';
+      }
+    }).catch(() => {});
+  }
+}
+
+// Album lain dari artis yang sama di halaman album: klik -> buka halaman album itu (semua lagunya bisa diputar)
+let _albumMoreReqGen = 0;
+async function loadAlbumMoreAlbums(artistId, currentAlbumId) {
+  const sec = document.getElementById('album-more-section');
+  const grid = document.getElementById('album-more-albums');
+  if (!sec || !grid) return;
+  const myGen = ++_albumMoreReqGen;
+  sec.style.display = 'none';
+  try {
+    const albumData = await _deezerJsonp('https://api.deezer.com/artist/' + artistId + '/albums?limit=12');
+    if (myGen !== _albumMoreReqGen) return;
+    const albums = ((albumData && albumData.data) || [])
+      .filter(a => String(a.id) !== String(currentAlbumId))
+      .map(a => ({ id: a.id, title: a.title || 'Unknown', cover: a.cover_xl || a.cover_big || a.cover_medium || '', year: (a.release_date || '').slice(0, 4) }));
+    if (!albums.length) { sec.style.display = 'none'; return; }
+    grid.innerHTML = '';
+    albums.forEach(a => {
+      const div = document.createElement('div');
+      div.className = 'artist-album-card';
+      div.innerHTML = `
+        <img class="artist-album-cover" src="${esc(a.cover)}" alt="" loading="lazy" onerror="this.style.display='none'">
+        <div class="artist-album-title">${esc(a.title)}</div>
+        <div class="artist-album-year">${esc(a.year || '')}</div>
+      `;
+      div.addEventListener('click', () => openAlbumView(a.id, a.title));
+      grid.appendChild(div);
+    });
+    sec.style.display = 'block';
+  } catch (e) {
+    console.error('loadAlbumMoreAlbums error:', e);
+    sec.style.display = 'none';
   }
 }
 
