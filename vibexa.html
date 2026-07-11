@@ -2644,6 +2644,34 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
     </div>
   </div>
 
+  <!-- ALBUM VIEW (daftar lagu dalam album, bisa diputar) -->
+  <div id="album-view" style="display:none;">
+    <button class="pv-back" onclick="backFromAlbumView()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      Kembali
+    </button>
+    <div class="pv-header">
+      <div class="pv-top">
+        <div class="pv-cover-wrap">
+          <img class="pv-cover" id="album-cover" src="" alt="">
+        </div>
+        <div class="pv-meta">
+          <div class="pv-type">Album</div>
+          <div class="pv-title" id="album-title">—</div>
+          <div class="pv-sub" id="album-sub">—</div>
+        </div>
+      </div>
+    </div>
+    <div class="pv-actions">
+      <button class="pv-play-btn" onclick="playAlbumFromStart()" title="Putar Album">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+    </div>
+    <div class="rank-grid" id="album-tracks">
+      <div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat lagu album...</h3></div>
+    </div>
+  </div>
+
   <!-- SONG FINDER VIEW -->
   <div id="finder-view" class="main-view" style="display:none;">
     <div class="finder-hero">
@@ -3403,6 +3431,7 @@ function showHomeView() {
   document.getElementById('playlist-view').style.display = 'none';
   document.getElementById('top-songs-full-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
+  document.getElementById('album-view').style.display = 'none';
   document.getElementById('nav-home').classList.add('on');
   document.getElementById('nav-search').classList.remove('on');
   document.getElementById('nav-finder').classList.remove('on');
@@ -3416,6 +3445,7 @@ function showSearchView() {
   document.getElementById('playlist-view').style.display = 'none';
   document.getElementById('top-songs-full-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
+  document.getElementById('album-view').style.display = 'none';
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.add('on');
   document.getElementById('nav-finder').classList.remove('on');
@@ -3442,6 +3472,7 @@ function showFinderView() {
   document.getElementById('playlist-view').style.display = 'none';
   document.getElementById('top-songs-full-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
+  document.getElementById('album-view').style.display = 'none';
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.remove('on');
   document.getElementById('nav-finder').classList.add('on');
@@ -3459,6 +3490,7 @@ function showPlaylistView(plId) {
   document.getElementById('playlist-view').style.display = 'block';
   document.getElementById('top-songs-full-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
+  document.getElementById('album-view').style.display = 'none';
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.remove('on');
   // Restore edit actions for own playlists
@@ -5829,6 +5861,7 @@ function openArtistView(artistName) {
   document.getElementById('playlist-view').style.display = 'none';
   document.getElementById('top-songs-full-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'block';
+  document.getElementById('album-view').style.display = 'none';
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.remove('on');
   document.getElementById('nav-finder').classList.remove('on');
@@ -5845,6 +5878,7 @@ function openArtistView(artistName) {
 
 function backFromArtistView() {
   document.getElementById('artist-view').style.display = 'none';
+  document.getElementById('album-view').style.display = 'none';
   showHomeView();
 }
 
@@ -5924,7 +5958,7 @@ function renderArtistAlbums(albums) {
       <div class="artist-album-title">${esc(a.title)}</div>
       <div class="artist-album-year">${esc(a.year || '')}</div>
     `;
-    div.addEventListener('click', () => playAlbumTracks(a.id, a.title));
+    div.addEventListener('click', () => openAlbumView(a.id, a.title));
     c.appendChild(div);
   });
 }
@@ -5941,29 +5975,119 @@ function playArtistTopTracks() {
   loadPlay(tracks[0], null);
 }
 
-// Klik salah satu album: ambil daftar lagunya lalu putar sbg antrian baru
-async function playAlbumTracks(albumId, albumTitle) {
-  toast(' Memuat album...');
+// ─── HALAMAN ALBUM: tampilkan semua lagu, baru diputar saat diklik ──
+let _currentAlbumTracks = []; // daftar lagu album yg sedang ditampilkan (utk antrian)
+
+// Dipanggil saat kartu album di halaman artis diklik
+function openAlbumView(albumId, albumTitle) {
+  document.getElementById('album-view').style.display = 'block';
+  document.getElementById('artist-view').style.display = 'none';
+  document.getElementById('home-view').classList.remove('active');
+  document.getElementById('search-view').classList.remove('active');
+  document.getElementById('finder-view').style.display = 'none';
+  document.getElementById('playlist-view').style.display = 'none';
+  document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('nav-home').classList.remove('on');
+  document.getElementById('nav-search').classList.remove('on');
+  document.getElementById('nav-finder').classList.remove('on');
+  const mainEl = document.getElementById('main'); if (mainEl) mainEl.scrollTop = 0;
+
+  document.getElementById('album-title').textContent = albumTitle || 'Album';
+  document.getElementById('album-sub').textContent = 'Memuat...';
+  document.getElementById('album-cover').src = '';
+  document.getElementById('album-tracks').innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat lagu album...</h3></div>';
+
+  loadAlbumView(albumId, albumTitle);
+}
+
+// Kembali ke halaman artis jika ada, kalau tidak ke Home
+function backFromAlbumView() {
+  document.getElementById('album-view').style.display = 'none';
+  if (_currentArtistData) {
+    document.getElementById('artist-view').style.display = 'block';
+  } else {
+    showHomeView();
+  }
+}
+
+// Ambil daftar lagu album dari Deezer lalu tampilkan (belum diputar otomatis)
+async function loadAlbumView(albumId, albumTitleHint) {
   try {
     const data = await _deezerJsonp('https://api.deezer.com/album/' + albumId);
-    if (!data || !data.tracks || !data.tracks.data || !data.tracks.data.length) { toast(' Album kosong'); return; }
+    if (!data || !data.tracks || !data.tracks.data || !data.tracks.data.length) {
+      document.getElementById('album-sub').textContent = 'Album kosong';
+      document.getElementById('album-tracks').innerHTML = '<div class="err-box">Tidak ada songs di album ini.</div>';
+      return;
+    }
     const cover = data.cover_xl || data.cover_big || data.cover_medium || '';
+    const albumTitle = data.title || albumTitleHint || 'Album';
+    const artistName = (data.artist && data.artist.name) || '';
+    const year = (data.release_date || '').slice(0, 4);
+
+    document.getElementById('album-cover').src = cover;
+    document.getElementById('album-title').textContent = albumTitle;
+    document.getElementById('album-sub').innerHTML = `${esc(artistName)}${year ? ' · ' + esc(year) : ''} · ${data.tracks.data.length} songs`;
+    // Nama artis di sub-judul album bisa diklik utk membuka profil artis
+    const subEl = document.getElementById('album-sub');
+    if (artistName) {
+      subEl.innerHTML = `<span style="color:var(--green);cursor:pointer;font-weight:600;" onclick="openArtistView('${esc(artistName).replace(/'/g, "\\'")}')">${esc(artistName)}</span>${year ? ' · ' + esc(year) : ''} · ${data.tracks.data.length} songs`;
+    }
+
     const tracks = data.tracks.data.map(t => ({
       title: t.title || 'Unknown',
-      artist: (t.artist && t.artist.name) || (data.artist && data.artist.name) || '',
+      artist: (t.artist && t.artist.name) || artistName,
       thumb: cover,
-      album: albumTitle || data.title || '',
+      album: albumTitle,
       preview: t.preview || null, videoId: null, photo: null,
       duration: t.duration || 0,
-      _query: `${(t.artist && t.artist.name) || ''}|||${t.title}|||${t.id}`
+      _query: `${(t.artist && t.artist.name) || artistName}|||${t.title}|||${t.id}`
     }));
-    curQueue = [...tracks];
-    loadPlay(tracks[0], null);
-    toast(' Memutar album "' + (albumTitle || data.title) + '"');
+    _currentAlbumTracks = tracks;
+    renderAlbumTracks(tracks);
   } catch (e) {
-    console.error('playAlbumTracks error:', e);
-    toast(' Gagal memuat album');
+    console.error('loadAlbumView error:', e);
+    document.getElementById('album-sub').textContent = 'Gagal memuat album';
+    document.getElementById('album-tracks').innerHTML = '<div class="err-box"> Gagal memuat songs album. Coba lagi.</div>';
   }
+}
+
+function renderAlbumTracks(tracks) {
+  const c = document.getElementById('album-tracks');
+  if (!c) return;
+  c.innerHTML = '';
+  tracks.forEach((t, i) => c.appendChild(buildAlbumTrackRow(t, i)));
+}
+
+// Baris lagu di halaman album — klik utk memutar songs itu & set antrian = seluruh album
+function buildAlbumTrackRow(t, i) {
+  const numClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
+  const mins = Math.floor((t.duration || 0) / 60);
+  const secs = String((t.duration || 0) % 60).padStart(2, '0');
+  const div = document.createElement('div');
+  div.className = 'rank-item';
+  div.innerHTML = `
+    <div class="rank-num ${numClass}">${i + 1}</div>
+    <div class="rank-cover">${t.thumb ? `<img src="${esc(t.thumb)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}</div>
+    <div class="rank-info">
+      <div class="rank-name">${esc(t.title)}</div>
+      <div class="rank-owner">${esc(t.artist)}${t.duration ? ` · ${mins}:${secs}` : ''}</div>
+    </div>
+    ${buildAddBtnHTML(t)}
+  `;
+  div.addEventListener('click', (e) => {
+    if (e.target.closest('.add-btn')) return;
+    curQueue = [..._currentAlbumTracks];
+    loadPlay(t, null);
+  });
+  wireAddBtn(div.querySelector('.add-btn'), t);
+  return div;
+}
+
+// Tombol Play besar di header album: putar dari songs pertama
+function playAlbumFromStart() {
+  if (!_currentAlbumTracks.length) { toast(' Album belum selesai dimuat'); return; }
+  curQueue = [..._currentAlbumTracks];
+  loadPlay(_currentAlbumTracks[0], null);
 }
 
 async function loadTrendingSongs(force) {
@@ -6146,6 +6270,7 @@ function showTopSongsFullView() {
   document.getElementById('playlist-view').style.display = 'none';
   document.getElementById('top-songs-full-view').style.display = 'block';
   document.getElementById('artist-view').style.display = 'none';
+  document.getElementById('album-view').style.display = 'none';
   // Tetap tandai nav Home sebagai aktif — halaman ini adalah bagian dari Home
   document.getElementById('nav-home').classList.add('on');
   document.getElementById('nav-search').classList.remove('on');
@@ -6314,6 +6439,7 @@ async function openPublicPlaylist(pl) {
   document.getElementById('playlist-view').style.display = 'block';
   document.getElementById('top-songs-full-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
+  document.getElementById('album-view').style.display = 'none';
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.remove('on');
 
