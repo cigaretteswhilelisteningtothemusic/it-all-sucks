@@ -1237,15 +1237,26 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 #np-view.open{display:block;}
 #np-bg{position:absolute;inset:0;background:linear-gradient(to bottom, #2b3a5c 0%, var(--bg) 60%);transition:background 1s ease;z-index:0;}
 #np-bg::after{content:'';position:absolute;inset:0;background:rgba(4,6,12,0.28);}
-#np-topbar{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;padding:16px 22px;}
-#np-top-title{font-size:.78rem;font-weight:700;color:rgba(255,255,255,.85);letter-spacing:.4px;}
-.np-icon-btn{background:rgba(0,0,0,0.28);border:none;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;transition:all .18s;}
+#np-topbar{position:relative;z-index:5;display:flex;align-items:center;justify-content:space-between;padding:16px 22px;background:rgba(10,13,22,0);transition:background .3s ease,box-shadow .3s ease;}
+/* Spotify-style: header becomes a solid bar once user scrolls the Now Playing page down */
+#np-topbar.np-scrolled{background:rgba(10,13,22,.92);backdrop-filter:blur(14px);box-shadow:0 2px 18px rgba(0,0,0,.35);}
+#np-top-title{font-size:.78rem;font-weight:700;color:rgba(255,255,255,.85);letter-spacing:.4px;transition:opacity .25s ease;}
+#np-topbar.np-scrolled #np-top-title{opacity:0;pointer-events:none;}
+.np-icon-btn{background:rgba(0,0,0,0.28);border:none;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;transition:all .18s;flex-shrink:0;}
 .np-icon-btn:hover{background:rgba(0,0,0,0.48);transform:scale(1.05)}
 .np-icon-btn svg{width:17px;height:17px}
+#np-topbar-actions{display:flex;align-items:center;gap:10px;}
+/* Mini header (album thumb + title) that fades in as the user scrolls down, Spotify-style */
+#np-topbar-mini{display:flex;align-items:center;gap:10px;min-width:0;flex:1;justify-content:center;opacity:0;transform:translateY(8px);transition:opacity .25s ease,transform .25s ease;pointer-events:none;}
+#np-topbar.np-scrolled #np-topbar-mini{opacity:1;transform:translateY(0);}
+#np-mini-art{width:32px;height:32px;border-radius:5px;object-fit:cover;box-shadow:0 4px 10px rgba(0,0,0,.4);flex-shrink:0;}
+#np-mini-info{min-width:0;text-align:left;}
+#np-mini-title{font-size:.8rem;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;}
+#np-mini-artist{font-size:.68rem;color:rgba(255,255,255,.65);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;}
 #np-scroll{position:relative;z-index:2;height:calc(100% - 66px);overflow-y:auto;padding:10px 8% 60px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.18) transparent;}
 #np-scroll::-webkit-scrollbar{width:8px}
 #np-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:8px}
-.np-hero{display:flex;flex-direction:column;align-items:center;text-align:center;padding:18px 0 34px;}
+.np-hero{display:flex;flex-direction:column;align-items:center;text-align:center;padding:18px 0 34px;transform-origin:top center;transition:opacity .2s ease,transform .2s ease;will-change:transform,opacity;}
 .np-art{width:min(340px,60vw);height:min(340px,60vw);border-radius:10px;object-fit:cover;box-shadow:0 25px 60px rgba(0,0,0,.5);background:rgba(255,255,255,.06);}
 .np-art-ph{width:min(340px,60vw);height:min(340px,60vw);border-radius:10px;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;font-size:4rem;box-shadow:0 25px 60px rgba(0,0,0,.5);}
 .np-track-title{font-size:1.55rem;font-weight:800;letter-spacing:-.4px;color:#fff;margin-top:22px;max-width:520px;}
@@ -1290,6 +1301,27 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .np-pl-name{font-size:.8rem;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .np-pl-count{font-size:.68rem;color:rgba(255,255,255,.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .np-pl-empty{font-size:.76rem;color:rgba(255,255,255,.5);text-align:center;padding:24px 8px;line-height:1.7;}
+
+/* ── NOW PLAYING · FULLSCREEN MODE ── Hanya foto album, judul, artis & tombol kembali ── */
+.np-fs-only{display:none;position:absolute;top:16px;left:20px;z-index:6;opacity:0;pointer-events:none;transition:opacity .3s ease;}
+#np-view.np-fullscreen .np-fs-only{display:flex;opacity:1;pointer-events:auto;}
+#np-view.np-fullscreen .np-fs-hide{display:none !important;}
+#np-view.np-fullscreen #np-topbar-mini{display:none !important;}
+#np-view.np-fullscreen #np-top-title{display:none;}
+#np-view.np-fullscreen #np-topbar{background:transparent !important;box-shadow:none !important;justify-content:flex-end;}
+#np-view.np-fullscreen .np-grid{display:none !important;}
+#np-view.np-fullscreen #np-scroll{height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0 8%;}
+#np-view.np-fullscreen .np-hero{padding:0;transform:none !important;opacity:1 !important;}
+#np-view.np-fullscreen .np-art,#np-view.np-fullscreen .np-art-ph{width:min(420px,72vw);height:min(420px,72vw);}
+#np-view.np-fullscreen .np-track-title{font-size:1.9rem;margin-top:28px;}
+#np-view.np-fullscreen .np-track-artist{font-size:1.05rem;}
+#np-view.np-fullscreen{bottom:0 !important;z-index:600;}
+body.np-is-fullscreen #bar{display:none !important;}
+@media(max-width:660px){
+  #np-view.np-fullscreen .np-art,#np-view.np-fullscreen .np-art-ph{width:min(300px,78vw);height:min(300px,78vw);}
+  #np-view.np-fullscreen .np-track-title{font-size:1.4rem;}
+}
+
 @media(max-width:800px){
   .np-grid{grid-template-columns:1fr;}
   .np-track-title{font-size:1.25rem}
@@ -3300,13 +3332,23 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 <!-- NOW PLAYING VIEW -->
 <div id="np-view">
   <div id="np-bg"></div>
+  <button id="np-fs-back" class="np-icon-btn np-fs-only" onclick="toggleNPFullscreen(false)" title="Kembali">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+  </button>
   <div id="np-topbar">
     <div id="np-top-title">Now Playing</div>
-    <div style="display:flex;gap:8px;align-items:center;">
-      <button class="np-icon-btn" onclick="openNPFullscreen()" title="Fullscreen">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V3h4M21 7V3h-4M3 17v4h4M21 17v4h-4"/></svg>
+    <div id="np-topbar-mini">
+      <img id="np-mini-art" src="" alt="" style="display:none" onerror="this.style.display='none'">
+      <div id="np-mini-info">
+        <div id="np-mini-title">—</div>
+        <div id="np-mini-artist">—</div>
+      </div>
+    </div>
+    <div id="np-topbar-actions">
+      <button class="np-icon-btn np-fs-hide" id="np-fs-btn" onclick="toggleNPFullscreen()" title="Fullscreen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
       </button>
-      <button class="np-icon-btn" onclick="closeNP()" title="Minimize">
+      <button class="np-icon-btn np-fs-hide" onclick="closeNP()" title="Minimize">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
       </button>
     </div>
@@ -3316,7 +3358,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
       <img class="np-art" id="np-art" src="" alt="" style="display:none" onerror="this.style.display='none';document.getElementById('np-art-ph').style.display='flex'">
       <div class="np-art-ph" id="np-art-ph" style="display:none"></div>
       <div class="np-track-title" id="np-track-title">—</div>
-      <div class="np-track-artist" id="np-track-artist" onclick="openArtistView(curTrack && curTrack.artist)">—</div>
+      <div class="np-track-artist" id="np-track-artist" onclick="npGoArtist()">—</div>
     </div>
     <div class="np-grid">
       <div class="np-card np-about-card-big" id="np-about-card">
@@ -3324,7 +3366,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
         <div class="np-about-bgimg-ph" id="np-about-bgimg-ph"></div>
         <div class="np-card-label">About the artist</div>
         <div class="np-about-overlay">
-          <div class="np-about-name" id="np-about-name" onclick="openArtistView(curTrack && curTrack.artist)">—</div>
+          <div class="np-about-name" id="np-about-name" onclick="npGoArtist()">—</div>
           <div class="np-about-fans" id="np-about-fans">—</div>
           <button class="np-about-follow" id="np-about-follow" onclick="toggleNPArtistFollow()">Ikuti</button>
           <p class="np-about-bio" id="np-about-bio"></p>
@@ -3338,99 +3380,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
         <div class="np-card">
           <div class="np-card-head"><h4>Your Playlists</h4><span class="np-showall" onclick="closeNP();showHomeView()">Show all</span></div>
           <div class="np-pl-list" id="np-pl-list"></div>
-</div>
-
-<!-- NOW PLAYING FULLSCREEN (minimal) -->
-<div id="np-fs" aria-hidden="true">
-  <div id="np-fs-bg"></div>
-  <button class="np-fs-back" onclick="closeNPFullscreen()" title="Back">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-  </button>
-  <div class="np-fs-inner">
-    <img class="np-fs-art" id="np-fs-art" src="" alt="" onerror="this.style.visibility='hidden'">
-    <div class="np-fs-title" id="np-fs-title">—</div>
-    <div class="np-fs-artist" id="np-fs-artist" onclick="openArtistView(curTrack && curTrack.artist); closeNPFullscreen();">—</div>
-  </div>
-</div>
-
-<style>
-/* ── Scroll animations inside Now Playing ── */
-#np-scroll{scroll-behavior:smooth;}
-.np-hero{transition:transform .35s ease, opacity .35s ease; will-change:transform,opacity;}
-.np-art,.np-art-ph{transition:transform .5s cubic-bezier(.2,.7,.2,1), box-shadow .5s ease;}
-#np-view.np-scrolled .np-hero{transform:translateY(-14px) scale(.94);opacity:.85;}
-#np-view.np-scrolled .np-art,#np-view.np-scrolled .np-art-ph{transform:scale(.9);box-shadow:0 15px 40px rgba(0,0,0,.6);}
-#np-view.np-scrolled #np-topbar{background:linear-gradient(to bottom, rgba(0,0,0,.55), rgba(0,0,0,0));backdrop-filter:blur(8px);}
-#np-topbar{transition:background .35s ease, backdrop-filter .35s ease;}
-.np-grid{animation:npGridIn .45s ease both;}
-@keyframes npGridIn{from{transform:translateY(24px);opacity:0}to{transform:translateY(0);opacity:1}}
-
-/* ensure artist is obviously clickable */
-.np-track-artist,.np-about-name{cursor:pointer;}
-.np-track-artist:hover{color:#fff;text-decoration:underline}
-
-/* ── Now Playing Fullscreen (minimal) ── */
-#np-fs{position:fixed;inset:0;z-index:1200;display:none;align-items:center;justify-content:center;background:#000;}
-#np-fs.open{display:flex;animation:npFsFade .35s ease both;}
-@keyframes npFsFade{from{opacity:0;transform:scale(.98)}to{opacity:1;transform:scale(1)}}
-#np-fs-bg{position:absolute;inset:0;background-size:cover;background-position:center;filter:blur(40px) brightness(.45);transform:scale(1.15);z-index:0;}
-#np-fs-bg::after{content:'';position:absolute;inset:0;background:rgba(0,0,0,.35);}
-.np-fs-back{position:absolute;top:22px;left:22px;z-index:3;background:rgba(0,0,0,.45);border:none;border-radius:50%;width:44px;height:44px;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .18s;}
-.np-fs-back:hover{background:rgba(0,0,0,.7);transform:scale(1.06);}
-.np-fs-back svg{width:20px;height:20px;}
-.np-fs-inner{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;text-align:center;padding:24px;max-width:90vw;}
-.np-fs-art{width:min(70vh,70vw);height:min(70vh,70vw);object-fit:cover;border-radius:16px;box-shadow:0 40px 100px rgba(0,0,0,.7);}
-.np-fs-title{margin-top:34px;font-size:clamp(1.5rem,3.2vw,2.4rem);font-weight:800;color:#fff;letter-spacing:-.5px;max-width:80vw;}
-.np-fs-artist{margin-top:10px;font-size:clamp(.95rem,1.4vw,1.15rem);color:rgba(255,255,255,.78);cursor:pointer;}
-.np-fs-artist:hover{color:#fff;text-decoration:underline;}
-</style>
-
-<script>
-(function(){
-  // Scroll-driven page transition animation in Now Playing
-  document.addEventListener('DOMContentLoaded', function(){
-    var scr = document.getElementById('np-scroll');
-    var view = document.getElementById('np-view');
-    if(scr && view){
-      scr.addEventListener('scroll', function(){
-        if(scr.scrollTop > 40) view.classList.add('np-scrolled');
-        else view.classList.remove('np-scrolled');
-      }, {passive:true});
-    }
-  });
-
-  // Fullscreen open/close
-  window.openNPFullscreen = function(){
-    var fs = document.getElementById('np-fs');
-    var art = document.getElementById('np-art');
-    var title = document.getElementById('np-track-title');
-    var artist = document.getElementById('np-track-artist');
-    var fsArt = document.getElementById('np-fs-art');
-    var fsTitle = document.getElementById('np-fs-title');
-    var fsArtist = document.getElementById('np-fs-artist');
-    var fsBg = document.getElementById('np-fs-bg');
-    var src = (art && art.src) ? art.src : '';
-    if(src){ fsArt.src = src; fsArt.style.visibility='visible'; fsBg.style.backgroundImage = 'url("'+src+'")'; }
-    else { fsArt.removeAttribute('src'); fsArt.style.visibility='hidden'; fsBg.style.backgroundImage=''; }
-    fsTitle.textContent = title ? title.textContent : '—';
-    fsArtist.textContent = artist ? artist.textContent : '—';
-    fs.classList.add('open');
-    fs.setAttribute('aria-hidden','false');
-  };
-  window.closeNPFullscreen = function(){
-    var fs = document.getElementById('np-fs');
-    fs.classList.remove('open');
-    fs.setAttribute('aria-hidden','true');
-  };
-  // ESC to exit fullscreen
-  document.addEventListener('keydown', function(e){
-    if(e.key === 'Escape'){
-      var fs = document.getElementById('np-fs');
-      if(fs && fs.classList.contains('open')) window.closeNPFullscreen();
-    }
-  });
-})();
-</script>
+        </div>
       </div>
     </div>
   </div>
@@ -6162,18 +6112,69 @@ function openNP(track){
   track=track || curTrack;
   if(!track) return;
   document.getElementById('np-view').classList.add('open');
+  document.getElementById('np-view').classList.remove('np-fullscreen');
   const artEl=document.getElementById('np-art');
   const phEl=document.getElementById('np-art-ph');
   if(track.thumb){ artEl.src=track.thumb; artEl.style.display='block'; phEl.style.display='none'; }
   else { artEl.style.display='none'; phEl.style.display='flex'; }
   document.getElementById('np-track-title').textContent=track.title || '—';
   document.getElementById('np-track-artist').textContent=track.artist || '—';
+  const miniArt=document.getElementById('np-mini-art');
+  if(track.thumb){ miniArt.src=track.thumb; miniArt.style.display='block'; } else { miniArt.style.display='none'; }
+  document.getElementById('np-mini-title').textContent=track.title || '—';
+  document.getElementById('np-mini-artist').textContent=track.artist || '—';
   pickNPColor(track);
   _updateNPArtistCard(track);
   _updateNPAlbumsBox(track);
   _renderNPPlaylists();
+  // Reset posisi scroll & jalankan ulang animasi header setiap kali halaman Now Playing dibuka
+  const scrollEl=document.getElementById('np-scroll');
+  if(scrollEl) scrollEl.scrollTop=0;
+  _updateNPScrollFx();
 }
-function closeNP(){ document.getElementById('np-view').classList.remove('open'); }
+function closeNP(){
+  document.getElementById('np-view').classList.remove('open');
+  document.getElementById('np-view').classList.remove('np-fullscreen');
+  document.body.classList.remove('np-is-fullscreen');
+}
+
+// ── Animasi berpindah/transisi header saat scroll turun di halaman Now Playing (gaya Spotify) ──
+// Foto album besar + judul memudar & mengecil sedikit, lalu header atas berubah solid
+// dan menampilkan versi mini (thumbnail kecil + judul) begitu user scroll ke bawah.
+function _updateNPScrollFx(){
+  const scrollEl=document.getElementById('np-scroll');
+  const topbar=document.getElementById('np-topbar');
+  const hero=document.querySelector('#np-view .np-hero');
+  if(!scrollEl || !topbar || !hero) return;
+  const y=scrollEl.scrollTop;
+  const THRESHOLD=64; // jarak scroll sampai header jadi solid + mini info muncul
+  topbar.classList.toggle('np-scrolled', y > THRESHOLD);
+  const fadeRange=180;
+  const p=Math.min(1, y / fadeRange); // progres 0 -> 1
+  hero.style.opacity=String(1 - p * 0.55);
+  hero.style.transform=`translateY(${-p * 14}px) scale(${1 - p * 0.08})`;
+}
+(function(){
+  const scrollEl=document.getElementById('np-scroll');
+  if(scrollEl) scrollEl.addEventListener('scroll', _updateNPScrollFx, {passive:true});
+})();
+
+// ── Tombol fullscreen di halaman Now Playing: hanya tampilkan foto album, judul, artis & tombol kembali ──
+function toggleNPFullscreen(force){
+  const npView=document.getElementById('np-view');
+  if(!npView) return;
+  const isFS = typeof force === 'boolean' ? force : !npView.classList.contains('np-fullscreen');
+  npView.classList.toggle('np-fullscreen', isFS);
+  document.body.classList.toggle('np-is-fullscreen', isFS);
+}
+
+// ── Klik nama artis di halaman Now Playing: tutup Now Playing dulu baru buka halaman artis ──
+function npGoArtist(){
+  if(!curTrack || !curTrack.artist){ toast(' Tidak ada songs yang sedang diputar'); return; }
+  const artistName=curTrack.artist;
+  closeNP();
+  openArtistView(artistName);
+}
 
 // ── Kotak "About the artist" besar (foto latar penuh + bio singkat) ──
 let _npBioCache={}; // nama artis (lowercase) -> teks bio singkat
