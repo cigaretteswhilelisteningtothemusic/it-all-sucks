@@ -698,6 +698,11 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .dm-title{font-size:.82rem;font-weight:700;color:var(--text);line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
 
 /* TOP RANKING */
+.genre-menu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px;}
+.genre-tile{position:relative;height:112px;border-radius:16px;padding:16px;display:flex;align-items:flex-end;cursor:pointer;overflow:hidden;font-weight:800;font-size:1.05rem;color:#fff;letter-spacing:.2px;transition:transform .18s,box-shadow .18s;border:1px solid rgba(255,255,255,0.08);}
+.genre-tile:hover{transform:translateY(-4px) scale(1.02);box-shadow:0 12px 28px rgba(0,0,0,.4);}
+.genre-tile .genre-tile-emoji{position:absolute;right:-6px;bottom:-14px;font-size:3.6rem;opacity:.45;transform:rotate(18deg);pointer-events:none;line-height:1;}
+.genre-tile .genre-tile-label{position:relative;z-index:1;text-shadow:0 2px 6px rgba(0,0,0,.35);}
 .rank-grid{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
 .rank-item{display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:var(--rs);background:var(--card);border:1px solid transparent;cursor:pointer;transition:all .18s;}
 .rank-item:hover{background:var(--hover);border-color:var(--border);}
@@ -944,6 +949,9 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   /* ════════════════════════════════
      TOP RANKING — fix like terpotong
   ════════════════════════════════ */
+  .genre-menu-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+  .genre-tile{height:92px;padding:12px;font-size:.9rem;border-radius:13px}
+  .genre-tile .genre-tile-emoji{font-size:2.8rem}
   .rank-grid{gap:5px}
   .rank-item{
     padding:8px 10px;gap:8px;
@@ -2411,6 +2419,10 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9 9c.55-1.34 2.25-2 3.5-1.3a2.5 2.5 0 0 1 .5 4c-.83.67-1.5 1-1.5 2"/><circle cx="12" cy="17" r=".5" fill="currentColor"/></svg>
       Find Song Title
     </div>
+    <div class="nav-i" id="nav-genre" onclick="showGenreMenuView()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+      Genre Musik
+    </div>
   </nav>
 
   <!-- TENTANG ARTIS (widget artis dari songs yang sedang diputar) -->
@@ -2832,6 +2844,42 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
       </div>
       <div class="finder-history-list" id="finder-history-list"></div>
     </div>
+  </div>
+
+  <!-- GENRE MENU VIEW (daftar genre musik) -->
+  <div id="genre-menu-view" style="display:none;">
+    <button class="pv-back" onclick="backFromGenreMenuView()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      Kembali
+    </button>
+    <div class="pub-section-header" style="margin-bottom:14px;">
+      <div class="pub-section-title">
+         Genre Musik
+        <span class="pub-badge">Pilih Genre</span>
+      </div>
+    </div>
+    <div class="genre-menu-grid" id="genre-menu-grid"></div>
+  </div>
+
+  <!-- GENRE SONGS VIEW (daftar lagu trending/populer per genre) -->
+  <div id="genre-songs-view" style="display:none;">
+    <button class="pv-back" onclick="backFromGenreSongsView()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      Kembali
+    </button>
+    <div class="pub-section-header" style="margin-bottom:6px;">
+      <div class="pub-section-title">
+        <span id="genre-songs-emoji"></span>
+        <span id="genre-songs-title">Genre</span>
+        <span class="pub-badge">Trending &amp; Populer</span>
+      </div>
+      <button class="home-new-pl-btn" id="genre-refresh-btn" onclick="refreshCurrentGenreSongs()" style="background:none;border:1px solid var(--border);color:var(--sub);">
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+        Refresh
+      </button>
+    </div>
+    <div class="genre-songs-count" id="genre-songs-count" style="font-size:.75rem;color:var(--sub);margin-bottom:12px;"></div>
+    <div class="rank-grid" id="genre-songs-grid"></div>
   </div>
 
 </main>
@@ -3524,11 +3572,14 @@ function showHomeView() {
   document.getElementById('finder-view').style.display = 'none';
   document.getElementById('playlist-view').style.display = 'none';
   document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('genre-menu-view').style.display = 'none';
+  document.getElementById('genre-songs-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('nav-home').classList.add('on');
   document.getElementById('nav-search').classList.remove('on');
   document.getElementById('nav-finder').classList.remove('on');
+  document.getElementById('nav-genre').classList.remove('on');
   renderHomeGrid();
 }
 
@@ -3538,11 +3589,14 @@ function showSearchView() {
   document.getElementById('finder-view').style.display = 'none';
   document.getElementById('playlist-view').style.display = 'none';
   document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('genre-menu-view').style.display = 'none';
+  document.getElementById('genre-songs-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.add('on');
   document.getElementById('nav-finder').classList.remove('on');
+  document.getElementById('nav-genre').classList.remove('on');
   setTimeout(() => document.getElementById('q').focus(), 100);
 }
 
@@ -3565,6 +3619,8 @@ function showFinderView() {
   document.getElementById('finder-view').style.display = 'block';
   document.getElementById('playlist-view').style.display = 'none';
   document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('genre-menu-view').style.display = 'none';
+  document.getElementById('genre-songs-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('nav-home').classList.remove('on');
@@ -3583,6 +3639,8 @@ function showPlaylistView(plId) {
   document.getElementById('search-view').classList.remove('active');
   document.getElementById('playlist-view').style.display = 'block';
   document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('genre-menu-view').style.display = 'none';
+  document.getElementById('genre-songs-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('nav-home').classList.remove('on');
@@ -6133,11 +6191,14 @@ function openArtistView(artistName) {
   document.getElementById('finder-view').style.display = 'none';
   document.getElementById('playlist-view').style.display = 'none';
   document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('genre-menu-view').style.display = 'none';
+  document.getElementById('genre-songs-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'block';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.remove('on');
   document.getElementById('nav-finder').classList.remove('on');
+  document.getElementById('nav-genre').classList.remove('on');
   const mainEl = document.getElementById('main'); if (mainEl) mainEl.scrollTop = 0;
 
   document.getElementById('artist-banner-name').textContent = artistName;
@@ -6260,9 +6321,12 @@ function openAlbumView(albumId, albumTitle) {
   document.getElementById('finder-view').style.display = 'none';
   document.getElementById('playlist-view').style.display = 'none';
   document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('genre-menu-view').style.display = 'none';
+  document.getElementById('genre-songs-view').style.display = 'none';
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.remove('on');
   document.getElementById('nav-finder').classList.remove('on');
+  document.getElementById('nav-genre').classList.remove('on');
   const mainEl = document.getElementById('main'); if (mainEl) mainEl.scrollTop = 0;
 
   document.getElementById('album-title').textContent = albumTitle || 'Album';
@@ -6416,6 +6480,227 @@ async function fetchDeezerChartTracks(limit, genreId) {
     preview: t.preview || null,
     duration: t.duration || 0
   }));
+}
+
+// ─── GENRE MUSIK: menu genre + daftar lagu trending/populer per genre ──
+// Setiap genre dipetakan ke nama genre asli Deezer (untuk mengambil chart
+// live-nya bila tersedia) + kata kunci pencarian cadangan (order=RANKING,
+// yaitu diurutkan berdasarkan popularitas) untuk genre yang tidak punya
+// chart resmi di Deezer (K-Pop, Phonk, Lo-fi, Afrobeats) atau untuk
+// melengkapi daftar sampai target 300 lagu.
+const GENRE_DEFS = {
+  pop:       { label: 'Pop',       emoji: '', color: 'linear-gradient(135deg,#e0458c,#8e2a63)', genreNames: ['pop'],                       query: 'Pop hits' },
+  hiphop:    { label: 'Hip-Hop',   emoji: '', color: 'linear-gradient(135deg,#8e44ad,#4a2360)', genreNames: ['rap/hip hop','hip hop'],      query: 'Hip Hop hits' },
+  rap:       { label: 'Rap',       emoji: '', color: 'linear-gradient(135deg,#c0392b,#6e1f16)', genreNames: ['rap/hip hop','rap'],          query: 'Rap hits' },
+  rnb:       { label: 'R&B',       emoji: '', color: 'linear-gradient(135deg,#9b59b6,#4c2a5c)', genreNames: ['r&b','rnb','randb'],          query: 'R&B hits' },
+  rock:      { label: 'Rock',      emoji: '', color: 'linear-gradient(135deg,#e74c3c,#6e1f16)', genreNames: ['rock'],                       query: 'Rock hits' },
+  edm:       { label: 'EDM',       emoji: '', color: 'linear-gradient(135deg,#00b4db,#005a70)', genreNames: ['dance','electro','house'],    query: 'EDM dance hits' },
+  latin:     { label: 'Latin',     emoji: '', color: 'linear-gradient(135deg,#f39c12,#8a5406)', genreNames: ['latin','latina'],             query: 'Latin hits' },
+  kpop:      { label: 'K-Pop',     emoji: '🇰🇷', color: 'linear-gradient(135deg,#ff6fb1,#8a2a56)', genreNames: ['k-pop','kpop'],              query: 'K-pop hits' },
+  indie:     { label: 'Indie',     emoji: '', color: 'linear-gradient(135deg,#27ae60,#155c33)', genreNames: ['alternative','indie'],        query: 'Indie hits' },
+  phonk:     { label: 'Phonk',     emoji: '', color: 'linear-gradient(135deg,#5c5c66,#232329)', genreNames: ['phonk'],                      query: 'Phonk' },
+  lofi:      { label: 'Lo-fi',     emoji: '', color: 'linear-gradient(135deg,#6c5b7b,#33283d)', genreNames: ['lo-fi','lofi','chill'],       query: 'Lofi chill beats' },
+  afrobeats: { label: 'Afrobeats', emoji: '', color: 'linear-gradient(135deg,#e67e22,#7a3f08)', genreNames: ['afrobeat','afro'],            query: 'Afrobeats hits' },
+};
+const GENRE_TARGET_COUNT = 300;
+let _deezerGenreListCache = null;
+let _currentGenreKey = null;
+
+function _normalizeDeezerTrack(t) {
+  return {
+    id: t.id,
+    title: t.title || t.title_short || 'Unknown',
+    artist: (t.artist && t.artist.name) || 'Unknown',
+    thumb: (t.album && (t.album.cover_xl || t.album.cover_big || t.album.cover_medium)) || '',
+    preview: t.preview || null,
+    duration: t.duration || 0
+  };
+}
+
+// Cari id genre asli Deezer berdasarkan daftar kandidat nama (case-insensitive, partial match)
+async function _getDeezerGenreId(nameList) {
+  if (!nameList || !nameList.length) return null;
+  try {
+    if (!_deezerGenreListCache) {
+      const data = await _deezerJsonp('https://api.deezer.com/genre');
+      _deezerGenreListCache = (data && data.data) || [];
+    }
+    for (const n of nameList) {
+      const found = _deezerGenreListCache.find(g => (g.name || '').toLowerCase().includes(n));
+      if (found) return found.id;
+    }
+  } catch (e) {}
+  return null;
+}
+
+// Ambil sampai GENRE_TARGET_COUNT lagu yang sedang tren/populer untuk satu genre,
+// menggabungkan chart resmi Deezer (jika genre-nya tersedia) dengan hasil
+// pencarian yang diurutkan berdasarkan popularitas (order=RANKING) sebagai pelengkap.
+async function fetchGenreSongs(genreKey) {
+  const def = GENRE_DEFS[genreKey];
+  if (!def) return [];
+  const seen = new Set();
+  const out = [];
+  const addTracks = (list) => {
+    for (const t of list) {
+      if (out.length >= GENRE_TARGET_COUNT) break;
+      if (!t || !t.id || seen.has(t.id)) continue;
+      seen.add(t.id);
+      out.push(t);
+    }
+  };
+
+  // 1) Chart resmi per-genre Deezer (lagu yang sedang trending di genre tsb)
+  try {
+    const gid = await _getDeezerGenreId(def.genreNames);
+    if (gid) {
+      for (const idx of [0, 100, 200, 300, 400]) {
+        if (out.length >= GENRE_TARGET_COUNT) break;
+        try {
+          const data = await _deezerJsonp('https://api.deezer.com/chart/' + gid + '/tracks?limit=100&index=' + idx);
+          const list = ((data && data.data) || []).map(_normalizeDeezerTrack);
+          if (!list.length) break;
+          addTracks(list);
+        } catch (e) { break; }
+      }
+    }
+  } catch (e) {}
+
+  // 2) Lengkapi sisanya dengan pencarian yang diurutkan berdasarkan ranking/popularitas
+  if (out.length < GENRE_TARGET_COUNT) {
+    for (const idx of [0, 100, 200, 300, 400, 500, 600, 700]) {
+      if (out.length >= GENRE_TARGET_COUNT) break;
+      try {
+        const url = 'https://api.deezer.com/search?q=' + encodeURIComponent(def.query) + '&order=RANKING&limit=100&index=' + idx;
+        const data = await _deezerJsonp(url);
+        const list = ((data && data.data) || []).map(_normalizeDeezerTrack);
+        if (!list.length) break;
+        addTracks(list);
+      } catch (e) { break; }
+    }
+  }
+  return out;
+}
+
+function renderGenreMenu() {
+  const grid = document.getElementById('genre-menu-grid');
+  if (!grid || grid.childElementCount) return; // sudah dirender sebelumnya
+  Object.keys(GENRE_DEFS).forEach(key => {
+    const def = GENRE_DEFS[key];
+    const tile = document.createElement('div');
+    tile.className = 'genre-tile';
+    tile.style.background = def.color;
+    tile.innerHTML = `<span class="genre-tile-emoji">${def.emoji}</span><span class="genre-tile-label">${esc(def.label)}</span>`;
+    tile.addEventListener('click', () => openGenreView(key));
+    grid.appendChild(tile);
+  });
+}
+
+function showGenreMenuView() {
+  document.getElementById('home-view').classList.remove('active');
+  document.getElementById('search-view').classList.remove('active');
+  document.getElementById('finder-view').style.display = 'none';
+  document.getElementById('playlist-view').style.display = 'none';
+  document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('artist-view').style.display = 'none';
+  document.getElementById('album-view').style.display = 'none';
+  document.getElementById('genre-songs-view').style.display = 'none';
+  document.getElementById('genre-menu-view').style.display = 'block';
+  document.getElementById('nav-home').classList.remove('on');
+  document.getElementById('nav-search').classList.remove('on');
+  document.getElementById('nav-finder').classList.remove('on');
+  document.getElementById('nav-genre').classList.add('on');
+  renderGenreMenu();
+  const mainEl = document.getElementById('main'); if (mainEl) mainEl.scrollTop = 0;
+}
+
+function backFromGenreMenuView() {
+  document.getElementById('genre-menu-view').style.display = 'none';
+  showHomeView();
+}
+
+function openGenreView(genreKey) {
+  const def = GENRE_DEFS[genreKey];
+  if (!def) return;
+  _currentGenreKey = genreKey;
+  document.getElementById('home-view').classList.remove('active');
+  document.getElementById('search-view').classList.remove('active');
+  document.getElementById('finder-view').style.display = 'none';
+  document.getElementById('playlist-view').style.display = 'none';
+  document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('artist-view').style.display = 'none';
+  document.getElementById('album-view').style.display = 'none';
+  document.getElementById('genre-menu-view').style.display = 'none';
+  document.getElementById('genre-songs-view').style.display = 'block';
+  document.getElementById('nav-home').classList.remove('on');
+  document.getElementById('nav-search').classList.remove('on');
+  document.getElementById('nav-finder').classList.remove('on');
+  document.getElementById('nav-genre').classList.add('on');
+  document.getElementById('genre-songs-emoji').textContent = def.emoji || '';
+  document.getElementById('genre-songs-title').textContent = def.label;
+  const mainEl = document.getElementById('main'); if (mainEl) mainEl.scrollTop = 0;
+  loadGenreSongsView(genreKey, false);
+}
+
+function backFromGenreSongsView() {
+  document.getElementById('genre-songs-view').style.display = 'none';
+  showGenreMenuView();
+}
+
+function refreshCurrentGenreSongs() {
+  if (_currentGenreKey) loadGenreSongsView(_currentGenreKey, true);
+}
+
+async function loadGenreSongsView(genreKey, force) {
+  const def = GENRE_DEFS[genreKey];
+  const grid = document.getElementById('genre-songs-grid');
+  const countEl = document.getElementById('genre-songs-count');
+  const todayKey = 'vibexa_genre_' + genreKey + '_' + new Date().toISOString().slice(0, 10);
+
+  if (!force) {
+    try {
+      const cached = localStorage.getItem(todayKey);
+      if (cached) {
+        const items = JSON.parse(cached);
+        if (items && items.length) {
+          renderGenreSongs(items);
+          if (countEl) countEl.textContent = 'Menampilkan ' + items.length + ' lagu ' + def.label + ' yang sedang tren & populer';
+          return;
+        }
+      }
+    } catch (e) {}
+  }
+
+  if (grid) grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat lagu ' + esc(def.label) + '...</h3></div>';
+  if (countEl) countEl.textContent = '';
+
+  try {
+    const items = await fetchGenreSongs(genreKey);
+    try {
+      localStorage.setItem(todayKey, JSON.stringify(items));
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith('vibexa_genre_' + genreKey + '_') && k !== todayKey) localStorage.removeItem(k);
+      });
+    } catch (e) {}
+    renderGenreSongs(items);
+    if (countEl) countEl.textContent = items.length
+      ? 'Menampilkan ' + items.length + ' lagu ' + def.label + ' yang sedang tren & populer'
+      : '';
+  } catch (e) {
+    console.error('loadGenreSongsView error:', e);
+    if (grid) grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;color:var(--sub)"> Gagal memuat lagu ' + esc(def.label) + ', coba refresh.</div>';
+  }
+}
+
+function renderGenreSongs(items) {
+  const c = document.getElementById('genre-songs-grid');
+  if (!c) return;
+  c.innerHTML = '';
+  if (!items.length) {
+    c.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;color:var(--sub)"> Belum ada lagu untuk genre ini.</div>';
+    return;
+  }
+  items.forEach((t, i) => c.appendChild(buildRankItemEl(t, i, false)));
 }
 
 function playTrendingTrack(t) {
@@ -6729,6 +7014,8 @@ function openDailyMix(mix) {
   document.getElementById('search-view').classList.remove('active');
   document.getElementById('playlist-view').style.display = 'block';
   document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('genre-menu-view').style.display = 'none';
+  document.getElementById('genre-songs-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('nav-home').classList.remove('on');
@@ -6886,11 +7173,14 @@ function showTopSongsFullView() {
   document.getElementById('nav-home').classList.add('on');
   document.getElementById('nav-search').classList.remove('on');
   document.getElementById('nav-finder').classList.remove('on');
+  document.getElementById('nav-genre').classList.remove('on');
   loadTrendingSongsFull(false);
 }
 
 function backFromTopSongsFullView() {
   document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('genre-menu-view').style.display = 'none';
+  document.getElementById('genre-songs-view').style.display = 'none';
   showHomeView();
 }
 
@@ -7085,6 +7375,8 @@ async function openPublicPlaylist(pl) {
   document.getElementById('search-view').classList.remove('active');
   document.getElementById('playlist-view').style.display = 'block';
   document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('genre-menu-view').style.display = 'none';
+  document.getElementById('genre-songs-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('nav-home').classList.remove('on');
