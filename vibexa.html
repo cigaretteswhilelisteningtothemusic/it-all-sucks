@@ -6284,6 +6284,28 @@ function backFromArtistView() {
   showHomeView();
 }
 
+// Ambil SEMUA album milik seorang artis, tidak dibatasi jumlah — Deezer
+// membatasi setiap request maksimal 100 item, jadi di sini kita loop
+// menaikkan "index" (halaman berikutnya) sampai datanya habis.
+async function _fetchAllArtistAlbums(artistId) {
+  const pageSize = 100;
+  let index = 0;
+  let all = [];
+  while (true) {
+    let data;
+    try {
+      data = await _deezerJsonp('https://api.deezer.com/artist/' + artistId + '/albums?limit=' + pageSize + '&index=' + index);
+    } catch (e) { break; }
+    const list = (data && data.data) || [];
+    if (!list.length) break;
+    all = all.concat(list);
+    if (list.length < pageSize) break; // ini sudah halaman terakhir
+    index += pageSize;
+    if (all.length > 1000) break; // jaga-jaga biar tidak loop tanpa henti
+  }
+  return all;
+}
+
 async function loadArtistProfile(artistName) {
   const myGen = ++_artistReqGen;
   try {
@@ -6305,9 +6327,9 @@ async function loadArtistProfile(artistName) {
     const bgEl = document.getElementById('artist-banner-bg');
     if (photo) { bgEl.src = photo; bgEl.style.display = 'block'; }
 
-    const [topData, albumData] = await Promise.all([
+    const [topData, allAlbums] = await Promise.all([
       _deezerJsonp('https://api.deezer.com/artist/' + artist.id + '/top?limit=10').catch(() => null),
-      _deezerJsonp('https://api.deezer.com/artist/' + artist.id + '/albums?limit=12').catch(() => null)
+      _fetchAllArtistAlbums(artist.id).catch(() => [])
     ]);
     if (myGen !== _artistReqGen) return;
 
@@ -6322,7 +6344,7 @@ async function loadArtistProfile(artistName) {
     _currentArtistData.tracks = tracks;
     renderArtistSongs(tracks);
 
-    const albums = ((albumData && albumData.data) || []).map(a => ({
+    const albums = (allAlbums || []).map(a => ({
       id: a.id,
       title: a.title || 'Unknown',
       cover: a.cover_xl || a.cover_big || a.cover_medium || '',
