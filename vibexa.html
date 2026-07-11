@@ -6578,17 +6578,37 @@ async function fetchDeezerChartTracks(limit, genreId) {
 // yaitu diurutkan berdasarkan popularitas) untuk genre yang tidak punya
 // chart resmi di Deezer (K-Pop, Phonk, Lo-fi, Afrobeats) atau untuk
 // melengkapi daftar sampai target 100 lagu.
+// CATATAN PERBAIKAN AKURASI GENRE:
+// Sebelumnya hanya genre yang "rawan" (K-Pop/Indie/Phonk/Lo-fi/Afrobeats) yang
+// punya daftar artis inti (seedArtists) terkurasi manual, sedangkan genre lain
+// (Pop/Hip-Hop/Rap/R&B/Rock/EDM/Latin) full mengandalkan chart Deezer + fallback
+// pencarian teks bebas (mis. cari "Rock hits"). Masalahnya pencarian teks bebas
+// itu tidak benar-benar tahu genre lagunya apa — ia cuma mencocokkan kata di
+// judul/nama artis/album, jadi gampang kebobolan lagu yang genre-nya beda tapi
+// judulnya kebetulan mengandung kata kunci itu. Sekarang SEMUA genre diberi
+// seedArtists berisi artis yang memang benar-benar identik dengan genre
+// tersebut, supaya lagu #1 & mayoritas isi daftar dijamin akurat, dan
+// pencarian teks bebas hanya dipakai sebagai pelengkap paling akhir dengan
+// validasi ekstra (lihat fetchGenreSongs langkah 3).
 const GENRE_DEFS = {
-  pop:       { label: 'Pop',       emoji: '', color: 'linear-gradient(135deg,#e0458c,#8e2a63)', genreNames: ['pop'],                       query: 'Pop hits',        mbTag: 'pop' },
-  hiphop:    { label: 'Hip-Hop',   emoji: '', color: 'linear-gradient(135deg,#8e44ad,#4a2360)', genreNames: ['rap/hip hop','hip hop'],      query: 'Hip Hop hits',    mbTag: 'hip hop' },
-  rap:       { label: 'Rap',       emoji: '', color: 'linear-gradient(135deg,#c0392b,#6e1f16)', genreNames: ['rap/hip hop','rap'],          query: 'Rap hits',        mbTag: 'rap' },
-  rnb:       { label: 'R&B',       emoji: '', color: 'linear-gradient(135deg,#9b59b6,#4c2a5c)', genreNames: ['r&b','rnb','randb'],          query: 'R&B hits',        mbTag: 'r&b' },
-  rock:      { label: 'Rock',      emoji: '', color: 'linear-gradient(135deg,#e74c3c,#6e1f16)', genreNames: ['rock'],                       query: 'Rock hits',       mbTag: 'rock' },
-  edm:       { label: 'EDM',       emoji: '', color: 'linear-gradient(135deg,#00b4db,#005a70)', genreNames: ['dance','electro','house'],    query: 'EDM dance hits',  mbTag: 'electronic' },
-  latin:     { label: 'Latin',     emoji: '', color: 'linear-gradient(135deg,#f39c12,#8a5406)', genreNames: ['latin','latina'],             query: 'Latin hits',      mbTag: 'latin' },
+  pop:       { label: 'Pop',       emoji: '', color: 'linear-gradient(135deg,#e0458c,#8e2a63)', genreNames: ['pop'],                       query: 'Pop hits',        mbTag: 'pop',
+    seedArtists: ['Taylor Swift','Ariana Grande','Dua Lipa','Ed Sheeran','Justin Bieber','Olivia Rodrigo','Sabrina Carpenter','Billie Eilish','Bruno Mars','Katy Perry','Shawn Mendes','Charlie Puth','Selena Gomez','Camila Cabello'] },
+  hiphop:    { label: 'Hip-Hop',   emoji: '', color: 'linear-gradient(135deg,#8e44ad,#4a2360)', genreNames: ['rap/hip hop','hip hop'],      query: 'Hip Hop hits',    mbTag: 'hip hop',
+    seedArtists: ['Drake','Travis Scott','Future','Post Malone','21 Savage','Lil Baby','Metro Boomin','Tyler, The Creator','A$AP Rocky','Playboi Carti','Lil Uzi Vert','Kanye West','Chris Brown','Migos'] },
+  rap:       { label: 'Rap',       emoji: '', color: 'linear-gradient(135deg,#c0392b,#6e1f16)', genreNames: ['rap/hip hop','rap'],          query: 'Rap hits',        mbTag: 'rap',
+    seedArtists: ['Eminem','Kendrick Lamar','Jay-Z','Nas','J. Cole','50 Cent','Lil Wayne','Nicki Minaj','Cardi B','Megan Thee Stallion','Snoop Dogg','Ice Cube','Dr. Dre','Logic'] },
+  rnb:       { label: 'R&B',       emoji: '', color: 'linear-gradient(135deg,#9b59b6,#4c2a5c)', genreNames: ['r&b','rnb','randb'],          query: 'R&B hits',        mbTag: 'r&b',
+    seedArtists: ['The Weeknd','SZA','Beyoncé','Usher','Alicia Keys','H.E.R.','Summer Walker','Jhené Aiko','Bryson Tiller','Ella Mai','Giveon','Miguel','Frank Ocean','Daniel Caesar'] },
+  rock:      { label: 'Rock',      emoji: '', color: 'linear-gradient(135deg,#e74c3c,#6e1f16)', genreNames: ['rock'],                       query: 'Rock hits',       mbTag: 'rock',
+    seedArtists: ['Imagine Dragons','Coldplay','Linkin Park','Foo Fighters','Green Day','Nirvana','Red Hot Chili Peppers','Queen','The Killers','Muse','AC/DC','Guns N\' Roses','Aerosmith','Metallica'] },
+  edm:       { label: 'EDM',       emoji: '', color: 'linear-gradient(135deg,#00b4db,#005a70)', genreNames: ['dance','electro','house'],    query: 'EDM dance hits',  mbTag: 'electronic',
+    seedArtists: ['Calvin Harris','David Guetta','Marshmello','The Chainsmokers','Martin Garrix','Avicii','Zedd','Alan Walker','Kygo','Tiësto','Skrillex','Diplo','Illenium','ODESZA'] },
+  latin:     { label: 'Latin',     emoji: '', color: 'linear-gradient(135deg,#f39c12,#8a5406)', genreNames: ['latin','latina'],             query: 'Latin hits',      mbTag: 'latin',
+    seedArtists: ['Bad Bunny','Karol G','Shakira','J Balvin','Rauw Alejandro','Ozuna','Daddy Yankee','Feid','Peso Pluma','Rosalía','Maluma','Anitta','Nicky Jam','Anuel AA'] },
   kpop:      { label: 'K-Pop',     emoji: '🇰🇷', color: 'linear-gradient(135deg,#ff6fb1,#8a2a56)', genreNames: ['k-pop','kpop'],              query: 'K-pop hits',      mbTag: 'k-pop',
     seedArtists: ['BTS','BLACKPINK','TWICE','Stray Kids','SEVENTEEN','NewJeans','IVE','aespa','EXO','TOMORROW X TOGETHER','ENHYPEN','ITZY','(G)I-DLE','NCT DREAM','NCT 127','Red Velvet','ATEEZ','LE SSERAFIM','IU','TREASURE'] },
-  indie:     { label: 'Indie',     emoji: '', color: 'linear-gradient(135deg,#27ae60,#155c33)', genreNames: ['alternative','indie'],        query: 'Indie hits',      mbTag: 'indie' },
+  indie:     { label: 'Indie',     emoji: '', color: 'linear-gradient(135deg,#27ae60,#155c33)', genreNames: ['alternative','indie'],        query: 'Indie hits',      mbTag: 'indie',
+    seedArtists: ['Tame Impala','Arctic Monkeys','Vampire Weekend','MGMT','Foster The People','The 1975','Cigarettes After Sex','Beach House','Phoebe Bridgers','Mac DeMarco'] },
   phonk:     { label: 'Phonk',     emoji: '', color: 'linear-gradient(135deg,#5c5c66,#232329)', genreNames: ['phonk'],                      query: 'Phonk',           mbTag: 'phonk',
     seedArtists: ['Kordhell','DVRST','Interworld','Freddie Dredd','$UICIDEBOY$','Pharmacist','Playa Phonk','KSLV Noh','Soudiere','Ghostrifle'] },
   lofi:      { label: 'Lo-fi',     emoji: '', color: 'linear-gradient(135deg,#6c5b7b,#33283d)', genreNames: ['lo-fi','lofi','chill'],       query: 'Lofi chill beats',mbTag: 'lo-fi',
@@ -6657,14 +6677,16 @@ async function _getMusicBrainzGenreArtists(genreKey) {
   let artists = [];
   try {
     const url = 'https://musicbrainz.org/ws/2/artist/?query=' + encodeURIComponent('tag:"' + def.mbTag + '"') +
-      '&fmt=json&limit=60';
+      '&fmt=json&limit=100';
     const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
     if (res.ok) {
       const data = await res.json();
       artists = ((data && data.artists) || [])
-        // skor dinaikkan dari 30 -> 45 supaya artis yang dipetakan ke genre ini
-        // benar-benar kuat asosiasinya, bukan sekadar nyerempet tag
-        .filter(a => (a.score || 0) >= 45 && a.name)
+        // skor dinaikkan dari 30 -> 45 -> 60 supaya artis yang dipetakan ke genre
+        // ini benar-benar kuat asosiasinya (bukan sekadar nyerempet tag), karena
+        // daftar ini juga dipakai untuk memvalidasi hasil pencarian umum di
+        // langkah 3 fetchGenreSongs (lihat _isTrackFromKnownGenreArtist).
+        .filter(a => (a.score || 0) >= 60 && a.name)
         .sort((a, b) => (b.score || 0) - (a.score || 0))
         .map(a => a.name);
     }
@@ -6689,8 +6711,36 @@ async function _deezerArtistTopTracksByName(artistName, limit) {
 // versi cover/instrumental/karaoke/tribute yang judulnya memuat kata kunci genre
 // tapi sebenarnya bukan lagu asli dari artis genre tsb.
 const _GENRE_JUNK_RX = /\b(cover|karaoke|tribute( to)?|instrumental|piano version|guitar version|harp version|violin version|flute version|music box version|made famous by|in the style of|originally performed by|backing track|8d audio|sped up|nightcore|remix by [a-z]|lo-?fi version|type beat|tribute band|mashup|acapella|acoustic version|slowed( \+|and)? reverb|reverb version|8-bit|midi version|orchestral version|children'?s version|kids version|lullaby version|study version|meme version|fan made|parody|for kids)\b/i;
+// Tangkap juga format "(Nama Remix)" — remix kolaborasi yang credit-nya ditulis
+// di dalam kurung tanpa kata "by" (mis. "Dracula (JENNIE Remix)"). Remix
+// semacam ini sering "meminjam" nama artis dari genre lain, sehingga kalau
+// jadi lagu #1/foto kotak genre, kesannya jadi tidak sesuai dengan genre aslinya.
+const _GENRE_JUNK_PAREN_REMIX_RX = /\([^)]*\bremix\)/i;
 function _isJunkGenreTrack(t) {
-  return _GENRE_JUNK_RX.test(t.title || '') || _GENRE_JUNK_RX.test(t.artist || '');
+  return _GENRE_JUNK_RX.test(t.title || '') || _GENRE_JUNK_RX.test(t.artist || '')
+    || _GENRE_JUNK_PAREN_REMIX_RX.test(t.title || '');
+}
+
+// Bandingkan nama artis secara longgar (lowercase, tanpa tanda baca/spasi
+// berlebih) supaya "Tyler, The Creator" vs "tyler the creator" tetap cocok.
+function _normArtistName(name) {
+  return (name || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+// Cek apakah nama artis sebuah lagu ada di dalam himpunan artis yang sudah
+// tervalidasi benar-benar termasuk genre ini (gabungan seedArtists kurasi
+// manual + artis hasil validasi tag MusicBrainz). Dipakai untuk MENYARING
+// hasil pencarian teks bebas (langkah 3) supaya tidak asal comot lagu yang
+// cuma kebetulan judul/artisnya mengandung kata kunci genre.
+function _isTrackFromKnownGenreArtist(t, knownArtistsSet) {
+  if (!knownArtistsSet || !knownArtistsSet.size) return false;
+  const a = _normArtistName(t.artist);
+  if (!a) return false;
+  if (knownArtistsSet.has(a)) return true;
+  // toleransi kolaborasi/featuring: "Drake feat. Rihanna" — cek tiap nama
+  // yang dipisah oleh feat/ft/x/&/,
+  const parts = a.split(/\b(?:feat|ft|featuring|and|x)\b|,|&/).map(s => s.trim()).filter(Boolean);
+  return parts.some(p => knownArtistsSet.has(p));
 }
 
 // Ambil sampai GENRE_TARGET_COUNT lagu yang sedang tren/populer untuk satu genre.
@@ -6720,11 +6770,18 @@ async function fetchGenreSongs(genreKey) {
     }
   };
 
+  // Ambil dulu daftar artis yang sudah/akan tervalidasi untuk genre ini
+  // (kurasi manual + tag MusicBrainz), supaya bisa dipakai sebagai "daftar
+  // putih" saat menyaring hasil pencarian teks bebas nanti di langkah 3.
+  const mbArtists = await _getMusicBrainzGenreArtists(genreKey).catch(() => []);
+  const knownArtists = new Set(
+    [...(def.seedArtists || []), ...mbArtists].map(_normArtistName).filter(Boolean)
+  );
+
   // 0) PALING PRIORITAS: daftar artis inti yang sudah dikurasi manual untuk
-  // genre yang tidak punya chart resmi di Deezer dan rawan salah kaprah kalau
-  // hanya mengandalkan pencarian teks (K-Pop, Phonk, Lo-fi, Afrobeats). Karena
-  // ini didahulukan, lagu #1 (dan foto kotak genre yang mengikuti lagu #1)
-  // dijamin berasal dari artis yang benar-benar dikenal luas sebagai genre ini.
+  // genre ini. Karena ini didahulukan, lagu #1 (dan foto kotak genre yang
+  // mengikuti lagu #1) dijamin berasal dari artis yang benar-benar dikenal
+  // luas sebagai genre tersebut — bukan hasil tebakan dari pencarian teks.
   if (def.seedArtists && def.seedArtists.length) {
     for (const artistName of def.seedArtists) {
       if (out.length >= GENRE_TARGET_COUNT) break;
@@ -6735,7 +6792,9 @@ async function fetchGenreSongs(genreKey) {
     }
   }
 
-  // 1) Chart resmi per-genre Deezer (lagu yang sedang trending di genre tsb)
+  // 1) Chart resmi per-genre Deezer (lagu yang sedang trending di genre tsb) —
+  // ini sumber terpercaya juga karena taksonomi genre-nya ditentukan Deezer
+  // sendiri, jadi tidak perlu divalidasi ulang lewat daftar artis.
   try {
     const gid = await _getDeezerGenreId(def.genreNames);
     if (gid) {
@@ -6755,26 +6814,33 @@ async function fetchGenreSongs(genreKey) {
   // menurut data genre/tag MusicBrainz — prioritas lebih tinggi dari pencarian
   // umum karena artisnya sudah tervalidasi sesuai genre.
   if (out.length < GENRE_TARGET_COUNT) {
-    try {
-      const mbArtists = await _getMusicBrainzGenreArtists(genreKey);
-      for (const artistName of mbArtists) {
-        if (out.length >= GENRE_TARGET_COUNT) break;
+    for (const artistName of mbArtists) {
+      if (out.length >= GENRE_TARGET_COUNT) break;
+      try {
         const tracks = await _deezerArtistTopTracksByName(artistName, 20);
         addTracks(tracks, true);
-      }
-    } catch (e) {}
+      } catch (e) {}
+    }
   }
 
-  // 3) Kalau masih kurang dari target, baru lengkapi dari pencarian umum yang
-  // diurutkan berdasarkan ranking/popularitas (disaring dari versi cover/
-  // instrumental/karaoke supaya tidak asal-asalan sesuai genre)
-  if (out.length < GENRE_TARGET_COUNT) {
+  // 3) PALING TERAKHIR & PALING KETAT: kalau masih kurang dari target, baru
+  // lengkapi dari pencarian teks umum yang diurutkan berdasarkan ranking/
+  // popularitas. Berbeda dari versi sebelumnya, hasil pencarian ini TIDAK
+  // langsung dipercaya — setiap lagu WAJIB lolos dua saringan: (a) bukan
+  // versi cover/karaoke/instrumental/remix ganjil, DAN (b) nama artisnya
+  // benar-benar ada di daftar artis yang sudah tervalidasi (knownArtists).
+  // Kalau daftar artis tervalidasi untuk genre ini kosong (mis. MusicBrainz
+  // sedang tidak bisa diakses), langkah ini dilewati saja daripada
+  // mengambil lagu yang tidak bisa dipastikan genre-nya — lebih baik daftar
+  // lagunya sedikit tapi akurat, daripada 100 lagu tapi banyak yang meleset.
+  if (out.length < GENRE_TARGET_COUNT && knownArtists.size) {
     for (const idx of [0, 100, 200, 300, 400, 500, 600, 700]) {
       if (out.length >= GENRE_TARGET_COUNT) break;
       try {
         const url = 'https://api.deezer.com/search?q=' + encodeURIComponent(def.query) + '&order=RANKING&limit=100&index=' + idx;
         const data = await _deezerJsonp(url);
-        const list = ((data && data.data) || []).map(_normalizeDeezerTrack);
+        const list = ((data && data.data) || []).map(_normalizeDeezerTrack)
+          .filter(t => _isTrackFromKnownGenreArtist(t, knownArtists));
         if (!list.length) break;
         addTracks(list, true);
       } catch (e) { break; }
@@ -6912,7 +6978,7 @@ const _genreSongsFetchInFlight = {};
 // Versi cache genre — dinaikkan setiap kali logika pengambilan lagu genre
 // diperbaiki, supaya cache lama (yang mungkin masih berisi hasil kurang
 // akurat dari versi sebelumnya) otomatis diabaikan dan diambil ulang.
-const GENRE_CACHE_VERSION = 'v2';
+const GENRE_CACHE_VERSION = 'v4';
 function _genreSongsCacheKey(genreKey) {
   return 'vibexa_genre_' + GENRE_CACHE_VERSION + '_' + genreKey + '_' + new Date().toISOString().slice(0, 10);
 }
