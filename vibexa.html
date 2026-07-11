@@ -682,6 +682,21 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .pub-like-btn.liked{color:#ff4d94;border-color:rgba(255,77,148,.45);background:rgba(255,77,148,.1);}
 .pub-like-btn svg{width:12px;height:12px;flex-shrink:0;}
 
+/* DAILY MIX */
+.dm-grid{display:flex;gap:16px;overflow-x:auto;padding:2px 2px 10px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
+.dm-grid.expanded{flex-wrap:wrap;overflow-x:visible;}
+.dm-card{flex:0 0 168px;width:168px;cursor:pointer;}
+.dm-grid.expanded .dm-card{flex:0 0 168px;}
+.dm-cover-wrap{position:relative;width:100%;aspect-ratio:1;border-radius:12px;overflow:hidden;background:var(--hover);margin-bottom:10px;box-shadow:0 8px 22px rgba(0,0,0,.3);transition:transform .2s;}
+.dm-card:hover .dm-cover-wrap{transform:translateY(-3px);}
+.dm-cover-img{width:100%;height:100%;object-fit:cover;display:block;}
+.dm-cover-ov{position:absolute;inset:0;background:rgba(0,0,0,.35);opacity:0;transition:opacity .2s;display:flex;align-items:center;justify-content:center;}
+.dm-card:hover .dm-cover-ov{opacity:1;}
+.dm-cover-ov svg{width:36px;height:36px;background:var(--green);border-radius:50%;padding:9px;color:#fff;box-shadow:0 3px 16px rgba(29,107,219,.5);}
+.dm-badge-mix{position:absolute;left:8px;bottom:8px;background:rgba(8,11,18,.78);backdrop-filter:blur(4px);color:#fff;font-size:.62rem;font-weight:800;letter-spacing:.4px;padding:4px 9px;border-radius:6px;}
+.dm-badge-num{position:absolute;right:8px;bottom:-2px;font-size:2.5rem;font-weight:800;font-family:var(--fm);line-height:1;text-shadow:0 2px 12px rgba(0,0,0,.55);}
+.dm-title{font-size:.82rem;font-weight:700;color:var(--text);line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+
 /* TOP RANKING */
 .rank-grid{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
 .rank-item{display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:var(--rs);background:var(--card);border:1px solid transparent;cursor:pointer;transition:all .18s;}
@@ -918,6 +933,8 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 
   /* Playlist grid 2 columns */
   .playlists-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+  .dm-card{flex:0 0 128px;width:128px;}
+  .dm-badge-num{font-size:2rem;}
   .pg-card{padding:10px;border-radius:12px}
   .pg-cover{font-size:2.2rem;border-radius:8px;margin-bottom:8px}
   .pg-name{font-size:.77rem}
@@ -2471,6 +2488,20 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
       </div>
     </div>
 
+    <!-- DAILY MIX (personalized per genre, powered by Deezer trending charts, auto-refreshes every 24h) -->
+    <div class="pub-section" id="daily-mix-section" style="display:none;">
+      <div class="pub-section-header">
+        <div class="pub-section-title">
+           Daily Mix
+          <span class="pub-badge">Diperbarui Hari Ini</span>
+        </div>
+        <button class="home-new-pl-btn" id="dm-showall-btn" onclick="toggleDailyMixShowAll()" style="background:none;border:1px solid var(--border);color:var(--sub);">
+          <span id="dm-showall-label">Tampilkan Semua</span>
+        </button>
+      </div>
+      <div class="dm-grid" id="daily-mix-grid"></div>
+    </div>
+
     <!-- TOP SONGS (Deezer, live daily chart) -->
     <div class="pub-section" id="top-ranking-section" style="display:none;">
       <div class="pub-section-header">
@@ -3263,6 +3294,7 @@ let YTP = null;
 let playing = false, cur = 0, tot = 0, raf = null;
 let lyrCache = {}, lyrs = [], curTrack = null;
 let curQueue = []; // songs yang sedang dalam antrian putar
+let _currentDailyMix = null; // daily mix yang sedang dibuka di playlist-view
 
 // ── Pre-fetch cache: simpan videoId songs berikutnya saat foreground ──────────
 let _prefetchCache = {}; // key: track._query → { videoId, lyrs }
@@ -3281,6 +3313,7 @@ auth.onAuthStateChanged(user => {
     loadAllPlaylistsFromCloud();
     loadPublicFeed();
     loadTrendingSongs();
+    loadDailyMixes();
   } else {
     showAuthWall();
   }
@@ -3573,6 +3606,7 @@ function showPlaylistView(plId) {
 function backFromPlaylist() {
   currentPlaylistId = null;
   currentPubPlaylist = null;
+  _currentDailyMix = null;
   showHomeView();
 }
 
@@ -6367,9 +6401,12 @@ async function loadTrendingSongs(force) {
   }
 }
 
-// Fetch N tracks from Deezer's live daily chart and normalize the shape.
-async function fetchDeezerChartTracks(limit) {
-  const data = await _deezerJsonp('https://api.deezer.com/chart/0/tracks?limit=' + limit);
+// Fetch N tracks from Deezer's live chart and normalize the shape.
+// genreId is optional (defaults to 0 = overall chart); pass a genre id to get
+// that genre's own live chart (used by the Daily Mix feature below).
+async function fetchDeezerChartTracks(limit, genreId) {
+  const gid = genreId || 0;
+  const data = await _deezerJsonp('https://api.deezer.com/chart/' + gid + '/tracks?limit=' + limit);
   if (!data || data.error || !data.data || !data.data.length) throw new Error('Data trending tidak tersedia');
   return data.data.map(t => ({
     id: t.id,
@@ -6415,6 +6452,292 @@ function wireAddBtn(btn, track) {
     } else {
       openAddSongModal(track);
     }
+  });
+}
+
+// ─── DAILY MIX (Spotify-style, powered by Deezer's per-genre live charts) ──
+// Every calendar day we pick 7 genres (seeded by the date so they stay put
+// during the day) and build a 30-song mix for each from Deezer's own
+// trending/popular chart for that genre. The cover shown is simply the
+// album art of the first song in the mix. Everything is cached under a
+// date-stamped localStorage key, so once the date rolls over the old mixes
+// are gone and fresh ones are generated automatically.
+const DM_MIX_COUNT = 7;
+const DM_TRACKS_PER_MIX = 30;
+const DM_COLORS = ['#26e0ff', '#eaff2e', '#ff5a4d', '#5ce87c', '#c17bff', '#4d8bff', '#ff6fc9'];
+const DM_GENRE_BLACKLIST = ['films/games', 'audiobooks', 'enfants', 'kids', 'speech', 'sport', 'fitness', 'tv shows', 'séries tv', 'books & spoken', 'all'];
+
+function _dmSeedFromString(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) { h = (Math.imul(31, h) + str.charCodeAt(i)) | 0; }
+  return h >>> 0;
+}
+function _dmMulberry32(seed) {
+  return function() {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function _dmSeededShuffle(arr, seedStr) {
+  const rng = _dmMulberry32(_dmSeedFromString(seedStr));
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+async function fetchDeezerGenres() {
+  const data = await _deezerJsonp('https://api.deezer.com/genre');
+  if (!data || data.error || !data.data) throw new Error('Gagal memuat genre Deezer');
+  return data.data.filter(g => g && g.id !== 0 && g.name && !DM_GENRE_BLACKLIST.includes(String(g.name).toLowerCase()));
+}
+
+// Build one 30-song mix for a genre using Deezer's live chart for that
+// genre (this IS the "trending/popular" data source). If the chart doesn't
+// have enough tracks, top songs from that genre's top artists fill the rest.
+async function buildDeezerMixForGenre(genre, targetCount) {
+  targetCount = targetCount || DM_TRACKS_PER_MIX;
+  let tracks = [];
+  try { tracks = await fetchDeezerChartTracks(targetCount, genre.id); } catch (e) { tracks = []; }
+
+  const seen = new Set(tracks.map(t => t.id));
+
+  if (tracks.length < targetCount) {
+    try {
+      const artistData = await _deezerJsonp('https://api.deezer.com/genre/' + genre.id + '/artists?limit=8');
+      const artists = (artistData && artistData.data) || [];
+      for (const artist of artists) {
+        if (tracks.length >= targetCount) break;
+        try {
+          const topData = await _deezerJsonp('https://api.deezer.com/artist/' + artist.id + '/top?limit=15');
+          const items = (topData && topData.data) || [];
+          for (const t of items) {
+            if (tracks.length >= targetCount) break;
+            if (seen.has(t.id)) continue;
+            seen.add(t.id);
+            tracks.push({
+              id: t.id,
+              title: t.title || t.title_short || 'Unknown',
+              artist: (t.artist && t.artist.name) || artist.name || 'Unknown',
+              thumb: (t.album && (t.album.cover_xl || t.album.cover_big || t.album.cover_medium)) || '',
+              preview: t.preview || null,
+              duration: t.duration || 0
+            });
+          }
+        } catch (e) {}
+      }
+    } catch (e) {}
+  }
+
+  if (tracks.length < 10) return null; // genre ini datanya terlalu sedikit, lewati
+
+  tracks = tracks.slice(0, targetCount);
+
+  // Nama mix mengikuti gaya Spotify: 2 artis paling dominan di mix ini
+  const uniqueArtists = [];
+  for (const t of tracks) {
+    if (!uniqueArtists.includes(t.artist)) uniqueArtists.push(t.artist);
+    if (uniqueArtists.length >= 2) break;
+  }
+  const title = uniqueArtists.length >= 2 ? `${uniqueArtists[0]} dan ${uniqueArtists[1]}` : (uniqueArtists[0] || genre.name);
+
+  return {
+    id: 'dm_' + genre.id,
+    genreId: genre.id,
+    genreName: genre.name,
+    title,
+    cover: tracks[0].thumb || genre.picture_xl || genre.picture_big || genre.picture || '',
+    tracks: tracks.map(t => ({ ...t, _query: `${t.artist}|||${t.title}|||${t.id}` }))
+  };
+}
+
+async function loadDailyMixes(force) {
+  const section = document.getElementById('daily-mix-section');
+  const grid = document.getElementById('daily-mix-grid');
+  if (section) section.style.display = 'block';
+
+  // Date-stamped cache key: once the date changes, the old mixes are simply
+  // no longer looked up and get cleaned up below — fresh ones are built.
+  const todayKey = 'vibexa_dailymix_' + new Date().toISOString().slice(0, 10);
+
+  if (!force) {
+    try {
+      const cached = localStorage.getItem(todayKey);
+      if (cached) {
+        const mixes = JSON.parse(cached);
+        if (mixes && mixes.length) { renderDailyMixes(mixes); return; }
+      }
+    } catch (e) {}
+  }
+
+  if (grid) grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;"><i></i><h3>Menyiapkan Daily Mix...</h3></div>';
+
+  try {
+    const genres = await fetchDeezerGenres();
+    if (!genres.length) throw new Error('Tidak ada genre tersedia');
+
+    const shuffled = _dmSeededShuffle(genres, todayKey);
+    const mixes = [];
+    let idx = 0;
+    while (mixes.length < DM_MIX_COUNT && idx < shuffled.length) {
+      const genre = shuffled[idx++];
+      const mix = await buildDeezerMixForGenre(genre, DM_TRACKS_PER_MIX);
+      if (mix) mixes.push(mix);
+    }
+
+    // Fallback kalau genre-genre tadi belum cukup menghasilkan 7 mix:
+    // isi slot sisa dari chart umum Deezer, dipecah per rentang 30 lagu.
+    if (mixes.length < DM_MIX_COUNT) {
+      try {
+        const generalTracks = await fetchDeezerChartTracks(100, 0);
+        let offset = 0;
+        while (mixes.length < DM_MIX_COUNT && offset + DM_TRACKS_PER_MIX <= generalTracks.length) {
+          const slice = generalTracks.slice(offset, offset + DM_TRACKS_PER_MIX).map(t => ({ ...t, _query: `${t.artist}|||${t.title}|||${t.id}` }));
+          const uniqueArtists = [];
+          for (const t of slice) { if (!uniqueArtists.includes(t.artist)) uniqueArtists.push(t.artist); if (uniqueArtists.length >= 2) break; }
+          mixes.push({
+            id: 'dm_general_' + offset,
+            genreId: 0,
+            genreName: 'Populer',
+            title: uniqueArtists.length >= 2 ? `${uniqueArtists[0]} dan ${uniqueArtists[1]}` : (uniqueArtists[0] || 'Mix Populer'),
+            cover: slice[0].thumb,
+            tracks: slice
+          });
+          offset += DM_TRACKS_PER_MIX;
+        }
+      } catch (e) {}
+    }
+
+    if (!mixes.length) throw new Error('Gagal membuat Daily Mix');
+
+    try {
+      localStorage.setItem(todayKey, JSON.stringify(mixes));
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith('vibexa_dailymix_') && k !== todayKey) localStorage.removeItem(k);
+      });
+    } catch (e) {}
+
+    renderDailyMixes(mixes);
+  } catch (e) {
+    console.error('loadDailyMixes error:', e);
+    if (grid) grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;color:var(--sub)"> Gagal memuat Daily Mix, coba refresh.</div>';
+  }
+}
+
+function renderDailyMixes(mixes) {
+  const c = document.getElementById('daily-mix-grid');
+  if (!c) return;
+  c.innerHTML = '';
+  mixes.forEach((mix, i) => c.appendChild(buildDailyMixCardEl(mix, i)));
+}
+
+function buildDailyMixCardEl(mix, i) {
+  const color = DM_COLORS[i % DM_COLORS.length];
+  const num = String(i + 1).padStart(2, '0');
+  const div = document.createElement('div');
+  div.className = 'dm-card';
+  div.innerHTML = `
+    <div class="dm-cover-wrap">
+      ${mix.cover ? `<img class="dm-cover-img" src="${esc(mix.cover)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
+      <div class="dm-cover-ov">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </div>
+      <div class="dm-badge-mix">Daily Mix</div>
+      <div class="dm-badge-num" style="color:${color}">${num}</div>
+    </div>
+    <div class="dm-title">${esc(mix.title)}</div>
+  `;
+  div.querySelector('.dm-cover-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
+  div.addEventListener('click', () => openDailyMix(mix));
+  return div;
+}
+
+function toggleDailyMixShowAll() {
+  const grid = document.getElementById('daily-mix-grid');
+  const label = document.getElementById('dm-showall-label');
+  if (!grid) return;
+  const expanded = grid.classList.toggle('expanded');
+  if (label) label.textContent = expanded ? 'Tampilkan Sedikit' : 'Tampilkan Semua';
+}
+
+function playDailyMix(mix) {
+  if (!mix.tracks || !mix.tracks.length) { toast(' Mix ini kosong'); return; }
+  curQueue = [...mix.tracks];
+  loadPlay(mix.tracks[0], null);
+}
+
+function openDailyMix(mix) {
+  _reorderMode = false;
+  currentPubPlaylist = null;
+  currentPlaylistId = null;
+  _currentDailyMix = mix;
+
+  document.getElementById('home-view').classList.remove('active');
+  document.getElementById('search-view').classList.remove('active');
+  document.getElementById('playlist-view').style.display = 'block';
+  document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('artist-view').style.display = 'none';
+  document.getElementById('album-view').style.display = 'none';
+  document.getElementById('nav-home').classList.remove('on');
+  document.getElementById('nav-search').classList.remove('on');
+
+  const coverEl = document.getElementById('pv-cover');
+  if (mix.cover) {
+    if (coverEl.tagName !== 'IMG') coverEl.outerHTML = `<img class="pv-cover" id="pv-cover" src="${esc(mix.cover)}" alt="cover">`;
+    else coverEl.src = mix.cover;
+  } else if (coverEl.tagName === 'IMG') {
+    coverEl.outerHTML = `<div class="pv-cover-ph" id="pv-cover"></div>`;
+  }
+  document.getElementById('pv-title').textContent = mix.title;
+  document.getElementById('pv-sub').textContent = `Daily Mix · ${mix.tracks.length} lagu · diperbarui hari ini`;
+
+  document.querySelectorAll('.pv-action-btn').forEach(b => b.style.display = 'none');
+  const pubBtn = document.getElementById('pv-publish-btn');
+  if (pubBtn) pubBtn.style.display = 'none';
+  const reorderBtn = document.getElementById('pv-reorder-btn');
+  if (reorderBtn) reorderBtn.style.display = 'none';
+  const covEdit = document.querySelector('.pv-cover-edit');
+  if (covEdit) covEdit.style.display = 'none';
+
+  const oldCard = document.getElementById('pv-owner-card');
+  if (oldCard) oldCard.remove();
+
+  renderDailyMixTracks(mix);
+}
+
+function renderDailyMixTracks(mix) {
+  const c = document.getElementById('pv-tracks');
+  const tracks = mix.tracks || [];
+  if (!c) return;
+  if (!tracks.length) { c.innerHTML = `<div class="pv-empty"><div class="pv-empty-icon"></div>Mix ini kosong.</div>`; return; }
+  c.innerHTML = `<div class="track-list-header"><div class="tl-h">#</div><div class="tl-h">Judul</div><div class="tl-h">Artis</div><div class="tl-h r"></div></div>`;
+  tracks.forEach((t, i) => {
+    const row = document.createElement('div');
+    row.className = 'track-row' + (curTrack && curTrack._query === t._query ? ' playing' : '');
+    row.innerHTML = `
+      <div class="tr-num">${i + 1}</div>
+      <div class="tr-info">
+        ${t.thumb ? `<img class="tr-thumb" src="${esc(t.thumb)}" onerror="this.style.display='none'">` : `<div class="tr-thumb-ph"></div>`}
+        <div class="tr-text">
+          <div class="tr-title">${esc(t.title)}</div>
+          <div class="tr-artist" style="font-size:.7rem;color:var(--sub)">${esc(t.artist)}</div>
+        </div>
+      </div>
+      <div class="tr-album">${esc(t.artist)}</div>
+      <div class="tr-dur">${buildAddBtnHTML(t, 'tr-add')}</div>
+    `;
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('.tr-add')) return;
+      curQueue = [...tracks];
+      loadPlay(t, null);
+      setTimeout(() => renderDailyMixTracks(mix), 100);
+    });
+    wireAddBtn(row.querySelector('.add-btn'), t);
+    c.appendChild(row);
   });
 }
 
