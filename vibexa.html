@@ -108,8 +108,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 
 /* Search view */
 .search-wrap{position:relative;margin-bottom:24px}
-.search-wrap svg{position:absolute;left:15px;top:50%;transform:translateY(-50%);color:var(--sub);width:17px;height:17px;pointer-events:none}
-#q{width:100%;background:var(--card);border:1px solid var(--border);border-radius:50px;padding:13px 110px 13px 44px;color:var(--text);font-family:var(--f);font-size:.88rem;outline:none;transition:all .25s}
+#q{width:100%;background:var(--card);border:1px solid var(--border);border-radius:50px;padding:13px 110px 13px 20px;color:var(--text);font-family:var(--f);font-size:.88rem;outline:none;transition:all .25s}
 #q::placeholder{color:var(--muted)}
 #q:focus{border-color:var(--green);box-shadow:0 0 0 3px var(--green-dim)}
 #btn-search{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:var(--green);border:none;border-radius:50px;padding:8px 20px;color:#fff;font-family:var(--f);font-weight:700;font-size:.8rem;cursor:pointer;transition:all .2s}
@@ -371,10 +370,13 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .track-row:hover .tr-del{opacity:1;}
 .tr-del:hover{color:#ff5555;}
 .tr-del svg{width:14px;height:14px;}
-.tr-add{opacity:0;background:none;border:none;color:var(--green);cursor:pointer;padding:2px;border-radius:4px;display:flex;align-items:center;transition:all .15s;}
+.tr-add{opacity:0;transition:opacity .15s;}
 .track-row:hover .tr-add{opacity:1;}
-.tr-add:hover{transform:scale(1.15);}
-.tr-add svg{width:16px;height:16px;}
+.tr-add:not(.add-btn){background:none;border:none;color:var(--green);cursor:pointer;padding:2px;border-radius:4px;display:flex;align-items:center;transition:transform .15s;}
+.tr-add:not(.add-btn):hover{transform:scale(1.15);}
+.tr-add:not(.add-btn) svg{width:16px;height:16px;}
+.tr-add.add-btn{width:24px;height:24px;}
+.tr-add.add-btn svg{width:12px;height:12px;}
 .pv-empty{text-align:center;padding:50px 20px;color:var(--muted);font-size:.83rem;line-height:1.8;}
 .pv-empty-icon{font-size:2.5rem;margin-bottom:12px;}
 
@@ -999,7 +1001,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
      SEARCH VIEW
   ════════════════════════════════ */
   .main-view{padding:14px 14px 10px}
-  #q{font-size:.85rem;padding:11px 88px 11px 40px}
+  #q{font-size:.85rem;padding:11px 88px 11px 16px}
   #btn-search{padding:7px 14px;font-size:.75rem}
   .search-wrap{margin-bottom:14px}
   #res-grid{grid-template-columns:repeat(2,1fr);gap:10px}
@@ -1510,13 +1512,9 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   flex:1;
   min-width:0;
 }
-.home-search-wrap svg{
-  position:absolute;left:16px;top:50%;transform:translateY(-50%);
-  color:var(--sub);width:17px;height:17px;pointer-events:none;
-}
 #home-q{
   width:100%;background:var(--card);border:1px solid var(--border);
-  border-radius:50px;padding:13px 100px 13px 46px;color:var(--text);
+  border-radius:50px;padding:13px 100px 13px 20px;color:var(--text);
   font-family:var(--f);font-size:.88rem;outline:none;transition:all .25s;
 }
 #home-q::placeholder{color:var(--muted)}
@@ -1541,8 +1539,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 
 @media(max-width:660px){
   .home-topbar{gap:10px;margin-bottom:16px;}
-  #home-q{font-size:.82rem;padding:11px 82px 11px 40px}
-  .home-search-wrap svg{left:14px;width:15px;height:15px}
+  #home-q{font-size:.82rem;padding:11px 82px 11px 16px}
   #home-btn-search{padding:7px 14px;font-size:.74rem}
   .home-notif-wrap .notif-bell-btn{width:40px;height:40px}
   .home-notif-wrap .notif-bell-btn svg{width:17px;height:17px}
@@ -2354,7 +2351,6 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   <div id="home-view" class="active">
     <div class="home-topbar">
       <div class="home-search-wrap">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
         <input type="text" id="home-q" placeholder="Cari lagu, artis, atau playlist..." autocomplete="off" spellcheck="false">
         <button id="home-btn-search" onclick="homeSearchGo()">Cari</button>
         <!-- SEARCH SUGGESTIONS DROPDOWN -->
@@ -2423,7 +2419,6 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   <!-- SEARCH VIEW -->
   <div id="search-view" class="main-view">
     <div class="search-wrap">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
       <input id="q" type="text" placeholder="Search artist or song title..." autocomplete="off" spellcheck="false">
       <button id="btn-search">Search</button>
       <!-- SEARCH SUGGESTIONS DROPDOWN -->
@@ -5014,7 +5009,7 @@ function initSearchSuggestions(inputId, boxId, onQuerySelect){
     el.className = 'sugg-item';
     const icon = customIcon || `<div class="sugg-icon ${iconClass}">${iconHTML}</div>`;
     const addBtnHTML = (direct && track) ? buildAddBtnHTML(track, 'sugg-add') : '';
-    el.innerHTML = `${icon}<div class="sugg-text"><div class="sugg-main">${mainText}</div>${subText?`<div class="sugg-sub">${subText}</div>`:''}</div>${addBtnHTML}<div class="sugg-arrow">${arrowSVG}</div>`;
+    el.innerHTML = `${icon}<div class="sugg-text"><div class="sugg-main">${mainText}</div>${subText?`<div class="sugg-sub">${subText}</div>`:''}</div>${addBtnHTML}`;
     if (direct && track) wireAddBtn(el.querySelector('.add-btn'), track);
     el.addEventListener('mousedown', e => {
       e.preventDefault();
@@ -6112,7 +6107,7 @@ async function openPublicPlaylist(pl) {
         </div>
       </div>
       <div class="tr-album">${esc(t.artist)}</div>
-      <div class="tr-dur"><button class="tr-add" title="Tambahkan ke playlist"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
+      <div class="tr-dur">${buildAddBtnHTML(t, 'tr-add')}</div>
     `;
     row.addEventListener('click', (e) => {
       if (e.target.closest('.tr-add')) return;
@@ -6121,13 +6116,7 @@ async function openPublicPlaylist(pl) {
       // Re-render to update playing highlight
       setTimeout(() => openPublicPlaylist(pl), 100);
     });
-    const addBtn = row.querySelector('.tr-add');
-    if (addBtn) {
-      addBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        openAddSongModal(t);
-      });
-    }
+    wireAddBtn(row.querySelector('.add-btn'), t);
     c.appendChild(row);
   });
 }
