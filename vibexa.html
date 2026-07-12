@@ -133,6 +133,15 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .cloud-dot.saving{background:var(--green);animation:pulse .8s infinite;}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 
+/* Menu popup di tombol profil avatar kanan atas: pilihan "Profil Saya" / "Logout" */
+.topbar-profile-wrap{position:relative;}
+.topbar-profile-menu{position:absolute;top:calc(100% + 10px);right:0;min-width:180px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:6px;display:none;flex-direction:column;gap:2px;box-shadow:0 8px 24px rgba(0,0,0,.45);z-index:50;}
+.topbar-profile-menu.show{display:flex;}
+.topbar-profile-menu-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:7px;border:none;background:none;color:var(--sub);font-family:var(--f);font-size:.8rem;font-weight:500;cursor:pointer;width:100%;text-align:left;transition:all .15s;}
+.topbar-profile-menu-item:hover{background:var(--hover);color:var(--text);}
+.topbar-profile-menu-item svg{width:15px;height:15px;flex-shrink:0;}
+.topbar-profile-menu-item.danger:hover{color:#ff5555;background:rgba(255,85,85,.1);}
+
 /* ── COLLAPSED SIDEBAR (Spotify-style icon rail) ───────────── */
 body.side-collapsed .logo-name,
 body.side-collapsed .lib-header-text,
@@ -2830,9 +2839,21 @@ body.np-is-fullscreen #bar{display:none !important;}
         <span class="notif-badge" id="notif-badge">0</span>
       </button>
     </div>
-    <button class="home-profile-btn" id="home-profile-btn" onclick="window.location.href='profile.html'" title="Profil Saya">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v2h20v-2c0-3.3-6.7-5-10-5z"/></svg>
-    </button>
+    <div class="topbar-profile-wrap" id="topbar-profile-wrap">
+      <button class="home-profile-btn" id="home-profile-btn" onclick="toggleTopProfileMenu(event)" title="Profil Saya">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v2h20v-2c0-3.3-6.7-5-10-5z"/></svg>
+      </button>
+      <div class="topbar-profile-menu" id="topbar-profile-menu">
+        <button class="topbar-profile-menu-item" onclick="closeTopProfileMenu();window.location.href='profile.html'">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+          <span>Profil Saya</span>
+        </button>
+        <button class="topbar-profile-menu-item danger" onclick="closeTopProfileMenu();doLogout()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+          <span>Logout</span>
+        </button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -2872,10 +2893,6 @@ body.np-is-fullscreen #bar{display:none !important;}
     <button class="side-nav-btn" onclick="window.location.href='vibeprofile.html'">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/><path d="M8 12h8M12 8v8"/></svg>
       <span>VibeProfile</span>
-    </button>
-    <button class="side-nav-btn" id="logout-btn" onclick="doLogout()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
-      <span>Logout</span>
     </button>
   </div>
 </aside>
@@ -4114,6 +4131,26 @@ function doLogout() {
     });
   }
 }
+
+// ─── Menu popup tombol profil (avatar bulat kanan atas) — Profil Saya / Logout ───
+function toggleTopProfileMenu(e) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById('topbar-profile-menu');
+  if (!menu) return;
+  menu.classList.toggle('show');
+}
+function closeTopProfileMenu() {
+  const menu = document.getElementById('topbar-profile-menu');
+  if (menu) menu.classList.remove('show');
+}
+// Klik di luar menu -> tutup menu
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('topbar-profile-wrap');
+  const menu = document.getElementById('topbar-profile-menu');
+  if (menu && menu.classList.contains('show') && wrap && !wrap.contains(e.target)) {
+    closeTopProfileMenu();
+  }
+});
 
 // Jaring pengaman tambahan: kalau tab/app ditutup atau dipindah ke
 // background saat masih ada perubahan yang belum tersimpan, coba
