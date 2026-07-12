@@ -711,7 +711,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 
 /* REKOMENDASI LAGU (kartu menyamping, gaya Daily Mix, bukan daftar peringkat) */
 .reco-grid{display:flex;gap:16px;overflow-x:auto;padding:2px 2px 10px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
-.reco-grid.expanded{flex-wrap:wrap;overflow-x:visible;}
+.reco-grid.expanded{display:grid;grid-template-columns:repeat(auto-fit,168px);justify-content:center;gap:20px 16px;overflow-x:visible;}
 .reco-card{flex:0 0 168px;width:168px;cursor:pointer;}
 .reco-grid.expanded .reco-card{flex:0 0 168px;}
 .reco-cover-wrap{position:relative;width:100%;aspect-ratio:1;border-radius:12px;overflow:hidden;background:var(--hover);margin-bottom:10px;box-shadow:0 8px 22px rgba(0,0,0,.3);transition:transform .2s;}
@@ -1033,6 +1033,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   .playlists-grid{grid-template-columns:repeat(2,1fr);gap:10px}
   .dm-card{flex:0 0 128px;width:128px;}
   .reco-card{flex:0 0 128px;width:128px;}
+  .reco-grid.expanded{grid-template-columns:repeat(auto-fit,128px);}
   .dm-badge-num{font-size:2rem;}
   .pg-card{padding:10px;border-radius:12px}
   .pg-cover{font-size:2.2rem;border-radius:8px;margin-bottom:8px}
@@ -1354,7 +1355,7 @@ body.np-is-fullscreen #bar{display:none !important;}
 #fs-lyr{display:none;position:fixed;inset:0;z-index:500;flex-direction:column;overflow:hidden;transition:background 1.2s ease;}
 #fs-lyr.open{display:flex;}
 #fs-bg{position:absolute;inset:0;background:inherit;filter:blur(0px);transition:background 1.2s ease;z-index:0;}
-#fs-bg::after{content:'';position:absolute;inset:0;background:rgba(0,0,0,0.35);}
+#fs-bg::after{content:'';position:absolute;inset:0;background:rgba(0,0,0,0.16);}
 #fs-nav{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;padding:18px 24px 10px;}
 #fs-back{background:rgba(0,0,0,0.3);border:none;border-radius:50%;width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;transition:background .2s;}
 #fs-back:hover{background:rgba(0,0,0,0.5)}
@@ -4004,6 +4005,17 @@ function syncAllFollowButtons() {
     npBtn.textContent = f ? 'Mengikuti' : 'Ikuti';
     npBtn.classList.toggle('following', f);
   }
+  // Tombol "Ikuti" di feed Song Preview: semua slide dibangun sekaligus di
+  // awal (renderSpSlides), jadi kalau follow/unfollow dilakukan lewat slide
+  // lain, tombol slide-slide lain untuk artis yang sama (yang baru terlihat
+  // saat scroll) perlu ikut disinkronkan di sini juga.
+  document.querySelectorAll('.sp-follow-btn[data-artist]').forEach(btn => {
+    const artist = btn.dataset.artist;
+    if (!artist) return;
+    const f = isArtistFavorited(artist);
+    btn.textContent = f ? 'Mengikuti' : 'Ikuti';
+    btn.classList.toggle('following', f);
+  });
 }
 
 // Tombol "Ikuti" di halaman profil artis (Home > buka artis)
@@ -4493,6 +4505,15 @@ function renderPlaylistView(plId) {
 
 // ─── Play All ─────────────────────────────────────────────
 function playAllPlaylist() {
+  // Handle Daily Mix (bukan playlist milik user maupun playlist publik)
+  if (!currentPlaylistId && !currentPubPlaylist && _currentDailyMix) {
+    const tracks = _currentDailyMix.tracks || [];
+    if (!tracks.length) { toast(' Mix ini kosong'); return; }
+    curQueue = [...tracks];
+    loadPlay(tracks[0], null);
+    setTimeout(() => renderDailyMixTracks(_currentDailyMix), 100);
+    return;
+  }
   // Handle public playlist (milik user lain)
   if (!currentPlaylistId && currentPubPlaylist) {
     playPublicPlaylist(currentPubPlaylist);
@@ -6081,9 +6102,88 @@ window.addEventListener('resize', initMobileNav);
 initMobileNav();
 
 // ─── Fullscreen Lyrics ────────────────────────────────────
-const FS_COLORS=['#0d2f6b','#0d1f4a','#1a2a6b','#0d3a5c','#0a1f52','#162b6b','#0d3052','#1a1a6b'];
+// Background layar lirik penuh sekarang ikut warna dominan sampul album lagu
+// yang sedang diputar (gaya "Canvas" Spotify), bukan warna acak yang cuma
+// berputar-putar di antara 8 warna biru. Palet FS_COLORS dipakai sebagai
+// warna transisi awal (sementara warna asli diekstrak) dan fallback kalau
+// ekstraksi gagal (mis. gambar sampul tidak izinkan CORS).
+const FS_COLORS=['#8b2fc9','#1d6fd1','#d81159','#1f9e6e','#e0651f','#5e35b1','#0288d1','#c2185b'];
 let _trackColorIdx=0;
-function pickFSColor(){_trackColorIdx++;const c=FS_COLORS[_trackColorIdx%FS_COLORS.length];document.getElementById('fs-lyr').style.background=c;document.getElementById('fs-bg').style.background=c;}
+let _fsColorCache={};
+let _fsColorReqSeq=0;
+function _applyFSColorValue(c){
+  const l=document.getElementById('fs-lyr'), b=document.getElementById('fs-bg');
+  if(l) l.style.background=c;
+  if(b) b.style.background=c;
+}
+// Ubah rgb(...) jadi versi lebih cerah & jenuh (vivid), gaya "Canvas" Spotify,
+// alih-alih digelapkan seperti sebelumnya. Lightness dijaga agar teks putih tetap kebaca.
+function _vividizeRGB(r,g,b){
+  r/=255; g/=255; b/=255;
+  const max=Math.max(r,g,b), min=Math.min(r,g,b);
+  let h=0,s=0; const l=(max+min)/2;
+  const d=max-min;
+  if(d!==0){
+    s=d/(1-Math.abs(2*l-1));
+    switch(max){
+      case r: h=((g-b)/d)%6; break;
+      case g: h=(b-r)/d+2; break;
+      case b: h=(r-g)/d+4; break;
+    }
+    h*=60; if(h<0)h+=360;
+  }
+  const s2=Math.min(1,Math.max(s,0.55));
+  const l2=Math.min(0.46,Math.max(0.30,l));
+  const c=(1-Math.abs(2*l2-1))*s2;
+  const x=c*(1-Math.abs((h/60)%2-1));
+  const m=l2-c/2;
+  let r2=0,g2=0,b2=0;
+  if(h<60){r2=c;g2=x;b2=0;} else if(h<120){r2=x;g2=c;b2=0;}
+  else if(h<180){r2=0;g2=c;b2=x;} else if(h<240){r2=0;g2=x;b2=c;}
+  else if(h<300){r2=x;g2=0;b2=c;} else {r2=c;g2=0;b2=x;}
+  const R=Math.round((r2+m)*255), G=Math.round((g2+m)*255), B=Math.round((b2+m)*255);
+  return `rgb(${R},${G},${B})`;
+}
+function _fsVividColorFromImage(url){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.crossOrigin='anonymous';
+    const timer=setTimeout(()=>reject(new Error('timeout')),2500);
+    img.onload=()=>{
+      clearTimeout(timer);
+      try{
+        const size=24;
+        const c=document.createElement('canvas'); c.width=size; c.height=size;
+        const ctx=c.getContext('2d'); ctx.drawImage(img,0,0,size,size);
+        const data=ctx.getImageData(0,0,size,size).data;
+        let r=0,g=0,b=0,n=0;
+        for(let i=0;i<data.length;i+=4){ if(data[i+3]<100) continue; r+=data[i]; g+=data[i+1]; b+=data[i+2]; n++; }
+        if(!n) throw new Error('no pixels');
+        r=Math.round(r/n); g=Math.round(g/n); b=Math.round(b/n);
+        resolve(_vividizeRGB(r,g,b));
+      }catch(e){ reject(e); }
+    };
+    img.onerror=()=>{ clearTimeout(timer); reject(new Error('load error')); };
+    img.src=url;
+  });
+}
+async function pickFSColor(track){
+  const t = track || curTrack;
+  const reqId = ++_fsColorReqSeq;
+  const key = t ? (t.thumb || t.title || '') : '';
+  // Kalau warna untuk sampul ini sudah pernah diekstrak sebelumnya, langsung pakai (instan, tanpa kedip warna palet dulu)
+  if (key && _fsColorCache[key]) { _applyFSColorValue(_fsColorCache[key]); return; }
+  _trackColorIdx++;
+  _applyFSColorValue(FS_COLORS[_trackColorIdx%FS_COLORS.length]);
+  if (t && t.thumb) {
+    try {
+      const color = await _fsVividColorFromImage(t.thumb); // warna cerah/vivid, khusus halaman lirik fullscreen
+      if (key) _fsColorCache[key] = color;
+      // Kalau lagu sudah berganti lagi sebelum ekstraksi ini selesai, jangan timpa warna lagu yang baru
+      if (reqId === _fsColorReqSeq) _applyFSColorValue(color);
+    } catch(e) { /* gagal ekstrak (mis. CORS) -> tetap pakai warna palet fallback di atas */ }
+  }
+}
 function openFS(){if(!curTrack)return;document.getElementById('fs-lyr').classList.add('open');document.getElementById('fs-artist-name').textContent=curTrack.title;setFSNowPlayingInfo(curTrack);updateFSLyr();updateFSProg();updateFSPB(playing);}
 function closeFS(){document.getElementById('fs-lyr').classList.remove('open');}
 
