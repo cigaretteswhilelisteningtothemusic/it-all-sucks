@@ -38,17 +38,30 @@
 html,body{height:100%;overflow:hidden}
 body{
   font-family:var(--f);
-  background:var(--bg);
+  background:#000;
   color:var(--text);
   display:grid;
   --side-w:270px;
+  --gap:8px;
+  gap:var(--gap);
+  padding:var(--gap);
   grid-template-columns:var(--side-w) 1fr 320px;
-  grid-template-rows:72px 1fr 88px;
+  grid-template-rows:64px 1fr 84px;
   grid-template-areas:"topbar topbar topbar" "side main lyr" "bar bar bar";
   transition:grid-template-columns .28s cubic-bezier(.22,1,.36,1);
 }
 body.side-collapsed{--side-w:76px;}
 body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 500px 350px at 15% 85%,rgba(29,107,219,0.07) 0%,transparent 65%),radial-gradient(ellipse 350px 500px at 85% 15%,rgba(61,157,214,0.04) 0%,transparent 65%);pointer-events:none;z-index:0;}
+
+/* Each grid area renders as its own rounded, bordered panel floating over
+   the black canvas — like the current Spotify desktop layout — with a
+   consistent gap separating topbar / sidebar / main / right-panel / player. */
+.home-topbar,#side,#main,#lyr,#bar{
+  border-radius:var(--r);
+  border:1px solid var(--border);
+  overflow:hidden;
+}
+#main{overflow-y:auto;}
 
 /* AUTH OVERLAY */
 #auth-overlay{position:fixed;inset:0;z-index:9999;background:rgba(8,11,18,0.97);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;}
@@ -62,7 +75,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .btn-back:hover{color:var(--text);border-color:var(--green)}
 
 /* SIDEBAR — Spotify-style "Your Library" panel */
-#side{grid-area:side;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;z-index:1}
+#side{grid-area:side;background:var(--panel);display:flex;flex-direction:column;overflow:hidden;z-index:1}
 
 /* Library header: icon + title + create + collapse toggle, like Spotify */
 .lib-header{display:flex;align-items:center;gap:8px;padding:16px 12px 10px;flex-shrink:0}
@@ -141,7 +154,7 @@ body.side-collapsed #side-artist-card{justify-content:center;padding:8px 6px;}
 body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 
 /* MAIN */
-#main{grid-area:main;overflow-y:auto;z-index:1;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;position:relative}
+#main{grid-area:main;overflow-y:auto;z-index:1;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;position:relative;background:var(--bg)}
 .main-view{padding:22px 22px 16px;display:none;}
 .main-view.active{display:block;}
 
@@ -483,7 +496,14 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .pg-play-btn svg{width:15px;height:15px;color:#fff;}
 
 /* LYRICS */
-#lyr{grid-area:lyr;background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;z-index:1}
+#lyr{grid-area:lyr;background:var(--panel);display:flex;flex-direction:column;overflow:hidden;z-index:1;transition:all .28s cubic-bezier(.22,1,.36,1)}
+/* Right panel "expand" — like Spotify's queue/now-playing panel expand button */
+body.lyr-expanded{grid-template-columns:var(--side-w) 0fr 620px;}
+body.lyr-expanded #main{opacity:0;pointer-events:none;}
+.lyr-expand-btn{background:none;border:none;color:var(--sub);cursor:pointer;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:all .18s;flex-shrink:0}
+.lyr-expand-btn:hover{color:var(--text);background:var(--hover)}
+.lyr-expand-btn svg{width:15px;height:15px;transition:transform .18s}
+body.lyr-expanded .lyr-expand-btn svg{transform:rotate(180deg)}
 .lyr-head{padding:18px 18px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
 .lyr-ttl{font-size:.88rem;font-weight:700;display:flex;align-items:center;gap:8px}
 .lyr-badge{background:var(--green-dim);border:1px solid rgba(29,185,84,.3);color:var(--green);font-size:.6rem;font-weight:700;letter-spacing:1px;padding:2px 8px;border-radius:50px;text-transform:uppercase}
@@ -651,7 +671,7 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .fs-ll.instrumental.active .inst-notes span:nth-child(5){animation:inst-bar5 .75s ease-in-out infinite .08s;}
 
 /* PLAYER BAR */
-#bar{grid-area:bar;background:rgba(8,11,18,.96);backdrop-filter:blur(20px);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 22px;gap:20px;z-index:10}
+#bar{grid-area:bar;background:rgba(8,11,18,.96);backdrop-filter:blur(20px);display:flex;align-items:center;padding:0 22px;gap:20px;z-index:10}
 .bar-track{display:flex;align-items:center;gap:12px;width:250px;flex-shrink:0;cursor:pointer;}
 .bar-thumb{width:50px;height:50px;border-radius:8px;object-fit:cover;background:var(--card);flex-shrink:0}
 .bar-ph{width:50px;height:50px;border-radius:8px;background:var(--card);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.25rem}
@@ -999,7 +1019,12 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
     grid-template-areas:"topbar""main""bar""mob-nav";
     overflow:hidden;
     --np-bottom: 120px;
+    gap:0;
+    padding:0;
   }
+  .home-topbar,#main,#bar{border-radius:0;border-width:0;}
+  .home-topbar{border-bottom:1px solid var(--border);}
+  #bar{border-top:1px solid var(--border);}
   #side{display:none}
   #lyr{display:none}
   #main{overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;}
@@ -1759,83 +1784,114 @@ body.np-is-fullscreen #bar{display:none !important;}
 .notif-badge.show { display: block; }
 
 /* ══════════════════════════════════════════════════════════
-   HOME TOPBAR (search + notif, sejajar di atas halaman home)
+   HOME TOPBAR — restyled to match the Spotify desktop top bar:
+   [menu][back][fwd] ·· [home circle] ·· [search pill] ·· [bell][avatar]
 ══════════════════════════════════════════════════════════ */
 .home-topbar{
   grid-area:topbar;
   display:flex;
   align-items:center;
-  gap:10px;
-  padding:0 22px;
-  border-bottom:1px solid var(--border);
+  gap:16px;
+  padding:0 18px;
   background:var(--panel);
   z-index:60;
   min-width:0;
 }
-.top-nav-group{display:flex;align-items:center;gap:4px;flex-shrink:0;}
-.top-nav-btn{
+
+/* Left cluster: menu (…) + back/forward-style shortcuts, tightly grouped like Spotify */
+.topbar-left{display:flex;align-items:center;gap:2px;flex-shrink:0;}
+.topbar-icon-btn{
   display:flex;align-items:center;justify-content:center;
-  width:44px;height:44px;border-radius:50%;
-  background:var(--card);border:1px solid var(--border);
+  width:32px;height:32px;border-radius:50%;
+  background:none;border:none;
   color:var(--sub);cursor:pointer;transition:all .18s;flex-shrink:0;
 }
-.top-nav-btn svg{width:18px;height:18px;}
-.top-nav-btn:hover{color:var(--text);border-color:var(--green);transform:translateY(-1px);}
-.top-nav-btn.on{color:#fff;background:var(--green);border-color:var(--green);box-shadow:var(--green-glow);}
-@media(max-width:660px){
-  .top-nav-btn{width:38px;height:38px}
-  .top-nav-btn svg{width:16px;height:16px}
+.topbar-icon-btn svg{width:16px;height:16px;}
+.topbar-icon-btn:hover{color:var(--text);background:var(--hover);}
+.topbar-icon-btn.on{color:var(--green);}
+
+/* Home circle button, separated from the menu cluster by a gap (as in Spotify) */
+.topbar-home-btn{
+  display:flex;align-items:center;justify-content:center;
+  width:40px;height:40px;border-radius:50%;flex-shrink:0;
+  background:var(--card);border:none;color:var(--sub);cursor:pointer;transition:all .18s;
 }
+.topbar-home-btn svg{width:19px;height:19px;}
+.topbar-home-btn:hover{color:var(--text);transform:scale(1.04);}
+.topbar-home-btn.on{color:var(--text);background:var(--hover);}
+
+/* Search pill — icon(s) live inside the pill itself, like Spotify's search bar */
 .home-search-wrap{
   position:relative;
-  flex:1;
+  flex:1 1 auto;
+  max-width:380px;
+  margin:0 auto;
   min-width:0;
 }
+.topbar-search-pill{
+  display:flex;align-items:center;gap:0;
+  width:100%;height:40px;
+  background:var(--card);border:1px solid var(--border);
+  border-radius:50px;padding:0 6px 0 4px;
+  transition:all .2s;
+}
+.topbar-search-pill:focus-within{border-color:var(--green);box-shadow:0 0 0 3px var(--green-dim)}
+#home-btn-search{
+  flex-shrink:0;width:36px;height:36px;border-radius:50%;
+  background:none;border:none;color:var(--sub);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:all .18s;
+}
+#home-btn-search svg{width:17px;height:17px;}
+#home-btn-search:hover{color:var(--text)}
 #home-q{
-  width:100%;background:var(--card);border:1px solid var(--border);
-  border-radius:50px;padding:13px 100px 13px 20px;color:var(--text);
-  font-family:var(--f);font-size:.88rem;outline:none;transition:all .25s;
+  flex:1;min-width:0;background:none;border:none;
+  padding:0 8px;color:var(--text);
+  font-family:var(--f);font-size:.86rem;outline:none;height:100%;
 }
 #home-q::placeholder{color:var(--muted)}
-#home-q:focus{border-color:var(--green);box-shadow:0 0 0 3px var(--green-dim)}
-#home-btn-search{
-  position:absolute;right:6px;top:50%;transform:translateY(-50%);
-  background:var(--green);border:none;border-radius:50px;padding:8px 20px;
-  color:#fff;font-family:var(--f);font-weight:700;font-size:.8rem;
-  cursor:pointer;transition:all .2s;
+.topbar-search-divider{width:1px;height:22px;background:var(--border);flex-shrink:0;margin:0 2px;}
+.topbar-search-box-btn{
+  flex-shrink:0;width:36px;height:36px;border-radius:50%;
+  background:none;border:none;color:var(--sub);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:all .18s;
 }
-#home-btn-search:hover{box-shadow:var(--green-glow);transform:translateY(-50%) scale(1.04)}
+.topbar-search-box-btn svg{width:17px;height:17px;}
+.topbar-search-box-btn:hover{color:var(--text)}
+.topbar-search-box-btn.on{color:var(--green)}
+
+/* Right cluster: notification bell + avatar, mirrors Spotify's right-hand icon group */
+.topbar-right{display:flex;align-items:center;gap:14px;flex-shrink:0;}
 .home-notif-wrap{flex-shrink:0;position:relative;}
 .home-notif-wrap .notif-bell-btn{
-  width:46px;height:46px;border-radius:50%;
-  background:var(--card);border:1px solid var(--border);
+  width:34px;height:34px;border-radius:50%;
+  background:none;border:none;
   display:flex;align-items:center;justify-content:center;
-  position:relative;padding:0;color:var(--sub);
+  position:relative;padding:0;color:var(--sub);transition:all .18s;
 }
-.home-notif-wrap .notif-bell-btn:hover{color:var(--text);border-color:var(--green)}
+.home-notif-wrap .notif-bell-btn:hover{color:var(--text)}
 .home-notif-wrap .notif-bell-btn svg{width:19px;height:19px;}
-.home-notif-wrap .notif-badge{position:absolute;top:2px;right:2px;margin:0;}
+.home-notif-wrap .notif-badge{position:absolute;top:0;right:0;margin:0;}
 
-/* Tombol profil bulat, ditaruh di sebelah kiri kotak search */
+/* Tombol profil bulat (avatar), ujung kanan bar — seperti avatar bulat di Spotify */
 .home-profile-btn{
-  flex-shrink:0;width:46px;height:46px;border-radius:50%;
-  background:var(--card);border:1px solid var(--border);
+  flex-shrink:0;width:32px;height:32px;border-radius:50%;
+  background:var(--green);border:none;
   padding:0;cursor:pointer;overflow:hidden;
   display:flex;align-items:center;justify-content:center;
-  color:var(--sub);transition:all .2s;
+  color:#fff;transition:all .2s;
 }
-.home-profile-btn:hover{border-color:var(--green);box-shadow:var(--green-glow);}
+.home-profile-btn:hover{box-shadow:var(--green-glow);transform:scale(1.05);}
 .home-profile-btn img{width:100%;height:100%;object-fit:cover;display:block;}
-.home-profile-btn svg{width:22px;height:22px;}
+.home-profile-btn svg{width:17px;height:17px;}
 
 @media(max-width:660px){
-  .home-topbar{gap:10px;margin-bottom:16px;}
-  #home-q{font-size:.82rem;padding:11px 82px 11px 16px}
-  #home-btn-search{padding:7px 14px;font-size:.74rem}
-  .home-notif-wrap .notif-bell-btn{width:40px;height:40px}
-  .home-notif-wrap .notif-bell-btn svg{width:17px;height:17px}
-  .home-profile-btn{width:40px;height:40px}
-  .home-profile-btn svg{width:18px;height:18px}
+  .home-topbar{gap:8px;padding:0 12px;}
+  .topbar-left{display:none;}
+  .topbar-home-btn{width:34px;height:34px;}
+  .topbar-home-btn svg{width:16px;height:16px;}
+  .topbar-search-pill{height:38px;}
+  #home-q{font-size:.8rem;}
+  .home-profile-btn{width:28px;height:28px}
 }
 
 /* Panel notifikasi */
@@ -2722,38 +2778,51 @@ body.np-is-fullscreen #bar{display:none !important;}
 
 <!-- PERSISTENT TOP BAR — full-width grid row above sidebar, main & right panel (Spotify-style) -->
 <div class="home-topbar">
-  <button class="home-profile-btn" id="home-profile-btn" onclick="window.location.href='profile.html'" title="Profil Saya">
-    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v2h20v-2c0-3.3-6.7-5-10-5z"/></svg>
-  </button>
-  <div class="top-nav-group">
-    <div class="top-nav-btn on" id="nav-home" onclick="showHomeView()" title="Home">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
-    </div>
-    <div class="top-nav-btn" id="nav-search" onclick="showSearchView()" style="display:none" title="Search Songs">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-    </div>
-    <div class="top-nav-btn" id="nav-finder" onclick="showFinderView()" title="Find Song Title">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9 9c.55-1.34 2.25-2 3.5-1.3a2.5 2.5 0 0 1 .5 4c-.83.67-1.5 1-1.5 2"/><circle cx="12" cy="17" r=".5" fill="currentColor"/></svg>
-    </div>
+  <!-- Left cluster: menu + shortcut arrows, like Spotify's ⋯ ‹ › -->
+  <div class="topbar-left">
+    <button class="topbar-icon-btn" onclick="toggleSidebarCollapse()" title="Menu">
+      <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+    </button>
+    <button class="topbar-icon-btn" id="nav-finder" onclick="showFinderView()" title="Find Song Title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <button class="topbar-icon-btn" id="nav-genre" onclick="showGenreMenuView()" title="Genre Musik">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
   </div>
+
+  <!-- Home circle, separated with a gap like Spotify -->
+  <button class="topbar-home-btn on" id="nav-home" onclick="showHomeView()" title="Home">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+  </button>
+  <div class="top-nav-btn" id="nav-search" onclick="showSearchView()" style="display:none" title="Search Songs"></div>
+
+  <!-- Search pill: search icon + input + divider + box icon, all inline like Spotify -->
   <div class="home-search-wrap">
-    <input type="text" id="home-q" placeholder="Cari lagu, artis, atau playlist..." autocomplete="off" spellcheck="false">
-    <button id="home-btn-search" onclick="homeSearchGo()">Cari</button>
+    <div class="topbar-search-pill">
+      <button id="home-btn-search" onclick="homeSearchGo()" title="Cari">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      </button>
+      <input type="text" id="home-q" placeholder="Cari lagu, artis, atau playlist..." autocomplete="off" spellcheck="false">
+      <span class="topbar-search-divider"></span>
+      <button class="topbar-search-box-btn" id="nav-songpreview" onclick="openSongPreviewView()" title="Song Preview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M10 9.2v5.6l4.8-2.8z" fill="currentColor" stroke="none"/></svg>
+      </button>
+    </div>
     <!-- SEARCH SUGGESTIONS DROPDOWN -->
     <div id="home-search-suggestions"></div>
   </div>
-  <div class="top-nav-group">
-    <div class="top-nav-btn" id="nav-genre" onclick="showGenreMenuView()" title="Genre Musik">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+
+  <!-- Right cluster: bell + avatar -->
+  <div class="topbar-right">
+    <div class="notif-bell-wrap home-notif-wrap">
+      <button class="notif-bell-btn" onclick="toggleNotifPanel()" title="Notifikasi">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="notif-badge" id="notif-badge">0</span>
+      </button>
     </div>
-    <div class="top-nav-btn" id="nav-songpreview" onclick="openSongPreviewView()" title="Song Preview">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M10 9.2v5.6l4.8-2.8z" fill="currentColor" stroke="none"/></svg>
-    </div>
-  </div>
-  <div class="notif-bell-wrap home-notif-wrap">
-    <button class="notif-bell-btn" onclick="toggleNotifPanel()" title="Notifikasi">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-      <span class="notif-badge" id="notif-badge">0</span>
+    <button class="home-profile-btn" id="home-profile-btn" onclick="window.location.href='profile.html'" title="Profil Saya">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v2h20v-2c0-3.3-6.7-5-10-5z"/></svg>
     </button>
   </div>
 </div>
@@ -3427,6 +3496,9 @@ body.np-is-fullscreen #bar{display:none !important;}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h10M4 17h6"/><circle cx="19" cy="17" r="2"/><path d="M19 15v-3"/></svg>
       Gaya
     </button>
+    <button class="lyr-expand-btn" id="lyr-expand-btn" onclick="toggleLyrExpand()" title="Perluas panel">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+    </button>
     </div>
   </div>
   <!-- Timing offset bar untuk speed up / slowed (dipakai fullscreen lyrics) -->
@@ -3845,6 +3917,14 @@ body.np-is-fullscreen #bar{display:none !important;}
 
 <script>
 'use strict';
+
+// ─── Right panel expand (Spotify-style now-playing panel expand) ──────────
+function toggleLyrExpand(force) {
+  const expanded = typeof force === 'boolean' ? force : !document.body.classList.contains('lyr-expanded');
+  document.body.classList.toggle('lyr-expanded', expanded);
+  const btn = document.getElementById('lyr-expand-btn');
+  if (btn) btn.title = expanded ? 'Ciutkan panel' : 'Perluas panel';
+}
 
 // ─── Sidebar collapse/expand (Spotify-style "Your Library" rail) ──────────
 function toggleSidebarCollapse(force) {
