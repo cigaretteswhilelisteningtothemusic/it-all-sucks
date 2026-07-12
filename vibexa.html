@@ -484,6 +484,9 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 #home-view.active{display:block;}
 .home-greeting{font-size:1.5rem;font-weight:800;margin-bottom:4px;}
 .home-sub{font-size:.82rem;color:var(--sub);margin-bottom:24px;}
+.home-footer{margin-top:32px;padding:20px 0 6px;border-top:1px solid var(--border);text-align:center;}
+.home-footer-credit{font-size:.72rem;color:var(--muted);line-height:1.5;margin:0 0 6px;}
+.home-footer-copyright{font-size:.7rem;color:var(--muted);opacity:.7;margin:0;}
 .home-section-title{font-size:1rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;}
 .home-new-pl-btn{background:var(--green-dim);border:1px solid rgba(46,125,255,.3);border-radius:50px;padding:5px 14px;color:var(--green);font-family:var(--f);font-size:.75rem;font-weight:700;cursor:pointer;transition:all .18s;display:flex;align-items:center;gap:5px;}
 .home-new-pl-btn:hover{background:var(--green);color:#fff;}
@@ -3011,6 +3014,11 @@ body.np-is-fullscreen #bar{display:none !important;}
           <h3>Loading public playlists...</h3>
         </div>
       </div>
+    </div>
+    <!-- FOOTER: credit sumber data + copyright, di paling bawah halaman Home -->
+    <div class="home-footer">
+      <p class="home-footer-credit">Data provided by YouTube, Apple Music (iTunes), Deezer, MusicBrainz, Wikipedia &amp; Google Translate.</p>
+      <p class="home-footer-copyright">© 2026 Vibexa. All Rights Reserved.</p>
     </div>
   </div>
 
@@ -6521,11 +6529,15 @@ function closeFSLyricsIfOpen(){
   closeFS();
 }
 // Toggle tombol "Lyrics": kalau lyrics sedang terbuka, tutup dan kembali ke tampilan Home;
-// kalau tertutup, buka seperti biasa.
+// kalau tertutup, tutup dulu halaman Now Playing (kalau sedang terbuka), arahkan ke Home,
+// baru tampilkan lyrics di halaman Home tersebut.
 function toggleFSLyrics(){
   const fsEl = document.getElementById('fs-lyr');
-  if (fsEl && fsEl.classList.contains('open')) { closeFSLyricsIfOpen(); }
-  else { openFS(); }
+  if (fsEl && fsEl.classList.contains('open')) { closeFSLyricsIfOpen(); return; }
+  const npEl = document.getElementById('np-view');
+  if (npEl && npEl.classList.contains('open') && typeof closeNP === 'function') { closeNP(); }
+  if (typeof showHomeView === 'function') { showHomeView(); }
+  openFS();
 }
 
 // ─── NOW PLAYING VIEW (foto album, tombol ke lirik, info artis, koleksi playlist) ───
@@ -11362,6 +11374,11 @@ let spObserver = null;
 let spCurrentIndex = -1;
 
 function openSongPreviewView() {
+  // Hentikan lagu utama yang sedang diputar & tutup halaman lyrics (kalau sedang terbuka)
+  if (typeof YTP !== 'undefined' && YTP) { try { YTP.pauseVideo(); } catch(e){} }
+  if (typeof playing !== 'undefined') { playing = false; }
+  if (typeof setPB === 'function') { setPB(false); }
+  if (typeof closeFSLyricsIfOpen === 'function') { closeFSLyricsIfOpen(); }
   document.getElementById('home-view').classList.remove('active');
   document.getElementById('search-view').classList.remove('active');
   document.getElementById('finder-view').style.display = 'none';
