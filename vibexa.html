@@ -62,6 +62,9 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   overflow:hidden;
 }
 #main{overflow-y:auto;}
+/* Topbar has no internally-scrolling content, but it DOES have the search
+   suggestions dropdown that must overflow below it — so don't clip it. */
+.home-topbar{overflow:visible;}
 
 /* AUTH OVERLAY */
 #auth-overlay{position:fixed;inset:0;z-index:9999;background:rgba(8,11,18,0.97);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;}
@@ -2780,14 +2783,11 @@ body.np-is-fullscreen #bar{display:none !important;}
 <div class="home-topbar">
   <!-- Left cluster: menu + shortcut arrows, like Spotify's ⋯ ‹ › -->
   <div class="topbar-left">
-    <button class="topbar-icon-btn" onclick="toggleSidebarCollapse()" title="Menu">
-      <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
-    </button>
-    <button class="topbar-icon-btn" id="nav-finder" onclick="showFinderView()" title="Find Song Title">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-    </button>
     <button class="topbar-icon-btn" id="nav-genre" onclick="showGenreMenuView()" title="Genre Musik">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+    </button>
+    <button class="topbar-icon-btn" id="nav-finder" onclick="showFinderView()" title="Cari Judul Lagu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg>
     </button>
   </div>
 
@@ -2797,24 +2797,23 @@ body.np-is-fullscreen #bar{display:none !important;}
   </button>
   <div class="top-nav-btn" id="nav-search" onclick="showSearchView()" style="display:none" title="Search Songs"></div>
 
-  <!-- Search pill: search icon + input + divider + box icon, all inline like Spotify -->
+  <!-- Search pill: search icon + input, kept compact -->
   <div class="home-search-wrap">
     <div class="topbar-search-pill">
       <button id="home-btn-search" onclick="homeSearchGo()" title="Cari">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
       </button>
       <input type="text" id="home-q" placeholder="Cari lagu, artis, atau playlist..." autocomplete="off" spellcheck="false">
-      <span class="topbar-search-divider"></span>
-      <button class="topbar-search-box-btn" id="nav-songpreview" onclick="openSongPreviewView()" title="Song Preview">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M10 9.2v5.6l4.8-2.8z" fill="currentColor" stroke="none"/></svg>
-      </button>
     </div>
     <!-- SEARCH SUGGESTIONS DROPDOWN -->
     <div id="home-search-suggestions"></div>
   </div>
 
-  <!-- Right cluster: bell + avatar -->
+  <!-- Right cluster: song preview + bell + avatar -->
   <div class="topbar-right">
+    <button class="topbar-icon-btn" id="nav-songpreview" onclick="openSongPreviewView()" title="Song Preview">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M10 9.2v5.6l4.8-2.8z" fill="currentColor" stroke="none"/></svg>
+    </button>
     <div class="notif-bell-wrap home-notif-wrap">
       <button class="notif-bell-btn" onclick="toggleNotifPanel()" title="Notifikasi">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
