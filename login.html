@@ -594,7 +594,7 @@ label {
   // Redirect if already signed in
   onAuthStateChanged(auth, (user) => {
     if (user) {
-      window.location.href = 'vibexa.html';
+      window.location.href = 'follow-artists.html';
     }
   });
 
@@ -686,7 +686,7 @@ async function doLogin() {
     const auth = window._firebaseAuth;
     await fn.signInWithEmailAndPassword(auth, email, password);
     showSuccess('Signed in! Redirecting...');
-    setTimeout(() => { window.location.href = 'vibexa.html'; }, 800);
+    setTimeout(() => { window.location.href = 'follow-artists.html'; }, 800);
   } catch (err) {
     const msg = handleAuthError(err.code);
     if (msg) showError(msg);
@@ -704,7 +704,7 @@ async function doGoogleLogin() {
     const provider = window._googleProvider;
     await fn.signInWithPopup(auth, provider);
     showSuccess('Signed in! Redirecting...');
-    setTimeout(() => { window.location.href = 'vibexa.html'; }, 800);
+    setTimeout(() => { window.location.href = 'follow-artists.html'; }, 800);
   } catch (err) {
     const msg = handleAuthError(err.code);
     if (msg) showError(msg);

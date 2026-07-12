@@ -523,7 +523,7 @@ label {
   // Redirect if already signed in
   onAuthStateChanged(auth, (user) => {
     if (user) {
-      window.location.href = 'vibexa.html';
+      window.location.href = 'follow-artists.html';
     }
   });
 
@@ -737,7 +737,7 @@ async function doRegister() {
     await fn.updateProfile(user, { displayName: name });
     await saveUserData(user, name);
     showSuccess('Account created! Redirecting...');
-    setTimeout(() => { window.location.href = 'vibexa.html'; }, 1000);
+    setTimeout(() => { window.location.href = 'follow-artists.html'; }, 1000);
   } catch (err) {
     const msg = handleAuthError(err.code);
     if (msg) showError(msg);
@@ -756,7 +756,7 @@ async function doGoogleRegister() {
     const { user } = await fn.signInWithPopup(auth, provider);
     await saveUserData(user, user.displayName);
     showSuccess('Account created! Redirecting...');
-    setTimeout(() => { window.location.href = 'vibexa.html'; }, 1000);
+    setTimeout(() => { window.location.href = 'follow-artists.html'; }, 1000);
   } catch (err) {
     const msg = handleAuthError(err.code);
     if (msg) showError(msg);
