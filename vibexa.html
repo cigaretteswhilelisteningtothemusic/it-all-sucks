@@ -81,7 +81,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 #side{grid-area:side;background:var(--panel);display:flex;flex-direction:column;overflow:hidden;z-index:1}
 
 /* Library header: icon + title + create + collapse toggle, like Spotify */
-.lib-header{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:16px 12px 10px;flex-shrink:0}
+.lib-header{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:8px 12px 2px;flex-shrink:0}
 .lib-header-title{display:flex;align-items:center;gap:9px;flex:1;min-width:0;cursor:pointer;padding:6px 6px;border-radius:var(--rs);transition:background .18s;}
 .lib-header-title:hover{background:var(--hover)}
 .lib-header-icon{width:22px;height:22px;flex-shrink:0;color:var(--text);display:flex;align-items:center;justify-content:center}
@@ -99,7 +99,7 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .logo-mark svg{width:16px;height:16px;color:#fff}
 .logo-name{font-size:1.15rem;font-weight:800;letter-spacing:-0.5px;background:linear-gradient(130deg,#fff 30%,#B3B3B3);-webkit-background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap;overflow:hidden;transition:opacity .18s;}
 
-.sec-label{padding:14px 18px 8px;font-size:.68rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.sec-label{padding:4px 18px 8px;font-size:.68rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;justify-content:flex-start;gap:8px;flex-shrink:0;}
 .sec-label-btn{background:none;border:none;color:var(--muted);cursor:pointer;width:26px;height:26px;border-radius:50%;transition:all .18s;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .sec-label-btn:hover{color:var(--green);background:var(--green-dim);}
 #pl-list{flex:1;overflow-y:auto;padding:2px 10px 6px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent}
@@ -3984,6 +3984,33 @@ auth.onAuthStateChanged(user => {
   }
 });
 
+// Mengembalikan kata sapaan (Good morning/afternoon/evening/night) sesuai jam saat ini
+function getGreetingWord() {
+  const h = new Date().getHours();
+  if (h >= 4 && h < 11) return 'Good morning';
+  if (h >= 11 && h < 15) return 'Good afternoon';
+  if (h >= 15 && h < 19) return 'Good evening';
+  return 'Good night';
+}
+
+// Menulis ulang teks sapaan di home dengan nama yang sedang tersimpan,
+// dipanggil saat login dan tiap kali jam berganti sesi waktu (pagi/siang/sore/malam)
+let _homeGreetingName = '';
+function _renderHomeGreeting(name) {
+  const el = document.getElementById('home-greeting');
+  if (el) el.textContent = getGreetingWord() + ', ' + name + ' ';
+}
+// Cek tiap menit: kalau kata sapaan berubah (mis. dari "Good morning" ke "Good afternoon")
+// karena user membiarkan halaman terbuka lama, teks di home ikut diperbarui otomatis.
+let _lastGreetingWord = getGreetingWord();
+setInterval(() => {
+  const current = getGreetingWord();
+  if (current !== _lastGreetingWord) {
+    _lastGreetingWord = current;
+    if (_homeGreetingName) _renderHomeGreeting(_homeGreetingName);
+  }
+}, 60000);
+
 function showApp(user) {
   const overlay = document.getElementById('auth-overlay');
   overlay.style.opacity = '0';
@@ -3993,11 +4020,13 @@ function showApp(user) {
   // Try loading display name from profile DB first
   db.ref('users/' + user.uid + '/profile/displayName').get().then(snap => {
     const name = (snap.exists() && snap.val()) ? snap.val() : (user.displayName || user.email.split('@')[0]);
-    document.getElementById('home-greeting').textContent = 'Halo, ' + name + ' ';
+    _homeGreetingName = name;
+    _renderHomeGreeting(name);
     setCloudStatus('synced', 'Tersimpan · ' + name);
   }).catch(() => {
     const name = user.displayName || user.email.split('@')[0];
-    document.getElementById('home-greeting').textContent = 'Halo, ' + name + ' ';
+    _homeGreetingName = name;
+    _renderHomeGreeting(name);
     setCloudStatus('synced', 'Tersimpan · ' + name);
   });
   // Muat foto profil ke tombol profil bulat di sebelah kotak search
@@ -4347,6 +4376,7 @@ function showHomeView() {
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   document.getElementById('nav-home').classList.add('on');
   document.getElementById('nav-search').classList.remove('on');
   document.getElementById('nav-finder').classList.remove('on');
@@ -4367,6 +4397,7 @@ function showSearchView() {
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.add('on');
   document.getElementById('nav-finder').classList.remove('on');
@@ -4400,6 +4431,7 @@ function showFinderView() {
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.remove('on');
   document.getElementById('nav-finder').classList.add('on');
@@ -4422,6 +4454,7 @@ function showPlaylistView(plId) {
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.remove('on');
   // Restore edit actions for own playlists
@@ -7381,6 +7414,7 @@ function openArtistView(artistName) {
   document.getElementById('artist-view').style.display = 'block';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.remove('on');
   document.getElementById('nav-finder').classList.remove('on');
@@ -7428,6 +7462,7 @@ function backFromArtistView() {
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   closeArtistAllAlbumsView();
   document.getElementById('artist-sticky-header')?.classList.remove('show');
   showHomeView();
@@ -7670,6 +7705,7 @@ function openAlbumView(albumId, albumTitle) {
 function backFromAlbumView() {
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   if (_currentArtistData) {
     document.getElementById('artist-view').style.display = 'block';
   } else {
@@ -8166,6 +8202,7 @@ function showGenreMenuView() {
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   document.getElementById('genre-songs-view').style.display = 'none';
   document.getElementById('genre-menu-view').style.display = 'block';
   document.getElementById('nav-home').classList.remove('on');
@@ -8195,6 +8232,7 @@ function openGenreView(genreKey) {
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   document.getElementById('genre-menu-view').style.display = 'none';
   document.getElementById('genre-songs-view').style.display = 'block';
   document.getElementById('nav-home').classList.remove('on');
@@ -9066,6 +9104,7 @@ function openDailyMix(mix) {
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.remove('on');
 
@@ -9218,6 +9257,7 @@ function showTopSongsFullView() {
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   // Tetap tandai nav Home sebagai aktif — halaman ini adalah bagian dari Home
   document.getElementById('nav-home').classList.add('on');
   document.getElementById('nav-search').classList.remove('on');
@@ -9407,6 +9447,7 @@ function showRecommendFullView() {
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   document.getElementById('recommend-full-view').style.display = 'block';
   // Tetap tandai nav Home sebagai aktif — halaman ini adalah bagian dari Home
   document.getElementById('nav-home').classList.add('on');
@@ -9617,6 +9658,7 @@ async function openPublicPlaylist(pl) {
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.remove('on');
 
