@@ -2864,18 +2864,6 @@ body.np-is-fullscreen #bar{display:none !important;}
     <div class="pl-empty"><span></span>No playlists yet</div>
   </div>
 
-  <!-- TENTANG ARTIS (widget artis dari songs yang sedang diputar) -->
-  <div class="side-artist-card" id="side-artist-card" onclick="openArtistView(curTrack && curTrack.artist)" title="Lihat profil artis">
-    <div class="side-artist-photo-wrap">
-      <img class="side-artist-photo" id="side-artist-photo" src="" alt="" onerror="this.style.display='none'">
-    </div>
-    <div class="side-artist-body">
-      <div class="side-artist-label">Tentang Artis</div>
-      <div class="side-artist-name" id="side-artist-name">—</div>
-      <div class="side-artist-cta">Lihat profil →</div>
-    </div>
-  </div>
-
   <div class="side-bottom">
     <div class="cloud-indicator" id="cloud-indicator">
       <div class="cloud-dot" id="cloud-dot"></div>
@@ -2924,6 +2912,17 @@ body.np-is-fullscreen #bar{display:none !important;}
       <div class="fav-artist-grid" id="fav-artist-grid"></div>
     </div>
 
+    <!-- WEEKDAY VIBES (9 playlist x 15 lagu trending saat ini, judul berubah tiap hari sesuai hari dalam seminggu, GLOBAL untuk semua user, diperbarui 1x sehari) -->
+    <div class="pub-section" id="weekday-playlist-section" style="display:none;">
+      <div class="pub-section-header">
+        <div class="pub-section-title">
+           <span id="weekday-playlist-title">Loading...</span>
+          <span class="pub-badge">Diperbarui Setiap Hari</span>
+        </div>
+      </div>
+      <div class="dm-grid" id="weekday-playlist-grid"></div>
+    </div>
+
     <!-- REKOMENDASI LAGU (berdasarkan artis yang diikuti user, gaya Spotify) -->
     <div class="pub-section" id="reco-section" style="display:none;">
       <div class="pub-section-header">
@@ -2931,10 +2930,6 @@ body.np-is-fullscreen #bar{display:none !important;}
            Rekomendasi Untuk Anda
           <span class="pub-badge">Dari Artis yang Diikuti</span>
         </div>
-        <button class="home-new-pl-btn" onclick="showRecommendFullView()" style="background:none;border:1px solid var(--border);color:var(--sub);">
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
-          Tampilkan Semua
-        </button>
       </div>
       <div class="reco-grid" id="reco-grid"></div>
     </div>
@@ -2946,9 +2941,6 @@ body.np-is-fullscreen #bar{display:none !important;}
            Daily Mix
           <span class="pub-badge">Diperbarui Hari Ini</span>
         </div>
-        <button class="home-new-pl-btn" id="dm-showall-btn" onclick="toggleDailyMixShowAll()" style="background:none;border:1px solid var(--border);color:var(--sub);">
-          <span id="dm-showall-label">Tampilkan Semua</span>
-        </button>
       </div>
       <div class="dm-grid" id="daily-mix-grid"></div>
     </div>
@@ -2960,9 +2952,6 @@ body.np-is-fullscreen #bar{display:none !important;}
            Dibuat Untuk Kamu
           <span class="pub-badge">Dari Artis yang Diikuti</span>
         </div>
-        <button class="home-new-pl-btn" id="mfy-showall-btn" onclick="toggleMadeForYouShowAll()" style="background:none;border:1px solid var(--border);color:var(--sub);">
-          <span id="mfy-showall-label">Tampilkan Semua</span>
-        </button>
       </div>
       <div class="dm-grid" id="made-for-you-grid"></div>
     </div>
@@ -2974,25 +2963,8 @@ body.np-is-fullscreen #bar{display:none !important;}
            no I'm okayy, I just need to be alone
           <span class="pub-badge">Playlist Buat Kamu</span>
         </div>
-        <button class="home-new-pl-btn" id="sad-showall-btn" onclick="toggleSadPlaylistShowAll()" style="background:none;border:1px solid var(--border);color:var(--sub);">
-          <span id="sad-showall-label">Tampilkan Semua</span>
-        </button>
       </div>
       <div class="dm-grid" id="sad-playlist-grid"></div>
-    </div>
-
-    <!-- WEEKDAY VIBES (9 playlist x 15 lagu, judul berubah tiap hari sesuai hari dalam seminggu, GLOBAL untuk semua user, diperbarui 1x sehari) -->
-    <div class="pub-section" id="weekday-playlist-section" style="display:none;">
-      <div class="pub-section-header">
-        <div class="pub-section-title">
-           <span id="weekday-playlist-title">Loading...</span>
-          <span class="pub-badge">Diperbarui Setiap Hari</span>
-        </div>
-        <button class="home-new-pl-btn" id="wp-showall-btn" onclick="toggleWeekdayPlaylistShowAll()" style="background:none;border:1px solid var(--border);color:var(--sub);">
-          <span id="wp-showall-label">Tampilkan Semua</span>
-        </button>
-      </div>
-      <div class="dm-grid" id="weekday-playlist-grid"></div>
     </div>
 
     <!-- TOP SONGS (Deezer, live daily chart) -->
@@ -5555,16 +5527,15 @@ async function resolveVid(query){
   }catch(e){ return null; }
 }
 
-// Perbarui tombol "Tambah ke Playlist" di hero (search view) sesuai track yang sedang diputar
+// Perbarui tombol "Tambah ke Playlist" di hero (search view) — selalu ikon "+"
 function updateHeroAddBtn(track){
   const btn = document.getElementById('h-add-pl');
   if(!btn || !track) return;
   btn.dataset.artist = track.artist || '';
   btn.dataset.title = track.title || '';
-  const saved = _findPlaylistsWithTrack(track.artist, track.title).length > 0;
-  btn.classList.toggle('saved', saved);
-  btn.title = saved ? 'Tersimpan di playlist' : 'Tambahkan lagu ke playlist';
-  btn.innerHTML = _addBtnIconHTML(saved);
+  btn.classList.remove('saved');
+  btn.title = 'Tambahkan lagu ke playlist';
+  btn.innerHTML = _addBtnIconHTML(false);
 }
 
 // Update UI (bar + media session) untuk track yang baru — dipanggil setelah loadVideoById di background
@@ -6384,12 +6355,7 @@ function _getMainVolume(){
 }
 document.getElementById('h-add-pl').addEventListener('click',(e)=>{
   if(!curTrack) return;
-  const btn = e.currentTarget;
-  if(btn.classList.contains('saved')){
-    removeTrackFromAllMatchingPlaylists(curTrack.artist, curTrack.title);
-  } else {
-    openAddSongModal(curTrack);
-  }
+  openAddSongModal(curTrack);
 });
 
 // New Playlist modal Enter key
@@ -8391,25 +8357,20 @@ function playTrendingTrack(t) {
 }
 
 // ── Tombol tambah ke playlist (dipakai di semua bagian: top songs, hasil pencarian, saran, hero) ──
+// Selalu tampil ikon "+" (tidak pernah berubah jadi centang), supaya lagu
+// yang sama tetap bisa ditambahkan ke playlist lain berkali-kali.
 function _addBtnIconHTML(saved) {
-  return saved
-    ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
-    : '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+  return '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
 }
 function buildAddBtnHTML(track, extraClass) {
-  const saved = _findPlaylistsWithTrack(track.artist, track.title).length > 0;
-  return `<button class="add-btn${extraClass ? ' ' + extraClass : ''}${saved ? ' saved' : ''}" data-artist="${esc(track.artist)}" data-title="${esc(track.title)}" title="${saved ? 'Tersimpan di playlist' : 'Tambahkan lagu ke playlist'}">${_addBtnIconHTML(saved)}</button>`;
+  return `<button class="add-btn${extraClass ? ' ' + extraClass : ''}" data-artist="${esc(track.artist)}" data-title="${esc(track.title)}" title="Tambahkan lagu ke playlist">${_addBtnIconHTML(false)}</button>`;
 }
-// Pasang event klik pada tombol add-btn: buka modal jika belum tersimpan, hapus dari semua playlist jika sudah tersimpan
+// Pasang event klik pada tombol add-btn: selalu buka modal pilih playlist
 function wireAddBtn(btn, track) {
   if (!btn) return;
   btn.addEventListener('click', e => {
     e.stopPropagation();
-    if (btn.classList.contains('saved')) {
-      removeTrackFromAllMatchingPlaylists(track.artist, track.title);
-    } else {
-      openAddSongModal(track);
-    }
+    openAddSongModal(track);
   });
 }
 
@@ -9108,44 +9069,21 @@ function toggleSadPlaylistShowAll() {
 }
 
 // ─── WEEKDAY VIBES ────────────────────────────────────────────────────────
-// 9 playlist otomatis, isi 15 lagu tiap playlist (persis pola "Playlist Pop"
-// di atas: kumpulkan lagu dari artis-artis terkenal via Deezer, saring yang
-// benar-benar populer, acak, lalu bagi rata ke 9 playlist). Bedanya, judul
+// 9 playlist otomatis, isi 15 lagu tiap playlist — isinya lagu-lagu yang
+// SEDANG TRENDING SAAT INI (persis sumber data Daily Mix: chart/trending
+// live Deezer, gabungan semua genre + per-genre + top artist saat ini),
+// BUKAN daftar lagu lama dari artis tetap, supaya lagu-lagu baru yang lagi
+// viral (mis. rilisan terbaru) ikut muncul begitu masuk trending. Judul
 // section di atas grid ini BERUBAH tiap hari mengikuti hari dalam seminggu
 // (Senin s/d Minggu, dihitung berdasarkan WIB — sama seperti Daily Mix),
 // sehingga tiap hari user melihat kalimat sapaan yang berbeda. Hasil
 // generate playlist-nya juga disimpan sebagai data BERSAMA di Firebase
-// (weekday_playlist_shared/{dateStr}), sama seperti Daily Mix / Playlist
-// Pop, supaya SEMUA user melihat 9 playlist yang identik pada hari yang
-// sama, dan otomatis berganti begitu tanggal (WIB) berpindah ke hari
-// berikutnya.
+// (weekday_playlist_shared_v2/{dateStr}), sama seperti Daily Mix, supaya
+// SEMUA user melihat 9 playlist yang identik pada hari yang sama, dan
+// otomatis berganti begitu tanggal (WIB) berpindah ke hari berikutnya.
 const WEEKDAY_PLAYLIST_COUNT = 9;
 const WEEKDAY_TRACKS_PER_MIX = 15;
-// Kata kunci pencarian artis, dilebihkan jumlahnya (lebih banyak dari versi
-// Playlist Pop) karena total lagu yang dibutuhkan lebih besar (9 x 15 = 135).
-const WEEKDAY_SEARCH_QUERIES = [
-  'Taylor Swift',
-  'Ariana Grande',
-  'Dua Lipa',
-  'Ed Sheeran',
-  'Bruno Mars',
-  'The Weeknd',
-  'Billie Eilish',
-  'Harry Styles',
-  'Justin Bieber',
-  'Selena Gomez',
-  'Olivia Rodrigo',
-  'Katy Perry',
-  'Rihanna',
-  'Shawn Mendes',
-  'Sia',
-  'Adele',
-  'Charlie Puth',
-  'Post Malone',
-  'Doja Cat',
-  'Coldplay'
-];
-const WEEKDAY_RAW_LIMIT = 70;
+const WEEKDAY_NEEDED_TOTAL = WEEKDAY_PLAYLIST_COUNT * WEEKDAY_TRACKS_PER_MIX; // 135 lagu
 
 // Teks judul section, satu untuk tiap hari dalam seminggu. Index mengikuti
 // Date.getUTCDay() (0=Minggu, 1=Senin, ... 6=Sabtu) supaya cocok dengan cara
@@ -9182,7 +9120,7 @@ async function loadWeekdayPlaylists(force) {
   if (titleEl) titleEl.textContent = getWeekdayPlaylistTitle();
 
   const dateStr = _dmTodayDateStr(); // hari WIB, sama seperti Daily Mix (bukan UTC)
-  const cacheKey = 'vibexa_weekdayplaylists_v1_' + dateStr;
+  const cacheKey = 'vibexa_weekdayplaylists_v2_' + dateStr;
 
   if (!force) {
     try {
@@ -9200,7 +9138,7 @@ async function loadWeekdayPlaylists(force) {
   // data yang sama persis.
   if (!force) {
     try {
-      const sharedSnap = await db.ref('weekday_playlist_shared/' + dateStr).get();
+      const sharedSnap = await db.ref('weekday_playlist_shared_v2/' + dateStr).get();
       if (sharedSnap.exists()) {
         const sharedMixes = sharedSnap.val();
         if (Array.isArray(sharedMixes) && sharedMixes.length) {
@@ -9211,60 +9149,106 @@ async function loadWeekdayPlaylists(force) {
       }
     } catch (e) {
       // Kalau ini "PERMISSION_DENIED" di console, Firebase Rules belum
-      // mengizinkan baca path weekday_playlist_shared -> tidak akan pernah
+      // mengizinkan baca path weekday_playlist_shared_v2 -> tidak akan pernah
       // sama antar user sampai rule-nya dibenarkan.
-      console.error('[WeekdayVibes] gagal baca weekday_playlist_shared dari Firebase (cek Firebase Rules):', e);
+      console.error('[WeekdayVibes] gagal baca weekday_playlist_shared_v2 dari Firebase (cek Firebase Rules):', e);
     }
   }
 
   if (grid) grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;"><i></i><h3>Menyiapkan playlist hari ini...</h3></div>';
 
   try {
-    // 1) Ambil lagu-lagu dari tiap artis terkenal lewat pencarian Deezer,
-    // diurutkan berdasarkan RANKING (popularitas) bawaan Deezer.
-    const rawResults = await Promise.all(WEEKDAY_SEARCH_QUERIES.map(q =>
-      _dmFetchRawTracks('https://api.deezer.com/search?q=' + encodeURIComponent(q) + '&order=RANKING&limit=' + WEEKDAY_RAW_LIMIT).catch(() => [])
-    ));
-
-    // 2) Saring per artis: hanya lagu dari artis yang benar-benar terkenal
-    // (nb_fan tinggi) yang lolos, lalu semua lagu yang lolos digabung jadi
-    // satu kolam (bukan dipisah per playlist per artis).
+    // 1) Ambil chart top/trending Deezer SAAT INI (gabungan semua genre),
+    // lalu lengkapi dengan chart per-genre — sumber persis sama seperti
+    // Daily Mix — supaya isinya benar-benar lagu yang lagi trending hari
+    // ini (termasuk rilisan baru yang lagi viral), bukan daftar lagu lama
+    // dari artis tetap.
     const seen = new Set();
-    let pool = [];
-    for (let m = 0; m < WEEKDAY_SEARCH_QUERIES.length; m++) {
-      const raw = (rawResults[m] || []).filter(t => !seen.has(t.id));
-      const famous = await _dmFilterFamousTracks(raw, raw.length);
-      famous.sort((a, b) => (b.rank || 0) - (a.rank || 0));
-      for (const t of famous) {
-        if (seen.has(t.id)) continue;
-        seen.add(t.id);
-        pool.push({ ...t, _query: `${t.artist}|||${t.title}|||${t.id}` });
+    let allRawTracks = []; // SEMUA lagu yang berhasil diambil (belum disaring "terkenal")
+    try {
+      const chartTracks = await _dmFetchRawTracks('https://api.deezer.com/chart/0/tracks?limit=100');
+      chartTracks.forEach(t => { if (!seen.has(t.id)) { seen.add(t.id); allRawTracks.push(t); } });
+    } catch (e) {}
+
+    // 1b) Lengkapi dari chart per-genre supaya pool lebih beragam & lebih
+    // besar dari sekadar top chart global.
+    try {
+      const genreData = await _deezerJsonp('https://api.deezer.com/genre');
+      const genreIds = ((genreData && genreData.data) || [])
+        .map(g => g.id)
+        .filter(id => id && id !== 0)
+        .slice(0, 10);
+      for (const gid of genreIds) {
+        try {
+          const gTracks = await _dmFetchRawTracks('https://api.deezer.com/chart/' + gid + '/tracks?limit=40');
+          gTracks.forEach(t => { if (!seen.has(t.id)) { seen.add(t.id); allRawTracks.push(t); } });
+        } catch (e) {}
+      }
+    } catch (e) {}
+
+    // 2) Saring: hanya lagu dari artis yang benar-benar terkenal (nb_fan tinggi).
+    let pool = await _dmFilterFamousTracks(allRawTracks, WEEKDAY_NEEDED_TOTAL);
+
+    // 3) Kalau masih belum cukup untuk 9 x 15 lagu, lengkapi dari lagu-lagu
+    // top milik artis-artis paling populer SAAT INI (top artists chart
+    // Deezer) — tetap "lagu yang lagi naik daun", bukan daftar tetap.
+    if (pool.length < WEEKDAY_NEEDED_TOTAL) {
+      try {
+        const artistData = await _deezerJsonp('https://api.deezer.com/chart/0/artists?limit=100');
+        const topArtists = ((artistData && artistData.data) || []).filter(a => (a.nb_fan || 0) >= DM_FAMOUS_FAN_THRESHOLD);
+        for (const artist of topArtists) {
+          if (pool.length >= WEEKDAY_NEEDED_TOTAL) break;
+          try {
+            const topTracks = await _dmFetchRawTracks('https://api.deezer.com/artist/' + artist.id + '/top?limit=30');
+            for (const t of topTracks) {
+              if (seen.has(t.id)) continue;
+              seen.add(t.id);
+              const track = { ...t, artistId: artist.id, artist: t.artist || artist.name };
+              allRawTracks.push(track);
+              if (pool.length < WEEKDAY_NEEDED_TOTAL) pool.push(track);
+            }
+          } catch (e) {}
+        }
+      } catch (e) {}
+    }
+
+    // 4) Jaring pengaman terakhir: kalau tetap belum cukup, isi sisa slot
+    // dengan lagu trending lain yang sudah terkumpul (tanpa syarat fan
+    // count) supaya 9 x 15 lagu selalu terpenuhi selama data dari Deezer
+    // tersedia.
+    if (pool.length < WEEKDAY_NEEDED_TOTAL) {
+      const poolIds = new Set(pool.map(t => t.id));
+      for (const t of allRawTracks) {
+        if (pool.length >= WEEKDAY_NEEDED_TOTAL) break;
+        if (poolIds.has(t.id)) continue;
+        poolIds.add(t.id);
+        pool.push(t);
       }
     }
 
-    // 3) Acak kolam lagu (Fisher–Yates) supaya urutan artis tercampur, lalu
-    // bagi rata ke 9 playlist — hasilnya tiap playlist berisi campuran lagu
-    // dari banyak artis berbeda, 15 lagu per playlist.
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [pool[i], pool[j]] = [pool[j], pool[i]];
-    }
+    if (pool.length < WEEKDAY_TRACKS_PER_MIX) throw new Error('Data lagu trending tidak cukup');
 
+    // 5) Acak dengan seed berbasis tanggal hari ini (stabil sepanjang hari,
+    // otomatis berubah besok) lalu bagi rata ke 9 playlist x 15 lagu —
+    // hasilnya tiap playlist berisi campuran lagu trending dari banyak
+    // artis berbeda.
+    const shuffledPool = _dmSeededShuffle(pool, cacheKey);
     let mixes = [];
-    for (let m = 0; m < WEEKDAY_PLAYLIST_COUNT; m++) {
-      const tracks = pool.slice(m * WEEKDAY_TRACKS_PER_MIX, (m + 1) * WEEKDAY_TRACKS_PER_MIX);
-      if (!tracks.length) continue;
+    let offset = 0;
+    while (mixes.length < WEEKDAY_PLAYLIST_COUNT && offset + WEEKDAY_TRACKS_PER_MIX <= shuffledPool.length) {
+      const tracks = shuffledPool.slice(offset, offset + WEEKDAY_TRACKS_PER_MIX).map(t => ({ ...t, _query: `${t.artist}|||${t.title}|||${t.id}` }));
 
       // Judul playlist = nama-nama artis yang lagunya ada di situ (bukan judul tetap).
       const uniqueArtists = [];
       for (const t of tracks) { if (!uniqueArtists.includes(t.artist)) uniqueArtists.push(t.artist); if (uniqueArtists.length >= 2) break; }
       mixes.push({
-        id: 'weekday_' + m,
+        id: 'weekday_' + offset,
         label: 'Weekday Vibes',
         title: uniqueArtists.length >= 2 ? `${uniqueArtists[0]} dan ${uniqueArtists[1]}` : (uniqueArtists[0] || 'Weekday Vibes'),
         cover: tracks[0].thumb,
         tracks
       });
+      offset += WEEKDAY_TRACKS_PER_MIX;
     }
 
     if (!mixes.length) throw new Error('Gagal membuat Weekday Vibes');
@@ -9275,7 +9259,7 @@ async function loadWeekdayPlaylists(force) {
     // user generate hampir bersamaan), jangan ditimpa — pakai versi yang
     // sudah tersimpan supaya semua user tetap dapat playlist yang sama persis.
     try {
-      const txResult = await db.ref('weekday_playlist_shared/' + dateStr).transaction(current => {
+      const txResult = await db.ref('weekday_playlist_shared_v2/' + dateStr).transaction(current => {
         if (current) return; // sudah ada -> batalkan, jangan timpa
         return mixes;
       });
@@ -9284,14 +9268,14 @@ async function loadWeekdayPlaylists(force) {
         if (Array.isArray(finalMixes) && finalMixes.length) mixes = finalMixes;
       }
       // Bersihkan entri tanggal-tanggal lama supaya node ini tidak menumpuk.
-      db.ref('weekday_playlist_shared').get().then(snap => {
+      db.ref('weekday_playlist_shared_v2').get().then(snap => {
         if (!snap.exists()) return;
         snap.forEach(child => {
-          if (child.key !== dateStr) db.ref('weekday_playlist_shared/' + child.key).remove().catch(() => {});
+          if (child.key !== dateStr) db.ref('weekday_playlist_shared_v2/' + child.key).remove().catch(() => {});
         });
       }).catch(() => {});
     } catch (e) {
-      console.error('[WeekdayVibes] gagal tulis weekday_playlist_shared ke Firebase (cek Firebase Rules):', e);
+      console.error('[WeekdayVibes] gagal tulis weekday_playlist_shared_v2 ke Firebase (cek Firebase Rules):', e);
     }
 
     try {
@@ -9458,14 +9442,12 @@ function buildRankItemEl(t, i, showDuration = true) {
 }
 
 // Perbarui tampilan semua tombol tambah-ke-playlist di halaman (top songs, hasil pencarian, saran, hero)
+// Selalu dipastikan tampil ikon "+", tidak pernah checkmark.
 function syncRankAddButtons() {
   document.querySelectorAll('.add-btn[data-artist]').forEach(btn => {
-    const artist = btn.dataset.artist || '';
-    const title = btn.dataset.title || '';
-    const saved = _findPlaylistsWithTrack(artist, title).length > 0;
-    btn.classList.toggle('saved', saved);
-    btn.title = saved ? 'Tersimpan di playlist' : 'Tambahkan lagu ke playlist';
-    btn.innerHTML = _addBtnIconHTML(saved);
+    btn.classList.remove('saved');
+    btn.title = 'Tambahkan lagu ke playlist';
+    btn.innerHTML = _addBtnIconHTML(false);
   });
 }
 
