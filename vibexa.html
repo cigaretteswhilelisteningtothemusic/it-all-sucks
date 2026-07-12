@@ -1419,8 +1419,9 @@ body.np-is-fullscreen #bar{display:none !important;}
   .np-art,.np-art-ph{width:min(280px,68vw);height:min(280px,68vw);}
 }
 
-/* FULLSCREEN LYRICS */
-#fs-lyr{display:none;position:fixed;inset:0;z-index:500;flex-direction:column;overflow:hidden;transition:background 1.2s ease;}
+/* LYRICS (NON-FULLSCREEN) — kini hanya mengisi area 'main' (halaman home),
+   bukan seluruh layar, jadi sidebar kiri & panel kanan tetap terlihat. */
+#fs-lyr{display:none;grid-area:main;position:relative;z-index:5;flex-direction:column;overflow:hidden;transition:background 1.2s ease;border-radius:var(--r);border:1px solid var(--border);}
 #fs-lyr.open{display:flex;}
 #fs-bg{position:absolute;inset:0;background:inherit;filter:blur(0px);transition:background 1.2s ease;z-index:0;}
 #fs-bg::after{content:'';position:absolute;inset:0;background:rgba(0,0,0,0.32);}
