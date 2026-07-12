@@ -7321,16 +7321,18 @@ async function loadArtistProfile(artistName) {
     const stickyPhoto = document.getElementById('artist-sticky-photo');
     if (stickyPhoto && photo) stickyPhoto.src = photo;
 
-    // Tombol Instagram / YouTube / X — arahkan ke pencarian nama artis di
-    // masing-masing platform (Deezer tidak menyediakan link akun resmi,
-    // jadi cara paling akurat adalah lewat hasil pencarian nama artisnya).
+    // Tombol Instagram & X — arahkan langsung ke profil dengan format
+    // instagram.com/namaartis/ dan x.com/namaartis (slug dari nama artis,
+    // tanpa spasi/simbol). Tombol YouTube tetap ke halaman pencarian karena
+    // Deezer tidak menyediakan link akun resmi YouTube.
+    const igSlug = artist.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
     const socialQ = encodeURIComponent(artist.name);
     const igEl = document.getElementById('artist-social-ig');
     const ytEl = document.getElementById('artist-social-yt');
     const xEl = document.getElementById('artist-social-x');
-    if (igEl) igEl.href = 'https://www.instagram.com/explore/search/keyword/?q=' + socialQ;
+    if (igEl) igEl.href = 'https://www.instagram.com/' + igSlug + '/';
     if (ytEl) ytEl.href = 'https://www.youtube.com/results?search_query=' + socialQ;
-    if (xEl) xEl.href = 'https://x.com/search?q=' + socialQ + '&f=user';
+    if (xEl) xEl.href = 'https://x.com/' + igSlug;
     _updateArtistScrollFx();
 
     const [topData, allAlbums] = await Promise.all([
@@ -7384,7 +7386,7 @@ function renderArtistSongs(tracks) {
   tracks.forEach((t, i) => c.appendChild(buildRankItemEl(t, i, true)));
 }
 
-const ARTIST_ALBUMS_PREVIEW_COUNT = 8;
+const ARTIST_ALBUMS_PREVIEW_COUNT = 9;
 
 function _buildAlbumCardEl(a) {
   const div = document.createElement('div');
