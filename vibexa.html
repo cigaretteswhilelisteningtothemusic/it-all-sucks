@@ -8012,6 +8012,17 @@ const DM_COLORS = ['#26e0ff', '#eaff2e', '#ff5a4d', '#5ce87c', '#c17bff', '#4d8b
 // Minimum Deezer fan count for an artist to count as "terkenal" (well-known).
 const DM_FAMOUS_FAN_THRESHOLD = 300000;
 
+// Tanggal "hari ini" untuk Daily Mix dihitung berdasarkan WIB (GMT+7), bukan UTC,
+// supaya Daily Mix berganti tepat tengah malam waktu Indonesia (bukan jam 7 pagi
+// WIB seperti kalau pakai UTC apa adanya). Dipakai sebagai bagian dari cache key
+// lokal maupun key node Firebase (daily_mix_shared/{dateStr}) supaya SEMUA user,
+// di zona waktu manapun mereka berada, tetap melihat Daily Mix yang sama pada
+// "hari WIB" yang sama.
+function _dmTodayDateStr() {
+  const wib = new Date(Date.now() + 7 * 60 * 60 * 1000); // geser ke WIB (UTC+7)
+  return wib.toISOString().slice(0, 10);
+}
+
 function _dmSeedFromString(str) {
   let h = 0;
   for (let i = 0; i < str.length; i++) { h = (Math.imul(31, h) + str.charCodeAt(i)) | 0; }
@@ -8094,10 +8105,11 @@ async function loadDailyMixes(force) {
 
   _dmArtistFanCache = {}; // reset cache per load supaya data fan count tetap segar
 
-  // Date-stamped cache key: once the date changes, the old mixes are simply
-  // no longer looked up and get cleaned up below — fresh ones are built.
-  const dateStr = new Date().toISOString().slice(0, 10);
-  const todayKey = 'vibexa_dailymix_topsongs_v4_' + dateStr;
+  // Date-stamped cache key (berbasis WIB): once the date changes, the old
+  // mixes are simply no longer looked up and get cleaned up below — fresh
+  // ones are built. v5 supaya cache lama (berbasis UTC) tidak ikut kepakai.
+  const dateStr = _dmTodayDateStr();
+  const todayKey = 'vibexa_dailymix_topsongs_v5_' + dateStr;
   const neededTotal = DM_MIX_COUNT * DM_TRACKS_PER_MIX; // minimal 240 lagu (8 x 30)
 
   if (!force) {
