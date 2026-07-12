@@ -174,6 +174,18 @@ body::after {
 }
 .artist-card.following .artist-name { color: var(--green); }
 
+.following-tag {
+  display: none;
+  align-items: center; gap: 4px;
+  font-size: .62rem; font-weight: 700; letter-spacing: .3px;
+  color: var(--green); background: var(--green-dim);
+  border: 1px solid rgba(29,107,219,.35);
+  border-radius: 50px; padding: 2px 9px; margin-top: 1px;
+  white-space: nowrap;
+}
+.following-tag svg { width: 9px; height: 9px; }
+.artist-card.following .following-tag { display: inline-flex; }
+
 /* skeleton loading state for grid cards */
 .artist-card.sk .artist-photo { background: linear-gradient(90deg, var(--hover) 25%, rgba(255,255,255,.06) 37%, var(--hover) 63%); background-size: 400% 100%; animation: sk 1.4s ease infinite; }
 .artist-card.sk .artist-name-sk { width: 70px; height: 10px; border-radius: 6px; background: linear-gradient(90deg, var(--hover) 25%, rgba(255,255,255,.06) 37%, var(--hover) 63%); background-size: 400% 100%; animation: sk 1.4s ease infinite; }
@@ -461,6 +473,7 @@ function cardHTML(id, name, photo, isSkeleton) {
       <div class="check-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></div>
     </div>
     <div class="artist-name">${esc(name)}</div>
+    <div class="following-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M20 6 9 17l-5-5"/></svg>Mengikuti</div>
   </div>`;
 }
 
