@@ -2569,15 +2569,29 @@ body.np-is-fullscreen #bar{display:none !important;}
 .lyr-albums-loading,.lyr-albums-empty{font-size:.7rem;color:var(--sub);padding:6px 2px;}
 
 /* ── Halaman Profil Artis (spt Spotify) ───────────────────── */
-#artist-view{display:none;}
-.artist-banner{position:relative;border-radius:18px;overflow:hidden;padding:70px 26px 24px;margin-bottom:18px;min-height:230px;display:flex;flex-direction:column;justify-content:flex-end;background:var(--card);}
-.artist-banner-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 20%;z-index:0;filter:brightness(.5);}
+#artist-view{display:none;position:relative;}
+.artist-banner{position:relative;border-radius:18px;overflow:hidden;padding:120px 26px 28px;margin-bottom:18px;min-height:380px;display:flex;flex-direction:column;justify-content:flex-end;background:var(--card);}
+.artist-banner-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 18%;z-index:0;filter:brightness(.55);transition:transform .5s ease;}
 .artist-banner-scrim{position:absolute;inset:0;z-index:0;background:linear-gradient(180deg,rgba(0,0,0,.05) 0%,rgba(8,11,18,.92) 100%);}
 .artist-banner-content{position:relative;z-index:1;}
 .artist-verified{display:inline-flex;align-items:center;gap:6px;font-size:.72rem;font-weight:600;color:#fff;margin-bottom:10px;}
 .artist-verified svg{width:16px;height:16px;color:#3D9DD6;flex-shrink:0;}
-.artist-banner-name{font-size:2.5rem;font-weight:800;letter-spacing:-1px;color:#fff;line-height:1.08;margin-bottom:10px;word-break:break-word;}
+.artist-banner-name{font-size:3.2rem;font-weight:800;letter-spacing:-1.5px;color:#fff;line-height:1.05;margin-bottom:12px;word-break:break-word;}
 .artist-banner-sub{font-size:.82rem;color:rgba(255,255,255,.78);}
+.artist-banner-desc{font-size:.78rem;color:rgba(255,255,255,.68);margin-top:6px;line-height:1.6;max-width:640px;}
+@media (max-width:900px){
+  .artist-banner{padding:90px 18px 22px;min-height:300px;}
+  .artist-banner-name{font-size:2.1rem;}
+}
+/* Sticky mini header — muncul dengan animasi saat halaman artis discroll ke bawah (spt Spotify) */
+.artist-sticky-header{position:sticky;top:0;z-index:6;display:flex;align-items:center;gap:12px;padding:10px 22px;margin:0 0 -1px;background:transparent;opacity:0;transform:translateY(-16px);pointer-events:none;transition:opacity .28s ease,transform .28s ease,background-color .28s ease,box-shadow .28s ease;}
+.artist-sticky-header.show{opacity:1;transform:translateY(0);background:rgba(10,13,22,.92);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 8px 24px rgba(0,0,0,.35);pointer-events:auto;}
+.artist-sticky-photo{width:38px;height:38px;border-radius:50%;object-fit:cover;background:var(--hover);flex-shrink:0;opacity:0;transform:scale(.6);transition:opacity .28s ease .05s,transform .28s ease .05s;}
+.artist-sticky-header.show .artist-sticky-photo{opacity:1;transform:scale(1);}
+.artist-sticky-name{font-size:1.05rem;font-weight:800;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;}
+.artist-sticky-play{width:34px;height:34px;background:var(--green);border:none;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;box-shadow:var(--green-glow);transition:transform .18s;}
+.artist-sticky-play:hover{transform:scale(1.08);}
+.artist-sticky-play svg{width:15px;height:15px;color:#fff;}
 .artist-actions{display:flex;align-items:center;gap:16px;margin:18px 0 24px;}
 .artist-play-btn{width:56px;height:56px;background:var(--green);border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;box-shadow:var(--green-glow);flex-shrink:0;}
 .artist-play-btn:hover{transform:scale(1.06);}
@@ -2605,6 +2619,28 @@ body.np-is-fullscreen #bar{display:none !important;}
 .artist-album-title{font-size:.8rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px;}
 .artist-album-year{font-size:.68rem;color:var(--sub);}
 #bar-artist:hover,#h-artist:hover{color:var(--green);text-decoration:underline;}
+
+/* Header section album + tombol "Tampilkan semua" */
+.artist-section-header{display:flex;align-items:center;justify-content:space-between;margin:22px 0 12px;}
+.artist-section-header .artist-section-title{margin:0;}
+.artist-showall-btn{display:none;align-items:center;gap:5px;background:none;border:1px solid var(--border);color:var(--sub);font-family:var(--f);font-size:.75rem;font-weight:700;padding:6px 14px;border-radius:50px;cursor:pointer;transition:all .18s;flex-shrink:0;}
+.artist-showall-btn.show{display:inline-flex;}
+.artist-showall-btn:hover{color:var(--text);border-color:var(--green);background:var(--green-dim);}
+
+/* Halaman "Semua Album" milik artis — overlay penuh, dibuka via tombol Tampilkan semua */
+#artist-all-albums-view{position:fixed;inset:0;z-index:2000;background:var(--bg);display:none;flex-direction:column;}
+#artist-all-albums-view.show{display:flex;}
+.aall-header{display:flex;align-items:center;gap:14px;padding:18px 26px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.aall-header .pv-back{margin:0;}
+.aall-title-wrap{min-width:0;flex:1;}
+.aall-title{font-size:1.05rem;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.aall-subtitle{font-size:.72rem;color:var(--sub);margin-top:2px;}
+.aall-body{flex:1;overflow-y:auto;padding:22px 26px 40px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
+.aall-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;}
+@media (max-width:900px){
+  .aall-header{padding:14px 16px;}
+  .aall-body{padding:16px;}
+}
 </style>
 <body>
 
@@ -2986,6 +3022,13 @@ body.np-is-fullscreen #bar{display:none !important;}
 
   <!-- ARTIST PROFILE VIEW (cara kerja seperti Spotify) -->
   <div id="artist-view">
+    <div class="artist-sticky-header" id="artist-sticky-header">
+      <img class="artist-sticky-photo" id="artist-sticky-photo" src="" alt="" onerror="this.style.display='none'">
+      <div class="artist-sticky-name" id="artist-sticky-name">—</div>
+      <button class="artist-sticky-play" onclick="playArtistTopTracks()" title="Putar semua">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+    </div>
     <button class="pv-back" onclick="backFromArtistView()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
       Kembali
@@ -3000,6 +3043,7 @@ body.np-is-fullscreen #bar{display:none !important;}
         </div>
         <div class="artist-banner-name" id="artist-banner-name">—</div>
         <div class="artist-banner-sub" id="artist-banner-sub">Memuat...</div>
+        <div class="artist-banner-desc" id="artist-banner-desc"></div>
       </div>
     </div>
     <div class="artist-actions">
@@ -3012,9 +3056,31 @@ body.np-is-fullscreen #bar{display:none !important;}
     <div class="rank-grid" id="artist-songs-grid">
       <div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat lagu...</h3></div>
     </div>
-    <div class="artist-section-title">Album</div>
+    <div class="artist-section-header">
+      <div class="artist-section-title">Album</div>
+      <button class="artist-showall-btn" id="artist-showall-btn" onclick="openArtistAllAlbumsView()">
+        Tampilkan semua
+      </button>
+    </div>
     <div class="artist-albums-grid" id="artist-albums-grid">
       <div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat album...</h3></div>
+    </div>
+  </div>
+
+  <!-- SEMUA ALBUM ARTIS — overlay "Tampilkan semua" (spt Spotify "See all") -->
+  <div id="artist-all-albums-view">
+    <div class="aall-header">
+      <button class="pv-back" onclick="closeArtistAllAlbumsView()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        Kembali
+      </button>
+      <div class="aall-title-wrap">
+        <div class="aall-title" id="aall-title">Semua Album</div>
+        <div class="aall-subtitle" id="aall-subtitle">—</div>
+      </div>
+    </div>
+    <div class="aall-body">
+      <div class="aall-grid" id="artist-all-albums-grid"></div>
     </div>
   </div>
 
@@ -7144,6 +7210,7 @@ function openArtistView(artistName) {
   document.getElementById('artist-banner-name').textContent = artistName;
   document.getElementById('artist-banner-sub').textContent = 'Memuat...';
   const bg = document.getElementById('artist-banner-bg'); bg.style.display = 'none'; bg.src = '';
+  document.getElementById('artist-banner-desc').textContent = '';
   document.getElementById('artist-songs-grid').innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat lagu...</h3></div>';
   document.getElementById('artist-albums-grid').innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat album...</h3></div>';
   const followBtn = document.getElementById('artist-follow-btn');
@@ -7153,6 +7220,17 @@ function openArtistView(artistName) {
     followBtn.classList.toggle('following', f);
   }
 
+  // reset sticky header (animasi scroll spt Spotify) & tombol "Tampilkan semua"
+  const stickyHeader = document.getElementById('artist-sticky-header');
+  if (stickyHeader) stickyHeader.classList.remove('show');
+  const stickyPhoto = document.getElementById('artist-sticky-photo');
+  if (stickyPhoto) { stickyPhoto.src = ''; }
+  document.getElementById('artist-sticky-name').textContent = artistName;
+  const showAllBtn = document.getElementById('artist-showall-btn');
+  if (showAllBtn) showAllBtn.classList.remove('show');
+  closeArtistAllAlbumsView();
+  if (mainEl) mainEl.scrollTop = 0;
+
   loadArtistProfile(artistName);
 }
 
@@ -7160,6 +7238,8 @@ function backFromArtistView() {
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  closeArtistAllAlbumsView();
+  document.getElementById('artist-sticky-header')?.classList.remove('show');
   showHomeView();
 }
 
@@ -7206,6 +7286,9 @@ async function loadArtistProfile(artistName) {
     document.getElementById('artist-banner-sub').textContent = formatFanCount(artist.nb_fan) + ' pendengar';
     const bgEl = document.getElementById('artist-banner-bg');
     if (photo) { bgEl.src = photo; bgEl.style.display = 'block'; }
+    document.getElementById('artist-sticky-name').textContent = artist.name;
+    const stickyPhoto = document.getElementById('artist-sticky-photo');
+    if (stickyPhoto && photo) stickyPhoto.src = photo;
 
     const [topData, allAlbums] = await Promise.all([
       _deezerJsonp('https://api.deezer.com/artist/' + artist.id + '/top?limit=10').catch(() => null),
@@ -7232,6 +7315,15 @@ async function loadArtistProfile(artistName) {
     }));
     _currentArtistData.albums = albums;
     renderArtistAlbums(albums);
+
+    // Keterangan singkat tentang artis, tampil di bawah nama
+    const descEl = document.getElementById('artist-banner-desc');
+    if (descEl) {
+      const parts = [];
+      if (albums.length) parts.push(albums.length + ' Album');
+      if (tracks.length) parts.push(tracks.length + ' Lagu Populer');
+      descEl.textContent = parts.length ? parts.join(' · ') : '';
+    }
   } catch (e) {
     if (myGen !== _artistReqGen) return;
     console.error('loadArtistProfile error:', e);
@@ -7249,23 +7341,65 @@ function renderArtistSongs(tracks) {
   tracks.forEach((t, i) => c.appendChild(buildRankItemEl(t, i, true)));
 }
 
+const ARTIST_ALBUMS_PREVIEW_COUNT = 6;
+
+function _buildAlbumCardEl(a) {
+  const div = document.createElement('div');
+  div.className = 'artist-album-card';
+  div.innerHTML = `
+    <img class="artist-album-cover" src="${esc(a.cover)}" alt="" loading="lazy" onerror="this.style.display='none'">
+    <div class="artist-album-title">${esc(a.title)}</div>
+    <div class="artist-album-year">${esc(a.year || '')}</div>
+  `;
+  div.addEventListener('click', () => { closeArtistAllAlbumsView(); openAlbumView(a.id, a.title); });
+  return div;
+}
+
 function renderArtistAlbums(albums) {
   const c = document.getElementById('artist-albums-grid');
+  const showAllBtn = document.getElementById('artist-showall-btn');
   if (!c) return;
   c.innerHTML = '';
-  if (!albums.length) { c.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;color:var(--sub)">Tidak ada album ditemukan.</div>'; return; }
-  albums.forEach(a => {
-    const div = document.createElement('div');
-    div.className = 'artist-album-card';
-    div.innerHTML = `
-      <img class="artist-album-cover" src="${esc(a.cover)}" alt="" loading="lazy" onerror="this.style.display='none'">
-      <div class="artist-album-title">${esc(a.title)}</div>
-      <div class="artist-album-year">${esc(a.year || '')}</div>
-    `;
-    div.addEventListener('click', () => openAlbumView(a.id, a.title));
-    c.appendChild(div);
-  });
+  if (!albums.length) {
+    c.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;color:var(--sub)">Tidak ada album ditemukan.</div>';
+    if (showAllBtn) showAllBtn.classList.remove('show');
+    return;
+  }
+  // Hanya tampilkan 6 album di halaman artis; sisanya bisa dilihat lewat tombol "Tampilkan semua"
+  const preview = albums.slice(0, ARTIST_ALBUMS_PREVIEW_COUNT);
+  preview.forEach(a => c.appendChild(_buildAlbumCardEl(a)));
+  if (showAllBtn) showAllBtn.classList.toggle('show', albums.length > ARTIST_ALBUMS_PREVIEW_COUNT);
 }
+
+// Tombol "Tampilkan semua" — arahkan user ke halaman berisi semua album artis ini
+function openArtistAllAlbumsView() {
+  if (!_currentArtistData || !_currentArtistData.albums.length) return;
+  const view = document.getElementById('artist-all-albums-view');
+  const grid = document.getElementById('artist-all-albums-grid');
+  document.getElementById('aall-title').textContent = _currentArtistData.name;
+  document.getElementById('aall-subtitle').textContent = _currentArtistData.albums.length + ' Album';
+  grid.innerHTML = '';
+  _currentArtistData.albums.forEach(a => grid.appendChild(_buildAlbumCardEl(a)));
+  view.classList.add('show');
+}
+
+function closeArtistAllAlbumsView() {
+  const view = document.getElementById('artist-all-albums-view');
+  if (view) view.classList.remove('show');
+}
+
+// Animasi header mengecil/muncul saat halaman artis discroll ke bawah (spt Spotify)
+function _handleArtistScrollSticky() {
+  const artistView = document.getElementById('artist-view');
+  const sticky = document.getElementById('artist-sticky-header');
+  const mainEl = document.getElementById('main');
+  if (!artistView || !sticky || !mainEl) return;
+  if (artistView.style.display !== 'block') { sticky.classList.remove('show'); return; }
+  const banner = artistView.querySelector('.artist-banner');
+  const threshold = banner ? banner.offsetHeight * 0.6 : 220;
+  sticky.classList.toggle('show', mainEl.scrollTop > threshold);
+}
+document.getElementById('main')?.addEventListener('scroll', _handleArtistScrollSticky, { passive: true });
 
 // Tombol Play besar di banner: putar semua lagu populer artis sbg antrian
 function playArtistTopTracks() {
