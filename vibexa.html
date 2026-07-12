@@ -2784,7 +2784,7 @@ body.np-is-fullscreen #bar{display:none !important;}
     <div class="pub-section" id="sad-playlist-section" style="display:none;">
       <div class="pub-section-header">
         <div class="pub-section-title">
-           Lagu Pop Hits Dari Artis Favorit
+           no I'm okayy, I just need to be alone
           <span class="pub-badge">Playlist Buat Kamu</span>
         </div>
         <button class="home-new-pl-btn" id="sad-showall-btn" onclick="toggleSadPlaylistShowAll()" style="background:none;border:1px solid var(--border);color:var(--sub);">
@@ -8474,19 +8474,21 @@ function toggleMadeForYouShowAll() {
 // ─── PLAYLIST POP (dulu "Playlist Sedih") ───────────────────
 // 8 playlist otomatis, isi 15 lagu tiap playlist, semuanya lagu POP dari
 // artis-artis besar/terkenal (Taylor Swift, Ariana Grande, dll) — diambil
-// dari pencarian Deezer per nama artis (bukan lagi kata kunci "sad"), lalu
-// tetap DISARING supaya hanya lagu dari artis yang benar-benar terkenal
-// (nb_fan tinggi, sama seperti syarat "terkenal" di Daily Mix) yang lolos,
-// dan diurutkan berdasarkan `rank` (skor popularitas Deezer) supaya lagu
-// yang sedang populer didahulukan. Judul tiap playlist diambil dari nama
-// artis yang lagunya ada di situ.
+// dari pencarian Deezer per nama artis, lalu tetap DISARING supaya hanya
+// lagu dari artis yang benar-benar terkenal (nb_fan tinggi, sama seperti
+// syarat "terkenal" di Daily Mix) yang lolos. Semua lagu dari semua artis
+// itu DIGABUNG jadi satu kolam lagu, DIACAK, baru dibagi rata ke 8
+// playlist — supaya isi tiap playlist adalah CAMPURAN banyak artis, bukan
+// 15 lagu dari 1 artis yang sama saja. Judul tiap playlist diambil dari
+// nama-nama artis yang lagunya ada di situ.
 // Di-cache 1x per hari (berbasis WIB, sama seperti Daily Mix) supaya tidak
 // generate ulang tiap kali halaman Home dibuka.
 const SAD_PLAYLIST_COUNT = 8;
 const SAD_TRACKS_PER_MIX = 15;
-// Kata kunci pencarian sekarang berupa nama artis pop kelas dunia yang
-// sudah pasti terkenal, supaya tiap playlist otomatis berisi lagu pop dari
-// artis besar (bukan lagi lagu bertema sedih).
+// Kata kunci pencarian berupa nama artis pop kelas dunia yang sudah pasti
+// terkenal. Daftar dibuat lebih banyak dari jumlah playlist (8) supaya,
+// setelah semua lagu digabung & diacak, tiap playlist bisa dapat campuran
+// dari banyak artis berbeda, bukan cuma dari 8 artis dibagi rata 1:1.
 const SAD_SEARCH_QUERIES = [
   'Taylor Swift',
   'Ariana Grande',
@@ -8495,7 +8497,15 @@ const SAD_SEARCH_QUERIES = [
   'Bruno Mars',
   'The Weeknd',
   'Billie Eilish',
-  'Harry Styles'
+  'Harry Styles',
+  'Justin Bieber',
+  'Selena Gomez',
+  'Olivia Rodrigo',
+  'Katy Perry',
+  'Rihanna',
+  'Shawn Mendes',
+  'Sia',
+  'Adele'
 ];
 // Jumlah lagu mentah yang diambil per kata kunci (dilebihkan dari 15, karena
 // setelah disaring "hanya artis terkenal" + dibuang yang duplikat, biasanya
@@ -8508,7 +8518,7 @@ async function loadSadPlaylists(force) {
   if (section) section.style.display = 'block';
 
   const dateStr = _dmTodayDateStr(); // hari WIB, sama seperti Daily Mix (bukan UTC)
-  const cacheKey = 'vibexa_popplaylists_v3_' + dateStr;
+  const cacheKey = 'vibexa_popplaylists_v4_' + dateStr;
 
   if (!force) {
     try {
@@ -8545,36 +8555,44 @@ async function loadSadPlaylists(force) {
   if (grid) grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;"><i></i><h3>Menyiapkan playlist buat kamu...</h3></div>';
 
   try {
-    // 1) Ambil lagu-lagu pop dari artis terkenal lewat pencarian Deezer, diurutkan
-    // berdasarkan RANKING (popularitas) bawaan Deezer.
+    // 1) Ambil lagu-lagu pop dari tiap artis terkenal lewat pencarian Deezer,
+    // diurutkan berdasarkan RANKING (popularitas) bawaan Deezer.
     const rawResults = await Promise.all(SAD_SEARCH_QUERIES.map(q =>
       _dmFetchRawTracks('https://api.deezer.com/search?q=' + encodeURIComponent(q) + '&order=RANKING&limit=' + SAD_RAW_LIMIT).catch(() => [])
     ));
 
-    const seen = new Set(); // hindari lagu yang sama muncul di lebih dari satu playlist pop
-    let mixes = [];
+    // 2) Saring per artis: hanya lagu dari artis yang benar-benar terkenal
+    // (nb_fan tinggi) yang lolos — supaya isinya artis populer, bukan
+    // cover/versi tidak resmi atau artis kecil yang cuma kebetulan judulnya
+    // nyambung. Semua lagu yang lolos dari SEMUA artis digabung jadi satu
+    // kolam (bukan dipisah per playlist per artis lagi).
+    const seen = new Set();
+    let pool = [];
     for (let m = 0; m < SAD_SEARCH_QUERIES.length; m++) {
       const raw = (rawResults[m] || []).filter(t => !seen.has(t.id));
-
-      // 2) Saring: hanya lagu dari artis yang benar-benar terkenal (nb_fan
-      // tinggi) yang lolos — supaya isinya artis populer, bukan cover/versi
-      // tidak resmi atau artis kecil yang cuma kebetulan judulnya nyambung.
-      const famous = await _dmFilterFamousTracks(raw, SAD_TRACKS_PER_MIX * 2);
-
-      // 3) Urutkan lagi berdasarkan rank Deezer supaya lagu yang PALING
-      // sedang populer saat ini didahulukan, baru ambil 15 teratas.
+      const famous = await _dmFilterFamousTracks(raw, raw.length);
       famous.sort((a, b) => (b.rank || 0) - (a.rank || 0));
-
-      const tracks = [];
       for (const t of famous) {
-        if (tracks.length >= SAD_TRACKS_PER_MIX) break;
         if (seen.has(t.id)) continue;
         seen.add(t.id);
-        tracks.push({ ...t, _query: `${t.artist}|||${t.title}|||${t.id}` });
+        pool.push({ ...t, _query: `${t.artist}|||${t.title}|||${t.id}` });
       }
+    }
+
+    // 3) Acak kolam lagu (Fisher–Yates) supaya urutan artis tercampur, lalu
+    // bagi rata ke 8 playlist — hasilnya tiap playlist berisi campuran lagu
+    // dari banyak artis berbeda, bukan 15 lagu dari 1 artis yang sama saja.
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+
+    let mixes = [];
+    for (let m = 0; m < SAD_PLAYLIST_COUNT; m++) {
+      const tracks = pool.slice(m * SAD_TRACKS_PER_MIX, (m + 1) * SAD_TRACKS_PER_MIX);
       if (!tracks.length) continue;
 
-      // Judul playlist = nama artis yang lagunya ada di situ (bukan judul tetap).
+      // Judul playlist = nama-nama artis yang lagunya ada di situ (bukan judul tetap).
       const uniqueArtists = [];
       for (const t of tracks) { if (!uniqueArtists.includes(t.artist)) uniqueArtists.push(t.artist); if (uniqueArtists.length >= 2) break; }
       mixes.push({
