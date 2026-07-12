@@ -2981,6 +2981,20 @@ body.np-is-fullscreen #bar{display:none !important;}
       <div class="dm-grid" id="sad-playlist-grid"></div>
     </div>
 
+    <!-- WEEKDAY VIBES (9 playlist x 15 lagu, judul berubah tiap hari sesuai hari dalam seminggu, GLOBAL untuk semua user, diperbarui 1x sehari) -->
+    <div class="pub-section" id="weekday-playlist-section" style="display:none;">
+      <div class="pub-section-header">
+        <div class="pub-section-title">
+           <span id="weekday-playlist-title">Loading...</span>
+          <span class="pub-badge">Diperbarui Setiap Hari</span>
+        </div>
+        <button class="home-new-pl-btn" id="wp-showall-btn" onclick="toggleWeekdayPlaylistShowAll()" style="background:none;border:1px solid var(--border);color:var(--sub);">
+          <span id="wp-showall-label">Tampilkan Semua</span>
+        </button>
+      </div>
+      <div class="dm-grid" id="weekday-playlist-grid"></div>
+    </div>
+
     <!-- TOP SONGS (Deezer, live daily chart) -->
     <div class="pub-section" id="top-ranking-section" style="display:none;">
       <div class="pub-section-header">
@@ -3960,6 +3974,7 @@ auth.onAuthStateChanged(user => {
     loadDailyMixes();
     loadMadeForYouMixes();
     loadSadPlaylists();
+    loadWeekdayPlaylists();
   } else {
     showAuthWall();
   }
@@ -9087,6 +9102,249 @@ function buildSadPlaylistCardEl(mix, i) {
 function toggleSadPlaylistShowAll() {
   const grid = document.getElementById('sad-playlist-grid');
   const label = document.getElementById('sad-showall-label');
+  if (!grid) return;
+  const expanded = grid.classList.toggle('expanded');
+  if (label) label.textContent = expanded ? 'Tampilkan Sedikit' : 'Tampilkan Semua';
+}
+
+// ─── WEEKDAY VIBES ────────────────────────────────────────────────────────
+// 9 playlist otomatis, isi 15 lagu tiap playlist (persis pola "Playlist Pop"
+// di atas: kumpulkan lagu dari artis-artis terkenal via Deezer, saring yang
+// benar-benar populer, acak, lalu bagi rata ke 9 playlist). Bedanya, judul
+// section di atas grid ini BERUBAH tiap hari mengikuti hari dalam seminggu
+// (Senin s/d Minggu, dihitung berdasarkan WIB — sama seperti Daily Mix),
+// sehingga tiap hari user melihat kalimat sapaan yang berbeda. Hasil
+// generate playlist-nya juga disimpan sebagai data BERSAMA di Firebase
+// (weekday_playlist_shared/{dateStr}), sama seperti Daily Mix / Playlist
+// Pop, supaya SEMUA user melihat 9 playlist yang identik pada hari yang
+// sama, dan otomatis berganti begitu tanggal (WIB) berpindah ke hari
+// berikutnya.
+const WEEKDAY_PLAYLIST_COUNT = 9;
+const WEEKDAY_TRACKS_PER_MIX = 15;
+// Kata kunci pencarian artis, dilebihkan jumlahnya (lebih banyak dari versi
+// Playlist Pop) karena total lagu yang dibutuhkan lebih besar (9 x 15 = 135).
+const WEEKDAY_SEARCH_QUERIES = [
+  'Taylor Swift',
+  'Ariana Grande',
+  'Dua Lipa',
+  'Ed Sheeran',
+  'Bruno Mars',
+  'The Weeknd',
+  'Billie Eilish',
+  'Harry Styles',
+  'Justin Bieber',
+  'Selena Gomez',
+  'Olivia Rodrigo',
+  'Katy Perry',
+  'Rihanna',
+  'Shawn Mendes',
+  'Sia',
+  'Adele',
+  'Charlie Puth',
+  'Post Malone',
+  'Doja Cat',
+  'Coldplay'
+];
+const WEEKDAY_RAW_LIMIT = 70;
+
+// Teks judul section, satu untuk tiap hari dalam seminggu. Index mengikuti
+// Date.getUTCDay() (0=Minggu, 1=Senin, ... 6=Sabtu) supaya cocok dengan cara
+// _wpTodayDayIndex() di bawah menghitung "hari ini" versi WIB.
+const WEEKDAY_QUOTES = [
+  "Sunday is the perfect day to relax with this playlist", // 0 Minggu
+  "Monday isn't so bad with the right playlist.",           // 1 Senin
+  "Tuesday sounds better with great music",                 // 2 Selasa
+  "Wednesday deserves a playlist like this",                // 3 Rabu
+  "Thursday is better with your favorite songs",             // 4 Kamis
+  "Friday is here, let the music take over",                 // 5 Jumat
+  "Saturday is all about good vibes and great songs"         // 6 Sabtu
+];
+
+// Indeks hari (0-6) dihitung dari waktu WIB (GMT+7), bukan zona waktu lokal
+// device, supaya judul berganti tepat tengah malam WIB untuk SEMUA user di
+// zona waktu manapun mereka berada — konsisten dengan _dmTodayDateStr().
+function _wpTodayDayIndex() {
+  const wib = new Date(Date.now() + 7 * 60 * 60 * 1000);
+  return wib.getUTCDay();
+}
+
+function getWeekdayPlaylistTitle() {
+  return WEEKDAY_QUOTES[_wpTodayDayIndex()];
+}
+
+async function loadWeekdayPlaylists(force) {
+  const section = document.getElementById('weekday-playlist-section');
+  const grid = document.getElementById('weekday-playlist-grid');
+  const titleEl = document.getElementById('weekday-playlist-title');
+  if (section) section.style.display = 'block';
+  // Judul section langsung di-set sesuai hari ini, terlepas dari apakah
+  // playlist-nya nanti diambil dari cache atau digenerate ulang.
+  if (titleEl) titleEl.textContent = getWeekdayPlaylistTitle();
+
+  const dateStr = _dmTodayDateStr(); // hari WIB, sama seperti Daily Mix (bukan UTC)
+  const cacheKey = 'vibexa_weekdayplaylists_v1_' + dateStr;
+
+  if (!force) {
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const mixes = JSON.parse(cached);
+        if (mixes && mixes.length) { renderWeekdayPlaylists(mixes); return; }
+      }
+    } catch (e) { console.error('[WeekdayVibes] gagal baca cache lokal:', e); }
+  }
+
+  // Weekday Vibes BERSAMA untuk semua user (sama seperti Daily Mix/Playlist
+  // Pop): sebelum generate sendiri, coba dulu ambil hasil yang sudah dibuat
+  // user lain hari ini dari Firebase. Kalau sudah ada, semua user pakai
+  // data yang sama persis.
+  if (!force) {
+    try {
+      const sharedSnap = await db.ref('weekday_playlist_shared/' + dateStr).get();
+      if (sharedSnap.exists()) {
+        const sharedMixes = sharedSnap.val();
+        if (Array.isArray(sharedMixes) && sharedMixes.length) {
+          try { localStorage.setItem(cacheKey, JSON.stringify(sharedMixes)); } catch (e) { console.error('[WeekdayVibes] gagal simpan cache lokal:', e); }
+          renderWeekdayPlaylists(sharedMixes);
+          return;
+        }
+      }
+    } catch (e) {
+      // Kalau ini "PERMISSION_DENIED" di console, Firebase Rules belum
+      // mengizinkan baca path weekday_playlist_shared -> tidak akan pernah
+      // sama antar user sampai rule-nya dibenarkan.
+      console.error('[WeekdayVibes] gagal baca weekday_playlist_shared dari Firebase (cek Firebase Rules):', e);
+    }
+  }
+
+  if (grid) grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;"><i></i><h3>Menyiapkan playlist hari ini...</h3></div>';
+
+  try {
+    // 1) Ambil lagu-lagu dari tiap artis terkenal lewat pencarian Deezer,
+    // diurutkan berdasarkan RANKING (popularitas) bawaan Deezer.
+    const rawResults = await Promise.all(WEEKDAY_SEARCH_QUERIES.map(q =>
+      _dmFetchRawTracks('https://api.deezer.com/search?q=' + encodeURIComponent(q) + '&order=RANKING&limit=' + WEEKDAY_RAW_LIMIT).catch(() => [])
+    ));
+
+    // 2) Saring per artis: hanya lagu dari artis yang benar-benar terkenal
+    // (nb_fan tinggi) yang lolos, lalu semua lagu yang lolos digabung jadi
+    // satu kolam (bukan dipisah per playlist per artis).
+    const seen = new Set();
+    let pool = [];
+    for (let m = 0; m < WEEKDAY_SEARCH_QUERIES.length; m++) {
+      const raw = (rawResults[m] || []).filter(t => !seen.has(t.id));
+      const famous = await _dmFilterFamousTracks(raw, raw.length);
+      famous.sort((a, b) => (b.rank || 0) - (a.rank || 0));
+      for (const t of famous) {
+        if (seen.has(t.id)) continue;
+        seen.add(t.id);
+        pool.push({ ...t, _query: `${t.artist}|||${t.title}|||${t.id}` });
+      }
+    }
+
+    // 3) Acak kolam lagu (Fisher–Yates) supaya urutan artis tercampur, lalu
+    // bagi rata ke 9 playlist — hasilnya tiap playlist berisi campuran lagu
+    // dari banyak artis berbeda, 15 lagu per playlist.
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+
+    let mixes = [];
+    for (let m = 0; m < WEEKDAY_PLAYLIST_COUNT; m++) {
+      const tracks = pool.slice(m * WEEKDAY_TRACKS_PER_MIX, (m + 1) * WEEKDAY_TRACKS_PER_MIX);
+      if (!tracks.length) continue;
+
+      // Judul playlist = nama-nama artis yang lagunya ada di situ (bukan judul tetap).
+      const uniqueArtists = [];
+      for (const t of tracks) { if (!uniqueArtists.includes(t.artist)) uniqueArtists.push(t.artist); if (uniqueArtists.length >= 2) break; }
+      mixes.push({
+        id: 'weekday_' + m,
+        label: 'Weekday Vibes',
+        title: uniqueArtists.length >= 2 ? `${uniqueArtists[0]} dan ${uniqueArtists[1]}` : (uniqueArtists[0] || 'Weekday Vibes'),
+        cover: tracks[0].thumb,
+        tracks
+      });
+    }
+
+    if (!mixes.length) throw new Error('Gagal membuat Weekday Vibes');
+
+    // Simpan hasil generate ini sebagai playlist BERSAMA di Firebase supaya
+    // user lain hari ini tinggal membaca, bukan generate ulang. Pakai
+    // transaction: kalau ternyata sudah ada yang lebih dulu menyimpan (dua
+    // user generate hampir bersamaan), jangan ditimpa — pakai versi yang
+    // sudah tersimpan supaya semua user tetap dapat playlist yang sama persis.
+    try {
+      const txResult = await db.ref('weekday_playlist_shared/' + dateStr).transaction(current => {
+        if (current) return; // sudah ada -> batalkan, jangan timpa
+        return mixes;
+      });
+      if (txResult && txResult.snapshot && txResult.snapshot.exists()) {
+        const finalMixes = txResult.snapshot.val();
+        if (Array.isArray(finalMixes) && finalMixes.length) mixes = finalMixes;
+      }
+      // Bersihkan entri tanggal-tanggal lama supaya node ini tidak menumpuk.
+      db.ref('weekday_playlist_shared').get().then(snap => {
+        if (!snap.exists()) return;
+        snap.forEach(child => {
+          if (child.key !== dateStr) db.ref('weekday_playlist_shared/' + child.key).remove().catch(() => {});
+        });
+      }).catch(() => {});
+    } catch (e) {
+      console.error('[WeekdayVibes] gagal tulis weekday_playlist_shared ke Firebase (cek Firebase Rules):', e);
+    }
+
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify(mixes));
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith('vibexa_weekdayplaylists_v') && k !== cacheKey) localStorage.removeItem(k);
+      });
+    } catch (e) {
+      console.error('[WeekdayVibes] gagal simpan cache lokal, coba bersihkan & ulang:', e);
+      try {
+        Object.keys(localStorage).forEach(k => { if (k.startsWith('vibexa_')) localStorage.removeItem(k); });
+        localStorage.setItem(cacheKey, JSON.stringify(mixes));
+      } catch (e2) { console.error('[WeekdayVibes] tetap gagal simpan cache lokal:', e2); }
+    }
+
+    renderWeekdayPlaylists(mixes);
+  } catch (e) {
+    console.error('loadWeekdayPlaylists error:', e);
+    if (grid) grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;color:var(--sub)"> Gagal memuat Weekday Vibes, coba refresh.</div>';
+  }
+}
+
+function renderWeekdayPlaylists(mixes) {
+  const c = document.getElementById('weekday-playlist-grid');
+  if (!c) return;
+  c.innerHTML = '';
+  mixes.forEach((mix, i) => c.appendChild(buildWeekdayPlaylistCardEl(mix, i)));
+}
+
+function buildWeekdayPlaylistCardEl(mix, i) {
+  const color = DM_COLORS[i % DM_COLORS.length];
+  const num = String(i + 1).padStart(2, '0');
+  const div = document.createElement('div');
+  div.className = 'dm-card';
+  div.innerHTML = `
+    <div class="dm-cover-wrap">
+      ${mix.cover ? `<img class="dm-cover-img" src="${esc(mix.cover)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
+      <div class="dm-cover-ov">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </div>
+      <div class="dm-badge-mix">Vibes</div>
+      <div class="dm-badge-num" style="color:${color}">${num}</div>
+    </div>
+    <div class="dm-title">${esc(mix.title)}</div>
+  `;
+  div.querySelector('.dm-cover-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
+  div.addEventListener('click', () => openDailyMix(mix));
+  return div;
+}
+
+function toggleWeekdayPlaylistShowAll() {
+  const grid = document.getElementById('weekday-playlist-grid');
+  const label = document.getElementById('wp-showall-label');
   if (!grid) return;
   const expanded = grid.classList.toggle('expanded');
   if (label) label.textContent = expanded ? 'Tampilkan Sedikit' : 'Tampilkan Semua';
