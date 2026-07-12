@@ -499,7 +499,9 @@ label {
   import {
     getDatabase,
     ref,
-    set
+    set,
+    update,
+    get
   } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
 
   const firebaseConfig = {
@@ -533,7 +535,9 @@ label {
     signInWithPopup,
     updateProfile,
     ref,
-    set
+    set,
+    update,
+    get
   };
 </script>
 
@@ -670,18 +674,38 @@ function handleAuthError(code) {
 }
 
 // ── Save user to Realtime Database ───────────────────────
+// PENTING: pakai update(), BUKAN set(), pada path root 'users/{uid}'.
+// set() di path root akan MENGHAPUS seluruh node anak yang sudah ada
+// (users/{uid}/profile, /notifications, /lyricsBackground, dll) setiap
+// kali fungsi ini jalan — termasuk saat akun Google yang SUDAH ADA
+// login ulang lewat halaman register. Ini yang menyebabkan foto profil,
+// nama, deskripsi, dan artis favorit hilang setelah logout & login lagi.
 async function saveUserData(user, displayName) {
   try {
     const fn = window._fbFunctions;
     const db = window._firebaseDb;
-    await fn.set(fn.ref(db, 'users/' + user.uid), {
+    const userRef = fn.ref(db, 'users/' + user.uid);
+
+    // Cek dulu apakah user ini sudah punya data (akun lama) atau belum (akun baru)
+    const existingSnap = await fn.get(userRef).catch(() => null);
+    const alreadyExists = existingSnap && existingSnap.exists();
+
+    const payload = {
       uid: user.uid,
-      displayName: displayName || user.displayName || '',
       email: user.email,
-      photoURL: user.photoURL || null,
-      createdAt: Date.now(),
       lastLogin: Date.now(),
-    });
+    };
+
+    if (!alreadyExists) {
+      // Hanya isi field ini saat akun benar-benar baru pertama kali dibuat
+      payload.displayName = displayName || user.displayName || '';
+      payload.photoURL = user.photoURL || null;
+      payload.createdAt = Date.now();
+    }
+
+    // update() hanya menimpa key yang disebut di payload,
+    // node anak lain (profile, notifications, dst) tetap aman/tidak tersentuh.
+    await fn.update(userRef, payload);
   } catch (e) {
     console.warn('Failed to save user data to Database:', e);
   }
