@@ -1759,12 +1759,26 @@ body.np-is-fullscreen #bar{display:none !important;}
 .home-notif-wrap .notif-bell-btn svg{width:19px;height:19px;}
 .home-notif-wrap .notif-badge{position:absolute;top:2px;right:2px;margin:0;}
 
+/* Tombol profil bulat, ditaruh di sebelah kiri kotak search */
+.home-profile-btn{
+  flex-shrink:0;width:46px;height:46px;border-radius:50%;
+  background:var(--card);border:1px solid var(--border);
+  padding:0;cursor:pointer;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--sub);transition:all .2s;
+}
+.home-profile-btn:hover{border-color:var(--green);box-shadow:var(--green-glow);}
+.home-profile-btn img{width:100%;height:100%;object-fit:cover;display:block;}
+.home-profile-btn svg{width:22px;height:22px;}
+
 @media(max-width:660px){
   .home-topbar{gap:10px;margin-bottom:16px;}
   #home-q{font-size:.82rem;padding:11px 82px 11px 16px}
   #home-btn-search{padding:7px 14px;font-size:.74rem}
   .home-notif-wrap .notif-bell-btn{width:40px;height:40px}
   .home-notif-wrap .notif-bell-btn svg{width:17px;height:17px}
+  .home-profile-btn{width:40px;height:40px}
+  .home-profile-btn svg{width:18px;height:18px}
 }
 
 /* Panel notifikasi */
@@ -2667,10 +2681,6 @@ body.np-is-fullscreen #bar{display:none !important;}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/><path d="M8 12h8M12 8v8"/></svg>
       VibeProfile
     </button>
-    <button class="side-nav-btn" onclick="window.location.href='profile.html'">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v2h20v-2c0-3.3-6.7-5-10-5z"/></svg>
-      Profil Saya
-    </button>
     <button class="side-nav-btn" id="logout-btn" onclick="doLogout()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
       Logout
@@ -2684,6 +2694,9 @@ body.np-is-fullscreen #bar{display:none !important;}
   <!-- HOME VIEW -->
   <div id="home-view" class="active">
     <div class="home-topbar">
+      <button class="home-profile-btn" id="home-profile-btn" onclick="window.location.href='profile.html'" title="Profil Saya">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v2h20v-2c0-3.3-6.7-5-10-5z"/></svg>
+      </button>
       <div class="home-search-wrap">
         <input type="text" id="home-q" placeholder="Cari lagu, artis, atau playlist..." autocomplete="off" spellcheck="false">
         <button id="home-btn-search" onclick="homeSearchGo()">Cari</button>
@@ -3710,6 +3723,22 @@ function showApp(user) {
     document.getElementById('home-greeting').textContent = 'Halo, ' + name + ' ';
     setCloudStatus('synced', 'Tersimpan · ' + name);
   });
+  // Muat foto profil ke tombol profil bulat di sebelah kotak search
+  loadHomeProfileButtonPhoto(user);
+}
+
+// Isi tombol profil bulat (di samping kotak search) dengan foto profil user;
+// kalau belum ada foto, biarkan tampil ikon default.
+function loadHomeProfileButtonPhoto(user) {
+  const btn = document.getElementById('home-profile-btn');
+  if (!btn) return;
+  db.ref('users/' + user.uid + '/profile').get().then(snap => {
+    const profile = snap.exists() ? (snap.val() || {}) : {};
+    const photo = profile.photoURL || profile.photoBase64 || user.photoURL || '';
+    if (photo) {
+      btn.innerHTML = `<img src="${esc(photo)}" alt="Profil" onerror="this.parentElement.innerHTML='<svg viewBox=&quot;0 0 24 24&quot; fill=&quot;currentColor&quot;><path d=&quot;M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v2h20v-2c0-3.3-6.7-5-10-5z&quot;/></svg>'">`;
+    }
+  }).catch(() => {});
 }
 
 function showAuthWall() {
@@ -6033,7 +6062,15 @@ document.getElementById('btn-play').addEventListener('click',()=>{
 document.getElementById('btn-next').addEventListener('click',playNext);
 document.getElementById('btn-prev').addEventListener('click',playPrev);
 document.getElementById('prog-track').addEventListener('click',e=>{if(!YTP||!tot)return;const r=e.currentTarget.getBoundingClientRect();const seekTo=((e.clientX-r.left)/r.width)*tot;if(YTP)YTP.seekTo(seekTo); cur=seekTo; _armSongTimer();});
-document.getElementById('vol').addEventListener('input',e=>{if(YTP)YTP.setVolume(parseInt(e.target.value));});
+document.getElementById('vol').addEventListener('input',e=>{
+  if(YTP)YTP.setVolume(parseInt(e.target.value));
+  if(spAudio) spAudio.volume = parseInt(e.target.value)/100;
+});
+// Volume 0-100 dari slider bawah, dipakai bareng oleh player utama (YTP) dan Song Preview (spAudio)
+function _getMainVolume(){
+  const el = document.getElementById('vol');
+  return el ? (parseInt(el.value)||0)/100 : 1;
+}
 document.getElementById('h-add-pl').addEventListener('click',(e)=>{
   if(!curTrack) return;
   const btn = e.currentTarget;
@@ -10931,6 +10968,7 @@ function playSpPreview(idx) {
   }
   spAudio.loop = true;
   spAudio.muted = spMuted;
+  spAudio.volume = _getMainVolume();
   spAudio.currentTime = 0;
   spAudio.play().catch(() => {});
   // Siapkan slide-slide berikutnya lebih awal
