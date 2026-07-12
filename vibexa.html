@@ -2579,13 +2579,20 @@ body.np-is-fullscreen #bar{display:none !important;}
 .artist-banner-name{font-size:3.2rem;font-weight:800;letter-spacing:-1.5px;color:#fff;line-height:1.05;margin-bottom:12px;word-break:break-word;}
 .artist-banner-sub{font-size:.82rem;color:rgba(255,255,255,.78);}
 .artist-banner-desc{font-size:.78rem;color:rgba(255,255,255,.68);margin-top:6px;line-height:1.6;max-width:640px;}
+.artist-banner-desc-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:6px;}
+.artist-banner-desc-row .artist-banner-desc{margin-top:0;}
+.artist-social-row{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.artist-social-btn{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;color:#fff;transition:all .18s;flex-shrink:0;}
+.artist-social-btn:hover{background:var(--green);border-color:var(--green);transform:translateY(-2px);box-shadow:var(--green-glow);}
+.artist-social-btn svg{width:15px;height:15px;display:block;}
 @media (max-width:900px){
   .artist-banner{padding:90px 18px 22px;min-height:300px;}
   .artist-banner-name{font-size:2.1rem;}
 }
 /* Sticky mini header — muncul dengan animasi saat halaman artis discroll ke bawah (spt Spotify) */
-.artist-sticky-header{position:sticky;top:0;z-index:6;display:flex;align-items:center;gap:12px;padding:10px 22px;margin:0 0 -1px;background:transparent;opacity:0;transform:translateY(-16px);pointer-events:none;transition:opacity .28s ease,transform .28s ease,background-color .28s ease,box-shadow .28s ease;}
-.artist-sticky-header.show{opacity:1;transform:translateY(0);background:rgba(10,13,22,.92);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 8px 24px rgba(0,0,0,.35);pointer-events:auto;}
+.artist-sticky-header{position:sticky;top:0;left:0;right:0;z-index:6;height:0;overflow:visible;pointer-events:none;}
+.artist-sticky-header-inner{display:flex;align-items:center;gap:12px;padding:10px 22px;background:transparent;opacity:0;transform:translateY(-16px);pointer-events:none;transition:opacity .28s ease,transform .28s ease,background-color .28s ease,box-shadow .28s ease;}
+.artist-sticky-header.show .artist-sticky-header-inner{opacity:1;transform:translateY(0);background:rgba(10,13,22,.92);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 8px 24px rgba(0,0,0,.35);pointer-events:auto;}
 .artist-sticky-photo{width:38px;height:38px;border-radius:50%;object-fit:cover;background:var(--hover);flex-shrink:0;opacity:0;transform:scale(.6);transition:opacity .28s ease .05s,transform .28s ease .05s;}
 .artist-sticky-header.show .artist-sticky-photo{opacity:1;transform:scale(1);}
 .artist-sticky-name{font-size:1.05rem;font-weight:800;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;}
@@ -3023,11 +3030,13 @@ body.np-is-fullscreen #bar{display:none !important;}
   <!-- ARTIST PROFILE VIEW (cara kerja seperti Spotify) -->
   <div id="artist-view">
     <div class="artist-sticky-header" id="artist-sticky-header">
-      <img class="artist-sticky-photo" id="artist-sticky-photo" src="" alt="" onerror="this.style.display='none'">
-      <div class="artist-sticky-name" id="artist-sticky-name">—</div>
-      <button class="artist-sticky-play" onclick="playArtistTopTracks()" title="Putar semua">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-      </button>
+      <div class="artist-sticky-header-inner">
+        <img class="artist-sticky-photo" id="artist-sticky-photo" src="" alt="" onerror="this.style.display='none'">
+        <div class="artist-sticky-name" id="artist-sticky-name">—</div>
+        <button class="artist-sticky-play" onclick="playArtistTopTracks()" title="Putar semua">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+      </div>
     </div>
     <button class="pv-back" onclick="backFromArtistView()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
@@ -3043,7 +3052,20 @@ body.np-is-fullscreen #bar{display:none !important;}
         </div>
         <div class="artist-banner-name" id="artist-banner-name">—</div>
         <div class="artist-banner-sub" id="artist-banner-sub">Memuat...</div>
-        <div class="artist-banner-desc" id="artist-banner-desc"></div>
+        <div class="artist-banner-desc-row">
+          <div class="artist-banner-desc" id="artist-banner-desc"></div>
+          <div class="artist-social-row" id="artist-social-row">
+            <a class="artist-social-btn" id="artist-social-ig" href="#" target="_blank" rel="noopener noreferrer" title="Instagram">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c-2.72 0-3.06.01-4.13.06-1.07.05-1.8.22-2.43.47-.66.26-1.22.6-1.77 1.16-.56.55-.9 1.11-1.16 1.77-.25.63-.42 1.36-.47 2.43C2.01 8.94 2 9.28 2 12s.01 3.06.06 4.13c.05 1.07.22 1.8.47 2.43.26.66.6 1.22 1.16 1.77.55.56 1.11.9 1.77 1.16.63.25 1.36.42 2.43.47 1.07.05 1.41.06 4.13.06s3.06-.01 4.13-.06c1.07-.05 1.8-.22 2.43-.47.66-.26 1.22-.6 1.77-1.16.56-.55.9-1.11 1.16-1.77.25-.63.42-1.36.47-2.43.05-1.07.06-1.41.06-4.13s-.01-3.06-.06-4.13c-.05-1.07-.22-1.8-.47-2.43-.26-.66-.6-1.22-1.16-1.77-.55-.56-1.11-.9-1.77-1.16-.63-.25-1.36-.42-2.43-.47C15.06 2.01 14.72 2 12 2zm0 1.8c2.67 0 2.99.01 4.04.06.98.04 1.5.2 1.86.34.47.18.8.4 1.15.75.35.35.57.68.75 1.15.14.36.3.88.34 1.86.05 1.05.06 1.37.06 4.04s-.01 2.99-.06 4.04c-.04.98-.2 1.5-.34 1.86-.18.47-.4.8-.75 1.15-.35.35-.68.57-1.15.75-.36.14-.88.3-1.86.34-1.05.05-1.37.06-4.04.06s-2.99-.01-4.04-.06c-.98-.04-1.5-.2-1.86-.34-.47-.18-.8-.4-1.15-.75-.35-.35-.57-.68-.75-1.15-.14-.36-.3-.88-.34-1.86C3.81 14.99 3.8 14.67 3.8 12s.01-2.99.06-4.04c.04-.98.2-1.5.34-1.86.18-.47.4-.8.75-1.15.35-.35.68-.57 1.15-.75.36-.14.88-.3 1.86-.34C9.01 3.81 9.33 3.8 12 3.8zm0 3.05a5.15 5.15 0 1 0 0 10.3 5.15 5.15 0 0 0 0-10.3zm0 8.5a3.35 3.35 0 1 1 0-6.7 3.35 3.35 0 0 1 0 6.7zm5.36-8.7a1.2 1.2 0 1 1-2.4 0 1.2 1.2 0 0 1 2.4 0z"/></svg>
+            </a>
+            <a class="artist-social-btn" id="artist-social-yt" href="#" target="_blank" rel="noopener noreferrer" title="YouTube">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.75s-.23-1.64-.95-2.36c-.9-.95-1.92-.95-2.38-1.01C16.9 3.13 12 3.13 12 3.13h-.01s-4.89 0-8.16.25c-.46.06-1.48.06-2.38 1.01-.72.72-.95 2.36-.95 2.36S0 8.66 0 10.57v1.79c0 1.91.24 3.82.24 3.82s.23 1.64.94 2.36c.9.95 2.09.92 2.62 1.02 1.9.18 8.2.24 8.2.24s4.9-.01 8.17-.25c.46-.06 1.48-.06 2.38-1.01.72-.72.95-2.36.95-2.36s.24-1.91.24-3.82v-1.79c0-1.91-.24-3.82-.24-3.82zM9.53 14.98V7.9l6.4 3.55-6.4 3.53z"/></svg>
+            </a>
+            <a class="artist-social-btn" id="artist-social-x" href="#" target="_blank" rel="noopener noreferrer" title="X (Twitter)">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.24 2.5h3.3l-7.2 8.23 8.47 11.27h-6.63l-5.2-6.8-5.94 6.8H1.72l7.7-8.8L1.28 2.5h6.8l4.7 6.22zm-1.16 17.53h1.83L6.9 4.34H4.94z"/></svg>
+            </a>
+          </div>
+        </div>
       </div>
     </div>
     <div class="artist-actions">
@@ -7211,6 +7233,10 @@ function openArtistView(artistName) {
   document.getElementById('artist-banner-sub').textContent = 'Memuat...';
   const bg = document.getElementById('artist-banner-bg'); bg.style.display = 'none'; bg.src = '';
   document.getElementById('artist-banner-desc').textContent = '';
+  ['artist-social-ig', 'artist-social-yt', 'artist-social-x'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.href = '#';
+  });
   document.getElementById('artist-songs-grid').innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat lagu...</h3></div>';
   document.getElementById('artist-albums-grid').innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat album...</h3></div>';
   const followBtn = document.getElementById('artist-follow-btn');
@@ -7294,6 +7320,17 @@ async function loadArtistProfile(artistName) {
     document.getElementById('artist-sticky-name').textContent = artist.name;
     const stickyPhoto = document.getElementById('artist-sticky-photo');
     if (stickyPhoto && photo) stickyPhoto.src = photo;
+
+    // Tombol Instagram / YouTube / X — arahkan ke pencarian nama artis di
+    // masing-masing platform (Deezer tidak menyediakan link akun resmi,
+    // jadi cara paling akurat adalah lewat hasil pencarian nama artisnya).
+    const socialQ = encodeURIComponent(artist.name);
+    const igEl = document.getElementById('artist-social-ig');
+    const ytEl = document.getElementById('artist-social-yt');
+    const xEl = document.getElementById('artist-social-x');
+    if (igEl) igEl.href = 'https://www.instagram.com/explore/search/keyword/?q=' + socialQ;
+    if (ytEl) ytEl.href = 'https://www.youtube.com/results?search_query=' + socialQ;
+    if (xEl) xEl.href = 'https://x.com/search?q=' + socialQ + '&f=user';
     _updateArtistScrollFx();
 
     const [topData, allAlbums] = await Promise.all([
@@ -7347,7 +7384,7 @@ function renderArtistSongs(tracks) {
   tracks.forEach((t, i) => c.appendChild(buildRankItemEl(t, i, true)));
 }
 
-const ARTIST_ALBUMS_PREVIEW_COUNT = 6;
+const ARTIST_ALBUMS_PREVIEW_COUNT = 8;
 
 function _buildAlbumCardEl(a) {
   const div = document.createElement('div');
