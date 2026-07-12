@@ -2784,7 +2784,7 @@ body.np-is-fullscreen #bar{display:none !important;}
     <div class="pub-section" id="sad-playlist-section" style="display:none;">
       <div class="pub-section-header">
         <div class="pub-section-title">
-           Lagi Sedih?
+           no I'm okayy, I just need to be alone
           <span class="pub-badge">Playlist Buat Kamu</span>
         </div>
         <button class="home-new-pl-btn" id="sad-showall-btn" onclick="toggleSadPlaylistShowAll()" style="background:none;border:1px solid var(--border);color:var(--sub);">
@@ -8085,6 +8085,8 @@ async function _dmFilterFamousTracks(tracks, cap) {
 
 // Raw fetch helper that keeps the artist's numeric id around (needed for
 // the nb_fan lookup above) — fetchDeezerChartTracks() normalizes that away.
+// `rank` = skor popularitas dari Deezer sendiri (dipakai buat urutkan lagu
+// yang lagi paling populer duluan, misalnya di Playlist Sedih).
 async function _dmFetchRawTracks(url) {
   const data = await _deezerJsonp(url);
   return ((data && data.data) || []).map(t => ({
@@ -8094,7 +8096,8 @@ async function _dmFetchRawTracks(url) {
     artist: (t.artist && t.artist.name) || 'Unknown',
     thumb: (t.album && (t.album.cover_xl || t.album.cover_big || t.album.cover_medium)) || '',
     preview: t.preview || null,
-    duration: t.duration || 0
+    duration: t.duration || 0,
+    rank: t.rank || 0
   }));
 }
 
@@ -8119,7 +8122,7 @@ async function loadDailyMixes(force) {
         const mixes = JSON.parse(cached);
         if (mixes && mixes.length >= DM_MIX_COUNT) { renderDailyMixes(mixes); return; }
       }
-    } catch (e) {}
+    } catch (e) { console.error('[DailyMix] gagal baca cache lokal:', e); }
   }
 
   // Daily Mix BERSAMA untuk semua user: sebelum generate sendiri (yang berarti
@@ -8133,12 +8136,17 @@ async function loadDailyMixes(force) {
       if (sharedSnap.exists()) {
         const sharedMixes = sharedSnap.val();
         if (Array.isArray(sharedMixes) && sharedMixes.length >= DM_MIX_COUNT) {
-          try { localStorage.setItem(todayKey, JSON.stringify(sharedMixes)); } catch (e) {}
+          try { localStorage.setItem(todayKey, JSON.stringify(sharedMixes)); } catch (e) { console.error('[DailyMix] gagal simpan cache lokal:', e); }
           renderDailyMixes(sharedMixes);
           return;
         }
       }
-    } catch (e) { /* Firebase gagal dibaca -> lanjut generate lokal di bawah */ }
+    } catch (e) {
+      // PENTING: kalau ini muncul di console sebagai "PERMISSION_DENIED", artinya
+      // Firebase Realtime Database Rules belum mengizinkan baca path daily_mix_shared
+      // -> Daily Mix TIDAK akan pernah bisa sama antar user sampai rule-nya dibenarkan.
+      console.error('[DailyMix] gagal baca daily_mix_shared dari Firebase (cek Firebase Rules):', e);
+    }
   }
 
   if (grid) grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;"><i></i><h3>Menyiapkan Daily Mix...</h3></div>';
@@ -8255,14 +8263,28 @@ async function loadDailyMixes(force) {
           if (child.key !== dateStr) db.ref('daily_mix_shared/' + child.key).remove().catch(() => {});
         });
       }).catch(() => {});
-    } catch (e) { /* gagal tulis ke Firebase tidak fatal, tetap pakai mix lokal */ }
+    } catch (e) {
+      // PENTING: kalau ini muncul sebagai "PERMISSION_DENIED" di console, artinya
+      // Firebase Rules belum mengizinkan tulis ke path daily_mix_shared -> tiap
+      // user akan terus generate versi masing-masing (tidak akan pernah sama).
+      console.error('[DailyMix] gagal tulis daily_mix_shared ke Firebase (cek Firebase Rules):', e);
+    }
 
     try {
       localStorage.setItem(todayKey, JSON.stringify(mixes));
       Object.keys(localStorage).forEach(k => {
         if (k.startsWith('vibexa_dailymix_') && k !== todayKey) localStorage.removeItem(k);
       });
-    } catch (e) {}
+    } catch (e) {
+      // Kemungkinan besar localStorage penuh (QuotaExceededError). Bersihkan
+      // cache-cache lain milik app ini lalu coba sekali lagi, supaya refresh
+      // berikutnya tetap bisa pakai cache (bukan generate ulang tiap kali).
+      console.error('[DailyMix] gagal simpan cache lokal, coba bersihkan & ulang:', e);
+      try {
+        Object.keys(localStorage).forEach(k => { if (k.startsWith('vibexa_')) localStorage.removeItem(k); });
+        localStorage.setItem(todayKey, JSON.stringify(mixes));
+      } catch (e2) { console.error('[DailyMix] tetap gagal simpan cache lokal setelah dibersihkan:', e2); }
+    }
 
     renderDailyMixes(mixes);
   } catch (e) {
@@ -8450,32 +8472,40 @@ function toggleMadeForYouShowAll() {
 }
 
 // ─── PLAYLIST SEDIH (Sad Playlists) ──────────────────────────
-// 8 playlist otomatis, isi 15 lagu tiap playlist, semuanya lagu-lagu
-// bergenre/bertema sedih (galau, patah hati, kehilangan, kesepian) —
-// diambil dari pencarian iTunes (sumber sama seperti fitur pencarian biasa)
-// memakai beberapa "tema sedih" berbeda supaya tiap playlist punya nuansa
-// yang berbeda-beda, tidak semuanya lagu yang sama. Hasilnya di-cache per
-// hari di localStorage supaya tidak fetch ulang tiap kali buka halaman Home.
+// 8 playlist otomatis, isi 15 lagu tiap playlist, semuanya lagu bertema/
+// bergenre sedih (galau, patah hati, kehilangan, kesepian) — diambil dari
+// pencarian Deezer (bukan iTunes) memakai beberapa kata kunci tema sedih,
+// lalu DISARING supaya hanya lagu dari artis yang benar-benar terkenal
+// (nb_fan tinggi, sama seperti syarat "terkenal" di Daily Mix) yang lolos,
+// dan diurutkan berdasarkan `rank` (skor popularitas Deezer) supaya lagu
+// yang sedang populer didahulukan. Judul tiap playlist diambil dari nama
+// artis yang lagunya ada di situ (bukan judul tetap seperti sebelumnya).
+// Di-cache 1x per hari (berbasis WIB, sama seperti Daily Mix) supaya tidak
+// generate ulang tiap kali halaman Home dibuka.
 const SAD_PLAYLIST_COUNT = 8;
 const SAD_TRACKS_PER_MIX = 15;
-const SAD_PLAYLIST_DEFS = [
-  { title: 'Nangis Sambil Dengerin Ini',   query: 'lagu sedih galau indonesia',      country: 'ID' },
-  { title: 'Patah Hati Playlist',          query: 'lagu patah hati indonesia',       country: 'ID' },
-  { title: 'Sad Songs to Cry To',          query: 'sad songs',                       country: 'US' },
-  { title: 'Heartbreak Anthems',           query: 'heartbreak breakup songs',        country: 'US' },
-  { title: 'Sendirian di Kamar',           query: 'lagu galau kesepian sendirian',   country: 'ID' },
-  { title: 'Sad Piano & Acoustic',         query: 'sad piano acoustic songs',        country: 'US' },
-  { title: 'Kangen Berat',                 query: 'lagu kangen mantan galau',        country: 'ID' },
-  { title: 'Melancholic Late Night',       query: 'melancholy lonely sad songs',     country: 'US' }
+const SAD_SEARCH_QUERIES = [
+  'sad songs',
+  'heartbreak songs',
+  'breakup songs',
+  'lagu sedih galau indonesia',
+  'lagu patah hati indonesia',
+  'sad love songs',
+  'crying alone sad songs',
+  'melancholy lonely songs'
 ];
+// Jumlah lagu mentah yang diambil per kata kunci (dilebihkan dari 15, karena
+// setelah disaring "hanya artis terkenal" + dibuang yang duplikat, biasanya
+// tidak semua lolos).
+const SAD_RAW_LIMIT = 60;
 
 async function loadSadPlaylists(force) {
   const section = document.getElementById('sad-playlist-section');
   const grid = document.getElementById('sad-playlist-grid');
   if (section) section.style.display = 'block';
 
-  const dateStr = new Date().toISOString().slice(0, 10);
-  const cacheKey = 'vibexa_sadplaylists_v1_' + dateStr;
+  const dateStr = _dmTodayDateStr(); // hari WIB, sama seperti Daily Mix (bukan UTC)
+  const cacheKey = 'vibexa_sadplaylists_v2_' + dateStr;
 
   if (!force) {
     try {
@@ -8484,45 +8514,70 @@ async function loadSadPlaylists(force) {
         const mixes = JSON.parse(cached);
         if (mixes && mixes.length) { renderSadPlaylists(mixes); return; }
       }
-    } catch (e) {}
+    } catch (e) { console.error('[SadPlaylist] gagal baca cache lokal:', e); }
+  }
+
+  // Playlist Sedih BERSAMA untuk semua user (sama seperti Daily Mix): sebelum
+  // generate sendiri, coba dulu ambil hasil yang sudah dibuat user lain hari
+  // ini dari Firebase. Kalau sudah ada, semua user pakai data yang sama persis.
+  if (!force) {
+    try {
+      const sharedSnap = await db.ref('sad_playlist_shared/' + dateStr).get();
+      if (sharedSnap.exists()) {
+        const sharedMixes = sharedSnap.val();
+        if (Array.isArray(sharedMixes) && sharedMixes.length) {
+          try { localStorage.setItem(cacheKey, JSON.stringify(sharedMixes)); } catch (e) { console.error('[SadPlaylist] gagal simpan cache lokal:', e); }
+          renderSadPlaylists(sharedMixes);
+          return;
+        }
+      }
+    } catch (e) {
+      // Kalau ini "PERMISSION_DENIED" di console, Firebase Rules belum
+      // mengizinkan baca path sad_playlist_shared -> tidak akan pernah sama
+      // antar user sampai rule-nya dibenarkan.
+      console.error('[SadPlaylist] gagal baca sad_playlist_shared dari Firebase (cek Firebase Rules):', e);
+    }
   }
 
   if (grid) grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;"><i></i><h3>Menyiapkan playlist buat kamu...</h3></div>';
 
   try {
-    const seen = new Set(); // hindari lagu yang sama muncul di lebih dari satu playlist sedih
-    const results = await Promise.all(SAD_PLAYLIST_DEFS.map(def =>
-      fetchItunesResults(def.query, def.country, 'song', 50).catch(() => [])
+    // 1) Ambil lagu-lagu bertema sedih dari pencarian Deezer, diurutkan
+    // berdasarkan RANKING (popularitas) bawaan Deezer.
+    const rawResults = await Promise.all(SAD_SEARCH_QUERIES.map(q =>
+      _dmFetchRawTracks('https://api.deezer.com/search?q=' + encodeURIComponent(q) + '&order=RANKING&limit=' + SAD_RAW_LIMIT).catch(() => [])
     ));
 
+    const seen = new Set(); // hindari lagu yang sama muncul di lebih dari satu playlist sedih
     let mixes = [];
-    for (let m = 0; m < SAD_PLAYLIST_DEFS.length; m++) {
-      const def = SAD_PLAYLIST_DEFS[m];
-      const items = results[m] || [];
+    for (let m = 0; m < SAD_SEARCH_QUERIES.length; m++) {
+      const raw = (rawResults[m] || []).filter(t => !seen.has(t.id));
+
+      // 2) Saring: hanya lagu dari artis yang benar-benar terkenal (nb_fan
+      // tinggi) yang lolos — supaya isinya artis populer, bukan cover/versi
+      // tidak resmi atau artis kecil yang cuma kebetulan judulnya nyambung.
+      const famous = await _dmFilterFamousTracks(raw, SAD_TRACKS_PER_MIX * 2);
+
+      // 3) Urutkan lagi berdasarkan rank Deezer supaya lagu yang PALING
+      // sedang populer saat ini didahulukan, baru ambil 15 teratas.
+      famous.sort((a, b) => (b.rank || 0) - (a.rank || 0));
+
       const tracks = [];
-      for (const it of items) {
+      for (const t of famous) {
         if (tracks.length >= SAD_TRACKS_PER_MIX) break;
-        const key = (it.trackId || `${it.artistName}-${it.trackName}`);
-        if (seen.has(key)) continue;
-        if (!it.trackName || !it.artistName) continue;
-        seen.add(key);
-        const thumb = (it.artworkUrl100 || '').replace('100x100bb', '600x600bb');
-        tracks.push({
-          title: it.trackName,
-          artist: it.artistName,
-          thumb,
-          preview: it.previewUrl || null,
-          videoId: null,
-          photo: null,
-          duration: it.trackTimeMillis ? Math.round(it.trackTimeMillis / 1000) : 0,
-          _query: `${it.artistName}|||${it.trackName}|||${it.trackId || Math.random()}`
-        });
+        if (seen.has(t.id)) continue;
+        seen.add(t.id);
+        tracks.push({ ...t, _query: `${t.artist}|||${t.title}|||${t.id}` });
       }
       if (!tracks.length) continue;
+
+      // Judul playlist = nama artis yang lagunya ada di situ (bukan judul tetap).
+      const uniqueArtists = [];
+      for (const t of tracks) { if (!uniqueArtists.includes(t.artist)) uniqueArtists.push(t.artist); if (uniqueArtists.length >= 2) break; }
       mixes.push({
         id: 'sad_' + m,
         label: 'Playlist Sedih',
-        title: def.title,
+        title: uniqueArtists.length >= 2 ? `${uniqueArtists[0]} dan ${uniqueArtists[1]}` : (uniqueArtists[0] || 'Playlist Sedih'),
         cover: tracks[0].thumb,
         tracks
       });
@@ -8530,12 +8585,43 @@ async function loadSadPlaylists(force) {
 
     if (!mixes.length) throw new Error('Gagal membuat playlist sedih');
 
+    // Simpan hasil generate ini sebagai playlist BERSAMA di Firebase supaya
+    // user lain hari ini tinggal membaca, bukan generate ulang. Pakai
+    // transaction: kalau ternyata sudah ada yang lebih dulu menyimpan (dua
+    // user generate hampir bersamaan), jangan ditimpa — pakai versi yang
+    // sudah tersimpan supaya semua user tetap dapat playlist yang sama persis.
+    try {
+      const txResult = await db.ref('sad_playlist_shared/' + dateStr).transaction(current => {
+        if (current) return; // sudah ada -> batalkan, jangan timpa
+        return mixes;
+      });
+      if (txResult && txResult.snapshot && txResult.snapshot.exists()) {
+        const finalMixes = txResult.snapshot.val();
+        if (Array.isArray(finalMixes) && finalMixes.length) mixes = finalMixes;
+      }
+      // Bersihkan entri tanggal-tanggal lama supaya node ini tidak menumpuk.
+      db.ref('sad_playlist_shared').get().then(snap => {
+        if (!snap.exists()) return;
+        snap.forEach(child => {
+          if (child.key !== dateStr) db.ref('sad_playlist_shared/' + child.key).remove().catch(() => {});
+        });
+      }).catch(() => {});
+    } catch (e) {
+      console.error('[SadPlaylist] gagal tulis sad_playlist_shared ke Firebase (cek Firebase Rules):', e);
+    }
+
     try {
       localStorage.setItem(cacheKey, JSON.stringify(mixes));
       Object.keys(localStorage).forEach(k => {
-        if (k.startsWith('vibexa_sadplaylists_v1_') && k !== cacheKey) localStorage.removeItem(k);
+        if (k.startsWith('vibexa_sadplaylists_v') && k !== cacheKey) localStorage.removeItem(k);
       });
-    } catch (e) {}
+    } catch (e) {
+      console.error('[SadPlaylist] gagal simpan cache lokal, coba bersihkan & ulang:', e);
+      try {
+        Object.keys(localStorage).forEach(k => { if (k.startsWith('vibexa_')) localStorage.removeItem(k); });
+        localStorage.setItem(cacheKey, JSON.stringify(mixes));
+      } catch (e2) { console.error('[SadPlaylist] tetap gagal simpan cache lokal:', e2); }
+    }
 
     renderSadPlaylists(mixes);
   } catch (e) {
