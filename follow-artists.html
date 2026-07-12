@@ -310,33 +310,16 @@ const db   = firebase.database();
 
 const REQUIRED_FOLLOWS = 7;
 let currentUser = null;
-let followedArtists = {};   // { 'dz_<id>': {artistId, name, artwork, followedAt} }
-let followedByName = {};    // { 'normalized name': 'dz_<id>' }  -- fallback kalau ID Deezer berubah antar pencarian
+let followedArtists = {};   // { 'nama artis lowercase': {name, photo, artistId, followedAt} } — key SAMA dengan skema Home (vibexa.html)
 
-function normalizeArtistName(name) {
-  return String(name || '')
-    .toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // buang diakritik (é, ñ, dll)
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
-}
-
-function rebuildFollowedByName() {
-  followedByName = {};
-  for (const key in followedArtists) {
-    const entry = followedArtists[key];
-    if (entry && entry.name) {
-      followedByName[normalizeArtistName(entry.name)] = key;
-    }
-  }
-}
-
-// Cek status follow: cocokkan by ID dulu, kalau tidak ketemu fallback ke nama
-// (menghindari kasus ID Deezer berbeda antar hasil pencarian untuk artis yang sama)
+// Status follow dicek berdasarkan key nama (name.toLowerCase()), PERSIS seperti
+// skema yang dipakai vibexa.html (Home), supaya artis yang diikuti di sini
+// otomatis terbaca sebagai "Mengikuti" saat pindah ke Home.
 function isArtistFollowed(id, name) {
-  if (followedArtists[id]) return true;
-  const norm = normalizeArtistName(name);
-  return !!(norm && followedByName[norm]);
+  return !!followedArtists[nameKey(name)];
+}
+function nameKey(name) {
+  return String(name || '').toLowerCase();
 }
 let searchDebounce = null;
 let searchToken = 0;
@@ -399,7 +382,6 @@ async function loadFollowedArtists() {
     console.error('Gagal memuat artis favorit:', e);
     followedArtists = {};
   }
-  rebuildFollowedByName();
 }
 
 // ── Update progress bar & tombol lanjut ───────────────────
@@ -590,27 +572,25 @@ async function runSearch(q) {
 // pernah menimpa/menghapus data lain di bawah users/{uid} (profile, notifications, dll).
 async function toggleFollow(id, name, photo) {
   if (!currentUser) return;
-  // existingKey bisa berbeda dari id kalau artis ini sebelumnya tersimpan dengan
-  // ID Deezer yang berbeda (lihat isArtistFollowed/followedByName di atas).
-  const norm = normalizeArtistName(name);
-  const existingKey = followedArtists[id] ? id : (followedByName[norm] || null);
-  const isFollowing = !!existingKey;
+  const key = nameKey(name);
+  const isFollowing = !!followedArtists[key];
   const card = document.getElementById('card-' + id);
 
   try {
+    const ref = db.ref('users/' + currentUser.uid + '/favoriteArtists/' + key);
     if (isFollowing) {
-      const ref = db.ref('users/' + currentUser.uid + '/favoriteArtists/' + existingKey);
       await ref.remove();
-      delete followedArtists[existingKey];
-      rebuildFollowedByName();
+      delete followedArtists[key];
       if (card) card.classList.remove('following');
       toast(`Berhenti mengikuti ${name}`);
     } else {
-      const ref = db.ref('users/' + currentUser.uid + '/favoriteArtists/' + id);
-      const data = { artistId: id, name, artwork: photo || '', followedAt: Date.now() };
+      // Field 'name' & 'photo' SENGAJA disamakan persis dengan skema
+      // users/{uid}/favoriteArtists di vibexa.html (Home), supaya begitu
+      // Firebase menyimpan data ini, Home langsung mengenalinya sebagai
+      // artis yang diikuti — tanpa perlu migrasi/konversi apa pun.
+      const data = { name, photo: photo || '', artistId: id, followedAt: Date.now() };
       await ref.set(data);
-      followedArtists[id] = data;
-      rebuildFollowedByName();
+      followedArtists[key] = data;
       if (card) card.classList.add('following');
       toast(`✓ Mengikuti ${name}`);
     }
