@@ -2947,8 +2947,23 @@ body.np-is-fullscreen #bar{display:none !important;}
            Rekomendasi Untuk Anda
           <span class="pub-badge">Dari Artis yang Diikuti</span>
         </div>
+        <button class="home-new-pl-btn" onclick="showRecommendFullView()" style="background:none;border:1px solid var(--border);color:var(--sub);">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+          Tampilkan Semua
+        </button>
       </div>
       <div class="reco-grid" id="reco-grid"></div>
+    </div>
+
+    <!-- MUNGKIN KAMU JUGA SUKA (8 playlist x 15 lagu, isinya dari artis-artis yang diikuti user) -->
+    <div class="pub-section" id="maybe-like-section" style="display:none;">
+      <div class="pub-section-header">
+        <div class="pub-section-title">
+           Mungkin Kamu Juga Suka
+          <span class="pub-badge">Dari Artis yang Diikuti</span>
+        </div>
+      </div>
+      <div class="dm-grid" id="maybe-like-grid"></div>
     </div>
 
     <!-- DAILY MIX (personalized per genre, powered by Deezer trending charts, auto-refreshes every 24h) -->
@@ -3160,7 +3175,7 @@ body.np-is-fullscreen #bar{display:none !important;}
     <div class="rank-grid" id="top-songs-full-grid"></div>
   </div>
 
-  <!-- REKOMENDASI LAGU — FULL LIST VIEW (50 lagu, Spotify-style "see all") -->
+  <!-- REKOMENDASI LAGU — FULL LIST VIEW (70 lagu, Spotify-style "see all") -->
   <div id="recommend-full-view" style="display:none;">
     <button class="pv-back" onclick="backFromRecommendFullView()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
@@ -3169,7 +3184,7 @@ body.np-is-fullscreen #bar{display:none !important;}
     <div class="pub-section-header" style="margin-bottom:14px;">
       <div class="pub-section-title">
          Rekomendasi Untuk Anda
-        <span class="pub-badge">50 Lagu · Dari Artis yang Diikuti</span>
+        <span class="pub-badge">70 Lagu · Dari Artis yang Diikuti</span>
       </div>
       <button class="home-new-pl-btn" onclick="loadRecommendedSongsFull(true)" style="background:none;border:1px solid var(--border);color:var(--sub);">
         <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
@@ -3962,6 +3977,7 @@ auth.onAuthStateChanged(user => {
     loadTrendingSongs();
     loadDailyMixes();
     loadMadeForYouMixes();
+    loadMaybeLikeMixes();
     loadSadPlaylists();
     loadWeekdayPlaylists();
   } else {
@@ -4264,6 +4280,7 @@ async function loadFavoriteArtistsFromCloud() {
   syncAllFollowButtons();
   loadRecommendedSongs(false);
   loadMadeForYouMixes(false);
+  loadMaybeLikeMixes(false);
 }
 
 function isArtistFavorited(name) {
@@ -8889,6 +8906,141 @@ function toggleMadeForYouShowAll() {
   if (label) label.textContent = expanded ? 'Tampilkan Sedikit' : 'Tampilkan Semua';
 }
 
+// ─── MUNGKIN KAMU JUGA SUKA (Maybe You Like) ─────────────────
+// Sama seperti "Dibuat Untuk Kamu": 8 playlist otomatis, isi 15 lagu tiap
+// playlist, disusun dari lagu-lagu milik artis yang diikuti user
+// (favoriteArtists). Cache key & seed acak dibedakan dari "Dibuat Untuk
+// Kamu" supaya urutan/isi playlist di kedua section tidak identik persis,
+// walau sumber datanya sama (artis yang diikuti). Personal per-user,
+// stabil selama satu hari, otomatis berubah besok / saat follow-unfollow.
+const MBL_MIX_COUNT = 8;
+const MBL_TRACKS_PER_MIX = 15;
+
+async function loadMaybeLikeMixes(force) {
+  const section = document.getElementById('maybe-like-section');
+  const grid = document.getElementById('maybe-like-grid');
+  const followed = Object.values(favoriteArtists);
+  if (!followed.length) { if (section) section.style.display = 'none'; return; }
+  if (section) section.style.display = 'block';
+
+  const setKey = followed.map(a => a.name.toLowerCase()).sort().join('|');
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const uidPart = currentUser ? currentUser.uid : 'anon';
+  const cacheKey = 'vibexa_maybelike_v1_' + uidPart + '_' + dateStr + '_' + setKey;
+
+  if (!force) {
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const mixes = JSON.parse(cached);
+        if (mixes && mixes.length) { renderMaybeLikeMixes(mixes); return; }
+      }
+    } catch (e) {}
+  }
+
+  if (grid) grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;"><i></i><h3>Menyiapkan playlist untuk kamu...</h3></div>';
+
+  try {
+    const neededTotal = MBL_MIX_COUNT * MBL_TRACKS_PER_MIX; // 8 x 15 = 120
+
+    // Ambil lagu-lagu teratas dari tiap artis yang diikuti (Deezer top tracks)
+    const perArtistLimit = Math.min(50, Math.max(15, Math.ceil(neededTotal / followed.length) + 5));
+    const perArtistResults = await Promise.all(followed.map(a => fetchArtistTopTracks(a.name, perArtistLimit)));
+
+    // Gabungkan secara round-robin (bergiliran per artis) supaya playlist
+    // tidak didominasi satu artis, lalu hindari lagu duplikat di tahap ini.
+    const merged = [];
+    const seen = new Set();
+    let idx = 0, addedAny = true;
+    while (addedAny) {
+      addedAny = false;
+      for (let i = 0; i < perArtistResults.length; i++) {
+        const arr = perArtistResults[i];
+        if (arr && arr[idx]) {
+          const t = arr[idx];
+          if (!seen.has(t.id)) { seen.add(t.id); merged.push(t); addedAny = true; }
+        }
+      }
+      idx++;
+    }
+
+    if (!merged.length) throw new Error('Tidak ada lagu dari artis yang diikuti');
+
+    // Kalau lagu unik yang berhasil dikumpulkan masih kurang dari 120 (mis.
+    // user baru follow 1-2 artis), lengkapi dengan mengulang pool yang ada
+    // supaya 8 playlist x 15 lagu tetap selalu terisi penuh.
+    const pool = [...merged];
+    let cycle = 0;
+    while (pool.length < neededTotal) {
+      pool.push(merged[cycle % merged.length]);
+      cycle++;
+    }
+
+    // Acak dengan seed harian + uid (berbeda dari "Dibuat Untuk Kamu" karena
+    // cacheKey-nya berbeda): personal per user, stabil sepanjang hari yang
+    // sama, otomatis berubah besok atau saat daftar artis berubah.
+    const shuffled = _dmSeededShuffle(pool, cacheKey);
+
+    let mixes = [];
+    for (let m = 0; m < MBL_MIX_COUNT; m++) {
+      const slice = shuffled.slice(m * MBL_TRACKS_PER_MIX, m * MBL_TRACKS_PER_MIX + MBL_TRACKS_PER_MIX)
+        .map(t => ({ ...t, _query: `${t.artist}|||${t.title}|||${t.id}` }));
+      if (!slice.length) continue;
+      const uniqueArtists = [];
+      for (const t of slice) { if (!uniqueArtists.includes(t.artist)) uniqueArtists.push(t.artist); if (uniqueArtists.length >= 2) break; }
+      mixes.push({
+        id: 'mbl_' + m,
+        label: 'Mungkin Kamu Juga Suka',
+        title: uniqueArtists.length >= 2 ? `${uniqueArtists[0]} dan ${uniqueArtists[1]}` : (uniqueArtists[0] || 'Mungkin Kamu Juga Suka'),
+        cover: slice[0].thumb,
+        tracks: slice
+      });
+    }
+
+    if (!mixes.length) throw new Error('Gagal membuat playlist untuk kamu');
+
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify(mixes));
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith('vibexa_maybelike_v1_' + uidPart + '_') && k !== cacheKey) localStorage.removeItem(k);
+      });
+    } catch (e) {}
+
+    renderMaybeLikeMixes(mixes);
+  } catch (e) {
+    console.error('loadMaybeLikeMixes error:', e);
+    if (grid) grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;color:var(--sub)"> Gagal memuat playlist untuk kamu, coba refresh.</div>';
+  }
+}
+
+function renderMaybeLikeMixes(mixes) {
+  const c = document.getElementById('maybe-like-grid');
+  if (!c) return;
+  c.innerHTML = '';
+  mixes.forEach((mix, i) => c.appendChild(buildMaybeLikeCardEl(mix, i)));
+}
+
+function buildMaybeLikeCardEl(mix, i) {
+  const color = DM_COLORS[i % DM_COLORS.length];
+  const num = String(i + 1).padStart(2, '0');
+  const div = document.createElement('div');
+  div.className = 'dm-card';
+  div.innerHTML = `
+    <div class="dm-cover-wrap">
+      ${mix.cover ? `<img class="dm-cover-img" src="${esc(mix.cover)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
+      <div class="dm-cover-ov">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </div>
+      <div class="dm-badge-mix">Untuk Kamu</div>
+      <div class="dm-badge-num" style="color:${color}">${num}</div>
+    </div>
+    <div class="dm-title">${esc(mix.title)}</div>
+  `;
+  div.querySelector('.dm-cover-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
+  div.addEventListener('click', () => openDailyMix(mix));
+  return div;
+}
+
 // ─── PLAYLIST POP (dulu "Playlist Sedih") ───────────────────
 // 8 playlist otomatis, isi 15 lagu tiap playlist, semuanya lagu POP dari
 // artis-artis besar/terkenal (Taylor Swift, Ariana Grande, dll) — diambil
@@ -9568,9 +9720,9 @@ function backFromTopSongsFullView() {
 // Untuk setiap artis yang diikuti, ambil lagu-lagu terpopulernya langsung
 // dari Deezer (endpoint /artist/{id}/top), lalu gabungkan secara round-robin
 // (bergiliran per artis) supaya daftar tidak didominasi satu artis saja bila
-// user mengikuti lebih dari satu artis. Target total 50 lagu; Home hanya
-// menampilkan 8 teratas + tombol "Tampilkan Semua" menuju halaman berisi 50.
-const RECO_TARGET_COUNT = 50;
+// user mengikuti lebih dari satu artis. Target total 70 lagu; Home hanya
+// menampilkan 8 teratas + tombol "Tampilkan Semua" menuju halaman berisi 70.
+const RECO_TARGET_COUNT = 70;
 const RECO_HOME_PREVIEW_COUNT = 8;
 let _recommendedSongsCache = null;
 
@@ -9608,9 +9760,9 @@ async function fetchRecommendedSongs(force) {
     } catch (e) {}
   }
 
-  // Minta cukup banyak lagu per artis supaya gabungannya bisa mencapai 50,
+  // Minta cukup banyak lagu per artis supaya gabungannya bisa mencapai 70,
   // walau user hanya mengikuti 1 artis saja.
-  const perArtistLimit = Math.min(50, Math.max(15, Math.ceil(RECO_TARGET_COUNT / followed.length) + 5));
+  const perArtistLimit = Math.min(100, Math.max(15, Math.ceil(RECO_TARGET_COUNT / followed.length) + 5));
   const perArtistResults = await Promise.all(
     followed.map(a => fetchArtistTopTracks(a.name, perArtistLimit))
   );
@@ -9701,7 +9853,7 @@ async function loadRecommendedSongs(force) {
   }
 }
 
-// Tampilkan semua 50 lagu di halaman terpisah
+// Tampilkan semua 70 lagu di halaman terpisah
 function renderRecommendedSongsFull(items) {
   const c = document.getElementById('reco-full-grid');
   if (!c) return;
@@ -9715,7 +9867,7 @@ function renderRecommendedSongsFull(items) {
 
 async function loadRecommendedSongsFull(force) {
   const grid = document.getElementById('reco-full-grid');
-  if (grid) grid.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat 50 lagu rekomendasi...</h3></div>';
+  if (grid) grid.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat 70 lagu rekomendasi...</h3></div>';
   try {
     const items = await fetchRecommendedSongs(force);
     renderRecommendedSongsFull(items);
