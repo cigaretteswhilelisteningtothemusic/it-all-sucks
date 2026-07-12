@@ -2766,6 +2766,20 @@ body.np-is-fullscreen #bar{display:none !important;}
       <div class="dm-grid" id="daily-mix-grid"></div>
     </div>
 
+    <!-- DIBUAT UNTUK KAMU (8 playlist x 15 lagu, isinya dari artis-artis yang diikuti user) -->
+    <div class="pub-section" id="made-for-you-section" style="display:none;">
+      <div class="pub-section-header">
+        <div class="pub-section-title">
+           Dibuat Untuk Kamu
+          <span class="pub-badge">Dari Artis yang Diikuti</span>
+        </div>
+        <button class="home-new-pl-btn" id="mfy-showall-btn" onclick="toggleMadeForYouShowAll()" style="background:none;border:1px solid var(--border);color:var(--sub);">
+          <span id="mfy-showall-label">Tampilkan Semua</span>
+        </button>
+      </div>
+      <div class="dm-grid" id="made-for-you-grid"></div>
+    </div>
+
     <!-- TOP SONGS (Deezer, live daily chart) -->
     <div class="pub-section" id="top-ranking-section" style="display:none;">
       <div class="pub-section-header">
@@ -3702,6 +3716,7 @@ auth.onAuthStateChanged(user => {
     loadPublicFeed();
     loadTrendingSongs();
     loadDailyMixes();
+    loadMadeForYouMixes();
   } else {
     showAuthWall();
   }
@@ -3952,6 +3967,7 @@ async function loadFavoriteArtistsFromCloud() {
   renderFavoriteArtists();
   syncAllFollowButtons();
   loadRecommendedSongs(false);
+  loadMadeForYouMixes(false);
 }
 
 function isArtistFavorited(name) {
@@ -8264,6 +8280,148 @@ function toggleDailyMixShowAll() {
   if (label) label.textContent = expanded ? 'Tampilkan Sedikit' : 'Tampilkan Semua';
 }
 
+// ─── DIBUAT UNTUK KAMU (Made For You) ────────────────────────
+// 8 playlist otomatis, isi 15 lagu tiap playlist, disusun dari lagu-lagu
+// milik artis yang diikuti user (favoriteArtists) — bukan chart umum seperti
+// Daily Mix. Misal user follow Justin Bieber, lagu-lagu Justin Bieber akan
+// ikut masuk ke salah satu (atau beberapa) dari 8 playlist ini.
+// Diacak dengan seed harian + uid supaya personal per-user, stabil selama
+// satu hari, dan otomatis berubah besok / saat user follow-unfollow artis.
+const MFY_MIX_COUNT = 8;
+const MFY_TRACKS_PER_MIX = 15;
+
+async function loadMadeForYouMixes(force) {
+  const section = document.getElementById('made-for-you-section');
+  const grid = document.getElementById('made-for-you-grid');
+  const followed = Object.values(favoriteArtists);
+  if (!followed.length) { if (section) section.style.display = 'none'; return; }
+  if (section) section.style.display = 'block';
+
+  const setKey = followed.map(a => a.name.toLowerCase()).sort().join('|');
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const uidPart = currentUser ? currentUser.uid : 'anon';
+  const cacheKey = 'vibexa_madeforyou_v1_' + uidPart + '_' + dateStr + '_' + setKey;
+
+  if (!force) {
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const mixes = JSON.parse(cached);
+        if (mixes && mixes.length) { renderMadeForYouMixes(mixes); return; }
+      }
+    } catch (e) {}
+  }
+
+  if (grid) grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;"><i></i><h3>Menyiapkan playlist untuk kamu...</h3></div>';
+
+  try {
+    const neededTotal = MFY_MIX_COUNT * MFY_TRACKS_PER_MIX; // 8 x 15 = 120
+
+    // Ambil lagu-lagu teratas dari tiap artis yang diikuti (Deezer top tracks)
+    const perArtistLimit = Math.min(50, Math.max(15, Math.ceil(neededTotal / followed.length) + 5));
+    const perArtistResults = await Promise.all(followed.map(a => fetchArtistTopTracks(a.name, perArtistLimit)));
+
+    // Gabungkan secara round-robin (bergiliran per artis) supaya playlist
+    // tidak didominasi satu artis, lalu hindari lagu duplikat di tahap ini.
+    const merged = [];
+    const seen = new Set();
+    let idx = 0, addedAny = true;
+    while (addedAny) {
+      addedAny = false;
+      for (let i = 0; i < perArtistResults.length; i++) {
+        const arr = perArtistResults[i];
+        if (arr && arr[idx]) {
+          const t = arr[idx];
+          if (!seen.has(t.id)) { seen.add(t.id); merged.push(t); addedAny = true; }
+        }
+      }
+      idx++;
+    }
+
+    if (!merged.length) throw new Error('Tidak ada lagu dari artis yang diikuti');
+
+    // Kalau lagu unik yang berhasil dikumpulkan masih kurang dari 120 (mis.
+    // user baru follow 1-2 artis), lengkapi dengan mengulang pool yang ada
+    // supaya 8 playlist x 15 lagu tetap selalu terisi penuh.
+    const pool = [...merged];
+    let cycle = 0;
+    while (pool.length < neededTotal) {
+      pool.push(merged[cycle % merged.length]);
+      cycle++;
+    }
+
+    // Acak dengan seed harian + uid: personal per user, stabil sepanjang
+    // hari yang sama, otomatis berubah besok atau saat daftar artis berubah.
+    const shuffled = _dmSeededShuffle(pool, cacheKey);
+
+    let mixes = [];
+    for (let m = 0; m < MFY_MIX_COUNT; m++) {
+      const slice = shuffled.slice(m * MFY_TRACKS_PER_MIX, m * MFY_TRACKS_PER_MIX + MFY_TRACKS_PER_MIX)
+        .map(t => ({ ...t, _query: `${t.artist}|||${t.title}|||${t.id}` }));
+      if (!slice.length) continue;
+      const uniqueArtists = [];
+      for (const t of slice) { if (!uniqueArtists.includes(t.artist)) uniqueArtists.push(t.artist); if (uniqueArtists.length >= 2) break; }
+      mixes.push({
+        id: 'mfy_' + m,
+        label: 'Dibuat Untuk Kamu',
+        title: uniqueArtists.length >= 2 ? `${uniqueArtists[0]} dan ${uniqueArtists[1]}` : (uniqueArtists[0] || 'Dibuat Untuk Kamu'),
+        cover: slice[0].thumb,
+        tracks: slice
+      });
+    }
+
+    if (!mixes.length) throw new Error('Gagal membuat playlist untuk kamu');
+
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify(mixes));
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith('vibexa_madeforyou_v1_' + uidPart + '_') && k !== cacheKey) localStorage.removeItem(k);
+      });
+    } catch (e) {}
+
+    renderMadeForYouMixes(mixes);
+  } catch (e) {
+    console.error('loadMadeForYouMixes error:', e);
+    if (grid) grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;color:var(--sub)"> Gagal memuat playlist untuk kamu, coba refresh.</div>';
+  }
+}
+
+function renderMadeForYouMixes(mixes) {
+  const c = document.getElementById('made-for-you-grid');
+  if (!c) return;
+  c.innerHTML = '';
+  mixes.forEach((mix, i) => c.appendChild(buildMadeForYouCardEl(mix, i)));
+}
+
+function buildMadeForYouCardEl(mix, i) {
+  const color = DM_COLORS[i % DM_COLORS.length];
+  const num = String(i + 1).padStart(2, '0');
+  const div = document.createElement('div');
+  div.className = 'dm-card';
+  div.innerHTML = `
+    <div class="dm-cover-wrap">
+      ${mix.cover ? `<img class="dm-cover-img" src="${esc(mix.cover)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
+      <div class="dm-cover-ov">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </div>
+      <div class="dm-badge-mix">Untuk Kamu</div>
+      <div class="dm-badge-num" style="color:${color}">${num}</div>
+    </div>
+    <div class="dm-title">${esc(mix.title)}</div>
+  `;
+  div.querySelector('.dm-cover-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
+  div.addEventListener('click', () => openDailyMix(mix));
+  return div;
+}
+
+function toggleMadeForYouShowAll() {
+  const grid = document.getElementById('made-for-you-grid');
+  const label = document.getElementById('mfy-showall-label');
+  if (!grid) return;
+  const expanded = grid.classList.toggle('expanded');
+  if (label) label.textContent = expanded ? 'Tampilkan Sedikit' : 'Tampilkan Semua';
+}
+
 function playDailyMix(mix) {
   if (!mix.tracks || !mix.tracks.length) { toast(' Mix ini kosong'); return; }
   curQueue = [...mix.tracks];
@@ -8297,7 +8455,7 @@ function openDailyMix(mix) {
     coverEl.outerHTML = `<div class="pv-cover-ph" id="pv-cover"></div>`;
   }
   document.getElementById('pv-title').textContent = mix.title;
-  document.getElementById('pv-sub').textContent = `Daily Mix · ${mix.tracks.length} lagu · diperbarui hari ini`;
+  document.getElementById('pv-sub').textContent = `${mix.label || 'Daily Mix'} · ${mix.tracks.length} lagu · diperbarui hari ini`;
 
   document.querySelectorAll('.pv-action-btn').forEach(b => b.style.display = 'none');
   const pubBtn = document.getElementById('pv-publish-btn');
