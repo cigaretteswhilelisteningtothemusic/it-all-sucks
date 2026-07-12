@@ -2573,7 +2573,7 @@ body.np-is-fullscreen #bar{display:none !important;}
 .artist-banner{position:relative;border-radius:18px;overflow:hidden;padding:120px 26px 28px;margin-bottom:18px;min-height:380px;display:flex;flex-direction:column;justify-content:flex-end;background:var(--card);}
 .artist-banner-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 18%;z-index:0;filter:brightness(.55);transition:transform .5s ease;}
 .artist-banner-scrim{position:absolute;inset:0;z-index:0;background:linear-gradient(180deg,rgba(0,0,0,.05) 0%,rgba(8,11,18,.92) 100%);}
-.artist-banner-content{position:relative;z-index:1;}
+.artist-banner-content{position:relative;z-index:1;transition:opacity .2s ease,transform .2s ease;will-change:transform,opacity;transform-origin:top left;}
 .artist-verified{display:inline-flex;align-items:center;gap:6px;font-size:.72rem;font-weight:600;color:#fff;margin-bottom:10px;}
 .artist-verified svg{width:16px;height:16px;color:#3D9DD6;flex-shrink:0;}
 .artist-banner-name{font-size:3.2rem;font-weight:800;letter-spacing:-1.5px;color:#fff;line-height:1.05;margin-bottom:12px;word-break:break-word;}
@@ -7230,6 +7230,11 @@ function openArtistView(artistName) {
   if (showAllBtn) showAllBtn.classList.remove('show');
   closeArtistAllAlbumsView();
   if (mainEl) mainEl.scrollTop = 0;
+  // reset animasi foto/nama besar sebelum data baru dimuat
+  const bannerContent = document.querySelector('#artist-view .artist-banner-content');
+  if (bannerContent) { bannerContent.style.opacity = ''; bannerContent.style.transform = ''; bannerContent.style.pointerEvents = ''; }
+  if (bg) { bg.style.transform = ''; bg.style.opacity = ''; }
+  _updateArtistScrollFx();
 
   loadArtistProfile(artistName);
 }
@@ -7289,6 +7294,7 @@ async function loadArtistProfile(artistName) {
     document.getElementById('artist-sticky-name').textContent = artist.name;
     const stickyPhoto = document.getElementById('artist-sticky-photo');
     if (stickyPhoto && photo) stickyPhoto.src = photo;
+    _updateArtistScrollFx();
 
     const [topData, allAlbums] = await Promise.all([
       _deezerJsonp('https://api.deezer.com/artist/' + artist.id + '/top?limit=10').catch(() => null),
@@ -7388,18 +7394,37 @@ function closeArtistAllAlbumsView() {
   if (view) view.classList.remove('show');
 }
 
-// Animasi header mengecil/muncul saat halaman artis discroll ke bawah (spt Spotify)
-function _handleArtistScrollSticky() {
+// ── Animasi scroll di halaman Artis (gaya sama dengan halaman Now Playing) ──
+// Foto besar artis & nama memudar + mengecil/bergerak ke atas secara bertahap
+// mengikuti posisi scroll, lalu header mini (foto kecil + nama) muncul solid
+// begitu foto besar sudah hampir hilang sepenuhnya.
+function _updateArtistScrollFx() {
   const artistView = document.getElementById('artist-view');
   const sticky = document.getElementById('artist-sticky-header');
   const mainEl = document.getElementById('main');
   if (!artistView || !sticky || !mainEl) return;
   if (artistView.style.display !== 'block') { sticky.classList.remove('show'); return; }
+
   const banner = artistView.querySelector('.artist-banner');
-  const threshold = banner ? banner.offsetHeight * 0.6 : 220;
-  sticky.classList.toggle('show', mainEl.scrollTop > threshold);
+  const bg = document.getElementById('artist-banner-bg');
+  const content = artistView.querySelector('.artist-banner-content');
+  const y = mainEl.scrollTop;
+  const fadeRange = banner ? banner.offsetHeight * 0.65 : 260; // jarak scroll sampai foto+nama hilang total
+  const p = Math.min(1, y / fadeRange); // progres 0 -> 1
+
+  if (content) {
+    content.style.opacity = String(1 - p);
+    content.style.transform = `translateY(${-p * 26}px) scale(${1 - p * 0.1})`;
+    content.style.pointerEvents = p >= 1 ? 'none' : '';
+  }
+  if (bg) {
+    bg.style.transform = `scale(${1 + p * 0.1}) translateY(${-p * 34}px)`;
+    bg.style.opacity = String(1 - p * 0.65);
+  }
+  // Header mini muncul setelah foto besar hampir sepenuhnya memudar
+  sticky.classList.toggle('show', p >= 0.85);
 }
-document.getElementById('main')?.addEventListener('scroll', _handleArtistScrollSticky, { passive: true });
+document.getElementById('main')?.addEventListener('scroll', _updateArtistScrollFx, { passive: true });
 
 // Tombol Play besar di banner: putar semua lagu populer artis sbg antrian
 function playArtistTopTracks() {
