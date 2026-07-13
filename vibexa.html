@@ -120,6 +120,8 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .ic-btn{background:none;border:none;color:var(--sub);cursor:pointer;padding:4px;border-radius:5px;font-size:.8rem;transition:all .15s;display:flex;align-items:center;justify-content:center}
 .ic-btn:hover{color:var(--text);background:var(--card)}
 .ic-btn.del:hover{color:#ff5555;background:rgba(255,85,85,.1)}
+/* Cover khusus untuk playlist "Liked Songs" (heart icon, gradient ala Spotify) */
+.pl-liked-cover{width:48px;height:48px;border-radius:8px;background:linear-gradient(135deg,#450af5,#c4efd9);display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0}
 .pl-empty{padding:28px 10px;text-align:center;color:var(--muted);font-size:.78rem;line-height:1.7}
 .pl-empty span{display:block;font-size:2rem;margin-bottom:8px}
 
@@ -171,7 +173,10 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .main-view.active{display:block;}
 
 /* Search view */
-.search-wrap{position:relative;margin-bottom:24px}
+.search-wrap{position:relative;margin-bottom:24px;display:none}
+/* Kotak search di halaman pencarian disembunyikan di SEMUA ukuran layar
+   (bukan cuma mobile) karena sudah ada kotak search di topbar paling atas
+   (.topbar-search-pill) yang selalu tampil. */
 #q{width:100%;background:var(--card);border:1px solid var(--border);border-radius:50px;padding:13px 110px 13px 20px;color:var(--text);font-family:var(--f);font-size:.88rem;outline:none;transition:all .25s}
 #q::placeholder{color:var(--muted)}
 #q:focus{border-color:var(--green);box-shadow:0 0 0 3px var(--green-dim)}
@@ -504,6 +509,8 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .pg-card:hover{background:var(--hover);border-color:var(--border);transform:translateY(-2px);box-shadow:0 10px 30px rgba(0,0,0,.3);}
 .pg-cover{width:100%;aspect-ratio:1;border-radius:8px;object-fit:cover;background:var(--hover);display:block;margin-bottom:10px;font-size:3rem;display:flex;align-items:center;justify-content:center;}
 .pg-img{width:100%;aspect-ratio:1;border-radius:8px;object-fit:cover;background:var(--hover);display:block;margin-bottom:10px;}
+.pg-cover.pg-cover-liked{background:linear-gradient(135deg,#450af5,#c4efd9);}
+.pg-cover-liked svg{width:38%;height:38%;color:#fff}
 .pg-name{font-size:.82rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px;}
 .pg-count{font-size:.72rem;color:var(--sub);}
 .pg-play-btn{position:absolute;bottom:10px;right:10px;width:34px;height:34px;background:var(--green);border:none;border-radius:50%;display:flex;align-items:center;justify-content:center;opacity:0;cursor:pointer;transition:all .22s;box-shadow:0 4px 14px rgba(46,125,255,.5);}
@@ -710,6 +717,13 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 #prog-track:hover{height:6px}
 #prog-fill{height:100%;background:linear-gradient(90deg,var(--green),var(--teal));border-radius:4px;width:0%;transition:width .25s linear}
 .bar-r{display:flex;align-items:center;gap:10px;width:190px;justify-content:flex-end;flex-shrink:0}
+/* Tombol Like (heart) di player bar bawah — simpan/hapus songs yang sedang
+   diputar dari playlist "Liked Songs", ala Spotify. */
+.bar-like-btn{background:none;border:none;color:var(--sub);cursor:pointer;transition:all .18s;padding:4px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.bar-like-btn:hover{color:var(--text);transform:scale(1.1)}
+.bar-like-btn:disabled{opacity:.35;cursor:default;pointer-events:none}
+.bar-like-btn.liked{color:#1ed760}
+.bar-like-btn.liked svg{fill:currentColor}
 .vol-wrap{display:flex;align-items:center;gap:7px}
 .vol-wrap svg{width:15px;height:15px;color:var(--sub)}
 #vol{-webkit-appearance:none;width:75px;height:3px;background:var(--hover);border-radius:4px;outline:none;cursor:pointer}
@@ -970,7 +984,10 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .sp-clickable-artist:hover{opacity:.75;text-decoration:underline;}
 .sp-clickable-title{cursor:pointer;transition:opacity .15s;}
 .sp-clickable-title:hover{opacity:.75;text-decoration:underline;}
-.sp-dots-btn{background:none;border:none;color:#fff;cursor:pointer;padding:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.sp-dots-btn{background:none;border:none;color:#fff;cursor:pointer;padding:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:transform .15s;}
+.sp-dots-btn.liked{color:#ff4d6d;}
+.sp-dots-btn.liked svg{fill:currentColor;}
+.sp-dots-btn:active{transform:scale(0.85);}
 .sp-dots-btn svg{width:19px;height:19px;}
 .sp-genre-tags{display:flex;flex-wrap:wrap;gap:8px 12px;}
 .sp-tag{color:#fff;font-size:.82rem;font-weight:600;}
@@ -1513,9 +1530,8 @@ body.np-is-fullscreen #bar{display:none !important;}
   .np-album-cover,.np-album-cover-ph,.np-pl-thumb,.np-pl-ph{width:30px;height:30px;}
   .np-album-title,.np-pl-name{font-size:.72rem;}
   .np-album-year,.np-pl-count{font-size:.6rem;}
-  /* Titik 3 (menu "Lainnya") di kartu Song Preview disembunyikan khusus
-     tampilan mobile */
-  .sp-dots-btn{display:none;}
+  /* Tombol Like di kartu Song Preview TETAP ditampilkan di mobile (dulu
+     disembunyikan karena masih berupa tombol titik-3 yang belum berfungsi) */
 }
 
 /* LYRICS (NON-FULLSCREEN) — kini hanya mengisi area 'main' (halaman home),
@@ -3680,6 +3696,9 @@ body.np-is-fullscreen #bar{display:none !important;}
       <div class="bar-artist" id="bar-artist" onclick="event.stopPropagation();openArtistView(curTrack && curTrack.artist)" style="cursor:pointer;">—</div>
     </div>
   </div>
+  <button class="bar-like-btn" id="btn-like" onclick="toggleLikeCurrentTrack()" title="Simpan ke Liked Songs" disabled>
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+  </button>
   <div class="bar-ctrl">
     <div class="ctrl-btns">
       <button class="c-btn" id="btn-prev">
@@ -4065,6 +4084,108 @@ let _prefetching   = new Set(); // query yang sedang di-fetch
 let playlists = {};
 let currentPlaylistId = null; // playlist yang sedang dibuka di view
 
+// ─── Liked Songs (playlist khusus ala Spotify) ─────────────────────────
+// Playlist dengan id tetap ini otomatis ada untuk setiap akun, dipin di
+// paling atas panel kiri, dan tidak bisa dihapus/diubah nama lewat UI biasa.
+// Tombol Like di player bar & tombol titik tiga di Song Preview sama-sama
+// menyimpan lagu ke sini.
+const LIKED_PLAYLIST_ID = 'liked-songs';
+
+function ensureLikedPlaylist() {
+  if (!playlists[LIKED_PLAYLIST_ID]) {
+    playlists[LIKED_PLAYLIST_ID] = { id: LIKED_PLAYLIST_ID, name: 'Liked Songs', cover: '', coverThumb: '', tracks: [], isLiked: true };
+  } else {
+    playlists[LIKED_PLAYLIST_ID].isLiked = true;
+    if (!playlists[LIKED_PLAYLIST_ID].name) playlists[LIKED_PLAYLIST_ID].name = 'Liked Songs';
+    if (!Array.isArray(playlists[LIKED_PLAYLIST_ID].tracks)) playlists[LIKED_PLAYLIST_ID].tracks = [];
+  }
+}
+
+function _findTrackIndexInPlaylist(plId, artist, title) {
+  const pl = playlists[plId];
+  if (!pl) return -1;
+  return pl.tracks.findIndex(t => t.artist === artist && t.title === title);
+}
+
+function isTrackLiked(track) {
+  if (!track) return false;
+  ensureLikedPlaylist();
+  return _findTrackIndexInPlaylist(LIKED_PLAYLIST_ID, track.artist, track.title) !== -1;
+}
+
+// Update tampilan tombol Like di player bar sesuai status songs yang sedang diputar
+function updateBarLikeBtn(track) {
+  const btn = document.getElementById('btn-like');
+  if (!btn) return;
+  if (!track) { btn.classList.remove('liked'); btn.disabled = true; return; }
+  btn.disabled = false;
+  btn.classList.toggle('liked', isTrackLiked(track));
+}
+
+// Tambahkan songs ke Liked Songs (dipakai oleh toggleLikeTrack di bawah).
+// Mengembalikan true kalau berhasil ditambahkan.
+function addTrackToLiked(track) {
+  if (!track || !track.title || !track.artist) return false;
+  ensureLikedPlaylist();
+  const idx = _findTrackIndexInPlaylist(LIKED_PLAYLIST_ID, track.artist, track.title);
+  if (idx !== -1) { toast(' Lagu sudah ada di Liked Songs'); return false; }
+  playlists[LIKED_PLAYLIST_ID].tracks.push({
+    title: track.title, artist: track.artist, thumb: track.thumb || '',
+    _query: track._query || (track.artist + '|||' + track.title + '|||0')
+  });
+  if (currentPlaylistId === LIKED_PLAYLIST_ID) renderPlaylistView(LIKED_PLAYLIST_ID);
+  renderSidebarPlaylists();
+  renderHomeGrid();
+  scheduleSave();
+  if (curTrack && curTrack.artist === track.artist && curTrack.title === track.title) updateBarLikeBtn(curTrack);
+  toast(' "' + track.title + '" ditambahkan ke Liked Songs');
+  return true;
+}
+
+// Toggle status like untuk SEMBARANG track object {title, artist, thumb, _query}.
+// Dipakai bersama oleh tombol hati di player bar & tombol like di Song Preview.
+// Mengembalikan true kalau sekarang berstatus liked, false kalau baru saja dihapus.
+function toggleLikeTrack(track) {
+  if (!track || !track.title || !track.artist) return false;
+  ensureLikedPlaylist();
+  const idx = _findTrackIndexInPlaylist(LIKED_PLAYLIST_ID, track.artist, track.title);
+  if (idx !== -1) {
+    playlists[LIKED_PLAYLIST_ID].tracks.splice(idx, 1);
+    if (currentPlaylistId === LIKED_PLAYLIST_ID) renderPlaylistView(LIKED_PLAYLIST_ID);
+    renderSidebarPlaylists();
+    renderHomeGrid();
+    scheduleSave();
+    if (curTrack && curTrack.artist === track.artist && curTrack.title === track.title) updateBarLikeBtn(curTrack);
+    toast(' Dihapus dari Liked Songs');
+    return false;
+  }
+  addTrackToLiked(track);
+  return true;
+}
+
+// Toggle like untuk songs yang SEDANG diputar (dipanggil dari tombol hati di player bar)
+function toggleLikeCurrentTrack() {
+  if (!curTrack) { toast(' Tidak ada songs yang sedang diputar'); return; }
+  toggleLikeTrack(curTrack);
+}
+
+// Tombol like di setiap kartu Song Preview (menggantikan tombol titik tiga
+// yang sebelumnya tidak berfungsi) — langsung simpan/hapus lagu yang sedang
+// ditampilkan dari/ke playlist Liked Songs.
+function likeSpTrack(idx) {
+  const t = spTracks[idx];
+  if (!t) return;
+  const track = {
+    title: t.trackName || 'Unknown',
+    artist: t.artistName || 'Unknown',
+    thumb: t.artworkUrl100 || '',
+    _query: `${t.artistName || ''}|||${t.trackName || ''}|||${t.trackId || ''}`
+  };
+  const liked = toggleLikeTrack(track);
+  const btn = document.getElementById('sp-like-btn-' + idx);
+  if (btn) btn.classList.toggle('liked', liked);
+}
+
 // Artis Favorit: { [namaArtisLowercase]: { name, photo } } — disimpan per akun di Firebase
 let favoriteArtists = {};
 
@@ -4340,9 +4461,11 @@ async function loadAllPlaylistsFromCloud() {
         toast(' ' + count + ' playlist dimuat');
       }
     }
+    ensureLikedPlaylist();
     renderSidebarPlaylists();
     renderHomeGrid();
     if (typeof syncRankAddButtons === 'function') syncRankAddButtons();
+    updateBarLikeBtn(curTrack);
     setCloudStatus('synced', 'Tersimpan · ' + Object.keys(playlists).length + ' playlist');
   } catch(e) {
     setCloudStatus('', 'Failed to load: ' + e.message);
@@ -4602,6 +4725,16 @@ function showPlaylistView(plId) {
   if (reorderBtn) reorderBtn.style.display = '';
   const covEdit = document.querySelector('.pv-cover-edit');
   if (covEdit) covEdit.style.display = '';
+  // "Liked Songs" adalah playlist khusus: tidak bisa diganti nama, dihapus,
+  // dipublikasikan, atau diganti cover-nya lewat UI biasa.
+  if (plId === LIKED_PLAYLIST_ID) {
+    const renameBtn = document.querySelector('.pv-action-btn[onclick="startRenamePlaylist()"]');
+    if (renameBtn) renameBtn.style.display = 'none';
+    const deleteBtn = document.querySelector('.pv-action-btn[onclick="deleteCurrentPlaylist()"]');
+    if (deleteBtn) deleteBtn.style.display = 'none';
+    if (pubBtn) pubBtn.style.display = 'none';
+    if (covEdit) covEdit.style.display = 'none';
+  }
   // Hapus owner card jika ada (dari playlist publik sebelumnya)
   const oldCard = document.getElementById('pv-owner-card');
   if (oldCard) oldCard.remove();
@@ -5042,29 +5175,34 @@ function plCoverInnerHTML(pl) {
 
 function renderSidebarPlaylists() {
   const c = document.getElementById('pl-list');
-  const keys = Object.keys(playlists);
-  if (!keys.length) {
-    c.innerHTML = '<div class="pl-empty"><span></span>No playlists yet</div>';
-    return;
-  }
+  ensureLikedPlaylist();
+  // "Liked Songs" selalu dipin paling atas, seperti di Spotify.
+  const keys = Object.keys(playlists).sort((a, b) => {
+    if (a === LIKED_PLAYLIST_ID) return -1;
+    if (b === LIKED_PLAYLIST_ID) return 1;
+    return 0;
+  });
   c.innerHTML = '';
   keys.forEach(id => {
     const pl = playlists[id];
+    const isLikedPl = id === LIKED_PLAYLIST_ID;
     const isActive = currentPlaylistId === id;
     const d = document.createElement('div');
-    d.className = 'pl-item' + (isActive ? ' now' : '');
+    d.className = 'pl-item' + (isActive ? ' now' : '') + (isLikedPl ? ' pl-item-liked' : '');
     d.innerHTML = `
-      ${plCoverHTML(pl, 'pl-thumb', 'pl-ph')}
+      ${isLikedPl
+        ? '<div class="pl-liked-cover"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></div>'
+        : plCoverHTML(pl, 'pl-thumb', 'pl-ph')}
       <div class="pl-info">
         <div class="pl-name">${esc(pl.name)}</div>
         <div class="pl-art">${pl.tracks.length} songs</div>
       </div>
       <div class="pl-acts">
-        <button class="ic-btn del" title="Hapus playlist"></button>
+        ${isLikedPl ? '' : '<button class="ic-btn del" title="Hapus playlist"></button>'}
       </div>
     `;
     d.addEventListener('click', (e) => {
-      if (e.target.closest('.ic-btn.del')) {
+      if (!isLikedPl && e.target.closest('.ic-btn.del')) {
         e.stopPropagation();
         if (!confirm('Hapus playlist "' + pl.name + '"?')) return;
         delete playlists[id];
@@ -5093,7 +5231,9 @@ function renderHomeGrid() {
     const card = document.createElement('div');
     card.className = 'pg-card';
     card.innerHTML = `
-      ${plCoverHTML(pl, 'pg-img', 'pg-cover')}
+      ${id === LIKED_PLAYLIST_ID
+        ? '<div class="pg-cover pg-cover-liked"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></div>'
+        : plCoverHTML(pl, 'pg-img', 'pg-cover')}
       <div class="pg-name">${esc(pl.name)}</div>
       <div class="pg-count">${pl.tracks.length} songs</div>
       <button class="pg-play-btn" title="Putar semua">
@@ -5713,6 +5853,7 @@ function _updateUIForTrack(track){
     document.getElementById('h-artist').textContent = track.artist;
     setHeroImg(track);
     updateHeroAddBtn(track);
+    updateBarLikeBtn(track);
     _updateArtistWidgets(track);
     setFSNowPlayingInfo(track);
     _setupMediaSession(track);
@@ -5760,6 +5901,7 @@ function _restoreLastPlayedTrack(){
   document.getElementById('h-artist').textContent = track.artist;
   setHeroImg(track);
   updateHeroAddBtn(track);
+  updateBarLikeBtn(track);
 
   setBarImg(track);
   document.getElementById('bar-title').textContent = track.title;
@@ -5793,6 +5935,7 @@ async function loadPlay(track, fromPlId){
   document.getElementById('h-artist').textContent=track.artist;
   setHeroImg(track);
   updateHeroAddBtn(track);
+  updateBarLikeBtn(track);
 
   // Update bar
   setBarImg(track);
@@ -12225,6 +12368,7 @@ function buildSpSlideEl(t, i) {
   div.dataset.idx = i;
   const bigArt = (t.artworkUrl100 || '').replace('100x100bb', '600x600bb');
   const genre = t.primaryGenreName || 'Musik';
+  const _spLiked = isTrackLiked({ title: t.trackName || 'Unknown', artist: t.artistName || 'Unknown' });
   div.innerHTML = `
     <div class="sp-bg" style="background-image:url('${esc(bigArt)}')"></div>
     <div class="sp-scrim"></div>
@@ -12244,8 +12388,8 @@ function buildSpSlideEl(t, i) {
           <div class="sp-artist-sub">${esc(t.collectionName || '')}</div>
         </div>
         <button class="sp-follow-btn${isArtistFavorited(t.artistName || '') ? ' following' : ''}" id="sp-follow-btn-${i}" data-artist="${esc(t.artistName || '')}" data-photo="" onclick="event.stopPropagation();toggleSpFollow(this)">${isArtistFavorited(t.artistName || '') ? 'Mengikuti' : 'Ikuti'}</button>
-        <button class="sp-dots-btn" onclick="event.stopPropagation()" title="Lainnya">
-          <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="6" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="18" r="1.8"/></svg>
+        <button class="sp-dots-btn${_spLiked ? ' liked' : ''}" id="sp-like-btn-${i}" onclick="event.stopPropagation();likeSpTrack(${i})" title="Simpan ke Liked Songs">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
         </button>
       </div>
       <div class="sp-genre-tags">
