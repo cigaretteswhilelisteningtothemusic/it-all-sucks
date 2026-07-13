@@ -7691,12 +7691,27 @@ function _deezerJsonp(url) {
     const cbName = '_dzcb_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
     const script = document.createElement('script');
     let settled = false;
-    const cleanup = () => { try { delete window[cbName]; } catch(e){} script.remove(); };
-    window[cbName] = (data) => { settled = true; cleanup(); resolve(data); };
-    script.onerror = () => { if (!settled) { cleanup(); reject(new Error('Gagal memuat data Deezer')); } };
+    // Kalau request sudah dianggap gagal/timeout tapi respons JSONP-nya baru
+    // benar-benar sampai belakangan (request lama tetap jalan di jaringan
+    // walau <script> tag-nya sudah dibuang), JANGAN langsung menghapus nama
+    // callback-nya — ganti jadi fungsi kosong (no-op) dulu selama beberapa
+    // detik. Ini yang mencegah "Uncaught ReferenceError: _dzcb_... is not
+    // defined" di console saat banyak request foto artis berjalan bersamaan
+    // (misalnya waktu scroll cepat di Song Preview).
+    const cleanupSettled = () => {
+      script.remove();
+      try { delete window[cbName]; } catch (e) {}
+    };
+    const cleanupUnsettled = () => {
+      script.remove();
+      window[cbName] = () => { try { delete window[cbName]; } catch (e) {} };
+      setTimeout(() => { try { delete window[cbName]; } catch (e) {} }, 15000);
+    };
+    window[cbName] = (data) => { settled = true; cleanupSettled(); resolve(data); };
+    script.onerror = () => { if (!settled) { settled = true; cleanupUnsettled(); reject(new Error('Gagal memuat data Deezer')); } };
     script.src = url + (url.includes('?') ? '&' : '?') + 'output=jsonp&callback=' + cbName;
     document.body.appendChild(script);
-    setTimeout(() => { if (!settled) { cleanup(); reject(new Error('Deezer timeout')); } }, 10000);
+    setTimeout(() => { if (!settled) { settled = true; cleanupUnsettled(); reject(new Error('Deezer timeout')); } }, 10000);
   });
 }
 
@@ -7854,14 +7869,57 @@ async function _loadArtistPhotoInto(imgEl, artistName) {
     if (imgEl.dataset.wanted === artistName) { imgEl.style.display = 'block'; imgEl.src = _artistPhotoCache[key]; }
     return _artistPhotoCache[key];
   }
-  try {
-    const data = await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(artistName) + '&limit=1');
-    const a = data && data.data && data.data[0];
-    const pic = a ? (a.picture_xl || a.picture_big || a.picture_medium) : '';
-    if (pic) _artistPhotoCache[key] = pic;
-    if (pic && imgEl.dataset.wanted === artistName) { imgEl.style.display = 'block'; imgEl.src = pic; }
-    return pic || null;
-  } catch (e) { /* biarkan tanpa foto jika gagal, tidak fatal */ return null; }
+  // Kalau foto artis yang sama sedang diminta oleh slide lain di saat
+  // bersamaan (umum terjadi saat scroll cepat, karena banyak lagu bisa
+  // punya artis yang sama), gabung ke satu request yang sama alih-alih
+  // menembak request JSONP baru berkali-kali — ini yang bikin loading
+  // lebih cepat dan mengurangi request yang gagal/timeout.
+  let pending = _artistPhotoInFlight[key];
+  if (!pending) {
+    pending = _queueArtistPhotoFetch(artistName, key);
+    _artistPhotoInFlight[key] = pending;
+  }
+  const pic = await pending;
+  if (pic && imgEl.dataset.wanted === artistName) { imgEl.style.display = 'block'; imgEl.src = pic; }
+  return pic;
+}
+
+// Request in-flight per artis (key -> Promise), supaya slide berbeda dengan
+// artis yang sama tidak saling menembak request duplikat.
+let _artistPhotoInFlight = {};
+// Batasi maksimal berapa request foto artis yang boleh berjalan bersamaan ke
+// Deezer. Tanpa batas ini, scroll cepat di Song Preview bisa memicu puluhan
+// request JSONP sekaligus yang saling berebut koneksi — bikin lambat DAN
+// gampang timeout (yang berujung foto tidak muncul). Dengan antrean kecil
+// ini, request tetap jalan cepat satu-satu tanpa membanjiri jaringan.
+const ARTIST_PHOTO_MAX_CONCURRENT = 4;
+let _artistPhotoActive = 0;
+const _artistPhotoQueue = [];
+function _runArtistPhotoQueue() {
+  if (_artistPhotoActive >= ARTIST_PHOTO_MAX_CONCURRENT) return;
+  const job = _artistPhotoQueue.shift();
+  if (!job) return;
+  _artistPhotoActive++;
+  job().finally(() => { _artistPhotoActive--; _runArtistPhotoQueue(); });
+}
+function _queueArtistPhotoFetch(artistName, key) {
+  return new Promise((resolveOuter) => {
+    const job = async () => {
+      try {
+        const data = await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(artistName) + '&limit=1');
+        const a = data && data.data && data.data[0];
+        const pic = a ? (a.picture_xl || a.picture_big || a.picture_medium) : '';
+        if (pic) _artistPhotoCache[key] = pic;
+        resolveOuter(pic || null);
+      } catch (e) {
+        resolveOuter(null);
+      } finally {
+        delete _artistPhotoInFlight[key];
+      }
+    };
+    _artistPhotoQueue.push(job);
+    _runArtistPhotoQueue();
+  });
 }
 
 function formatFanCount(n) {
