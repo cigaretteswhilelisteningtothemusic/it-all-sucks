@@ -126,18 +126,18 @@
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
 
-  // Cek status login, lalu redirect
+  // Check login status, then redirect
   onAuthStateChanged(auth, (user) => {
     if (user) {
-      // Sudah login → langsung ke app
+      // Already logged in → go straight to the app
       window.location.replace('vibexa.html');
     } else {
-      // Belum login → ke halaman login
+      // Not logged in → go to the login page
       window.location.replace('login.html');
     }
   });
 
-  // Fallback: kalau 5 detik tidak ada respons dari Firebase, paksa ke login
+  // Fallback: if there's no response from Firebase within 5 seconds, force redirect to login
   setTimeout(() => {
     window.location.replace('login.html');
   }, 5000);

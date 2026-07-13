@@ -4212,7 +4212,7 @@ function likeSpTrack(idx) {
   const track = {
     title: t.trackName || 'Unknown',
     artist: t.artistName || 'Unknown',
-    thumb: t.artworkUrl100 || '',
+    thumb: (t.artworkUrl100 || '').replace('100x100bb', '600x600bb'),
     _query: `${t.artistName || ''}|||${t.trackName || ''}|||${t.trackId || ''}`
   };
   const liked = toggleLikeTrack(track);
@@ -12789,7 +12789,7 @@ function addSpTrackToPlaylist(idx) {
   openAddSongModal({
     title: t.trackName || 'Unknown',
     artist: t.artistName || 'Unknown',
-    thumb: t.artworkUrl100 || '',
+    thumb: (t.artworkUrl100 || '').replace('100x100bb', '600x600bb'),
     _query: `${t.artistName || ''}|||${t.trackName || ''}|||${t.trackId || ''}`
   });
 }
