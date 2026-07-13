@@ -722,7 +722,7 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .bar-like-btn{background:none;border:none;color:var(--sub);cursor:pointer;transition:all .18s;padding:4px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .bar-like-btn:hover{color:var(--text);transform:scale(1.1)}
 .bar-like-btn:disabled{opacity:.35;cursor:default;pointer-events:none}
-.bar-like-btn.liked{color:#1ed760}
+.bar-like-btn.liked{color:#ff3b3b}
 .bar-like-btn.liked svg{fill:currentColor}
 .vol-wrap{display:flex;align-items:center;gap:7px}
 .vol-wrap svg{width:15px;height:15px;color:var(--sub)}
@@ -8371,7 +8371,10 @@ const GENRE_DEFS = {
   afrobeats: { label: 'Afrobeats', emoji: '', color: 'linear-gradient(135deg,#e67e22,#7a3f08)', genreNames: ['afrobeat','afro'],            query: 'Afrobeats hits',  mbTag: 'afrobeats',
     seedArtists: ['Burna Boy','Wizkid','Davido','Rema','Tems','Asake','Ayra Starr','CKay','Omah Lay','Fireboy DML','Tiwa Savage','Kizz Daniel'] },
 };
-const GENRE_TARGET_COUNT = 100;
+// Dinaikkan jauh dari 100 supaya pool lagu per genre jauh lebih besar —
+// dikombinasikan dengan mekanisme "scroll tanpa batas" (lihat _spExtendFeed)
+// di bagian Song Preview, sehingga user bisa scroll sepuasnya tanpa mentok.
+const GENRE_TARGET_COUNT = 400;
 let _deezerGenreListCache = null;
 let _currentGenreKey = null;
 
@@ -8553,8 +8556,12 @@ async function fetchGenreSongs(genreKey) {
   try {
     const gid = await _getDeezerGenreId(def.genreNames);
     if (gid) {
-      for (const idx of [0, 100, 200, 300, 400]) {
-        if (out.length >= GENRE_TARGET_COUNT) break;
+      // Loop dinamis (bukan array indeks tetap) — terus ambil halaman
+      // berikutnya selama Deezer masih mengembalikan data, sampai target
+      // terpenuhi atau sumbernya benar-benar habis. Batas pengaman
+      // (idx < 5000) hanya untuk mencegah loop tak berujung kalau API
+      // berperilaku aneh, bukan batas fitur.
+      for (let idx = 0; idx < 5000 && out.length < GENRE_TARGET_COUNT; idx += 100) {
         try {
           const data = await _deezerJsonp('https://api.deezer.com/chart/' + gid + '/tracks?limit=100&index=' + idx);
           const list = ((data && data.data) || []).map(_normalizeDeezerTrack);
@@ -8589,8 +8596,7 @@ async function fetchGenreSongs(genreKey) {
   // mengambil lagu yang tidak bisa dipastikan genre-nya — lebih baik daftar
   // lagunya sedikit tapi akurat, daripada 100 lagu tapi banyak yang meleset.
   if (out.length < GENRE_TARGET_COUNT && knownArtists.size) {
-    for (const idx of [0, 100, 200, 300, 400, 500, 600, 700]) {
-      if (out.length >= GENRE_TARGET_COUNT) break;
+    for (let idx = 0; idx < 5000 && out.length < GENRE_TARGET_COUNT; idx += 100) {
       try {
         const url = 'https://api.deezer.com/search?q=' + encodeURIComponent(def.query) + '&order=RANKING&limit=100&index=' + idx;
         const data = await _deezerJsonp(url);
@@ -12481,7 +12487,7 @@ function _shuffleArray(arr) {
 // fetchGenreSongs di loadSpByGenre), jadi tidak perlu jatah sebanyak itu per
 // artis untuk mengisi feed — dengan jatah lebih kecil, artis berbeda lebih
 // cepat bergantian muncul.
-const SP_MAX_PER_ARTIST = 4;
+const SP_MAX_PER_ARTIST = 10;
 function _capTracksPerArtist(tracks, maxPerArtist) {
   // Acak dulu urutannya supaya artis mana yang "kebagian slot" tiap kali
   // dibuka juga bervariasi (bukan selalu artis yang paling pertama muncul).
@@ -12709,6 +12715,43 @@ function _spTrimPreloadCache(centerIdx) {
   });
 }
 
+// ── Scroll tanpa batas ───────────────────────────────────────────────────
+// Begitu user mendekati ujung feed yang sedang dimuat (5 slide terakhir),
+// tambahkan lebih banyak lagu ke akhir feed supaya user tidak pernah mentok
+// di ujung, berapa pun jauh mereka scroll. Lagu tambahan diambil dari pool
+// yang sudah berhasil dimuat (sudah diperbesar lewat GENRE_TARGET_COUNT di
+// atas, jadi biasanya ratusan lagu unik dulu) lalu diacak ulang urutannya —
+// begitu pool itu sendiri sudah "habis" pun, ia terus didaur ulang secara
+// acak sehingga scroll-nya benar-benar tidak terbatas, untuk feed genre
+// manapun maupun feed populer/pencarian.
+let _spExtending = false;
+function _spExtendFeed() {
+  if (_spExtending) return;
+  if (!spTracks || !spTracks.length) return;
+  const feed = document.getElementById('sp-feed');
+  if (!feed) return;
+  _spExtending = true;
+  try {
+    const baseLen = spTracks.length;
+    let more = _shuffleArray(spTracks.slice(0, baseLen));
+    const lastTrack = spTracks[baseLen - 1];
+    // Supaya sambungannya tidak terasa "diam sebentar" karena lagu yang
+    // barusan diputar langsung terulang persis di slide berikutnya.
+    if (more.length > 1 && lastTrack && more[0] && more[0].trackId === lastTrack.trackId) {
+      more.push(more.shift());
+    }
+    more.forEach((t, i) => {
+      const newIdx = baseLen + i;
+      spTracks.push(t);
+      const el = buildSpSlideEl(t, newIdx);
+      feed.appendChild(el);
+      if (spObserver) spObserver.observe(el);
+    });
+  } finally {
+    _spExtending = false;
+  }
+}
+
 function setupSpObserver() {
   if (spObserver) spObserver.disconnect();
   const feed = document.getElementById('sp-feed');
@@ -12725,6 +12768,9 @@ function setupSpObserver() {
         // hanya untuk slide yang sudah/segera terlihat, bukan semuanya sekaligus.
         _spLoadArtistPhoto(idx);
         _spLoadArtistPhoto(idx + 1);
+        // Sudah mendekati ujung feed yang sekarang? Sambung lebih banyak
+        // lagu supaya scroll tidak pernah mentok.
+        if (idx >= spTracks.length - 5) _spExtendFeed();
       }
       if (entry.intersectionRatio >= 0.6) {
         playSpPreview(idx);
@@ -12810,6 +12856,9 @@ function addSpTrackToPlaylist(idx) {
 function spNavigate(direction) {
   if (spNavLocked) return;
   if (!spTracks.length) return;
+  // Kalau sudah dekat ujung, sambung dulu lagu tambahan (scroll tanpa batas)
+  // sebelum dicek, supaya navigasi panah/keyboard juga tidak pernah mentok.
+  if (direction > 0 && spFocusIndex >= spTracks.length - 5) _spExtendFeed();
   const nextIdx = spFocusIndex + direction;
   if (nextIdx < 0 || nextIdx >= spTracks.length) return;
   const feed = document.getElementById('sp-feed');
