@@ -962,7 +962,7 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .sp-genre-chip.active{background:var(--green);border-color:var(--green);color:#fff;}
 .sp-feed{flex:1;overflow-y:scroll;scroll-snap-type:y mandatory;scrollbar-width:none;}
 .sp-feed::-webkit-scrollbar{display:none;}
-.sp-slide{position:relative;height:100%;scroll-snap-align:start;display:flex;flex-direction:column;overflow:hidden;}
+.sp-slide{position:relative;height:100%;scroll-snap-align:start;scroll-snap-stop:always;display:flex;flex-direction:column;overflow:hidden;}
 .sp-bg{position:absolute;inset:-20px;background-size:cover;background-position:center;filter:blur(28px) brightness(.4) saturate(1.15);transform:scale(1.15);}
 .sp-scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.35) 0%,rgba(0,0,0,.15) 35%,rgba(0,0,0,.8) 100%);}
 .sp-slide-content{position:relative;z-index:2;flex:1;display:flex;flex-direction:column;padding:6px 16px 18px;min-height:0;}
@@ -12194,6 +12194,22 @@ function _syncSpGenreChipsActive() {
 // Muat Song Preview yang hanya berisi lagu dari genre tertentu. Memakai
 // daftar seed artist genre tsb (sama seperti fitur Genre di Home) supaya
 // hasil pencarian iTunes benar-benar relevan dengan genre yang dipilih.
+// Ubah bentuk track hasil fetchGenreSongs (format Deezer: id/title/artist/
+// thumb/preview) menjadi bentuk yang dipakai kode Song Preview (format ala
+// iTunes: trackId/trackName/artistName/artworkUrl100/previewUrl), supaya
+// bisa langsung dipakai oleh renderSpSlides/playSpPreview/dst tanpa ubahan lain.
+function _mapDeezerTrackToSp(t, genreLabel) {
+  return {
+    trackId: 'dz_' + t.id,
+    trackName: t.title,
+    artistName: t.artist,
+    collectionName: '',
+    artworkUrl100: t.thumb,
+    previewUrl: t.preview,
+    primaryGenreName: genreLabel
+  };
+}
+
 async function loadSpByGenre(genreKey) {
   const def = GENRE_DEFS[genreKey];
   if (!def) return;
@@ -12202,33 +12218,47 @@ async function loadSpByGenre(genreKey) {
   document.getElementById('sp-genre-btn')?.classList.add('active');
   feed.innerHTML = '<div class="sp-loading">Memuat lagu ' + esc(def.label) + '...</div>';
   try {
-    // Pakai SEMUA artis seed yang ada di genre ini (tidak dibatasi jumlah
-    // artisnya) — supaya makin banyak artis berbeda yang berpeluang masuk
-    // feed. Yang dibatasi cuma jumlah lagu per artis (lihat
-    // _capTracksPerArtist di bawah, SP_MAX_PER_ARTIST), bukan jumlah artisnya.
-    const seeds = (def.seedArtists && def.seedArtists.length) ? _shuffleArray(def.seedArtists) : [];
-    const queries = seeds.length ? seeds : [def.query || def.label];
-    const resultsArr = await Promise.all(
-      queries.map(qStr => fetchItunesResults(qStr, 'US', 'song', 10).catch(() => []))
-    );
-    let combined = resultsArr.flat();
-    if (combined.length < 10) {
-      // Cadangan: kalau hasil dari seed artist kurang, coba query umum genrenya
-      const fallback = await fetchItunesResults(def.query || def.label, 'US', 'song', 50).catch(() => []);
-      combined = combined.concat(fallback);
+    // Sumber utama: mesin yang sama dengan fitur "Genre" di Home
+    // (fetchGenreSongs) — mengutamakan chart trending resmi per-genre
+    // (Deezer) lalu artis yang tervalidasi genre-nya lewat tag MusicBrainz.
+    // Hasilnya jauh lebih beragam artisnya (sampai 100 lagu, bukan cuma dari
+    // segelintir seed artist) SEKALIGUS terjamin sesuai genre dan memang
+    // sedang tren/populer — bukan tebakan dari pencarian teks bebas.
+    let genreTracks = await fetchGenreSongs(genreKey).catch(() => []);
+    let tracks = genreTracks
+      .filter(t => t && t.preview)
+      .map(t => _mapDeezerTrackToSp(t, def.label));
+
+    // Cadangan: kalau sumber utama gagal/hasilnya terlalu sedikit (mis.
+    // Deezer/MusicBrainz sedang tidak bisa diakses), lengkapi dari pencarian
+    // iTunes langsung per seed artist seperti versi sebelumnya.
+    if (tracks.length < 10) {
+      const seeds = (def.seedArtists && def.seedArtists.length) ? _shuffleArray(def.seedArtists) : [];
+      const queries = seeds.length ? seeds : [def.query || def.label];
+      const resultsArr = await Promise.all(
+        queries.map(qStr => fetchItunesResults(qStr, 'US', 'song', 10).catch(() => []))
+      );
+      let combined = resultsArr.flat();
+      if (combined.length < 10) {
+        const fallback = await fetchItunesResults(def.query || def.label, 'US', 'song', 50).catch(() => []);
+        combined = combined.concat(fallback);
+      }
+      const seen = new Set(tracks.map(t => t.trackId));
+      combined.forEach(r => {
+        if (!r || r.wrapperType !== 'track' || !r.previewUrl) return;
+        const key = r.trackId || (r.artistName + '|||' + r.trackName);
+        if (seen.has(key)) return;
+        seen.add(key);
+        tracks.push(r);
+      });
     }
-    const seen = new Set();
-    let tracks = combined.filter(r => {
-      if (!r || r.wrapperType !== 'track' || !r.previewUrl) return false;
-      const key = r.trackId || (r.artistName + '|||' + r.trackName);
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+
     if (!tracks.length) throw new Error('Tidak ada lagu ' + def.label + ' ditemukan');
 
     // Batasi maksimal SP_MAX_PER_ARTIST lagu dari artis yang sama supaya
-    // 1-2 artis tidak mendominasi seluruh feed genre ini.
+    // artis tidak itu-itu saja terus di feed — TANPA membatasi jumlah artis
+    // berbeda yang boleh masuk (semua artis genre ini tetap punya peluang
+    // tampil, bukan cuma sebagian kecil).
     tracks = _capTracksPerArtist(tracks, SP_MAX_PER_ARTIST);
 
     _currentSpGenreKey = genreKey;
@@ -12262,8 +12292,12 @@ function _shuffleArray(arr) {
 
 // Maksimal berapa lagu dari 1 artis yang sama boleh masuk ke satu feed Song
 // Preview. Tujuannya supaya user tidak bosan lihat artis yang itu-itu saja
-// walau feed-nya tetap sesuai genre yang dipilih.
-const SP_MAX_PER_ARTIST = 8;
+// walau feed-nya tetap sesuai genre yang dipilih. Diturunkan dari 8 ke 4
+// karena sekarang sumber lagu per genre jauh lebih kaya artisnya (lihat
+// fetchGenreSongs di loadSpByGenre), jadi tidak perlu jatah sebanyak itu per
+// artis untuk mengisi feed — dengan jatah lebih kecil, artis berbeda lebih
+// cepat bergantian muncul.
+const SP_MAX_PER_ARTIST = 4;
 function _capTracksPerArtist(tracks, maxPerArtist) {
   // Acak dulu urutannya supaya artis mana yang "kebagian slot" tiap kali
   // dibuka juga bervariasi (bukan selalu artis yang paling pertama muncul).
@@ -12605,31 +12639,21 @@ function spNavigate(direction) {
   _spNavLockTimer = setTimeout(() => { spNavLocked = false; }, SP_NAV_COOLDOWN);
 }
 
-// Roda mouse / trackpad: satu gesture geser di touchpad menghasilkan PULUHAN
-// event 'wheel' beruntun (apalagi dengan efek inertia/momentum scroll yang
-// bisa berlangsung >1 detik setelah jari diangkat). Kalau setiap event wheel
-// yang lolos dari nav-lock (SP_NAV_COOLDOWN 480ms) langsung memicu
-// spNavigate lagi, maka satu kali geser touchpad bisa "terlempar" melewati
-// beberapa lagu sekaligus — karena momentum-nya masih jalan saat lock sudah
-// terbuka lagi. Untuk itu kita deteksi akhir gesture berdasarkan JEDA antar
-// event wheel (bukan cuma timer animasi): selama event wheel masih terus
-// mengalir tanpa jeda, itu dianggap 1 gesture yang sama dan diabaikan;
-// navigasi baru hanya dipicu saat gesture benar-benar baru dimulai.
-let spWheelGestureActive = false;
-let _spWheelGestureTimer = null;
-const SP_WHEEL_GESTURE_SILENCE = 150; // ms tanpa event wheel = gesture dianggap selesai
-
+// Roda mouse / touchpad: DULU setiap event 'wheel' di-preventDefault lalu
+// dipaksa pindah 1 slide lewat spNavigate() — ini yang bikin scroll touchpad
+// terasa kaku/patah-patah, karena momentum & animasi geser bawaan
+// trackpad sama sekali diabaikan, diganti animasi scrollIntoView yang kaku.
+// Sekarang wheel/touchpad dibiarkan memakai scroll native browser yang halus
+// (CSS: .sp-feed{scroll-snap-type:y mandatory}), supaya gerakannya mengikuti
+// kecepatan & momentum jari di touchpad apa adanya. Supaya scroll cepat/flick
+// kencang tetap tidak "melompati" beberapa lagu sekaligus (masalah yang tadinya
+// coba dicegah versi lama), dipakai `scroll-snap-stop: always` di .sp-slide —
+// ini properti CSS resmi yang memaksa browser tetap berhenti di tiap slide
+// satu-satu meski scroll-nya kencang, tanpa perlu JS yang mengunci gesture.
 function _setupSpWheelControl() {
-  const feed = document.getElementById('sp-feed');
-  if (!feed) return;
-  feed.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    clearTimeout(_spWheelGestureTimer);
-    _spWheelGestureTimer = setTimeout(() => { spWheelGestureActive = false; }, SP_WHEEL_GESTURE_SILENCE);
-    if (spWheelGestureActive) return; // masih momentum/inertia dari gesture yang sama, abaikan
-    spWheelGestureActive = true;
-    spNavigate(e.deltaY > 0 ? 1 : -1);
-  }, { passive: false });
+  // Sengaja dikosongkan (native scroll-snap sudah menangani semuanya).
+  // Fungsi ini dipertahankan sebagai no-op supaya pemanggilnya di bawah
+  // tidak perlu diubah dan tidak error kalau ada kode lain yang memanggilnya.
 }
 
 // Swipe sentuh (mobile): geser default browser dimatikan (preventDefault di
