@@ -352,7 +352,7 @@ const RECOMMENDED_ARTISTS = [
 
 // ── Auth ─────────────────────────────────────────────────
 auth.onAuthStateChanged(async user => {
-  if (user) {
+  if (user && !user.isAnonymous) {
     currentUser = user;
     const overlay = document.getElementById('auth-overlay');
     overlay.style.opacity = '0';
@@ -369,8 +369,12 @@ auth.onAuthStateChanged(async user => {
     updateProgress();
     loadRecommended();
   } else {
-    // Belum login → langsung tendang ke halaman login
-    window.location.replace('login.html');
+    // Belum login (atau cuma sesi anonim) → langsung tendang ke halaman login
+    if (user && user.isAnonymous) {
+      auth.signOut().finally(() => window.location.replace('login.html'));
+    } else {
+      window.location.replace('login.html');
+    }
   }
 });
 

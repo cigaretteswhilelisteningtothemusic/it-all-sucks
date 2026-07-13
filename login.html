@@ -597,9 +597,9 @@ label {
   const auth = getAuth(app);
   const provider = new GoogleAuthProvider();
 
-  // Redirect if already signed in
+  // Redirect if already signed in (abaikan sesi anonim dari halaman publik)
   onAuthStateChanged(auth, (user) => {
-    if (user) {
+    if (user && !user.isAnonymous) {
       window.location.href = 'follow-artists.html';
     }
   });

@@ -4225,7 +4225,7 @@ let favoriteArtists = {};
 
 // ─── Auth ─────────────────────────────────────────────────
 auth.onAuthStateChanged(user => {
-  if (user) {
+  if (user && !user.isAnonymous) {
     currentUser = user;
     showApp(user);
     loadAllPlaylistsFromCloud();
@@ -4239,8 +4239,14 @@ auth.onAuthStateChanged(user => {
     loadSadPlaylists();
     loadWeekdayPlaylists();
   } else {
-    // Belum login → langsung tendang ke halaman login, jangan biarkan masuk ke Home
-    window.location.replace('login.html');
+    // Belum login (atau cuma sesi anonim dari halaman publik seperti
+    // vibeprofile-view.html) → langsung tendang ke halaman login,
+    // jangan biarkan masuk ke Home
+    if (user && user.isAnonymous) {
+      auth.signOut().finally(() => window.location.replace('login.html'));
+    } else {
+      window.location.replace('login.html');
+    }
   }
 });
 
