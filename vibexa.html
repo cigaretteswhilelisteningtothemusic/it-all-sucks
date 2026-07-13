@@ -1069,7 +1069,7 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
   #mob-nav{
     grid-area:mob-nav;display:flex;align-items:center;justify-content:space-around;
     background:var(--panel);border-top:1px solid var(--border);
-    padding:0 4px;height:56px;z-index:10;
+    padding:0 4px;height:56px;z-index:10;position:relative;
   }
   .mob-nav-btn{
     display:flex;flex-direction:column;align-items:center;gap:3px;
@@ -1086,6 +1086,26 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
   .mob-nav-vibeprofile::before{content:'';position:absolute;top:5px;inset-inline:12px;height:2px;background:linear-gradient(90deg,var(--green),var(--teal));border-radius:2px;opacity:.5;}
   #mob-btn-search{display:none}
   #mob-btn-notif{display:none}
+  /* Tombol Profil bawah dihilangkan khusus tampilan mobile (sudah ada akses
+     profil lewat avatar di topbar) */
+  #mob-btn-profile{display:none!important}
+
+  /* Tombol Song Preview: diangkat & diletakkan persis di tengah-bawah,
+     mirip tombol aksi utama (FAB) ala TikTok/Spotify, terlepas dari jumlah
+     tombol lain di kiri/kanannya supaya selalu pas di tengah layar. */
+  .mob-nav-preview-center{
+    position:absolute;left:50%;top:-16px;transform:translateX(-50%);
+    flex:none;width:52px;height:52px;padding:0;border-radius:50%;
+    background:linear-gradient(135deg,var(--green),var(--teal));
+    color:#fff;box-shadow:0 6px 16px rgba(46,125,255,.45),0 0 0 4px var(--panel);
+    z-index:11;
+  }
+  .mob-nav-preview-center svg{width:22px;height:22px}
+  .mob-nav-preview-center span{
+    position:absolute;bottom:-15px;font-size:.52rem;font-weight:700;
+    letter-spacing:.3px;text-transform:uppercase;color:var(--muted);white-space:nowrap;
+  }
+  .mob-nav-preview-center:active{transform:translateX(-50%) scale(.95)}
 
   /* ════════════════════════════════
      HOME VIEW
@@ -1909,8 +1929,12 @@ body.np-is-fullscreen #bar{display:none !important;}
 @media(max-width:660px){
   .home-topbar{gap:8px;padding:0 12px;}
   .topbar-left{display:none;}
-  .topbar-home-btn{width:34px;height:34px;}
-  .topbar-home-btn svg{width:16px;height:16px;}
+  /* Tombol Home di samping kotak search disembunyikan khusus mobile (sudah
+     ada tombol Home di navigasi bawah) */
+  .topbar-home-btn{display:none;}
+  /* Kotak search jadi mengisi ruang yang tersisa (sedikit lebih panjang)
+     setelah tombol Home di sampingnya disembunyikan */
+  .home-search-wrap{max-width:none;}
   .topbar-search-pill{height:38px;}
   #home-q{font-size:.8rem;}
   .home-profile-btn{width:28px;height:28px}
@@ -3770,6 +3794,10 @@ body.np-is-fullscreen #bar{display:none !important;}
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
     Home
   </button>
+  <button class="mob-nav-btn" id="mob-btn-genre" onclick="mobNav('genre')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+    Genre
+  </button>
   <button class="mob-nav-btn" id="mob-btn-search" onclick="mobNav('search')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
     Cari
@@ -3777,6 +3805,10 @@ body.np-is-fullscreen #bar{display:none !important;}
   <button class="mob-nav-btn" id="mob-btn-finder" onclick="mobNav('finder')" style="position:relative;">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9 9c.55-1.34 2.25-2 3.5-1.3a2.5 2.5 0 0 1 .5 4c-.83.67-1.5 1-1.5 2"/><circle cx="12" cy="17" r=".5" fill="currentColor"/></svg>
     Temukan
+  </button>
+  <button class="mob-nav-btn mob-nav-preview-center" id="mob-btn-songpreview" onclick="mobNav('songpreview')" title="Song Preview">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M10 9.2v5.6l4.8-2.8z" fill="currentColor" stroke="none"/></svg>
+    <span>Preview</span>
   </button>
   <button class="mob-nav-btn mob-nav-vibeprofile" id="mob-btn-vibeprofile" onclick="window.location.href='vibeprofile.html'">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12h8M8 8h5M8 16h4"/><circle cx="17" cy="16" r="2.5" fill="currentColor" stroke="none"/><path d="M17 13.5V12" stroke-width="2"/></svg>
@@ -6430,7 +6462,7 @@ function initMobileNav(){
 }
 
 function mobNav(tab){
-  const btns = ['home','search','finder','playlist','logout'];
+  const btns = ['home','search','finder','playlist','logout','songpreview','genre'];
   btns.forEach(b => {
     const el = document.getElementById('mob-btn-'+b);
     if(el) el.classList.remove('on');
@@ -6442,13 +6474,15 @@ function mobNav(tab){
   else if(tab==='search') showSearchView();
   else if(tab==='finder') showFinderView();
   else if(tab==='playlist') openNewPlaylistModal();
+  else if(tab==='songpreview') openSongPreviewView();
+  else if(tab==='genre') showGenreMenuView();
 }
 
 // Sync desktop nav with mobile nav
 const _origShowHome = showHomeView;
 window.showHomeView = function(){
   _origShowHome();
-  ['home','search','playlist'].forEach(b=>{
+  ['home','search','playlist','finder','songpreview','genre'].forEach(b=>{
     const el=document.getElementById('mob-btn-'+b);
     if(el) el.classList.remove('on');
   });
@@ -6458,7 +6492,7 @@ window.showHomeView = function(){
 const _origShowSearch = showSearchView;
 window.showSearchView = function(){
   _origShowSearch();
-  ['home','search','playlist'].forEach(b=>{
+  ['home','search','playlist','finder','songpreview','genre'].forEach(b=>{
     const el=document.getElementById('mob-btn-'+b);
     if(el) el.classList.remove('on');
   });
