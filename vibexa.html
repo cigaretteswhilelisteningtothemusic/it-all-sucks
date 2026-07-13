@@ -1125,6 +1125,13 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
     bottom:56px;
     z-index:30;
   }
+  /* Sebelumnya ada padding-bottom 56px tambahan di dalam tiap slide (dari
+     rule @media(max-width:1050px) di atas) untuk menghindari konten
+     tertutup mob-nav — tapi sekarang #song-preview-view sudah berhenti
+     PERSIS di atas #mob-nav (lihat rule di atas), jadi padding tambahan itu
+     cuma menyisakan ruang kosong di bagian bawah tiap slide. Kita kecilkan
+     supaya slide benar-benar memenuhi layar tanpa ruang kosong. */
+  .sp-slide-bottom{padding-bottom:14px;}
   /* Saat Song Preview terbuka: sembunyikan topbar (tombol profil, tombol
      pencarian, kotak search) & mini player bar, karena keduanya punya
      z-index tinggi (z-index:60 & 10) yang menutupi tombol menu genre &
@@ -1477,29 +1484,28 @@ body.np-is-fullscreen #bar{display:none !important;}
 @media(max-width:660px){
   #np-view{bottom:var(--np-bottom);}
   .np-art,.np-art-ph{width:min(280px,68vw);height:min(280px,68vw);}
-  /* Kotak "Tentang Artis", "Albums" & "Playlist" dijadikan PERSEGI (bukan
-     kotak panjang memanjang ke samping) khusus tampilan mobile: kartu
-     "Tentang Artis" persegi penuh lebar di atas, lalu "Albums" & "Playlist"
-     disusun berdampingan 2 kolom, masing-masing juga persegi. */
+  /* Kotak "Tentang Artis", "Albums" & "Playlist" persegi tapi UKURAN
+     DIPERKECIL (menyesuaikan lebar layar hp, tidak memenuhi layar) dan
+     disusun berurutan dari atas ke bawah, bukan berdampingan 2 kolom. */
   #np-scroll{padding:8px 4% 50px;}
-  .np-grid{gap:10px;}
-  .np-card{padding:14px 16px;min-height:auto;}
-  .np-card-head{margin-bottom:10px;}
+  .np-grid{gap:12px;}
+  .np-card{padding:12px 14px;min-height:auto;}
+  .np-card-head{margin-bottom:8px;}
   .np-card-head h4{font-size:.85rem;}
   .np-card-head .np-showall{font-size:.62rem;}
-  .np-about-card-big{aspect-ratio:1/1;min-height:0;}
-  .np-card-label{font-size:.85rem;top:14px;left:16px;}
-  .np-about-overlay{padding:14px;}
-  .np-about-overlay .np-about-name{font-size:1rem;}
-  .np-about-overlay .np-about-fans{font-size:.68rem;margin:4px 0 8px;}
-  .np-about-follow{font-size:.64rem;padding:5px 13px;}
-  .np-about-bio{font-size:.72rem;line-height:1.5;margin-top:8px;-webkit-line-clamp:2;}
-  .np-right-col{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-  .np-right-col .np-card{aspect-ratio:1/1;min-height:0;}
+  .np-about-card-big{aspect-ratio:1/1;min-height:0;width:min(190px,52vw);margin:0 auto;}
+  .np-card-label{font-size:.8rem;top:12px;left:14px;}
+  .np-about-overlay{padding:12px;}
+  .np-about-overlay .np-about-name{font-size:.92rem;}
+  .np-about-overlay .np-about-fans{font-size:.65rem;margin:3px 0 7px;}
+  .np-about-follow{font-size:.62rem;padding:4px 12px;}
+  .np-about-bio{font-size:.68rem;line-height:1.45;margin-top:7px;-webkit-line-clamp:2;}
+  .np-right-col{display:flex;flex-direction:column;gap:12px;}
+  .np-right-col .np-card{aspect-ratio:1/1;min-height:0;width:min(190px,52vw);margin:0 auto;}
   .np-albums-list,.np-pl-list{max-height:none;}
-  .np-album-cover,.np-album-cover-ph,.np-pl-thumb,.np-pl-ph{width:32px;height:32px;}
-  .np-album-title,.np-pl-name{font-size:.75rem;}
-  .np-album-year,.np-pl-count{font-size:.63rem;}
+  .np-album-cover,.np-album-cover-ph,.np-pl-thumb,.np-pl-ph{width:30px;height:30px;}
+  .np-album-title,.np-pl-name{font-size:.72rem;}
+  .np-album-year,.np-pl-count{font-size:.6rem;}
 }
 
 /* LYRICS (NON-FULLSCREEN) — kini hanya mengisi area 'main' (halaman home),
@@ -4473,6 +4479,11 @@ function showHomeView() {
   // Jika sedang di halaman Song Preview, hentikan audio preview-nya dulu
   if (spAudio) { spAudio.pause(); }
   spCurrentIndex = -1;
+  // Tutup halaman "Now Playing" (dibuka lewat mini player) kalau sedang
+  // terbuka — sebelumnya ini tidak ditutup, jadi tombol Home di navigasi
+  // bawah terlihat seperti tidak berfungsi karena halaman Now Playing
+  // (z-index tinggi) tetap menutupi halaman Home di baliknya.
+  if (typeof closeNP === 'function') { closeNP(); }
   document.getElementById('home-view').classList.add('active');
   document.getElementById('search-view').classList.remove('active');
   document.getElementById('finder-view').style.display = 'none';
