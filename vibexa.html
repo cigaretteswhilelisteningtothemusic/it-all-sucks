@@ -9224,12 +9224,20 @@ async function loadDailyMixes(force) {
     // sama persis, bukan versi masing-masing.
     try {
       const txResult = await db.ref('daily_mix_shared/' + dateStr).transaction(current => {
-        if (current) return; // sudah ada -> batalkan, jangan timpa
+        // Kalau data yang sudah tersimpan TIDAK lengkap 8 mix (misal sisa data
+        // lama dari sebelum jaminan "selalu 8 playlist" ini ada), TIMPA dengan
+        // hasil generate baru supaya semua user tetap dapat 8 Daily Mix, bukan
+        // ikut-ikutan data lama yang kurang.
+        if (Array.isArray(current) && current.length >= DM_MIX_COUNT) return; // sudah lengkap -> jangan timpa
         return mixes;
       });
       if (txResult && txResult.snapshot && txResult.snapshot.exists()) {
         const finalMixes = txResult.snapshot.val();
-        if (Array.isArray(finalMixes) && finalMixes.length) mixes = finalMixes;
+        // Hanya pakai versi Firebase kalau memang lengkap 8 mix. Kalau ternyata
+        // masih kurang dari 8 (race condition atau data lama), tetap pakai versi
+        // yang baru saja digenerate secara lokal (sudah pasti 8) supaya user ini
+        // tidak ikut melihat Daily Mix yang kurang dari 8.
+        if (Array.isArray(finalMixes) && finalMixes.length >= DM_MIX_COUNT) mixes = finalMixes;
       }
       // Bersihkan entri tanggal-tanggal lama supaya node ini tidak menumpuk.
       db.ref('daily_mix_shared').get().then(snap => {
