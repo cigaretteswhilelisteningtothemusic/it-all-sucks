@@ -868,16 +868,8 @@ auth.onAuthStateChanged(async user => {
       setTimeout(() => openUserProfile(viewUid), 300);
     }
   } else {
-    document.getElementById('auth-overlay').innerHTML = `
-      <div class="auth-box">
-        <div style="font-size:2rem;margin-bottom:10px">🔒</div>
-        <h2>Login Required</h2>
-        <p>You need to log in to view your profile.</p>
-        <div class="auth-btns">
-          <a class="btn-login" href="index.html">Login</a>
-        </div>
-      </div>`;
-    document.getElementById('auth-overlay').style.display = 'flex';
+    // Belum login → langsung tendang ke halaman login
+    window.location.replace('login.html');
   }
 });
 

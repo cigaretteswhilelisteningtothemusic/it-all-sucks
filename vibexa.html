@@ -4239,7 +4239,8 @@ auth.onAuthStateChanged(user => {
     loadSadPlaylists();
     loadWeekdayPlaylists();
   } else {
-    showAuthWall();
+    // Belum login → langsung tendang ke halaman login, jangan biarkan masuk ke Home
+    window.location.replace('login.html');
   }
 });
 

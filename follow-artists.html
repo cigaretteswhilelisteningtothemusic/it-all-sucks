@@ -369,7 +369,8 @@ auth.onAuthStateChanged(async user => {
     updateProgress();
     loadRecommended();
   } else {
-    document.getElementById('auth-overlay').style.display = 'flex';
+    // Belum login → langsung tendang ke halaman login
+    window.location.replace('login.html');
   }
 });
 
