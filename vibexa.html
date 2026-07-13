@@ -12059,14 +12059,14 @@ async function loadSpByGenre(genreKey) {
   document.getElementById('sp-genre-btn')?.classList.add('active');
   feed.innerHTML = '<div class="sp-loading">Memuat lagu ' + esc(def.label) + '...</div>';
   try {
-    const seeds = (def.seedArtists && def.seedArtists.length) ? _shuffleArray(def.seedArtists).slice(0, 6) : [];
+    // Pakai SEMUA artis seed yang ada di genre ini (tidak dibatasi jumlah
+    // artisnya) — supaya makin banyak artis berbeda yang berpeluang masuk
+    // feed. Yang dibatasi cuma jumlah lagu per artis (lihat
+    // _capTracksPerArtist di bawah, SP_MAX_PER_ARTIST), bukan jumlah artisnya.
+    const seeds = (def.seedArtists && def.seedArtists.length) ? _shuffleArray(def.seedArtists) : [];
     const queries = seeds.length ? seeds : [def.query || def.label];
-    // Kita hanya butuh puluhan lagu untuk feed (bukan ratusan), jadi minta
-    // limit kecil per artis seed. Ini yang paling memperlambat loading genre
-    // sebelumnya: 6 request paralel @200 lagu = ~1200 item diunduh & di-parse
-    // padahal cuma dipakai sebagian kecil.
     const resultsArr = await Promise.all(
-      queries.map(qStr => fetchItunesResults(qStr, 'US', 'song', 25).catch(() => []))
+      queries.map(qStr => fetchItunesResults(qStr, 'US', 'song', 10).catch(() => []))
     );
     let combined = resultsArr.flat();
     if (combined.length < 10) {
@@ -12075,7 +12075,7 @@ async function loadSpByGenre(genreKey) {
       combined = combined.concat(fallback);
     }
     const seen = new Set();
-    const tracks = combined.filter(r => {
+    let tracks = combined.filter(r => {
       if (!r || r.wrapperType !== 'track' || !r.previewUrl) return false;
       const key = r.trackId || (r.artistName + '|||' + r.trackName);
       if (seen.has(key)) return false;
@@ -12083,6 +12083,10 @@ async function loadSpByGenre(genreKey) {
       return true;
     });
     if (!tracks.length) throw new Error('Tidak ada lagu ' + def.label + ' ditemukan');
+
+    // Batasi maksimal SP_MAX_PER_ARTIST lagu dari artis yang sama supaya
+    // 1-2 artis tidak mendominasi seluruh feed genre ini.
+    tracks = _capTracksPerArtist(tracks, SP_MAX_PER_ARTIST);
 
     _currentSpGenreKey = genreKey;
     _syncSpGenreChipsActive();
@@ -12113,6 +12117,26 @@ function _shuffleArray(arr) {
   return a;
 }
 
+// Maksimal berapa lagu dari 1 artis yang sama boleh masuk ke satu feed Song
+// Preview. Tujuannya supaya user tidak bosan lihat artis yang itu-itu saja
+// walau feed-nya tetap sesuai genre yang dipilih.
+const SP_MAX_PER_ARTIST = 8;
+function _capTracksPerArtist(tracks, maxPerArtist) {
+  // Acak dulu urutannya supaya artis mana yang "kebagian slot" tiap kali
+  // dibuka juga bervariasi (bukan selalu artis yang paling pertama muncul).
+  const shuffled = _shuffleArray(tracks);
+  const countByArtist = {};
+  const result = [];
+  for (const t of shuffled) {
+    const artistKey = (t.artistName || t.artist || 'Unknown').toLowerCase();
+    const n = countByArtist[artistKey] || 0;
+    if (n >= maxPerArtist) continue;
+    countByArtist[artistKey] = n + 1;
+    result.push(t);
+  }
+  return result;
+}
+
 async function loadSpPopular() {
   const feed = document.getElementById('sp-feed');
   document.getElementById('sp-topbar-title').textContent = 'Song Preview';
@@ -12140,6 +12164,10 @@ async function loadSpPopular() {
     // Kalau setelah difilter jumlahnya masih cukup banyak, pakai itu.
     // Kalau terlalu sedikit (semua sudah pernah muncul), reset saja histori-nya.
     tracks = fresh.length >= 15 ? fresh : tracks;
+
+    // Chart Top Songs sering diisi banyak lagu dari artis yang sama (lagi
+    // hits), jadi batasi juga di sini supaya feed lebih beragam artisnya.
+    tracks = _capTracksPerArtist(tracks, SP_MAX_PER_ARTIST);
 
     spTracks = _shuffleArray(tracks);
     _spSaveRecentIds(spTracks.map(t => t.trackId));
