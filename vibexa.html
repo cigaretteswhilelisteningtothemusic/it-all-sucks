@@ -1527,10 +1527,9 @@ body.np-is-fullscreen #bar{display:none !important;}
   .np-card-head{margin-bottom:8px;}
   .np-card-head h4{font-size:.85rem;}
   .np-card-head .np-showall{font-size:.62rem;}
-  /* Ukuran kotak "Tentang Artis" menyesuaikan lebar layar (mengisi
-     lebar kolom) dengan tinggi proporsional secukupnya — tidak dipaksa
-     jadi kotak kecil persegi, dan tidak juga terlalu besar. */
-  .np-about-card-big{aspect-ratio:auto;min-height:200px;width:100%;margin:0;}
+  /* Kotak "Tentang Artis" dibuat persegi kecil, ukurannya disamakan
+     dengan kotak foto album (.np-art) di atasnya. */
+  .np-about-card-big{aspect-ratio:1;min-height:0;width:min(280px,68vw);margin:0 auto;}
   .np-card-label{font-size:.8rem;top:12px;left:14px;}
   .np-about-overlay{padding:12px;}
   .np-about-overlay .np-about-name{font-size:.92rem;}
@@ -1538,9 +1537,9 @@ body.np-is-fullscreen #bar{display:none !important;}
   .np-about-follow{font-size:.62rem;padding:4px 12px;}
   .np-about-bio{font-size:.68rem;line-height:1.45;margin-top:7px;-webkit-line-clamp:2;}
   .np-right-col{display:flex;flex-direction:column;gap:12px;}
-  /* Kotak "Albums" & "Playlist" juga mengisi lebar kolom dengan tinggi
-     proporsional (menyesuaikan), tidak lagi kotak kecil persegi. */
-  .np-right-col .np-card{aspect-ratio:auto;min-height:200px;width:100%;margin:0;}
+  /* Kotak "Albums" & "Playlist" juga dibuat persegi kecil dengan ukuran
+     yang sama dengan kotak foto album (.np-art). */
+  .np-right-col .np-card{aspect-ratio:1;min-height:0;width:min(280px,68vw);margin:0 auto;}
   .np-albums-list,.np-pl-list{max-height:none;}
   .np-album-cover,.np-album-cover-ph,.np-pl-thumb,.np-pl-ph{width:30px;height:30px;}
   .np-album-title,.np-pl-name{font-size:.72rem;}
@@ -3059,7 +3058,6 @@ body.np-is-fullscreen #bar{display:none !important;}
       <div class="pub-section-header">
         <div class="pub-section-title">
            <span id="weekday-playlist-title">Loading...</span>
-          <span class="pub-badge">Diperbarui Setiap Hari</span>
         </div>
       </div>
       <div class="dm-grid" id="weekday-playlist-grid"></div>
@@ -3070,7 +3068,6 @@ body.np-is-fullscreen #bar{display:none !important;}
       <div class="pub-section-header">
         <div class="pub-section-title">
            Rekomendasi Untuk Anda
-          <span class="pub-badge">Dari Artis yang Diikuti</span>
         </div>
         <button class="home-new-pl-btn" onclick="showRecommendFullView()" style="background:none;border:1px solid var(--border);color:var(--sub);">
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
@@ -3085,7 +3082,6 @@ body.np-is-fullscreen #bar{display:none !important;}
       <div class="pub-section-header">
         <div class="pub-section-title">
            Mungkin Kamu Juga Suka
-          <span class="pub-badge">Dari Artis yang Diikuti</span>
         </div>
       </div>
       <div class="dm-grid" id="maybe-like-grid"></div>
@@ -3096,7 +3092,6 @@ body.np-is-fullscreen #bar{display:none !important;}
       <div class="pub-section-header">
         <div class="pub-section-title">
            Daily Mix
-          <span class="pub-badge">Diperbarui Hari Ini</span>
         </div>
       </div>
       <div class="dm-grid" id="daily-mix-grid"></div>
@@ -3107,7 +3102,6 @@ body.np-is-fullscreen #bar{display:none !important;}
       <div class="pub-section-header">
         <div class="pub-section-title">
            Dibuat Untuk Kamu
-          <span class="pub-badge">Dari Artis yang Diikuti</span>
         </div>
       </div>
       <div class="dm-grid" id="made-for-you-grid"></div>
@@ -3118,7 +3112,6 @@ body.np-is-fullscreen #bar{display:none !important;}
       <div class="pub-section-header">
         <div class="pub-section-title">
            no I'm okayy, I just need to be alone
-          <span class="pub-badge">Playlist Buat Kamu</span>
         </div>
       </div>
       <div class="dm-grid" id="sad-playlist-grid"></div>
@@ -3143,7 +3136,6 @@ body.np-is-fullscreen #bar{display:none !important;}
       <div class="pub-section-header">
         <div class="pub-section-title">
            Top Songs
-          <span class="pub-badge">Trending Today</span>
         </div>
         <button class="home-new-pl-btn" onclick="showTopSongsFullView()" style="background:none;border:1px solid var(--border);color:var(--sub);">
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
@@ -3158,7 +3150,6 @@ body.np-is-fullscreen #bar{display:none !important;}
       <div class="pub-section-header">
         <div class="pub-section-title">
            Public Playlists
-          <span class="pub-badge">Live</span>
         </div>
         <button class="home-new-pl-btn pub-show-more-btn" id="pub-show-more-btn" onclick="togglePubShowAll()" style="background:none;border:1px solid var(--border);color:var(--sub);display:none;">
           <span id="pub-show-more-label">Tampilkan Semua</span>
@@ -3342,7 +3333,6 @@ body.np-is-fullscreen #bar{display:none !important;}
     <div class="pub-section-header" style="margin-bottom:14px;">
       <div class="pub-section-title">
          Recently Played
-        <span class="pub-badge">Maks. 70 Lagu</span>
       </div>
     </div>
     <div class="recent-grid expanded" id="recently-played-full-grid"></div>
