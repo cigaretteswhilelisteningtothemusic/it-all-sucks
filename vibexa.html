@@ -1092,15 +1092,16 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 
   /* Tombol Song Preview: diletakkan di tengah-tengah baris navigasi bawah
      (bukan mengambang naik ke atas, supaya tidak menabrak mini player di
-     atasnya) — bulat berwarna supaya tetap menonjol sebagai aksi utama. */
+     atasnya) — hanya ikon saja, tanpa lingkaran warna, menyatu dengan
+     tombol navigasi bawah lainnya. */
   .mob-nav-preview-center{
     position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
     flex:none;width:46px;height:46px;padding:0;border-radius:50%;
-    background:linear-gradient(135deg,var(--green),var(--teal));
-    color:#fff;box-shadow:0 4px 14px rgba(46,125,255,.4);
+    background:none;color:var(--muted);box-shadow:none;
     z-index:11;
   }
-  .mob-nav-preview-center svg{width:20px;height:20px}
+  .mob-nav-preview-center.on{color:#2e7dff!important;}
+  .mob-nav-preview-center svg{width:22px;height:22px}
   .mob-nav-preview-center span{display:none}
   .mob-nav-preview-center:active{transform:translate(-50%,-50%) scale(.92)}
   /* Beri jarak di kanan-kiri tombol Genre & Temukan supaya tidak tertutup
@@ -1123,6 +1124,15 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
     top:0; left:0; right:0;
     bottom:56px;
     z-index:30;
+  }
+  /* Saat Song Preview terbuka: sembunyikan topbar (tombol profil, tombol
+     pencarian, kotak search) & mini player bar, karena keduanya punya
+     z-index tinggi (z-index:60 & 10) yang menutupi tombol menu genre &
+     kotak search milik Song Preview. Tombol navigasi bawah (#mob-nav)
+     TETAP terlihat supaya user masih bisa pindah tab/keluar. */
+  body.sp-mobile-open .home-topbar,
+  body.sp-mobile-open #bar{
+    display:none;
   }
 
   /* ════════════════════════════════
@@ -1467,23 +1477,26 @@ body.np-is-fullscreen #bar{display:none !important;}
 @media(max-width:660px){
   #np-view{bottom:var(--np-bottom);}
   .np-art,.np-art-ph{width:min(280px,68vw);height:min(280px,68vw);}
-  /* Kotak "Tentang Artis", "Albums" & "Playlist" disesuaikan supaya tidak
-     terlalu besar/memenuhi layar di tampilan mobile */
+  /* Kotak "Tentang Artis", "Albums" & "Playlist" dijadikan PERSEGI (bukan
+     kotak panjang memanjang ke samping) khusus tampilan mobile: kartu
+     "Tentang Artis" persegi penuh lebar di atas, lalu "Albums" & "Playlist"
+     disusun berdampingan 2 kolom, masing-masing juga persegi. */
   #np-scroll{padding:8px 4% 50px;}
   .np-grid{gap:10px;}
   .np-card{padding:14px 16px;min-height:auto;}
   .np-card-head{margin-bottom:10px;}
   .np-card-head h4{font-size:.85rem;}
   .np-card-head .np-showall{font-size:.62rem;}
-  .np-about-card-big{min-height:200px;}
+  .np-about-card-big{aspect-ratio:1/1;min-height:0;}
   .np-card-label{font-size:.85rem;top:14px;left:16px;}
   .np-about-overlay{padding:14px;}
   .np-about-overlay .np-about-name{font-size:1rem;}
   .np-about-overlay .np-about-fans{font-size:.68rem;margin:4px 0 8px;}
   .np-about-follow{font-size:.64rem;padding:5px 13px;}
   .np-about-bio{font-size:.72rem;line-height:1.5;margin-top:8px;-webkit-line-clamp:2;}
-  .np-right-col{gap:10px;}
-  .np-albums-list,.np-pl-list{max-height:130px;}
+  .np-right-col{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .np-right-col .np-card{aspect-ratio:1/1;min-height:0;}
+  .np-albums-list,.np-pl-list{max-height:none;}
   .np-album-cover,.np-album-cover-ph,.np-pl-thumb,.np-pl-ph{width:32px;height:32px;}
   .np-album-title,.np-pl-name{font-size:.75rem;}
   .np-album-year,.np-pl-count{font-size:.63rem;}
@@ -4471,6 +4484,7 @@ function showHomeView() {
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  document.body.classList.remove('sp-mobile-open');
   if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   if (typeof closeFSLyricsIfOpen === 'function') { closeFSLyricsIfOpen(); }
   document.getElementById('nav-home').classList.add('on');
@@ -4493,6 +4507,7 @@ function showSearchView() {
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  document.body.classList.remove('sp-mobile-open');
   if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   if (typeof closeFSLyricsIfOpen === 'function') { closeFSLyricsIfOpen(); }
   document.getElementById('nav-home').classList.remove('on');
@@ -4528,6 +4543,7 @@ function showFinderView() {
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  document.body.classList.remove('sp-mobile-open');
   if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   if (typeof closeFSLyricsIfOpen === 'function') { closeFSLyricsIfOpen(); }
   document.getElementById('nav-home').classList.remove('on');
@@ -4552,6 +4568,7 @@ function showPlaylistView(plId) {
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  document.body.classList.remove('sp-mobile-open');
   if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   if (typeof closeFSLyricsIfOpen === 'function') { closeFSLyricsIfOpen(); }
   document.getElementById('nav-home').classList.remove('on');
@@ -7529,6 +7546,7 @@ function openArtistView(artistName) {
   document.getElementById('artist-view').style.display = 'block';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  document.body.classList.remove('sp-mobile-open');
   if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   if (typeof closeFSLyricsIfOpen === 'function') { closeFSLyricsIfOpen(); }
   document.getElementById('nav-home').classList.remove('on');
@@ -7578,6 +7596,7 @@ function backFromArtistView() {
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  document.body.classList.remove('sp-mobile-open');
   if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   if (typeof closeFSLyricsIfOpen === 'function') { closeFSLyricsIfOpen(); }
   closeArtistAllAlbumsView();
@@ -7822,6 +7841,7 @@ function openAlbumView(albumId, albumTitle) {
 function backFromAlbumView() {
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  document.body.classList.remove('sp-mobile-open');
   if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   if (typeof closeFSLyricsIfOpen === 'function') { closeFSLyricsIfOpen(); }
   if (_currentArtistData) {
@@ -8320,6 +8340,7 @@ function showGenreMenuView() {
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  document.body.classList.remove('sp-mobile-open');
   if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   if (typeof closeFSLyricsIfOpen === 'function') { closeFSLyricsIfOpen(); }
   document.getElementById('genre-songs-view').style.display = 'none';
@@ -8351,6 +8372,7 @@ function openGenreView(genreKey) {
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  document.body.classList.remove('sp-mobile-open');
   if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   if (typeof closeFSLyricsIfOpen === 'function') { closeFSLyricsIfOpen(); }
   document.getElementById('genre-menu-view').style.display = 'none';
@@ -9620,6 +9642,7 @@ function openDailyMix(mix) {
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  document.body.classList.remove('sp-mobile-open');
   if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   if (typeof closeFSLyricsIfOpen === 'function') { closeFSLyricsIfOpen(); }
   document.getElementById('nav-home').classList.remove('on');
@@ -9772,6 +9795,7 @@ function showTopSongsFullView() {
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  document.body.classList.remove('sp-mobile-open');
   if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   if (typeof closeFSLyricsIfOpen === 'function') { closeFSLyricsIfOpen(); }
   // Tetap tandai nav Home sebagai aktif — halaman ini adalah bagian dari Home
@@ -9963,6 +9987,7 @@ function showRecommendFullView() {
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  document.body.classList.remove('sp-mobile-open');
   if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   if (typeof closeFSLyricsIfOpen === 'function') { closeFSLyricsIfOpen(); }
   document.getElementById('recommend-full-view').style.display = 'block';
@@ -10175,6 +10200,7 @@ async function openPublicPlaylist(pl) {
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
+  document.body.classList.remove('sp-mobile-open');
   if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   if (typeof closeFSLyricsIfOpen === 'function') { closeFSLyricsIfOpen(); }
   document.getElementById('nav-home').classList.remove('on');
@@ -11910,6 +11936,10 @@ function openSongPreviewView() {
   document.getElementById('nav-genre').classList.remove('on');
   document.getElementById('nav-songpreview')?.classList.add('on');
   document.getElementById('song-preview-view').style.display = 'flex';
+  // Khusus mobile: sembunyikan topbar (tombol profil/notif/kotak search) &
+  // mini player bar supaya tidak menutupi tombol menu genre/search milik
+  // Song Preview (lihat CSS body.sp-mobile-open di media query 660px).
+  if (typeof isMobile === 'function' && isMobile()) document.body.classList.add('sp-mobile-open');
   // Default: setiap kali halaman Song Preview dibuka pertama kali (belum ada
   // lagu dimuat), langsung tampilkan genre Pop, bukan mode "Populer" umum.
   if (!spTracks.length) loadSpByGenre('pop');
