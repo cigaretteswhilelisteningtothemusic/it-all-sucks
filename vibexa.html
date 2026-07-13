@@ -11802,6 +11802,17 @@ let spMuted = false;
 let spObserver = null;
 let spCurrentIndex = -1;
 
+// ── Kontrol navigasi 1-slide-per-aksi (anti "terlempar jauh" saat scroll
+// kencang) + dukungan tombol panah atas/bawah di keyboard. Alih-alih
+// mengandalkan scroll-snap bawaan browser (yang bisa melompati beberapa slide
+// sekaligus kalau discroll/di-flick dengan cepat), kita kunci navigasi supaya
+// setiap gesture/scroll/tombol hanya memindahkan tepat 1 slide ke
+// depan/belakang, lalu mengunci input sampai animasi perpindahan selesai. ──
+let spFocusIndex = 0;
+let spNavLocked = false;
+let _spNavLockTimer = null;
+const SP_NAV_COOLDOWN = 480; // ms, sedikit lebih lama dari durasi animasi scroll smooth
+
 function openSongPreviewView() {
   // Hentikan lagu utama yang sedang diputar & tutup halaman lyrics (kalau sedang terbuka)
   if (typeof YTP !== 'undefined' && YTP) { try { YTP.pauseVideo(); } catch(e){} }
@@ -11824,13 +11835,18 @@ function openSongPreviewView() {
   document.getElementById('nav-genre').classList.remove('on');
   document.getElementById('nav-songpreview')?.classList.add('on');
   document.getElementById('song-preview-view').style.display = 'flex';
-  if (!spTracks.length) loadSpPopular();
+  // Default: setiap kali halaman Song Preview dibuka pertama kali (belum ada
+  // lagu dimuat), langsung tampilkan genre Pop, bukan mode "Populer" umum.
+  if (!spTracks.length) loadSpByGenre('pop');
 }
 
 function closeSongPreviewView() {
   document.getElementById('nav-songpreview')?.classList.remove('on');
   if (spAudio) { spAudio.pause(); }
   spCurrentIndex = -1;
+  spFocusIndex = 0;
+  spNavLocked = false;
+  clearTimeout(_spNavLockTimer);
   showHomeView();
 }
 
@@ -12036,6 +12052,9 @@ function renderSpSlides() {
   const feed = document.getElementById('sp-feed');
   feed.innerHTML = '';
   spCurrentIndex = -1;
+  spFocusIndex = 0;
+  spNavLocked = false;
+  clearTimeout(_spNavLockTimer);
   // Buang cache preload dari daftar lagu sebelumnya (indeksnya sudah tidak relevan)
   if (spPreloadCache) { spPreloadCache.forEach(a => { a.src = ''; }); spPreloadCache.clear(); }
   _spArtistPhotoLoaded.clear();
@@ -12265,6 +12284,81 @@ function addSpTrackToPlaylist(idx) {
     _query: `${t.artistName || ''}|||${t.trackName || ''}|||${t.trackId || ''}`
   });
 }
+
+// ── Navigasi terkendali 1-slide-per-aksi ─────────────────────────────────
+// direction: 1 = ke lagu berikutnya (bawah), -1 = ke lagu sebelumnya (atas).
+// Selama masih terkunci (spNavLocked), semua request navigasi tambahan
+// diabaikan — jadi scroll/flick kencang atau tombol panah yang ditekan
+// berkali-kali dengan cepat tetap hanya berpindah 1 slide, tidak "terlempar"
+// melewati beberapa lagu sekaligus.
+function spNavigate(direction) {
+  if (spNavLocked) return;
+  if (!spTracks.length) return;
+  const nextIdx = spFocusIndex + direction;
+  if (nextIdx < 0 || nextIdx >= spTracks.length) return;
+  const feed = document.getElementById('sp-feed');
+  if (!feed) return;
+  const targetEl = feed.querySelector(`.sp-slide[data-idx="${nextIdx}"]`);
+  if (!targetEl) return;
+  spFocusIndex = nextIdx;
+  spNavLocked = true;
+  targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  clearTimeout(_spNavLockTimer);
+  _spNavLockTimer = setTimeout(() => { spNavLocked = false; }, SP_NAV_COOLDOWN);
+}
+
+// Roda mouse / trackpad: setiap gesture (kumpulan event wheel yang beruntun)
+// hanya dihitung sekali berkat penguncian di spNavigate, jadi scroll super
+// kencang tidak akan melompati banyak lagu preview.
+function _setupSpWheelControl() {
+  const feed = document.getElementById('sp-feed');
+  if (!feed) return;
+  feed.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    spNavigate(e.deltaY > 0 ? 1 : -1);
+  }, { passive: false });
+}
+
+// Swipe sentuh (mobile): geser default browser dimatikan (preventDefault di
+// touchmove) supaya perpindahan sepenuhnya dikendalikan spNavigate, bukan
+// momentum/fling bawaan yang bisa melewati beberapa slide sekaligus.
+function _setupSpTouchControl() {
+  const feed = document.getElementById('sp-feed');
+  if (!feed) return;
+  let touchStartY = 0;
+  const SWIPE_THRESHOLD = 40; // px minimal supaya dianggap swipe, bukan tap
+  feed.addEventListener('touchstart', (e) => {
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+  feed.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+  }, { passive: false });
+  feed.addEventListener('touchend', (e) => {
+    const deltaY = touchStartY - e.changedTouches[0].clientY;
+    if (Math.abs(deltaY) < SWIPE_THRESHOLD) return;
+    spNavigate(deltaY > 0 ? 1 : -1);
+  }, { passive: true });
+}
+
+// Tombol panah atas/bawah di keyboard: hanya aktif saat halaman Song Preview
+// sedang terbuka, dan tidak mengganggu saat user sedang mengetik di kolom
+// pencarian/komentar (input/textarea).
+document.addEventListener('keydown', (e) => {
+  const spView = document.getElementById('song-preview-view');
+  if (!spView || spView.style.display !== 'flex') return;
+  const tag = (e.target && e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea') return;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    spNavigate(1);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    spNavigate(-1);
+  }
+});
+
+_setupSpWheelControl();
+_setupSpTouchControl();
 
 </script>
 </body>
