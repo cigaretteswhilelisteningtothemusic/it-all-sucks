@@ -3305,7 +3305,7 @@ body.np-is-fullscreen #bar{display:none !important;}
     <div class="rank-grid" id="top-songs-full-grid"></div>
   </div>
 
-  <!-- REKOMENDASI LAGU — FULL LIST VIEW (70 lagu, Spotify-style "see all") -->
+  <!-- REKOMENDASI LAGU — FULL LIST VIEW (10 lagu per artis diikuti, Spotify-style "see all") -->
   <div id="recommend-full-view" style="display:none;">
     <button class="pv-back" onclick="backFromRecommendFullView()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
@@ -8946,7 +8946,12 @@ function wireAddBtn(btn, track) {
 // the Artist object — an artist below the threshold is skipped even if one
 // of their songs happens to be sitting in the top chart right now.
 const DM_MIX_COUNT = 8;
-const DM_TRACKS_PER_MIX = 30;
+const DM_TRACKS_PER_MIX = 15;
+// Setiap Daily Mix HARUS berisi tepat 15 lagu, jadi batas bawah = batas atas.
+// Kalau pool lagu yang terkumpul tidak cukup untuk 8 x 15, mekanisme fallback
+// di bawah akan tetap membentuk 8 playlist (boleh sedikit tumpang tindih lagu
+// antar mix pada kasus ekstrem) supaya jumlah playlist-nya tetap 8.
+const DM_MIN_TRACKS_PER_MIX = 15;
 const DM_COLORS = ['#26e0ff', '#eaff2e', '#ff5a4d', '#5ce87c', '#c17bff', '#4d8bff', '#ff6fc9', '#ffb238'];
 // Minimum Deezer fan count for an artist to count as "terkenal" (well-known).
 const DM_FAMOUS_FAN_THRESHOLD = 300000;
@@ -9052,7 +9057,7 @@ async function loadDailyMixes(force) {
   // ones are built. v5 supaya cache lama (berbasis UTC) tidak ikut kepakai.
   const dateStr = _dmTodayDateStr();
   const todayKey = 'vibexa_dailymix_topsongs_v5_' + dateStr;
-  const neededTotal = DM_MIX_COUNT * DM_TRACKS_PER_MIX; // minimal 240 lagu (8 x 30)
+  const neededTotal = DM_MIX_COUNT * DM_TRACKS_PER_MIX; // minimal 120 lagu (8 x 15)
 
   if (!force) {
     try {
@@ -9158,24 +9163,55 @@ async function loadDailyMixes(force) {
       }
     }
 
-    if (pool.length < DM_TRACKS_PER_MIX) throw new Error('Data lagu trending tidak cukup');
+    if (pool.length < DM_MIN_TRACKS_PER_MIX) throw new Error('Data lagu trending tidak cukup');
 
     // 4) Acak urutan dengan seed tanggal hari ini (stabil sepanjang hari,
-    // berubah otomatis besok) lalu potong jadi beberapa mix isi 30 lagu.
+    // berubah otomatis besok) lalu potong jadi DM_MIX_COUNT (8) mix.
+    //
+    // Supaya Daily Mix TIDAK PERNAH kurang dari 8 playlist, ukuran tiap mix
+    // dibuat menyesuaikan besarnya pool: idealnya tetap 15 lagu/mix, tapi
+    // kalau pool tidak cukup untuk 8 x 15, jaring pengaman di bawah akan tetap
+    // membentuk 8 mix (boleh sedikit tumpang tindih pada kasus ekstrem).
     const shuffledPool = _dmSeededShuffle(pool, todayKey);
     let mixes = [];
     let offset = 0;
-    while (mixes.length < DM_MIX_COUNT && offset + DM_TRACKS_PER_MIX <= shuffledPool.length) {
-      const slice = shuffledPool.slice(offset, offset + DM_TRACKS_PER_MIX).map(t => ({ ...t, _query: `${t.artist}|||${t.title}|||${t.id}` }));
+    const buildMixFromSlice = (slice, idKey) => {
       const uniqueArtists = [];
       for (const t of slice) { if (!uniqueArtists.includes(t.artist)) uniqueArtists.push(t.artist); if (uniqueArtists.length >= 2) break; }
-      mixes.push({
-        id: 'dm_top_' + offset,
+      return {
+        id: 'dm_top_' + idKey,
         title: uniqueArtists.length >= 2 ? `${uniqueArtists[0]} dan ${uniqueArtists[1]}` : (uniqueArtists[0] || 'Mix Populer'),
         cover: slice[0].thumb,
         tracks: slice
-      });
-      offset += DM_TRACKS_PER_MIX;
+      };
+    };
+    while (mixes.length < DM_MIX_COUNT && offset < shuffledPool.length) {
+      const mixesLeft = DM_MIX_COUNT - mixes.length;
+      const tracksLeft = shuffledPool.length - offset;
+      // Bagi rata sisa lagu ke sisa mix yang perlu dibuat, dibatasi antara
+      // DM_MIN_TRACKS_PER_MIX dan DM_TRACKS_PER_MIX.
+      const tracksForThisMix = Math.max(DM_MIN_TRACKS_PER_MIX, Math.min(DM_TRACKS_PER_MIX, Math.floor(tracksLeft / mixesLeft)));
+      const slice = shuffledPool.slice(offset, offset + tracksForThisMix).map(t => ({ ...t, _query: `${t.artist}|||${t.title}|||${t.id}` }));
+      if (slice.length < DM_MIN_TRACKS_PER_MIX) break; // sisa lagu benar-benar tidak cukup, hentikan
+      mixes.push(buildMixFromSlice(slice, offset));
+      offset += tracksForThisMix;
+    }
+
+    // Jaring pengaman terakhir: kalau pool tetap tidak cukup untuk membentuk
+    // 8 mix unik (pool sangat kecil), lengkapi sisa mix dengan mengambil ulang
+    // (boleh tumpang tindih) dari pool yang sudah ada secara acak, supaya Home
+    // tetap menampilkan 8 Daily Mix, bukan kurang dari itu.
+    let extraRound = 0;
+    while (mixes.length < DM_MIX_COUNT && shuffledPool.length >= DM_MIN_TRACKS_PER_MIX) {
+      const start = (extraRound * DM_MIN_TRACKS_PER_MIX) % shuffledPool.length;
+      const slice = [];
+      for (let i = 0; i < DM_MIN_TRACKS_PER_MIX; i++) {
+        const t = shuffledPool[(start + i) % shuffledPool.length];
+        slice.push({ ...t, _query: `${t.artist}|||${t.title}|||${t.id}` });
+      }
+      mixes.push(buildMixFromSlice(slice, 'extra_' + extraRound));
+      extraRound++;
+      if (extraRound > DM_MIX_COUNT) break; // jaga-jaga supaya tidak infinite loop
     }
 
     if (!mixes.length) throw new Error('Gagal membuat Daily Mix');
@@ -10225,12 +10261,17 @@ function backFromTopSongsFullView() {
 }
 
 // ─── REKOMENDASI LAGU (Spotify-style: berdasarkan artis yang diikuti user) ──
-// Untuk setiap artis yang diikuti, ambil lagu-lagu terpopulernya langsung
-// dari Deezer (endpoint /artist/{id}/top), lalu gabungkan secara round-robin
-// (bergiliran per artis) supaya daftar tidak didominasi satu artis saja bila
-// user mengikuti lebih dari satu artis. Target total 70 lagu; Home hanya
-// menampilkan 8 teratas + tombol "Tampilkan Semua" menuju halaman berisi 70.
-const RECO_TARGET_COUNT = 70;
+// Untuk setiap artis yang diikuti, ambil pool lagu populer dari Deezer
+// (endpoint /artist/{id}/top), lalu pilih RECO_PER_ARTIST (10) lagu secara
+// acak dengan seed berbasis tanggal (WIB) — jadi pilihannya BERGANTI setiap
+// hari (biar user tidak bosan lihat lagu yang itu-itu saja) tapi tetap stabil
+// sepanjang hari yang sama, dan tetap murni dari artis yang user follow.
+// Hasil per-artis digabung round-robin (bergiliran per artis) supaya daftar
+// tidak didominasi satu artis saja. TIDAK ADA batas total — makin banyak
+// artis yang diikuti, makin banyak pula total lagu rekomendasinya (10 x
+// jumlah artis). Home hanya menampilkan 8 teratas + tombol "Tampilkan Semua"
+// menuju halaman berisi semua lagu rekomendasi.
+const RECO_PER_ARTIST = 10;
 const RECO_HOME_PREVIEW_COUNT = 8;
 let _recommendedSongsCache = null;
 
@@ -10253,10 +10294,12 @@ async function fetchRecommendedSongs(force) {
   const followed = Object.values(favoriteArtists);
   if (!followed.length) { _recommendedSongsCache = []; return []; }
 
-  // Cache key mengikutsertakan tanggal + daftar artis yang diikuti, supaya
-  // otomatis di-refresh saat user follow/unfollow artis atau saat hari berganti.
+  // Cache key mengikutsertakan tanggal (WIB, sama seperti Daily Mix) + daftar
+  // artis yang diikuti, supaya otomatis di-refresh 1x sehari saat hari
+  // berganti, atau langsung saat user follow/unfollow artis.
+  const dateStr = _dmTodayDateStr();
   const setKey = followed.map(a => a.name.toLowerCase()).sort().join('|');
-  const todayKey = 'vibexa_reco_' + new Date().toISOString().slice(0, 10) + '_' + setKey;
+  const todayKey = 'vibexa_reco_' + dateStr + '_' + setKey;
 
   if (!force) {
     try {
@@ -10268,19 +10311,30 @@ async function fetchRecommendedSongs(force) {
     } catch (e) {}
   }
 
-  // Minta cukup banyak lagu per artis supaya gabungannya bisa mencapai 70,
-  // walau user hanya mengikuti 1 artis saja.
-  const perArtistLimit = Math.min(100, Math.max(15, Math.ceil(RECO_TARGET_COUNT / followed.length) + 5));
-  const perArtistResults = await Promise.all(
-    followed.map(a => fetchArtistTopTracks(a.name, perArtistLimit))
+  // Ambil pool yang lebih besar per artis (bukan cuma 10) supaya ada bahan
+  // untuk diacak — dari pool inilah 10 lagu per hari dipilih.
+  const perArtistPoolSize = Math.max(RECO_PER_ARTIST * 2, 25);
+  const perArtistResultsRaw = await Promise.all(
+    followed.map(a => fetchArtistTopTracks(a.name, perArtistPoolSize))
   );
+  // Acak pool tiap artis dengan seed harian (WIB) supaya 10 lagu yang tampil
+  // BERGANTI tiap hari (biar user tidak bosan lihat lagu yang itu-itu saja),
+  // tapi tetap stabil sepanjang hari yang sama dan tetap murni dari artis
+  // yang user follow.
+  const perArtistResults = perArtistResultsRaw.map((arr, i) => {
+    const pool = arr || [];
+    const artistSeed = dateStr + '_' + followed[i].name.toLowerCase();
+    return _dmSeededShuffle(pool, artistSeed).slice(0, RECO_PER_ARTIST);
+  });
 
-  // Gabungkan secara round-robin (bergiliran per artis) supaya bervariasi
+  // Gabungkan secara round-robin (bergiliran per artis) supaya bervariasi.
+  // TIDAK ADA batas total — semua artis yang diikuti tetap mendapat jatah
+  // 10 lagu masing-masing, jadi totalnya = 10 x jumlah artis yang diikuti.
   const merged = [];
   const seen = new Set();
   let idx = 0;
   let addedAny = true;
-  while (merged.length < RECO_TARGET_COUNT && addedAny) {
+  while (addedAny) {
     addedAny = false;
     for (let i = 0; i < perArtistResults.length; i++) {
       const arr = perArtistResults[i];
@@ -10291,13 +10345,12 @@ async function fetchRecommendedSongs(force) {
           merged.push(t);
           addedAny = true;
         }
-        if (merged.length >= RECO_TARGET_COUNT) break;
       }
     }
     idx++;
   }
 
-  const items = merged.slice(0, RECO_TARGET_COUNT);
+  const items = merged;
   try {
     localStorage.setItem(todayKey, JSON.stringify(items));
     Object.keys(localStorage).forEach(k => {
@@ -10361,7 +10414,7 @@ async function loadRecommendedSongs(force) {
   }
 }
 
-// Tampilkan semua 70 lagu di halaman terpisah
+// Tampilkan semua lagu rekomendasi (10 per artis diikuti) di halaman terpisah
 function renderRecommendedSongsFull(items) {
   const c = document.getElementById('reco-full-grid');
   if (!c) return;
@@ -10375,7 +10428,7 @@ function renderRecommendedSongsFull(items) {
 
 async function loadRecommendedSongsFull(force) {
   const grid = document.getElementById('reco-full-grid');
-  if (grid) grid.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat 70 lagu rekomendasi...</h3></div>';
+  if (grid) grid.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat lagu rekomendasi...</h3></div>';
   try {
     const items = await fetchRecommendedSongs(force);
     renderRecommendedSongsFull(items);
