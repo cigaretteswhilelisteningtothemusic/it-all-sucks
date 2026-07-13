@@ -1090,22 +1090,40 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
      profil lewat avatar di topbar) */
   #mob-btn-profile{display:none!important}
 
-  /* Tombol Song Preview: diangkat & diletakkan persis di tengah-bawah,
-     mirip tombol aksi utama (FAB) ala TikTok/Spotify, terlepas dari jumlah
-     tombol lain di kiri/kanannya supaya selalu pas di tengah layar. */
+  /* Tombol Song Preview: diletakkan di tengah-tengah baris navigasi bawah
+     (bukan mengambang naik ke atas, supaya tidak menabrak mini player di
+     atasnya) — bulat berwarna supaya tetap menonjol sebagai aksi utama. */
   .mob-nav-preview-center{
-    position:absolute;left:50%;top:-16px;transform:translateX(-50%);
-    flex:none;width:52px;height:52px;padding:0;border-radius:50%;
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    flex:none;width:46px;height:46px;padding:0;border-radius:50%;
     background:linear-gradient(135deg,var(--green),var(--teal));
-    color:#fff;box-shadow:0 6px 16px rgba(46,125,255,.45),0 0 0 4px var(--panel);
+    color:#fff;box-shadow:0 4px 14px rgba(46,125,255,.4);
     z-index:11;
   }
-  .mob-nav-preview-center svg{width:22px;height:22px}
-  .mob-nav-preview-center span{
-    position:absolute;bottom:-15px;font-size:.52rem;font-weight:700;
-    letter-spacing:.3px;text-transform:uppercase;color:var(--muted);white-space:nowrap;
+  .mob-nav-preview-center svg{width:20px;height:20px}
+  .mob-nav-preview-center span{display:none}
+  .mob-nav-preview-center:active{transform:translate(-50%,-50%) scale(.92)}
+  /* Beri jarak di kanan-kiri tombol Genre & Temukan supaya tidak tertutup
+     lingkaran Preview yang ada persis di tengah */
+  #mob-btn-genre{margin-right:26px}
+  #mob-btn-finder{margin-left:26px}
+
+  /* ════════════════════════════════
+     SONG PREVIEW — mobile full screen
+  ════════════════════════════════ */
+  /* Di desktop/tablet, #song-preview-view sengaja dibatasi di dalam #main
+     (lihat komentar di deklarasi aslinya) supaya sidebar tetap terlihat.
+     Tapi di mobile tidak ada sidebar, jadi ruang topbar (60px) & player bar
+     (64px) yang tersisa di atas/bawah cuma bikin tampilan sempit & terpotong.
+     Di sini kita jadikan fixed menutupi seluruh layar, dan hanya sisakan
+     tinggi persis #mob-nav (56px) di bagian bawah supaya tombol-tombol
+     navigasi bawah tetap bisa dipakai untuk keluar/pindah tab. */
+  #song-preview-view{
+    position:fixed;
+    top:0; left:0; right:0;
+    bottom:56px;
+    z-index:30;
   }
-  .mob-nav-preview-center:active{transform:translateX(-50%) scale(.95)}
 
   /* ════════════════════════════════
      HOME VIEW
@@ -1449,6 +1467,26 @@ body.np-is-fullscreen #bar{display:none !important;}
 @media(max-width:660px){
   #np-view{bottom:var(--np-bottom);}
   .np-art,.np-art-ph{width:min(280px,68vw);height:min(280px,68vw);}
+  /* Kotak "Tentang Artis", "Albums" & "Playlist" disesuaikan supaya tidak
+     terlalu besar/memenuhi layar di tampilan mobile */
+  #np-scroll{padding:8px 4% 50px;}
+  .np-grid{gap:10px;}
+  .np-card{padding:14px 16px;min-height:auto;}
+  .np-card-head{margin-bottom:10px;}
+  .np-card-head h4{font-size:.85rem;}
+  .np-card-head .np-showall{font-size:.62rem;}
+  .np-about-card-big{min-height:200px;}
+  .np-card-label{font-size:.85rem;top:14px;left:16px;}
+  .np-about-overlay{padding:14px;}
+  .np-about-overlay .np-about-name{font-size:1rem;}
+  .np-about-overlay .np-about-fans{font-size:.68rem;margin:4px 0 8px;}
+  .np-about-follow{font-size:.64rem;padding:5px 13px;}
+  .np-about-bio{font-size:.72rem;line-height:1.5;margin-top:8px;-webkit-line-clamp:2;}
+  .np-right-col{gap:10px;}
+  .np-albums-list,.np-pl-list{max-height:130px;}
+  .np-album-cover,.np-album-cover-ph,.np-pl-thumb,.np-pl-ph{width:32px;height:32px;}
+  .np-album-title,.np-pl-name{font-size:.75rem;}
+  .np-album-year,.np-pl-count{font-size:.63rem;}
 }
 
 /* LYRICS (NON-FULLSCREEN) — kini hanya mengisi area 'main' (halaman home),
@@ -1938,6 +1976,9 @@ body.np-is-fullscreen #bar{display:none !important;}
   .topbar-search-pill{height:38px;}
   #home-q{font-size:.8rem;}
   .home-profile-btn{width:28px;height:28px}
+  /* Tombol Song Preview di topbar disembunyikan khusus mobile (sudah ada
+     tombol Preview di navigasi bawah) */
+  #nav-songpreview{display:none;}
 }
 
 /* Panel notifikasi */
@@ -12341,14 +12382,29 @@ function spNavigate(direction) {
   _spNavLockTimer = setTimeout(() => { spNavLocked = false; }, SP_NAV_COOLDOWN);
 }
 
-// Roda mouse / trackpad: setiap gesture (kumpulan event wheel yang beruntun)
-// hanya dihitung sekali berkat penguncian di spNavigate, jadi scroll super
-// kencang tidak akan melompati banyak lagu preview.
+// Roda mouse / trackpad: satu gesture geser di touchpad menghasilkan PULUHAN
+// event 'wheel' beruntun (apalagi dengan efek inertia/momentum scroll yang
+// bisa berlangsung >1 detik setelah jari diangkat). Kalau setiap event wheel
+// yang lolos dari nav-lock (SP_NAV_COOLDOWN 480ms) langsung memicu
+// spNavigate lagi, maka satu kali geser touchpad bisa "terlempar" melewati
+// beberapa lagu sekaligus — karena momentum-nya masih jalan saat lock sudah
+// terbuka lagi. Untuk itu kita deteksi akhir gesture berdasarkan JEDA antar
+// event wheel (bukan cuma timer animasi): selama event wheel masih terus
+// mengalir tanpa jeda, itu dianggap 1 gesture yang sama dan diabaikan;
+// navigasi baru hanya dipicu saat gesture benar-benar baru dimulai.
+let spWheelGestureActive = false;
+let _spWheelGestureTimer = null;
+const SP_WHEEL_GESTURE_SILENCE = 150; // ms tanpa event wheel = gesture dianggap selesai
+
 function _setupSpWheelControl() {
   const feed = document.getElementById('sp-feed');
   if (!feed) return;
   feed.addEventListener('wheel', (e) => {
     e.preventDefault();
+    clearTimeout(_spWheelGestureTimer);
+    _spWheelGestureTimer = setTimeout(() => { spWheelGestureActive = false; }, SP_WHEEL_GESTURE_SILENCE);
+    if (spWheelGestureActive) return; // masih momentum/inertia dari gesture yang sama, abaikan
+    spWheelGestureActive = true;
     spNavigate(e.deltaY > 0 ? 1 : -1);
   }, { passive: false });
 }
