@@ -1260,7 +1260,9 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
   .main-view{padding:14px 14px 10px}
   #q{font-size:.85rem;padding:11px 88px 11px 16px}
   #btn-search{padding:7px 14px;font-size:.75rem}
-  .search-wrap{margin-bottom:14px}
+  /* Kotak search di halaman pencarian disembunyikan khusus mobile karena
+     sudah ada kotak search di topbar paling atas (.topbar-search-pill) */
+  .search-wrap{display:none;}
   #res-grid{grid-template-columns:repeat(2,1fr);gap:10px}
   .r-card{padding:10px;border-radius:12px}
   .r-name{font-size:.75rem}.r-art{font-size:.67rem}
@@ -1493,7 +1495,10 @@ body.np-is-fullscreen #bar{display:none !important;}
   .np-card-head{margin-bottom:8px;}
   .np-card-head h4{font-size:.85rem;}
   .np-card-head .np-showall{font-size:.62rem;}
-  .np-about-card-big{aspect-ratio:1/1;min-height:0;width:min(190px,52vw);margin:0 auto;}
+  /* Ukuran kotak "Tentang Artis" menyesuaikan lebar layar (mengisi
+     lebar kolom) dengan tinggi proporsional secukupnya — tidak dipaksa
+     jadi kotak kecil persegi, dan tidak juga terlalu besar. */
+  .np-about-card-big{aspect-ratio:auto;min-height:200px;width:100%;margin:0;}
   .np-card-label{font-size:.8rem;top:12px;left:14px;}
   .np-about-overlay{padding:12px;}
   .np-about-overlay .np-about-name{font-size:.92rem;}
@@ -1501,11 +1506,16 @@ body.np-is-fullscreen #bar{display:none !important;}
   .np-about-follow{font-size:.62rem;padding:4px 12px;}
   .np-about-bio{font-size:.68rem;line-height:1.45;margin-top:7px;-webkit-line-clamp:2;}
   .np-right-col{display:flex;flex-direction:column;gap:12px;}
-  .np-right-col .np-card{aspect-ratio:1/1;min-height:0;width:min(190px,52vw);margin:0 auto;}
+  /* Kotak "Albums" & "Playlist" juga mengisi lebar kolom dengan tinggi
+     proporsional (menyesuaikan), tidak lagi kotak kecil persegi. */
+  .np-right-col .np-card{aspect-ratio:auto;min-height:200px;width:100%;margin:0;}
   .np-albums-list,.np-pl-list{max-height:none;}
   .np-album-cover,.np-album-cover-ph,.np-pl-thumb,.np-pl-ph{width:30px;height:30px;}
   .np-album-title,.np-pl-name{font-size:.72rem;}
   .np-album-year,.np-pl-count{font-size:.6rem;}
+  /* Titik 3 (menu "Lainnya") di kartu Song Preview disembunyikan khusus
+     tampilan mobile */
+  .sp-dots-btn{display:none;}
 }
 
 /* LYRICS (NON-FULLSCREEN) — kini hanya mengisi area 'main' (halaman home),
