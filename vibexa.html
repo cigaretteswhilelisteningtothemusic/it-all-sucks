@@ -991,6 +991,16 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .sp-dots-btn svg{width:19px;height:19px;}
 .sp-genre-tags{display:flex;flex-wrap:wrap;gap:8px 12px;}
 .sp-tag{color:#fff;font-size:.82rem;font-weight:600;}
+/* Bubble foto profil user lain yang menyukai lagu ini, mirip Instagram.
+   Diisi lazy per-slide lewat _spLoadLikedBy() dan disembunyikan (display:none)
+   sampai ada data untuk ditampilkan. */
+.sp-likedby-row{display:none;align-items:center;gap:9px;}
+.sp-likedby-avatars{display:flex;align-items:center;flex-shrink:0;}
+.sp-likedby-avatar,.sp-likedby-avatar-ph{width:24px;height:24px;border-radius:50%;object-fit:cover;border:2px solid rgba(10,10,10,.92);margin-left:-9px;background:var(--card);flex-shrink:0;cursor:pointer;transition:transform .15s,z-index 0s;}
+.sp-likedby-avatars>:first-child{margin-left:0;}
+.sp-likedby-avatar-ph{display:flex;align-items:center;justify-content:center;color:#fff;font-size:.62rem;font-weight:800;background:var(--green);}
+.sp-likedby-avatar:hover,.sp-likedby-avatar-ph:hover{transform:translateY(-3px) scale(1.1);z-index:3;position:relative;}
+.sp-likedby-text{color:rgba(255,255,255,.78);font-size:.72rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .sp-bottom-card{display:flex;align-items:center;gap:11px;background:rgba(30,30,30,.55);backdrop-filter:blur(10px);border-radius:14px;padding:10px 12px;}
 .sp-bottom-thumb{width:44px;height:44px;border-radius:8px;object-fit:cover;background:rgba(255,255,255,.1);flex-shrink:0;}
 .sp-bottom-info{flex:1;min-width:0;}
@@ -4122,6 +4132,33 @@ function updateBarLikeBtn(track) {
   btn.classList.toggle('liked', isTrackLiked(track));
 }
 
+// Ubah "artis|||judul" jadi key yang aman dipakai sebagai path Firebase
+// Realtime Database (key tidak boleh mengandung . # $ [ ] / atau whitespace).
+function _songLikeKey(artist, title) {
+  const raw = (artist || '').toLowerCase().trim() + '_' + (title || '').toLowerCase().trim();
+  const safe = raw.replace(/[.#$\[\]\/\s]+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+  return safe.slice(0, 400) || 'unknown_track';
+}
+
+// Catat/hapus "like" songs ini secara publik di song_likes/{songKey}/{uid} supaya
+// user lain yang membuka Song Preview lagu yang sama bisa melihat bubble foto
+// profil siapa saja yang sudah menyukainya (mirip fitur "liked by" Instagram).
+// Dipanggil dari addTrackToLiked (liked=true) & toggleLikeTrack (liked=false),
+// jadi berlaku untuk like lewat player bar maupun tombol hati di Song Preview.
+async function _syncSongLikeSocial(track, liked) {
+  if (!currentUser || !track || !track.title || !track.artist) return;
+  const key = _songLikeKey(track.artist, track.title);
+  const likeRef = db.ref('song_likes/' + key + '/' + currentUser.uid);
+  if (!liked) { likeRef.remove().catch(() => {}); return; }
+  try {
+    const profileSnap = await db.ref('users/' + currentUser.uid + '/profile').get().catch(() => null);
+    const profile = (profileSnap && profileSnap.exists()) ? profileSnap.val() : {};
+    const name = profile.displayName || currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'User');
+    const photo = profile.photoURL || profile.photoBase64 || currentUser.photoURL || '';
+    await likeRef.set({ name, photo, ts: Date.now() });
+  } catch (e) { /* diamkan — fitur sosial ini tidak boleh menghambat proses like utama */ }
+}
+
 // Tambahkan songs ke Liked Songs (dipakai oleh toggleLikeTrack di bawah).
 // Mengembalikan true kalau berhasil ditambahkan.
 function addTrackToLiked(track) {
@@ -4139,6 +4176,7 @@ function addTrackToLiked(track) {
   scheduleSave();
   if (curTrack && curTrack.artist === track.artist && curTrack.title === track.title) updateBarLikeBtn(curTrack);
   toast(' "' + track.title + '" ditambahkan ke Liked Songs');
+  _syncSongLikeSocial(track, true);
   return true;
 }
 
@@ -4157,6 +4195,7 @@ function toggleLikeTrack(track) {
     scheduleSave();
     if (curTrack && curTrack.artist === track.artist && curTrack.title === track.title) updateBarLikeBtn(curTrack);
     toast(' Dihapus dari Liked Songs');
+    _syncSongLikeSocial(track, false);
     return false;
   }
   addTrackToLiked(track);
@@ -4184,6 +4223,112 @@ function likeSpTrack(idx) {
   const liked = toggleLikeTrack(track);
   const btn = document.getElementById('sp-like-btn-' + idx);
   if (btn) btn.classList.toggle('liked', liked);
+
+  // Pin/unpin lagu ini ke daftar "baru disukai" milik genrenya (song_preview_pins),
+  // supaya saat siapa pun membuka Song Preview genre yang SAMA, lagu yang baru
+  // saja disukai muncul paling depan/awal — bukan cuma di feed user yang like.
+  const genreKey = _mapItunesGenreToKey(t.primaryGenreName) || _currentSpGenreKey;
+  if (genreKey) {
+    if (liked) _pinSpTrackToGenre(t, genreKey);
+    else _unpinSpTrackFromGenreIfNoLikes(t, genreKey);
+  }
+}
+
+// Cocokkan primaryGenreName dari iTunes (mis. "Hip-Hop/Rap", "R&B/Soul") ke key
+// genre internal app (GENRE_DEFS). Dicocokkan per-kata (bukan substring polos)
+// supaya urutan kata yang beda ("Hip-Hop/Rap" vs "rap/hip hop") tetap kena.
+// Kembalikan null kalau tidak ada genre yang cukup cocok (lagu tidak dipin
+// ke genre manapun — lebih baik tidak dipin daripada salah genre).
+function _mapItunesGenreToKey(primaryGenreName) {
+  if (!primaryGenreName) return null;
+  const norm = s => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const g = norm(primaryGenreName);
+  const gTokens = new Set(g.split(' ').filter(Boolean));
+  let bestKey = null, bestScore = 0;
+  for (const key of Object.keys(GENRE_DEFS)) {
+    const names = GENRE_DEFS[key].genreNames || [];
+    for (const n of names) {
+      const nn = norm(n);
+      if (!nn) continue;
+      const nTokens = nn.split(' ').filter(Boolean);
+      // Semua kata dari nama genre harus ada di primaryGenreName iTunes
+      const matchedAll = nTokens.every(t => gTokens.has(t));
+      if (matchedAll && nTokens.length > bestScore) { bestScore = nTokens.length; bestKey = key; }
+    }
+  }
+  if (bestKey) return bestKey;
+  // Fallback: cocokkan lewat substring polos, menangkap variasi kata dasar
+  // (mis. "Afrobeats" dari iTunes vs "afrobeat" di data genre internal)
+  for (const key of Object.keys(GENRE_DEFS)) {
+    const names = GENRE_DEFS[key].genreNames || [];
+    if (names.some(n => { const nn = norm(n); return nn && (g.includes(nn) || nn.includes(g)); })) return key;
+  }
+  return null;
+}
+
+// Simpan lagu yang baru disukai ke song_preview_pins/{genreKey}/{songKey} —
+// data publik yang dibaca semua user supaya lagu ini nangkring paling depan
+// saat Song Preview genre tsb dibuka (lihat pemakaiannya di loadSpByGenre).
+async function _pinSpTrackToGenre(t, genreKey) {
+  if (!genreKey || !t || !t.previewUrl) return; // wajib punya previewUrl supaya bisa diputar di feed
+  const key = _songLikeKey(t.artistName || '', t.trackName || '');
+  try {
+    await db.ref('song_preview_pins/' + genreKey + '/' + key).set({
+      trackName: t.trackName || 'Unknown',
+      artistName: t.artistName || 'Unknown',
+      artworkUrl100: t.artworkUrl100 || '',
+      previewUrl: t.previewUrl,
+      trackId: t.trackId || 0,
+      primaryGenreName: t.primaryGenreName || '',
+      collectionName: t.collectionName || '',
+      ts: Date.now()
+    });
+  } catch (e) { /* fitur sosial, jangan sampai mengganggu proses like utama */ }
+}
+
+// Lepas pin genre untuk lagu ini HANYA kalau sudah tidak ada satupun user lagi
+// yang menyukainya (dicek dari song_likes/{songKey}) — supaya kalau user A
+// unlike tapi user B masih menyukainya, lagu tetap nangkring di depan.
+async function _unpinSpTrackFromGenreIfNoLikes(t, genreKey) {
+  if (!genreKey || !t) return;
+  const songKey = _songLikeKey(t.artistName || '', t.trackName || '');
+  try {
+    const likesSnap = await db.ref('song_likes/' + songKey).get();
+    if (likesSnap.exists()) return;
+    await db.ref('song_preview_pins/' + genreKey + '/' + songKey).remove();
+  } catch (e) {}
+}
+
+// Ambil lagu-lagu yang sedang "dipin" (baru disukai user manapun) untuk satu
+// genre, diurutkan dari yang paling baru disukai. Dipakai loadSpByGenre supaya
+// lagu-lagu ini ditaruh paling depan/awal feed — terlepas dari acakan biasa.
+async function _fetchSpPinnedForGenre(genreKey) {
+  if (!genreKey) return [];
+  try {
+    const snap = await db.ref('song_preview_pins/' + genreKey).orderByChild('ts').limitToLast(15).get();
+    if (!snap.exists()) return [];
+    const list = [];
+    snap.forEach(child => {
+      const v = child.val() || {};
+      if (!v.previewUrl) return;
+      list.push({
+        trackName: v.trackName || 'Unknown',
+        artistName: v.artistName || 'Unknown',
+        artworkUrl100: v.artworkUrl100 || '',
+        previewUrl: v.previewUrl,
+        trackId: v.trackId || 0,
+        primaryGenreName: v.primaryGenreName || '',
+        collectionName: v.collectionName || '',
+        wrapperType: 'track',
+        _pinnedTs: v.ts || 0
+      });
+    });
+    list.sort((a, b) => (b._pinnedTs || 0) - (a._pinnedTs || 0)); // paling baru disukai = paling depan
+    return list;
+  } catch (e) {
+    console.error('_fetchSpPinnedForGenre error:', e);
+    return [];
+  }
 }
 
 // Artis Favorit: { [namaArtisLowercase]: { name, photo } } — disimpan per akun di Firebase
@@ -12227,13 +12372,27 @@ async function loadSpByGenre(genreKey) {
     });
     if (!tracks.length) throw new Error('Tidak ada lagu ' + def.label + ' ditemukan');
 
+    // Ambil lagu-lagu yang baru saja disukai user manapun (di genre yang SAMA)
+    // supaya ditaruh paling depan/awal feed, terlihat oleh semua user — bukan
+    // cuma yang like. Lagu yang sama dibuang dari daftar biasa supaya tidak dobel.
+    const pinned = await _fetchSpPinnedForGenre(genreKey);
+    const pinnedKeys = new Set(pinned.map(p => p.trackId || (p.artistName + '|||' + p.trackName)));
+    if (pinned.length) {
+      tracks = tracks.filter(r => {
+        const k = r.trackId || (r.artistName + '|||' + r.trackName);
+        return !pinnedKeys.has(k);
+      });
+    }
+
     // Batasi maksimal SP_MAX_PER_ARTIST lagu dari artis yang sama supaya
     // 1-2 artis tidak mendominasi seluruh feed genre ini.
     tracks = _capTracksPerArtist(tracks, SP_MAX_PER_ARTIST);
 
     _currentSpGenreKey = genreKey;
     _syncSpGenreChipsActive();
-    spTracks = _shuffleArray(tracks);
+    // Lagu yang barusan disukai (pinned) selalu tampil duluan & tidak diacak,
+    // urutan sisanya tetap diacak seperti biasa.
+    spTracks = pinned.concat(_shuffleArray(tracks));
     renderSpSlides();
   } catch (e) {
     console.error('loadSpByGenre error:', e);
@@ -12355,11 +12514,13 @@ function renderSpSlides() {
   // Buang cache preload dari daftar lagu sebelumnya (indeksnya sudah tidak relevan)
   if (spPreloadCache) { spPreloadCache.forEach(a => { a.src = ''; }); spPreloadCache.clear(); }
   _spArtistPhotoLoaded.clear();
+  _spLikedByLoaded.clear();
   spTracks.forEach((t, i) => feed.appendChild(buildSpSlideEl(t, i)));
   feed.scrollTop = 0;
   setupSpObserver();
   _spPreloadIndex(0); _spPreloadIndex(1); _spPreloadIndex(2); // siapkan beberapa slide pertama lebih awal
   _spLoadArtistPhoto(0); _spLoadArtistPhoto(1); _spLoadArtistPhoto(2);
+  _spLoadLikedBy(0); _spLoadLikedBy(1); _spLoadLikedBy(2);
 }
 
 function buildSpSlideEl(t, i) {
@@ -12396,6 +12557,10 @@ function buildSpSlideEl(t, i) {
         <span class="sp-tag">#${esc(genre.replace(/\s+/g, ''))}</span>
         <span class="sp-tag">#previewlagu</span>
         <span class="sp-tag">#30detik</span>
+      </div>
+      <div class="sp-likedby-row" id="sp-likedby-${i}">
+        <div class="sp-likedby-avatars" id="sp-likedby-avatars-${i}"></div>
+        <div class="sp-likedby-text" id="sp-likedby-text-${i}"></div>
       </div>
       <div class="sp-bottom-card">
         <img class="sp-bottom-thumb" src="${esc(t.artworkUrl100 || '')}" onerror="this.style.visibility='hidden'">
@@ -12507,6 +12672,9 @@ function setupSpObserver() {
         // hanya untuk slide yang sudah/segera terlihat, bukan semuanya sekaligus.
         _spLoadArtistPhoto(idx);
         _spLoadArtistPhoto(idx + 1);
+        // Muat bubble "disukai oleh" hanya untuk slide yang sudah/segera terlihat
+        _spLoadLikedBy(idx);
+        _spLoadLikedBy(idx + 1);
       }
       if (entry.intersectionRatio >= 0.6) {
         playSpPreview(idx);
@@ -12534,6 +12702,71 @@ async function _spLoadArtistPhoto(idx) {
   if (pic) {
     const btn = document.getElementById('sp-follow-btn-' + idx);
     if (btn) btn.dataset.photo = pic;
+  }
+}
+
+// Ambil daftar user lain yang sudah menyukai lagu ini (dari song_likes/{songKey})
+// lalu render sebagai bubble foto profil yang saling tumpang-tindih, mirip
+// tampilan "liked by" Instagram. Setiap bubble bisa diklik untuk membuka
+// halaman profil user tersebut. Dimuat lazy per-slide (bukan sekaligus semua)
+// supaya feed tetap ringan, sama seperti _spLoadArtistPhoto.
+let _spLikedByLoaded = new Set();
+async function _spLoadLikedBy(idx) {
+  if (idx == null || idx < 0 || idx >= spTracks.length) return;
+  if (_spLikedByLoaded.has(idx)) return;
+  _spLikedByLoaded.add(idx);
+  const t = spTracks[idx];
+  if (!t) return;
+  const rowEl = document.getElementById('sp-likedby-' + idx);
+  const avatarsEl = document.getElementById('sp-likedby-avatars-' + idx);
+  const textEl = document.getElementById('sp-likedby-text-' + idx);
+  if (!rowEl || !avatarsEl || !textEl) return;
+  const key = _songLikeKey(t.artistName || '', t.trackName || '');
+  try {
+    const snap = await db.ref('song_likes/' + key).orderByChild('ts').limitToLast(8).get();
+    if (!snap.exists()) return;
+    let entries = [];
+    snap.forEach(child => {
+      const uid = child.key;
+      if (currentUser && uid === currentUser.uid) return; // sembunyikan diri sendiri dari daftar
+      const v = child.val() || {};
+      entries.push({ uid, name: v.name || 'User', photo: v.photo || '' });
+    });
+    if (!entries.length) return; // tidak ada user lain yang like -> baris tetap disembunyikan
+    entries.reverse(); // yang paling baru menyukai tampil paling depan
+    const shown = entries.slice(0, 5);
+    avatarsEl.innerHTML = '';
+    shown.forEach(u => {
+      const el = document.createElement(u.photo ? 'img' : 'div');
+      el.title = 'Lihat profil ' + u.name;
+      el.setAttribute('role', 'button');
+      if (u.photo) {
+        el.className = 'sp-likedby-avatar';
+        el.src = u.photo;
+        el.alt = u.name;
+        el.loading = 'lazy';
+        el.onerror = () => { el.style.visibility = 'hidden'; };
+      } else {
+        el.className = 'sp-likedby-avatar-ph';
+        el.textContent = u.name.charAt(0).toUpperCase();
+      }
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.location.href = 'profile.html?uid=' + encodeURIComponent(u.uid);
+      });
+      avatarsEl.appendChild(el);
+    });
+    const total = entries.length;
+    if (total === 1) {
+      textEl.textContent = 'Disukai oleh ' + shown[0].name;
+    } else if (total <= shown.length) {
+      textEl.textContent = 'Disukai oleh ' + total + ' orang';
+    } else {
+      textEl.textContent = 'Disukai oleh ' + shown[0].name + ' +' + (total - 1) + ' lainnya';
+    }
+    rowEl.style.display = 'flex';
+  } catch (e) {
+    console.error('_spLoadLikedBy error:', e);
   }
 }
 
