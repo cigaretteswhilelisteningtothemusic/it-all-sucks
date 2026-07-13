@@ -972,7 +972,7 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .sp-album-wrap{flex:1;display:flex;align-items:center;justify-content:center;min-height:0;padding:14px 0;}
 .sp-album-art{width:min(64vw,300px);height:min(64vw,300px);max-height:38vh;border-radius:14px;object-fit:cover;box-shadow:0 20px 60px rgba(0,0,0,.55);background:rgba(255,255,255,.08);}
 .sp-slide-bottom{display:flex;flex-direction:column;gap:12px;flex-shrink:0;}
-.sp-artist-row{display:flex;align-items:center;gap:10px;}
+.sp-artist-row{display:flex;align-items:center;gap:10px;position:relative;}
 .sp-artist-photo{width:42px;height:42px;border-radius:50%;object-fit:cover;background:rgba(255,255,255,.12);flex-shrink:0;}
 .sp-artist-info{flex:1;min-width:0;}
 .sp-artist-name{color:#fff;font-weight:700;font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -991,16 +991,17 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .sp-dots-btn svg{width:19px;height:19px;}
 .sp-genre-tags{display:flex;flex-wrap:wrap;gap:8px 12px;}
 .sp-tag{color:#fff;font-size:.82rem;font-weight:600;}
-/* Bubble foto profil user lain yang menyukai lagu ini, mirip Instagram.
+/* Bubble foto profil user lain yang menyukai lagu ini, mirip Instagram:
+   mengambang tepat di atas baris nama artis, tanpa teks nama user apapun.
    Diisi lazy per-slide lewat _spLoadLikedBy() dan disembunyikan (display:none)
-   sampai ada data untuk ditampilkan. */
-.sp-likedby-row{display:none;align-items:center;gap:9px;}
+   sampai ada data untuk ditampilkan. Maksimal 3 bubble tampil, sisanya
+   disembunyikan begitu saja (tidak ada indikator "+N"). */
+.sp-likedby-row{display:none;position:absolute;bottom:100%;left:0;margin-bottom:9px;align-items:center;}
 .sp-likedby-avatars{display:flex;align-items:center;flex-shrink:0;}
-.sp-likedby-avatar,.sp-likedby-avatar-ph{width:24px;height:24px;border-radius:50%;object-fit:cover;border:2px solid rgba(10,10,10,.92);margin-left:-9px;background:var(--card);flex-shrink:0;cursor:pointer;transition:transform .15s,z-index 0s;}
+.sp-likedby-avatar,.sp-likedby-avatar-ph{width:27px;height:27px;border-radius:50%;object-fit:cover;border:2px solid rgba(10,10,10,.92);margin-left:-10px;background:var(--card);flex-shrink:0;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,.45);transition:transform .15s,z-index 0s;}
 .sp-likedby-avatars>:first-child{margin-left:0;}
-.sp-likedby-avatar-ph{display:flex;align-items:center;justify-content:center;color:#fff;font-size:.62rem;font-weight:800;background:var(--green);}
-.sp-likedby-avatar:hover,.sp-likedby-avatar-ph:hover{transform:translateY(-3px) scale(1.1);z-index:3;position:relative;}
-.sp-likedby-text{color:rgba(255,255,255,.78);font-size:.72rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sp-likedby-avatar-ph{display:flex;align-items:center;justify-content:center;color:#fff;font-size:.68rem;font-weight:800;background:var(--green);}
+.sp-likedby-avatar:hover,.sp-likedby-avatar-ph:hover{transform:translateY(-3px) scale(1.12);z-index:3;position:relative;}
 .sp-bottom-card{display:flex;align-items:center;gap:11px;background:rgba(30,30,30,.55);backdrop-filter:blur(10px);border-radius:14px;padding:10px 12px;}
 .sp-bottom-thumb{width:44px;height:44px;border-radius:8px;object-fit:cover;background:rgba(255,255,255,.1);flex-shrink:0;}
 .sp-bottom-info{flex:1;min-width:0;}
@@ -12375,7 +12376,15 @@ async function loadSpByGenre(genreKey) {
     // Ambil lagu-lagu yang baru saja disukai user manapun (di genre yang SAMA)
     // supaya ditaruh paling depan/awal feed, terlihat oleh semua user — bukan
     // cuma yang like. Lagu yang sama dibuang dari daftar biasa supaya tidak dobel.
-    const pinned = await _fetchSpPinnedForGenre(genreKey);
+    const pinnedAll = await _fetchSpPinnedForGenre(genreKey);
+    // Buang dari daftar "pinned" lagu-lagu yang SUDAH pernah diputar user ini —
+    // supaya tidak terus muncul di paling depan untuk user yang sama.
+    const playedPinnedIds = _spGetPlayedPinnedIds();
+    const pinned = pinnedAll.filter(p => {
+      const k = String(p.trackId || (p.artistName + '|||' + p.trackName));
+      return !playedPinnedIds.includes(k);
+    });
+    pinned.forEach(p => { p._isPinnedEntry = true; }); // ditandai supaya playSpPreview tahu ini pinned
     const pinnedKeys = new Set(pinned.map(p => p.trackId || (p.artistName + '|||' + p.trackName)));
     if (pinned.length) {
       tracks = tracks.filter(r => {
@@ -12410,6 +12419,25 @@ function _spGetRecentIds() {
 function _spSaveRecentIds(ids) {
   try { localStorage.setItem(SP_RECENT_KEY, JSON.stringify(ids.slice(-120))); } catch (e) {}
 }
+// Lagu-lagu "baru disukai" (pinned di depan feed genre) yang SUDAH pernah
+// diputar oleh user ini. Sekali diputar, lagu tsb tidak lagi ditaruh paling
+// depan feed untuk user ini di kunjungan/pembukaan berikutnya -- supaya user
+// tidak terus-menerus disambut lagu yang sama di awal Song Preview.
+const SP_PLAYED_PINNED_KEY = 'sp_played_pinned_ids';
+function _spGetPlayedPinnedIds() {
+  try { return JSON.parse(localStorage.getItem(SP_PLAYED_PINNED_KEY) || '[]'); } catch (e) { return []; }
+}
+function _spMarkPinnedPlayed(key) {
+  if (!key) return;
+  try {
+    const ids = _spGetPlayedPinnedIds();
+    if (!ids.includes(key)) {
+      ids.push(key);
+      localStorage.setItem(SP_PLAYED_PINNED_KEY, JSON.stringify(ids.slice(-300)));
+    }
+  } catch (e) {}
+}
+
 function _shuffleArray(arr) {
   const a = arr.slice();
   for (let i = a.length - 1; i > 0; i--) {
@@ -12543,6 +12571,9 @@ function buildSpSlideEl(t, i) {
       </div>
       <div class="sp-slide-bottom">
       <div class="sp-artist-row">
+        <div class="sp-likedby-row" id="sp-likedby-${i}">
+          <div class="sp-likedby-avatars" id="sp-likedby-avatars-${i}"></div>
+        </div>
         <img class="sp-artist-photo" id="sp-artist-photo-${i}" alt="" onerror="this.style.visibility='hidden'">
         <div class="sp-artist-info">
           <div class="sp-artist-name">${esc(t.artistName || 'Unknown')}</div>
@@ -12557,10 +12588,6 @@ function buildSpSlideEl(t, i) {
         <span class="sp-tag">#${esc(genre.replace(/\s+/g, ''))}</span>
         <span class="sp-tag">#previewlagu</span>
         <span class="sp-tag">#30detik</span>
-      </div>
-      <div class="sp-likedby-row" id="sp-likedby-${i}">
-        <div class="sp-likedby-avatars" id="sp-likedby-avatars-${i}"></div>
-        <div class="sp-likedby-text" id="sp-likedby-text-${i}"></div>
       </div>
       <div class="sp-bottom-card">
         <img class="sp-bottom-thumb" src="${esc(t.artworkUrl100 || '')}" onerror="this.style.visibility='hidden'">
@@ -12719,9 +12746,11 @@ async function _spLoadLikedBy(idx) {
   if (!t) return;
   const rowEl = document.getElementById('sp-likedby-' + idx);
   const avatarsEl = document.getElementById('sp-likedby-avatars-' + idx);
-  const textEl = document.getElementById('sp-likedby-text-' + idx);
-  if (!rowEl || !avatarsEl || !textEl) return;
+  if (!rowEl || !avatarsEl) return;
   const key = _songLikeKey(t.artistName || '', t.trackName || '');
+  // Maksimal 3 bubble foto profil yang ditampilkan; kalau yang like lebih
+  // dari itu, sisanya disembunyikan saja (tanpa indikator "+N").
+  const SP_LIKEDBY_MAX_SHOWN = 3;
   try {
     const snap = await db.ref('song_likes/' + key).orderByChild('ts').limitToLast(8).get();
     if (!snap.exists()) return;
@@ -12734,7 +12763,7 @@ async function _spLoadLikedBy(idx) {
     });
     if (!entries.length) return; // tidak ada user lain yang like -> baris tetap disembunyikan
     entries.reverse(); // yang paling baru menyukai tampil paling depan
-    const shown = entries.slice(0, 5);
+    const shown = entries.slice(0, SP_LIKEDBY_MAX_SHOWN);
     avatarsEl.innerHTML = '';
     shown.forEach(u => {
       const el = document.createElement(u.photo ? 'img' : 'div');
@@ -12756,14 +12785,6 @@ async function _spLoadLikedBy(idx) {
       });
       avatarsEl.appendChild(el);
     });
-    const total = entries.length;
-    if (total === 1) {
-      textEl.textContent = 'Disukai oleh ' + shown[0].name;
-    } else if (total <= shown.length) {
-      textEl.textContent = 'Disukai oleh ' + total + ' orang';
-    } else {
-      textEl.textContent = 'Disukai oleh ' + shown[0].name + ' +' + (total - 1) + ' lainnya';
-    }
     rowEl.style.display = 'flex';
   } catch (e) {
     console.error('_spLoadLikedBy error:', e);
@@ -12775,6 +12796,12 @@ function playSpPreview(idx) {
   spCurrentIndex = idx;
   const t = spTracks[idx];
   if (!t || !t.previewUrl) return;
+  // Kalau lagu ini masuk kategori "baru disukai" (pinned di depan feed),
+  // catat sebagai sudah diputar user ini supaya tidak dipin lagi di depan
+  // pada kunjungan berikutnya.
+  if (t._isPinnedEntry) {
+    _spMarkPinnedPlayed(String(t.trackId || (t.artistName + '|||' + t.trackName)));
+  }
   if (spAudio) spAudio.pause();
   // Pakai audio yang sudah di-preload kalau tersedia, biar tidak menunggu
   // buffer dari nol saat slide ini diputar.
