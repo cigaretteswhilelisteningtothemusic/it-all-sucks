@@ -4664,10 +4664,11 @@ auth.onAuthStateChanged(user => {
     loadSadPlaylists();
     loadWeekdayPlaylists();
     setupPushNotifications(user);
+    _recentlyPlayedCache = null;
+  } else {
     // Belum login (atau cuma sesi anonim dari halaman publik seperti
     // vibeprofile-view.html) → langsung tendang ke halaman login,
     // jangan biarkan masuk ke Home
-    _recentlyPlayedCache = null;
     if (user && user.isAnonymous) {
       auth.signOut().finally(() => window.location.replace('login.html'));
     } else {
