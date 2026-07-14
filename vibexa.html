@@ -886,6 +886,9 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .rank-num.gold{color:#FFD700;text-shadow:0 0 10px rgba(255,215,0,.4);}
 .rank-num.silver{color:#C0C0C0;}
 .rank-num.bronze{color:#CD7F32;}
+.rank-change{font-size:.7rem;font-weight:800;flex-shrink:0;width:14px;text-align:center;margin-left:-6px;line-height:1;}
+.rank-change.up{color:#22c55e;}
+.rank-change.down{color:#ef4444;}
 .rank-cover{width:42px;height:42px;border-radius:7px;background:var(--hover);display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;overflow:hidden;}
 .rank-cover img{width:100%;height:100%;object-fit:cover;}
 .rank-info{flex:1;min-width:0;}
@@ -3337,6 +3340,20 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
       <div class="reco-grid" id="reco-grid"></div>
     </div>
 
+    <!-- TOP SONGS (Deezer, live daily chart) -->
+    <div class="pub-section" id="top-ranking-section" style="display:none;">
+      <div class="pub-section-header">
+        <div class="pub-section-title">
+           Top Songs
+        </div>
+        <button class="home-new-pl-btn" onclick="showTopSongsFullView()" style="background:none;border:1px solid var(--border);color:var(--sub);">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+          Tampilkan Semua
+        </button>
+      </div>
+      <div class="rank-grid" id="rank-grid"></div>
+    </div>
+
     <!-- MUNGKIN KAMU JUGA SUKA (8 playlist x 15 lagu, isinya dari artis-artis yang diikuti user) -->
     <div class="pub-section" id="maybe-like-section" style="display:none;">
       <div class="pub-section-header">
@@ -3416,20 +3433,6 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
         </button>
       </div>
       <div class="recent-grid" id="recently-played-grid"></div>
-    </div>
-
-    <!-- TOP SONGS (Deezer, live daily chart) -->
-    <div class="pub-section" id="top-ranking-section" style="display:none;">
-      <div class="pub-section-header">
-        <div class="pub-section-title">
-           Top Songs
-        </div>
-        <button class="home-new-pl-btn" onclick="showTopSongsFullView()" style="background:none;border:1px solid var(--border);color:var(--sub);">
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
-          Tampilkan Semua
-        </button>
-      </div>
-      <div class="rank-grid" id="rank-grid"></div>
     </div>
 
     <!-- PUBLIC PLAYLISTS FEED -->
@@ -10117,6 +10120,38 @@ function playAlbumFromStart() {
   loadPlay(_currentAlbumTracks[0], null);
 }
 
+// ─── TOP SONGS: indikator naik/turun peringkat (dibanding data hari sebelumnya) ──
+// Dipanggil SEKALI setiap kali chart benar-benar di-fetch ulang dari API (bukan
+// dari cache harian yang sama), jadi otomatis "refresh" 1x sehari mengikuti
+// cache harian yang sudah ada (todayKey berbasis tanggal).
+function _computeRankChanges(listId, items) {
+  const histKey = 'vibexa_rank_hist_' + listId;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  let hist = null;
+  try { hist = JSON.parse(localStorage.getItem(histKey) || 'null'); } catch(e) {}
+
+  const prevList = hist ? hist.list : null;
+  const keyOf = (t) => `${(t.artist||'').trim().toLowerCase()}|||${(t.title||'').trim().toLowerCase()}`;
+
+  items.forEach((t, i) => {
+    if (!prevList) { t.rankChange = 'up'; return; } // belum ada data pembanding — anggap stabil (hijau)
+    const prevIdx = prevList.findIndex(p => keyOf(p) === keyOf(t));
+    if (prevIdx === -1) t.rankChange = 'up';        // lagu baru masuk chart
+    else if (prevIdx < i) t.rankChange = 'down';     // dulu di posisi lebih atas (angka kecil), sekarang lebih bawah = turun
+    else t.rankChange = 'up';                        // naik ATAU tetap di posisi sama = hijau ▲
+  });
+
+  // Simpan snapshot hari ini sebagai pembanding untuk fetch berikutnya (besok)
+  try {
+    localStorage.setItem(histKey, JSON.stringify({
+      date: todayStr,
+      list: items.map(t => ({ artist: t.artist, title: t.title }))
+    }));
+  } catch(e) {}
+
+  return items;
+}
+
 async function loadTrendingSongs(force) {
   const section = document.getElementById('top-ranking-section');
   const grid = document.getElementById('rank-grid');
@@ -10139,6 +10174,7 @@ async function loadTrendingSongs(force) {
 
   try {
     const items = await fetchDeezerChartTracks(5);
+    _computeRankChanges('trending5', items);
 
     try {
       localStorage.setItem(todayKey, JSON.stringify(items));
@@ -12389,10 +12425,14 @@ function buildRankItemEl(t, i, showDuration = true) {
     title: t.title, artist: t.artist, thumb: t.thumb || '', preview: t.preview || null,
     videoId: null, photo: null, duration: t.duration, _query: `${t.artist}|||${t.title}|||${t.id}`
   };
+  const changeHTML = t.rankChange === 'down'
+    ? `<div class="rank-change down" title="Turun peringkat">▼</div>`
+    : `<div class="rank-change up" title="Naik / tetap peringkat">▲</div>`;
   const div = document.createElement('div');
   div.className = 'rank-item';
   div.innerHTML = `
     <div class="rank-num ${numClass}">${i + 1}</div>
+    ${changeHTML}
     <div class="rank-cover">${t.thumb ? `<img src="${esc(t.thumb)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}</div>
     <div class="rank-info">
       <div class="rank-name">${esc(t.title)}</div>
@@ -12441,6 +12481,7 @@ async function loadTrendingSongsFull(force) {
 
   try {
     const items = await fetchDeezerChartTracks(100);
+    _computeRankChanges('trending100', items);
 
     try {
       localStorage.setItem(todayKey, JSON.stringify(items));
