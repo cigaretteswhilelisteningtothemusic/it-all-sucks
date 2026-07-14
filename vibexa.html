@@ -3118,7 +3118,7 @@ body.np-is-fullscreen #bar{display:none !important;}
     <div class="pub-section" id="artist-radio-section" style="display:none;">
       <div class="pub-section-header">
         <div class="pub-section-title">
-           Dibuat Khusus Buat Kamu
+           Berdasarkan Artis Favorit Kamu
         </div>
       </div>
       <div class="radio-grid" id="artist-radio-grid"></div>
@@ -3351,7 +3351,6 @@ body.np-is-fullscreen #bar{display:none !important;}
     <div class="pub-section-header" style="margin-bottom:14px;">
       <div class="pub-section-title">
          Rekomendasi Untuk Anda
-        <span class="pub-badge">70 Lagu · Dari Artis yang Diikuti</span>
       </div>
       <button class="home-new-pl-btn" onclick="loadRecommendedSongsFull(true)" style="background:none;border:1px solid var(--border);color:var(--sub);">
         <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
@@ -4606,7 +4605,7 @@ async function setArtistFavorited(name, photo, following) {
   renderFavoriteArtists();
   syncAllFollowButtons();
   loadRecommendedSongs(true);
-  // "Dibuat Khusus Buat Kamu" (Tri Mix) disusun dari artis favorit user, jadi
+  // "Berdasarkan Artis Favorit Kamu" (Tri Mix) disusun dari artis favorit user, jadi
   // begitu user follow artis baru atau unfollow artis lama, mix ini harus
   // dibikin ulang supaya isinya langsung menyesuaikan daftar artis favorit
   // yang terbaru (bukan menunggu cache harian habis).
@@ -9672,33 +9671,76 @@ function buildMaybeLikeCardEl(mix, i) {
   return div;
 }
 
-// ─── RADIO ARTIS FAVORIT ──────────────────────────────────────
+// ─── RADIO ARTIS FAVORIT ("Berdasarkan Artis Favorit Kamu" / Tri Mix) ────
 // 8 playlist otomatis, isi 15 lagu tiap playlist = GABUNGAN dari 3 artis
 // yang diikuti user, masing-masing artis menyumbang 5 lagu (3 x 5 = 15).
-// Susunan artis mana saja yang digabung di tiap playlist mengikuti pola
-// tetap (formula) berikut, ditulis sebagai indeks 1..7 dari daftar artis
-// yang diikuti user:
-//   Playlist 1: 1,2,3      Playlist 5: 7,5,3
-//   Playlist 2: 4,5,6      Playlist 6: 1,6,2
-//   Playlist 3: 7,6,5      Playlist 7: 3,4,5
-//   Playlist 4: 4,5,6      Playlist 8: 1,6,7
-// Kalau user follow kurang dari 7 artis, indeks dipetakan ulang (modulo)
-// ke jumlah artis yang benar-benar diikuti — jadi kombinasinya otomatis
-// "digabungkan ulang" dengan artis yang tersedia, bukan error / kosong.
-// Kalau gara-gara itu ada artis yang sama terpakai lebih dari sekali
-// (baik dalam satu playlist yang sama, maupun di playlist lain), artis
-// itu tetap diberi 5 lagu yang BERBEDA tiap kali dipakai (bukan 5 lagu
-// yang itu-itu terus) supaya isinya tetap variatif.
+//
+// Kombinasi 3 artis di tiap playlist TIDAK lagi pakai pola indeks tetap
+// (1-7) seperti sebelumnya — pola lama itu bikin artis ke-8 dst tidak
+// pernah kepakai kalau user follow lebih dari 7 artis. Sekarang kombinasi
+// dibuat dinamis dari SELURUH daftar artis yang diikuti user, contoh kalau
+// user follow 10 artis (1.Arctic Monkeys 2.The 1975 3.Chase Atlantic
+// 4.Joji 5.Keshi 6.Coldplay 7.Oasis 8.wave to earth 9.Radiohead
+// 10.Cigarettes After Sex), hasilnya kira-kira:
+//   Playlist 1: Arctic Monkeys, Joji, wave to earth
+//   Playlist 2: The 1975, Keshi, Radiohead
+//   Playlist 3: Chase Atlantic, Coldplay, Cigarettes After Sex
+//   Playlist 4: Joji, Oasis, Arctic Monkeys
+//   ...dst — tiap playlist kombinasinya beda, tapi 1 artis boleh muncul
+//   di beberapa playlist (persis seperti contoh brief).
+// Caranya: urutan artis diacak dulu dengan seed harian (biar variasinya
+// beda tiap hari tapi stabil sepanjang hari yang sama), lalu tiap
+// playlist mengambil 3 artis dengan jarak offset ~1/3 & ~2/3 dari jumlah
+// artis, digeser 1 slot tiap playlist (round-robin) — sehingga kombinasi
+// otomatis "mengelilingi" seluruh daftar artis secara merata, bukan cuma
+// beberapa artis pertama saja.
+// Kalau artis yang sama terpakai lebih dari sekali (baik dalam satu
+// playlist yang sama -- untuk user dgn <3 artis --, maupun di playlist
+// lain), artis itu tetap diberi 5 lagu yang BERBEDA tiap kali dipakai
+// (bukan 5 lagu yang itu-itu terus) supaya isinya tetap variatif.
 // Setelah 15 lagu terkumpul, urutannya DIACAK. Nama & foto utama playlist
-// mengikuti lagu PERTAMA setelah diacak (bukan artis pertama pada formula).
-// Di-cache & di-reset 1x sehari berbasis WIB (sama seperti Daily Mix).
+// mengikuti lagu PERTAMA setelah diacak (bukan artis pertama pada kombinasi).
+// Di-cache & di-reset 1x sehari berbasis WIB (sama seperti Daily Mix), dan
+// langsung dibikin ulang begitu user follow/unfollow artis (lihat
+// setArtistFavorited).
 const RADIO_MIX_COUNT = 8;
 const RADIO_ARTISTS_PER_MIX = 3;
 const RADIO_TRACKS_PER_ARTIST = 5;
-const RADIO_COMBO_PATTERN = [
-  [1, 2, 3], [4, 5, 6], [7, 6, 5], [4, 5, 6],
-  [7, 5, 3], [1, 6, 2], [3, 4, 5], [1, 6, 7]
-];
+
+// Bikin daftar kombinasi indeks artis (0-based) untuk RADIO_MIX_COUNT
+// playlist, menyebar ke seluruh `n` artis yang diikuti user.
+function buildArtistRadioCombos(n, seedStr) {
+  const combos = [];
+  if (n <= 0) return combos;
+  // Urutan artis diacak dengan seed harian supaya kombinasi berbeda tiap
+  // hari, tapi tetap stabil sepanjang hari yang sama (sinkron dgn cache).
+  const order = _dmSeededShuffle(Array.from({ length: n }, (_, i) => i), seedStr + '_order');
+  const perMix = Math.min(RADIO_ARTISTS_PER_MIX, n);
+  // Jarak antar "slot" dibuat sekitar 1/3 & 2/3 dari jumlah artis supaya
+  // 3 artis yang digabung tiap playlist tersebar merata dari seluruh
+  // daftar, bukan cuma dari beberapa artis pertama saja.
+  const step1 = Math.max(1, Math.round(n / 3));
+  const step2 = Math.max(step1 + 1, Math.round((2 * n) / 3));
+  for (let m = 0; m < RADIO_MIX_COUNT; m++) {
+    const picks = [];
+    const seen = new Set();
+    [m, m + step1, m + step2].forEach(raw => {
+      const idx = order[raw % n];
+      if (!seen.has(idx)) { seen.add(idx); picks.push(idx); }
+    });
+    // Kalau n kecil (< 3), offset di atas bisa saling bertabrakan sehingga
+    // picks belum genap 3 (atau genap n) -> isi sisanya dari artis yang
+    // belum kepakai di kombinasi ini supaya tetap terisi maksimal.
+    let fillPtr = 0;
+    while (picks.length < perMix && fillPtr < n * 2) {
+      const idx = order[fillPtr % n];
+      if (!seen.has(idx)) { seen.add(idx); picks.push(idx); }
+      fillPtr++;
+    }
+    combos.push(picks);
+  }
+  return combos;
+}
 
 async function loadArtistRadioMixes(force) {
   const section = document.getElementById('artist-radio-section');
@@ -9754,13 +9796,15 @@ async function loadArtistRadioMixes(force) {
       return chunk;
     }
 
+    // Kombinasi 3-artis per playlist dibuat dinamis dari SELURUH daftar
+    // artis yang diikuti user (lihat buildArtistRadioCombos di atas),
+    // bukan pola indeks tetap lagi — supaya semua artis kebagian tampil,
+    // termasuk kalau user follow lebih dari 7 artis.
+    const artistCombos = buildArtistRadioCombos(followed.length, cacheKey);
+
     let mixes = [];
     for (let m = 0; m < RADIO_MIX_COUNT; m++) {
-      const pattern = RADIO_COMBO_PATTERN[m % RADIO_COMBO_PATTERN.length];
-      // Petakan indeks 1..7 pada formula ke artis yang BENAR-BENAR diikuti
-      // user (modulo jumlah artis yang diikuti) -> otomatis "digabungkan
-      // ulang" kalau user follow kurang dari 7 artis.
-      const artistIdxs = pattern.map(p => (p - 1) % followed.length);
+      const artistIdxs = artistCombos[m] || [];
 
       let tracks = [];
       const seenIds = new Set();
