@@ -803,16 +803,19 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
    bawah. Satu playlist = satu artis yang diikuti user, isi 15 lagu top. */
 .fy-grid{display:flex;gap:16px;overflow-x:auto;padding:2px 2px 10px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
 .fy-grid.expanded{flex-wrap:wrap;overflow-x:visible;}
-.fy-card{position:relative;flex:0 0 168px;width:168px;aspect-ratio:1;border-radius:12px;padding:16px;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;box-shadow:0 8px 22px rgba(0,0,0,.3);cursor:pointer;transition:transform .2s;}
+.fy-card{flex:0 0 168px;width:168px;cursor:pointer;}
 .fy-grid.expanded .fy-card{flex:0 0 168px;}
-.fy-card:hover{transform:translateY(-3px);}
-.fy-card-top{font-size:.62rem;font-weight:800;letter-spacing:1.5px;color:rgba(255,255,255,.92);text-shadow:0 1px 4px rgba(0,0,0,.3);text-transform:uppercase;}
-.fy-photo-wrap{position:relative;width:62%;aspect-ratio:1;align-self:center;border-radius:6px;overflow:hidden;box-shadow:0 10px 26px rgba(0,0,0,.45);background:rgba(0,0,0,.18);}
+.fy-cover-wrap{position:relative;width:100%;aspect-ratio:1;border-radius:12px;overflow:hidden;box-shadow:0 8px 22px rgba(0,0,0,.3);margin-bottom:10px;transition:transform .2s;padding:16px 14px 16px;display:flex;flex-direction:column;align-items:center;}
+.fy-card:hover .fy-cover-wrap{transform:translateY(-3px);}
+.fy-card-top{width:100%;text-align:center;font-size:.86rem;font-weight:800;letter-spacing:2px;color:rgba(255,255,255,.96);text-shadow:0 1px 4px rgba(0,0,0,.3);text-transform:uppercase;}
+.fy-photo-wrap{position:relative;width:64%;aspect-ratio:1;border-radius:6px;overflow:hidden;box-shadow:0 10px 26px rgba(0,0,0,.45);background:rgba(0,0,0,.18);margin:auto 0;}
+.fy-photo-scrim{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(0,0,0,.15) 0%,rgba(0,0,0,.5) 100%);z-index:1;}
+.fy-artist-name{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:90%;text-align:center;font-size:1.08rem;font-weight:800;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.65),0 0 2px rgba(0,0,0,.5);line-height:1.18;z-index:3;pointer-events:none;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
 .fy-photo{width:100%;height:100%;object-fit:cover;display:block;}
-.fy-photo-ov{position:absolute;inset:0;background:rgba(0,0,0,.32);opacity:0;transition:opacity .2s;display:flex;align-items:center;justify-content:center;}
+.fy-photo-ov{position:absolute;inset:0;z-index:4;background:rgba(0,0,0,.32);opacity:0;transition:opacity .2s;display:flex;align-items:center;justify-content:center;}
 .fy-card:hover .fy-photo-ov{opacity:1;}
 .fy-photo-ov svg{width:32px;height:32px;background:#fff;border-radius:50%;padding:8px;color:#111;box-shadow:0 3px 16px rgba(0,0,0,.4);}
-.fy-card-title{font-size:1.02rem;font-weight:800;color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.35);line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.fy-title{font-size:.82rem;font-weight:700;color:var(--text);line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
 /* RADIO ARTIS FAVORIT (kartu gaya "Radio" ala Spotify: background mint,
    3 foto profil artis saling tumpang tindih, badge RADIO, nama artis di
@@ -1238,8 +1241,11 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
   /* All Playlists tetap menyamping (horizontal scroll) di mobile, kartu diperkecil */
   .pg-card{flex:0 0 128px;width:128px;}
   .dm-card{flex:0 0 128px;width:128px;}
-  .fy-card{flex:0 0 128px;width:128px;padding:12px;}
-  .fy-card-title{font-size:.88rem;}
+  .fy-card{flex:0 0 128px;width:128px;}
+  .fy-cover-wrap{padding:12px 10px 12px;}
+  .fy-card-top{font-size:.68rem;}
+  .fy-artist-name{font-size:.82rem;}
+  .fy-title{font-size:.72rem;}
   .reco-card{flex:0 0 128px;width:128px;}
   .reco-grid.expanded{grid-template-columns:repeat(auto-fit,128px);}
   .dm-badge-num{font-size:2rem;}
@@ -3293,7 +3299,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
     <div class="pub-section" id="for-you-section" style="display:none;">
       <div class="pub-section-header">
         <div class="pub-section-title">
-           Untuk Kamu
+           I think you're gonna love it
         </div>
       </div>
       <div class="fy-grid" id="for-you-grid"></div>
@@ -4495,10 +4501,35 @@ function likeSpTrack(idx) {
 let favoriteArtists = {};
 
 // ─── Auth ─────────────────────────────────────────────────
+// ─── Bersih-bersih cache lokal yang sudah basi ─────────────────────────
+// Banyak fitur (Daily Mix, Playlist Pop, Weekday Vibes, dll) menyimpan
+// cache di localStorage dengan key bertanggal (misal "..._2026-07-13") yang
+// TIDAK otomatis terhapus begitu tanggalnya lewat. Lama-lama localStorage
+// penuh dan localStorage.setItem() mulai gagal dengan QuotaExceededError —
+// ini yang bikin sebagian playlist (termasuk "Untuk Kamu") gagal ke-cache
+// atau kadang gagal muncul saat banyak fitur menulis cache bersamaan.
+// Dijalankan sekali tiap kali app dibuka: buang entri vibexa_* yang
+// tanggalnya BUKAN hari ini, supaya selalu ada ruang kosong.
+function _cleanupStaleLocalCache() {
+  try {
+    const todayStr = _dmTodayDateStr();
+    const dateRe = /(\d{4}-\d{2}-\d{2})/;
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith('vibexa_')) continue;
+      const m = k.match(dateRe);
+      if (m && m[1] !== todayStr) keysToRemove.push(k);
+    }
+    keysToRemove.forEach(k => { try { localStorage.removeItem(k); } catch (e) {} });
+  } catch (e) {}
+}
+
 auth.onAuthStateChanged(user => {
   if (user && !user.isAnonymous) {
     currentUser = user;
     showApp(user);
+    _cleanupStaleLocalCache();
     loadAllPlaylistsFromCloud();
     loadFavoriteArtistsFromCloud();
     loadPublicFeed();
@@ -8710,32 +8741,57 @@ async function loadPublicFeed() {
 // workaround for client-side apps. Data always comes straight from Deezer's
 // chart endpoint, so it reflects whatever they have "trending" at the moment
 // you open/refresh the page (their chart itself is updated daily on their end).
+// Antrian & pembatas jumlah request Deezer JSONP yang jalan BERSAMAAN.
+// Sebelumnya, setiap fitur (Daily Mix, Dibuat Untuk Kamu, Untuk Kamu, Radio
+// Artis Favorit, Rekomendasi) yang butuh top-track artis langsung menembak
+// Deezer di saat yang sama saat halaman dimuat. Kalau user follow banyak
+// artis, ini bisa jadi puluhan <script> JSONP nyala bareng dan banyak yang
+// timeout/gagal (playlist jadi kosong / tidak muncul). Sekarang dibatasi
+// maksimal beberapa request aktif sekaligus, sisanya antre dan dijalankan
+// begitu slot kosong — bukan dibatalkan.
+let _dzActiveCount = 0;
+const _dzQueue = [];
+const DZ_MAX_CONCURRENT = 5;
+function _dzRunNext() {
+  if (_dzActiveCount >= DZ_MAX_CONCURRENT || !_dzQueue.length) return;
+  const job = _dzQueue.shift();
+  _dzActiveCount++;
+  job();
+}
+function _dzJobDone() {
+  _dzActiveCount = Math.max(0, _dzActiveCount - 1);
+  _dzRunNext();
+}
+
 function _deezerJsonp(url) {
   return new Promise((resolve, reject) => {
-    const cbName = '_dzcb_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
-    const script = document.createElement('script');
-    let settled = false;
-    // Kalau request sudah dianggap gagal/timeout tapi respons JSONP-nya baru
-    // benar-benar sampai belakangan (request lama tetap jalan di jaringan
-    // walau <script> tag-nya sudah dibuang), JANGAN langsung menghapus nama
-    // callback-nya — ganti jadi fungsi kosong (no-op) dulu selama beberapa
-    // detik. Ini yang mencegah "Uncaught ReferenceError: _dzcb_... is not
-    // defined" di console saat banyak request foto artis berjalan bersamaan
-    // (misalnya waktu scroll cepat di Song Preview).
-    const cleanupSettled = () => {
-      script.remove();
-      try { delete window[cbName]; } catch (e) {}
-    };
-    const cleanupUnsettled = () => {
-      script.remove();
-      window[cbName] = () => { try { delete window[cbName]; } catch (e) {} };
-      setTimeout(() => { try { delete window[cbName]; } catch (e) {} }, 15000);
-    };
-    window[cbName] = (data) => { settled = true; cleanupSettled(); resolve(data); };
-    script.onerror = () => { if (!settled) { settled = true; cleanupUnsettled(); reject(new Error('Gagal memuat data Deezer')); } };
-    script.src = url + (url.includes('?') ? '&' : '?') + 'output=jsonp&callback=' + cbName;
-    document.body.appendChild(script);
-    setTimeout(() => { if (!settled) { settled = true; cleanupUnsettled(); reject(new Error('Deezer timeout')); } }, 10000);
+    _dzQueue.push(() => {
+      const cbName = '_dzcb_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+      const script = document.createElement('script');
+      let settled = false;
+      // Kalau request sudah dianggap gagal/timeout tapi respons JSONP-nya baru
+      // benar-benar sampai belakangan (request lama tetap jalan di jaringan
+      // walau <script> tag-nya sudah dibuang), JANGAN langsung menghapus nama
+      // callback-nya — ganti jadi fungsi kosong (no-op) dulu selama beberapa
+      // detik. Ini yang mencegah "Uncaught ReferenceError: _dzcb_... is not
+      // defined" di console saat banyak request foto artis berjalan bersamaan
+      // (misalnya waktu scroll cepat di Song Preview).
+      const cleanupSettled = () => {
+        script.remove();
+        try { delete window[cbName]; } catch (e) {}
+      };
+      const cleanupUnsettled = () => {
+        script.remove();
+        window[cbName] = () => { try { delete window[cbName]; } catch (e) {} };
+        setTimeout(() => { try { delete window[cbName]; } catch (e) {} }, 15000);
+      };
+      window[cbName] = (data) => { if (settled) return; settled = true; cleanupSettled(); _dzJobDone(); resolve(data); };
+      script.onerror = () => { if (settled) return; settled = true; cleanupUnsettled(); _dzJobDone(); reject(new Error('Gagal memuat data Deezer')); };
+      script.src = url + (url.includes('?') ? '&' : '?') + 'output=jsonp&callback=' + cbName;
+      document.body.appendChild(script);
+      setTimeout(() => { if (settled) return; settled = true; cleanupUnsettled(); _dzJobDone(); reject(new Error('Deezer timeout')); }, 10000);
+    });
+    _dzRunNext();
   });
 }
 
@@ -10549,7 +10605,7 @@ async function loadForYouPlaylists(force) {
         const photo = r.artist.photo || (r.tracks[0] && r.tracks[0].thumb) || '';
         return {
           id: 'fy_' + r.artist.name.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
-          label: 'Untuk Kamu',
+          label: "I think you're gonna love it",
           title: r.artist.name,
           cover: photo,
           artistPhoto: photo,
@@ -10576,16 +10632,19 @@ function buildForYouCardEl(mix, i) {
   const color = FY_COLORS[i % FY_COLORS.length];
   const div = document.createElement('div');
   div.className = 'fy-card';
-  div.style.background = color;
   div.innerHTML = `
-    <div class="fy-card-top">Ini Adalah</div>
-    <div class="fy-photo-wrap">
-      ${mix.artistPhoto ? `<img class="fy-photo" src="${esc(mix.artistPhoto)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
-      <div class="fy-photo-ov">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+    <div class="fy-cover-wrap" style="background:${color}">
+      <div class="fy-card-top">THIS IS</div>
+      <div class="fy-photo-wrap">
+        ${mix.artistPhoto ? `<img class="fy-photo" src="${esc(mix.artistPhoto)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
+        <div class="fy-photo-scrim"></div>
+        <div class="fy-artist-name">${esc(mix.title)}</div>
+        <div class="fy-photo-ov">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </div>
       </div>
     </div>
-    <div class="fy-card-title">${esc(mix.title)}</div>
+    <div class="fy-title">This Is ${esc(mix.title)}</div>
   `;
   div.querySelector('.fy-photo-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
   div.addEventListener('click', () => openDailyMix(mix));
@@ -10752,8 +10811,9 @@ function buildMaybeLikeCardEl(mix, i) {
 //   Playlist 4: Joji, Oasis, Arctic Monkeys
 //   ...dst — tiap playlist kombinasinya beda, tapi 1 artis boleh muncul
 //   di beberapa playlist (persis seperti contoh brief).
-// Caranya: urutan artis diacak dulu dengan seed harian (biar variasinya
-// beda tiap hari tapi stabil sepanjang hari yang sama), lalu tiap
+// Caranya: urutan artis diacak dulu dengan seed berbasis daftar artis yang
+// diikuti (bukan tanggal, jadi stabil terus sampai daftar follow berubah),
+// lalu tiap
 // playlist mengambil 3 artis dengan jarak offset ~1/3 & ~2/3 dari jumlah
 // artis, digeser 1 slot tiap playlist (round-robin) — sehingga kombinasi
 // otomatis "mengelilingi" seluruh daftar artis secara merata, bukan cuma
@@ -10762,11 +10822,15 @@ function buildMaybeLikeCardEl(mix, i) {
 // playlist yang sama -- untuk user dgn <3 artis --, maupun di playlist
 // lain), artis itu tetap diberi 5 lagu yang BERBEDA tiap kali dipakai
 // (bukan 5 lagu yang itu-itu terus) supaya isinya tetap variatif.
-// Setelah 15 lagu terkumpul, urutannya DIACAK. Nama & foto utama playlist
-// mengikuti lagu PERTAMA setelah diacak (bukan artis pertama pada kombinasi).
-// Di-cache & di-reset 1x sehari berbasis WIB (sama seperti Daily Mix), dan
-// langsung dibikin ulang begitu user follow/unfollow artis (lihat
-// setArtistFavorited).
+// Kombinasi 3-artis per playlist dibuat dinamis dari SELURUH daftar
+// artis yang diikuti user (lihat buildArtistRadioCombos di atas),
+// bukan pola indeks tetap lagi — supaya semua artis kebagian tampil,
+// termasuk kalau user follow lebih dari 7 artis.
+// Kombinasi & urutan lagu di-cache berdasarkan DAFTAR ARTIS YANG DIIKUTI
+// (bukan tanggal) — jadi playlist TIDAK berubah saat halaman di-refresh
+// atau saat user logout lalu login lagi. Playlist hanya dibuat ulang kalau
+// daftar artis favorit user benar-benar berubah (follow/unfollow), lihat
+// setArtistFavorited.
 const RADIO_MIX_COUNT = 8;
 const RADIO_ARTISTS_PER_MIX = 3;
 const RADIO_TRACKS_PER_ARTIST = 5;
@@ -10813,10 +10877,9 @@ async function loadArtistRadioMixes(force) {
   if (!followed.length) { if (section) section.style.display = 'none'; return; }
   if (section) section.style.display = 'block';
 
-  const dateStr = _dmTodayDateStr(); // WIB, reset 1x sehari sama seperti Daily Mix
   const setKey = followed.map(a => a.name.toLowerCase()).sort().join('|');
   const uidPart = currentUser ? currentUser.uid : 'anon';
-  const cacheKey = 'vibexa_artistradio_v1_' + uidPart + '_' + dateStr + '_' + setKey;
+  const cacheKey = 'vibexa_artistradio_v2_' + uidPart + '_' + setKey;
 
   if (!force) {
     try {
@@ -10934,7 +10997,7 @@ async function loadArtistRadioMixes(force) {
     try {
       localStorage.setItem(cacheKey, JSON.stringify(mixes));
       Object.keys(localStorage).forEach(k => {
-        if (k.startsWith('vibexa_artistradio_v1_' + uidPart + '_') && k !== cacheKey) localStorage.removeItem(k);
+        if (k.startsWith('vibexa_artistradio_v2_' + uidPart + '_') && k !== cacheKey) localStorage.removeItem(k);
       });
     } catch (e) {}
 
@@ -11705,17 +11768,36 @@ const RECO_HOME_PREVIEW_COUNT = 8;
 let _recommendedSongsCache = null;
 
 // Cari id artis di Deezer lalu ambil daftar lagu terpopulernya
+// Cache in-memory (per sesi, bukan localStorage) supaya kalau beberapa
+// fitur (Daily Mix, Dibuat Untuk Kamu, Untuk Kamu, Radio Artis Favorit,
+// Rekomendasi) sama-sama minta top-track artis yang SAMA dengan limit yang
+// SAMA di waktu yang hampir bersamaan, cuma satu request Deezer yang benar-
+// benar dikirim — sisanya numpang di Promise yang sama. Mengurangi beban ke
+// Deezer supaya lebih jarang timeout saat user follow banyak artis.
+let _artistTopTracksCache = {}; // key: "artis|||limit" -> Promise<track[]>
+
 async function fetchArtistTopTracks(artistName, limit) {
-  try {
-    const searchData = await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(artistName) + '&limit=1');
-    const artist = searchData && searchData.data && searchData.data[0];
-    if (!artist) return [];
-    const topData = await _deezerJsonp('https://api.deezer.com/artist/' + artist.id + '/top?limit=' + limit);
-    if (!topData || !topData.data) return [];
-    return topData.data.map(_normalizeDeezerTrack);
-  } catch (e) {
-    return [];
-  }
+  const cacheKey = artistName.toLowerCase() + '|||' + limit;
+  if (_artistTopTracksCache[cacheKey]) return _artistTopTracksCache[cacheKey];
+  const p = (async () => {
+    try {
+      const searchData = await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(artistName) + '&limit=1');
+      const artist = searchData && searchData.data && searchData.data[0];
+      if (!artist) return [];
+      const topData = await _deezerJsonp('https://api.deezer.com/artist/' + artist.id + '/top?limit=' + limit);
+      if (!topData || !topData.data) return [];
+      return topData.data.map(_normalizeDeezerTrack);
+    } catch (e) {
+      return [];
+    }
+  })();
+  _artistTopTracksCache[cacheKey] = p;
+  const result = await p;
+  // Kalau hasilnya kosong (gagal jaringan/timeout), JANGAN simpan cache
+  // permanen — biar percobaan berikutnya (refresh manual / reload fitur
+  // lain) bisa coba fetch ulang, bukan ikut kosong terus sepanjang sesi.
+  if (!result.length) delete _artistTopTracksCache[cacheKey];
+  return result;
 }
 
 // Ambil (dengan cache harian) daftar rekomendasi gabungan dari semua artis favorit user
