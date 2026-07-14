@@ -797,6 +797,29 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .dm-badge-num{position:absolute;right:8px;bottom:-2px;font-size:2.5rem;font-weight:800;font-family:var(--fm);line-height:1;text-shadow:0 2px 12px rgba(0,0,0,.55);}
 .dm-title{font-size:.82rem;font-weight:700;color:var(--text);line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
 
+/* RADIO ARTIS FAVORIT (kartu gaya "Radio" ala Spotify: background mint,
+   3 foto profil artis saling tumpang tindih, badge RADIO, nama artis di
+   pojok kiri bawah kartu, subjudul "With ..." di bawah kartu) */
+.radio-grid{display:flex;gap:16px;overflow-x:auto;padding:2px 2px 10px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
+.radio-grid.expanded{flex-wrap:wrap;overflow-x:visible;}
+.radio-card{flex:0 0 168px;width:168px;cursor:pointer;}
+.radio-grid.expanded .radio-card{flex:0 0 168px;}
+.radio-cover-wrap{position:relative;width:100%;aspect-ratio:1;border-radius:12px;overflow:hidden;background:linear-gradient(150deg,#bdf7db,#74e0a8);box-shadow:0 8px 22px rgba(0,0,0,.3);margin-bottom:10px;transition:transform .2s;}
+.radio-card:hover .radio-cover-wrap{transform:translateY(-3px);}
+.radio-badge{position:absolute;top:12px;right:12px;font-size:.6rem;font-weight:800;letter-spacing:1px;color:#0a2e1c;z-index:2;}
+.radio-photos{position:absolute;left:0;right:0;top:14%;height:62%;}
+.radio-photo{position:absolute;border-radius:50%;overflow:hidden;background:rgba(10,46,28,.15);border:3px solid rgba(255,255,255,.55);box-shadow:0 4px 10px rgba(0,0,0,.25);}
+.radio-photo img{width:100%;height:100%;object-fit:cover;display:block;}
+.radio-photo-main{width:62%;height:62%;left:19%;top:6%;z-index:2;}
+.radio-photo-side{width:42%;height:42%;z-index:1;}
+.radio-photo-left{left:-6%;top:16%;}
+.radio-photo-right{right:-6%;top:20%;}
+.radio-cover-ov{position:absolute;inset:0;background:rgba(0,0,0,.22);opacity:0;transition:opacity .2s;display:flex;align-items:center;justify-content:center;z-index:3;}
+.radio-card:hover .radio-cover-ov{opacity:1;}
+.radio-cover-ov svg{width:36px;height:36px;background:#0a2e1c;border-radius:50%;padding:9px;color:#fff;box-shadow:0 3px 16px rgba(0,0,0,.4);}
+.radio-name{position:absolute;left:12px;right:12px;bottom:10px;font-weight:800;font-size:.92rem;color:#0a2e1c;z-index:2;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.radio-sub{font-size:.72rem;color:var(--sub);line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+
 /* REKOMENDASI LAGU (kartu menyamping, gaya Daily Mix, bukan daftar peringkat) */
 .reco-grid{display:flex;gap:16px;overflow-x:auto;padding:2px 2px 10px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
 .reco-grid.expanded{display:grid;grid-template-columns:repeat(auto-fit,168px);justify-content:center;gap:20px 16px;overflow-x:visible;}
@@ -3087,6 +3110,19 @@ body.np-is-fullscreen #bar{display:none !important;}
       <div class="dm-grid" id="maybe-like-grid"></div>
     </div>
 
+    <!-- RADIO ARTIS FAVORIT (8 playlist x 15 lagu = gabungan 3 artis yang
+         diikuti user, 5 lagu per artis, direset 1x sehari WIB. Gaya kartu
+         "Radio" ala Spotify: 3 foto profil artis + nama artis dari lagu
+         pertama setelah diacak.) -->
+    <div class="pub-section" id="artist-radio-section" style="display:none;">
+      <div class="pub-section-header">
+        <div class="pub-section-title">
+           Radio Artis Favorit
+        </div>
+      </div>
+      <div class="radio-grid" id="artist-radio-grid"></div>
+    </div>
+
     <!-- DAILY MIX (personalized per genre, powered by Deezer trending charts, auto-refreshes every 24h) -->
     <div class="pub-section" id="daily-mix-section" style="display:none;">
       <div class="pub-section-header">
@@ -3324,7 +3360,7 @@ body.np-is-fullscreen #bar{display:none !important;}
     <div class="reco-grid expanded" id="reco-full-grid"></div>
   </div>
 
-  <!-- RECENTLY PLAYED — FULL LIST VIEW (maks 70 songs, Spotify-style "see all") -->
+  <!-- RECENTLY PLAYED — FULL LIST VIEW (maks 100 songs, Spotify-style "see all") -->
   <div id="recently-played-full-view" style="display:none;">
     <button class="pv-back" onclick="backFromRecentlyPlayedFullView()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
@@ -4232,16 +4268,18 @@ auth.onAuthStateChanged(user => {
     loadFavoriteArtistsFromCloud();
     loadPublicFeed();
     loadTrendingSongs();
-    renderRecentlyPlayed();
+    loadRecentlyPlayedFromCloud();
     loadDailyMixes();
     loadMadeForYouMixes();
     loadMaybeLikeMixes();
+    loadArtistRadioMixes();
     loadSadPlaylists();
     loadWeekdayPlaylists();
   } else {
     // Belum login (atau cuma sesi anonim dari halaman publik seperti
     // vibeprofile-view.html) → langsung tendang ke halaman login,
     // jangan biarkan masuk ke Home
+    _recentlyPlayedCache = null;
     if (user && user.isAnonymous) {
       auth.signOut().finally(() => window.location.replace('login.html'));
     } else {
@@ -4548,6 +4586,7 @@ async function loadFavoriteArtistsFromCloud() {
   loadRecommendedSongs(false);
   loadMadeForYouMixes(false);
   loadMaybeLikeMixes(false);
+  loadArtistRadioMixes(false);
 }
 
 function isArtistFavorited(name) {
@@ -5965,22 +6004,55 @@ function _restoreLastPlayedTrack(){
 // Hanya dicatat saat songs benar-benar diputar FULL lewat player utama
 // (loadPlay -> initPlayer berhasil dapat videoId), BUKAN saat user cuma
 // mendengarkan preview 30 detik di halaman "Song Preview" (TikTok-style).
-// Data disimpan per akun (uid) di localStorage, ditampilkan di Home tepat
-// di atas seksi "Top Songs".
+// Data disimpan di CLOUD (Firebase, di bawah "users/{uid}/recentlyPlayed" —
+// pola yang sama dengan favoriteArtists/playlists) supaya:
+//   1) Data TIDAK hilang/reset walau localStorage browser dibersihkan.
+//   2) Data tetap SAMA saat login di akun yang sama dari perangkat lain,
+//      karena tidak lagi hanya tersimpan lokal per perangkat.
+// localStorage tetap dipakai sebagai cache lokal supaya render pertama kali
+// instan (tidak blank) sambil menunggu data cloud selesai dimuat.
 const RECENTLY_PLAYED_PREFIX = 'vibexa_recently_played_';
-const RECENTLY_PLAYED_MAX = 70;
+const RECENTLY_PLAYED_MAX = 100;
 const RECENTLY_PLAYED_HOME_PREVIEW_COUNT = 8;
+let _recentlyPlayedCache = null; // array lagu, sinkron dengan cloud
 
 function _recentlyPlayedKey(){
   const uid = (typeof currentUser !== 'undefined' && currentUser && currentUser.uid) ? currentUser.uid : 'anon';
   return RECENTLY_PLAYED_PREFIX + uid;
 }
 
+function _recentlyPlayedCloudRef(){
+  if (typeof currentUser === 'undefined' || !currentUser) return null;
+  return db.ref('users/' + currentUser.uid + '/recentlyPlayed');
+}
+
 function _getRecentlyPlayed(){
+  if (Array.isArray(_recentlyPlayedCache)) return _recentlyPlayedCache;
   try{
     const list = JSON.parse(localStorage.getItem(_recentlyPlayedKey()) || '[]');
     return Array.isArray(list) ? list : [];
   }catch(e){ return []; }
+}
+
+// Dipanggil sekali saat user login (lihat auth.onAuthStateChanged): ambil
+// riwayat Recently Played dari cloud supaya sama persis di semua perangkat,
+// dengan localStorage lokal sebagai fallback instan sambil menunggu.
+async function loadRecentlyPlayedFromCloud() {
+  // Tampilkan dulu versi lokal (kalau ada) supaya tidak blank saat menunggu cloud.
+  renderRecentlyPlayed();
+  const ref = _recentlyPlayedCloudRef();
+  if (!ref) return;
+  try {
+    const snap = await ref.get();
+    const cloudList = (snap.exists() && Array.isArray(snap.val())) ? snap.val() : [];
+    _recentlyPlayedCache = cloudList.slice(0, RECENTLY_PLAYED_MAX);
+    try { localStorage.setItem(_recentlyPlayedKey(), JSON.stringify(_recentlyPlayedCache)); } catch (e) {}
+  } catch (e) {
+    console.error('[RecentlyPlayed] gagal memuat riwayat dari cloud:', e);
+    // Gagal ambil dari cloud (misal offline) -> tetap pakai cache lokal yang sudah dirender.
+    _recentlyPlayedCache = _getRecentlyPlayed();
+  }
+  renderRecentlyPlayed();
 }
 
 // Dipanggil HANYA saat lagu full berhasil dimuat & diputar (lihat loadPlay)
@@ -6004,7 +6076,12 @@ function _addRecentlyPlayed(track){
       playedAt: Date.now()
     });
     if (list.length > RECENTLY_PLAYED_MAX) list = list.slice(0, RECENTLY_PLAYED_MAX);
+    _recentlyPlayedCache = list;
     localStorage.setItem(key, JSON.stringify(list));
+    // Simpan juga ke cloud supaya tersinkron ke semua perangkat & tidak hilang
+    // walau localStorage dibersihkan. Fire-and-forget, tidak perlu ditunggu.
+    const ref = _recentlyPlayedCloudRef();
+    if (ref) ref.set(list).catch(e => console.error('[RecentlyPlayed] gagal simpan ke cloud:', e));
   }catch(e){}
   renderRecentlyPlayed();
 }
@@ -6046,7 +6123,7 @@ function renderRecentlyPlayed(){
   items.slice(0, RECENTLY_PLAYED_HOME_PREVIEW_COUNT).forEach(t => grid.appendChild(buildRecentPlayedCardEl(t)));
 }
 
-// ─── RECENTLY PLAYED — FULL LIST VIEW (maks 70 songs, tombol "Tampilkan Semua") ──
+// ─── RECENTLY PLAYED — FULL LIST VIEW (maks 100 songs, tombol "Tampilkan Semua") ──
 function renderRecentlyPlayedFull(){
   const grid = document.getElementById('recently-played-full-grid');
   if (!grid) return;
@@ -9587,6 +9664,206 @@ function buildMaybeLikeCardEl(mix, i) {
   div.querySelector('.dm-cover-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
   div.addEventListener('click', () => openDailyMix(mix));
   return div;
+}
+
+// ─── RADIO ARTIS FAVORIT ──────────────────────────────────────
+// 8 playlist otomatis, isi 15 lagu tiap playlist = GABUNGAN dari 3 artis
+// yang diikuti user, masing-masing artis menyumbang 5 lagu (3 x 5 = 15).
+// Susunan artis mana saja yang digabung di tiap playlist mengikuti pola
+// tetap (formula) berikut, ditulis sebagai indeks 1..7 dari daftar artis
+// yang diikuti user:
+//   Playlist 1: 1,2,3      Playlist 5: 7,5,3
+//   Playlist 2: 4,5,6      Playlist 6: 1,6,2
+//   Playlist 3: 7,6,5      Playlist 7: 3,4,5
+//   Playlist 4: 4,5,6      Playlist 8: 1,6,7
+// Kalau user follow kurang dari 7 artis, indeks dipetakan ulang (modulo)
+// ke jumlah artis yang benar-benar diikuti — jadi kombinasinya otomatis
+// "digabungkan ulang" dengan artis yang tersedia, bukan error / kosong.
+// Kalau gara-gara itu ada artis yang sama terpakai lebih dari sekali
+// (baik dalam satu playlist yang sama, maupun di playlist lain), artis
+// itu tetap diberi 5 lagu yang BERBEDA tiap kali dipakai (bukan 5 lagu
+// yang itu-itu terus) supaya isinya tetap variatif.
+// Setelah 15 lagu terkumpul, urutannya DIACAK. Nama & foto utama playlist
+// mengikuti lagu PERTAMA setelah diacak (bukan artis pertama pada formula).
+// Di-cache & di-reset 1x sehari berbasis WIB (sama seperti Daily Mix).
+const RADIO_MIX_COUNT = 8;
+const RADIO_ARTISTS_PER_MIX = 3;
+const RADIO_TRACKS_PER_ARTIST = 5;
+const RADIO_COMBO_PATTERN = [
+  [1, 2, 3], [4, 5, 6], [7, 6, 5], [4, 5, 6],
+  [7, 5, 3], [1, 6, 2], [3, 4, 5], [1, 6, 7]
+];
+
+async function loadArtistRadioMixes(force) {
+  const section = document.getElementById('artist-radio-section');
+  const grid = document.getElementById('artist-radio-grid');
+  const followed = Object.values(favoriteArtists);
+  if (!followed.length) { if (section) section.style.display = 'none'; return; }
+  if (section) section.style.display = 'block';
+
+  const dateStr = _dmTodayDateStr(); // WIB, reset 1x sehari sama seperti Daily Mix
+  const setKey = followed.map(a => a.name.toLowerCase()).sort().join('|');
+  const uidPart = currentUser ? currentUser.uid : 'anon';
+  const cacheKey = 'vibexa_artistradio_v1_' + uidPart + '_' + dateStr + '_' + setKey;
+
+  if (!force) {
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const mixes = JSON.parse(cached);
+        if (mixes && mixes.length) { renderArtistRadioMixes(mixes); return; }
+      }
+    } catch (e) {}
+  }
+
+  if (grid) grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;"><i></i><h3>Menyiapkan Radio Artis...</h3></div>';
+
+  try {
+    // Ambil pool lagu yang cukup besar per artis (bukan cuma 5) supaya kalau
+    // artis yang sama terpakai berkali-kali (lihat catatan di atas), tiap
+    // pemakaian bisa dapat 5 lagu yang berbeda, diambil dari pool ini.
+    const perArtistPoolSize = 40;
+    const perArtistPools = await Promise.all(followed.map(a => fetchArtistTopTracks(a.name, perArtistPoolSize)));
+
+    // Acak pool tiap artis dengan seed harian supaya isinya berganti tiap
+    // hari (direset 1x sehari), tapi stabil sepanjang hari yang sama.
+    const shuffledPools = perArtistPools.map((pool, i) => _dmSeededShuffle(pool || [], cacheKey + '_artist' + i));
+
+    // Hitung berapa kali tiap artis sudah "dipakai" (baik lintas playlist
+    // maupun dalam satu playlist yang sama), supaya tiap pemakaian berikutnya
+    // otomatis mengambil potongan 5 lagu yang berbeda dari pool artis itu.
+    const occurrenceCounter = new Array(followed.length).fill(0);
+    function getArtistChunk(artistIdx) {
+      const pool = shuffledPools[artistIdx];
+      if (!pool || !pool.length) return [];
+      const n = pool.length;
+      const chunkNum = occurrenceCounter[artistIdx]++;
+      const chunk = [];
+      for (let k = 0; k < RADIO_TRACKS_PER_ARTIST; k++) {
+        chunk.push(pool[(chunkNum * RADIO_TRACKS_PER_ARTIST + k) % n]);
+      }
+      return chunk;
+    }
+
+    let mixes = [];
+    for (let m = 0; m < RADIO_MIX_COUNT; m++) {
+      const pattern = RADIO_COMBO_PATTERN[m % RADIO_COMBO_PATTERN.length];
+      // Petakan indeks 1..7 pada formula ke artis yang BENAR-BENAR diikuti
+      // user (modulo jumlah artis yang diikuti) -> otomatis "digabungkan
+      // ulang" kalau user follow kurang dari 7 artis.
+      const artistIdxs = pattern.map(p => (p - 1) % followed.length);
+
+      let tracks = [];
+      const seenIds = new Set();
+      const usedArtistNames = [];
+      artistIdxs.forEach(idx => {
+        const artistObj = followed[idx];
+        if (!artistObj) return;
+        if (!usedArtistNames.includes(artistObj.name)) usedArtistNames.push(artistObj.name);
+        const chunk = getArtistChunk(idx);
+        chunk.forEach(t => {
+          if (!t || seenIds.has(t.id)) return;
+          seenIds.add(t.id);
+          tracks.push({
+            ...t,
+            artist: t.artist || artistObj.name,
+            _radioArtistName: artistObj.name,
+            _radioArtistPhoto: artistObj.photo || '',
+            _query: `${t.artist}|||${t.title}|||${t.id}`
+          });
+        });
+      });
+
+      if (!tracks.length) continue;
+
+      // Acak urutan 15 lagu. Seed per-mix supaya stabil sepanjang hari, tapi
+      // berbeda antar playlist & otomatis berganti besok.
+      tracks = _dmSeededShuffle(tracks, cacheKey + '_mix' + m);
+
+      // Nama & foto utama playlist mengikuti lagu PERTAMA setelah diacak.
+      const firstTrack = tracks[0];
+      const mainArtistName = firstTrack._radioArtistName || firstTrack.artist;
+      const mainArtistPhoto = firstTrack._radioArtistPhoto || '';
+      const otherNames = usedArtistNames.filter(n => n !== mainArtistName);
+
+      // Siapkan sampai 3 foto profil artis untuk kartu (utama di tengah).
+      // Kalau artis yang benar-benar berbeda kurang dari 3 (user follow
+      // sedikit artis), foto utama dipakai ulang supaya tampilan kartu tetap
+      // terisi 3 lingkaran.
+      const namesForPhotos = [mainArtistName, ...otherNames];
+      while (namesForPhotos.length < 3) namesForPhotos.push(mainArtistName);
+      const photos = namesForPhotos.slice(0, 3).map(n => {
+        const a = followed.find(f => f.name === n);
+        return (a && a.photo) || mainArtistPhoto || '';
+      });
+
+      mixes.push({
+        id: 'radio_' + m,
+        label: 'Radio',
+        title: mainArtistName,
+        cover: mainArtistPhoto || firstTrack.thumb || '',
+        subtitle: otherNames.length ? ('With ' + otherNames.join(', ') + ',...') : '',
+        photos,
+        tracks
+      });
+    }
+
+    if (!mixes.length) throw new Error('Gagal membuat Radio Artis');
+
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify(mixes));
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith('vibexa_artistradio_v1_' + uidPart + '_') && k !== cacheKey) localStorage.removeItem(k);
+      });
+    } catch (e) {}
+
+    renderArtistRadioMixes(mixes);
+  } catch (e) {
+    console.error('loadArtistRadioMixes error:', e);
+    if (grid) grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;color:var(--sub)"> Gagal memuat Radio Artis, coba refresh.</div>';
+  }
+}
+
+function renderArtistRadioMixes(mixes) {
+  const c = document.getElementById('artist-radio-grid');
+  if (!c) return;
+  c.innerHTML = '';
+  mixes.forEach((mix, i) => c.appendChild(buildArtistRadioCardEl(mix, i)));
+}
+
+function buildArtistRadioCardEl(mix, i) {
+  const photos = mix.photos || [];
+  const photoImg = (src) => src
+    ? `<img src="${esc(src)}" alt="" loading="lazy" onerror="this.remove()">`
+    : '';
+  const div = document.createElement('div');
+  div.className = 'radio-card';
+  div.innerHTML = `
+    <div class="radio-cover-wrap">
+      <div class="radio-badge">RADIO</div>
+      <div class="radio-photos">
+        <div class="radio-photo radio-photo-side radio-photo-left">${photoImg(photos[1])}</div>
+        <div class="radio-photo radio-photo-main">${photoImg(photos[0])}</div>
+        <div class="radio-photo radio-photo-side radio-photo-right">${photoImg(photos[2])}</div>
+      </div>
+      <div class="radio-cover-ov">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </div>
+      <div class="radio-name">${esc(mix.title)}</div>
+    </div>
+    ${mix.subtitle ? `<div class="radio-sub">${esc(mix.subtitle)}</div>` : ''}
+  `;
+  div.querySelector('.radio-cover-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
+  div.addEventListener('click', () => openDailyMix(mix));
+  return div;
+}
+
+function toggleArtistRadioShowAll() {
+  const grid = document.getElementById('artist-radio-grid');
+  const label = document.getElementById('radio-showall-label');
+  if (!grid) return;
+  const expanded = grid.classList.toggle('expanded');
+  if (label) label.textContent = expanded ? 'Tampilkan Sedikit' : 'Tampilkan Semua';
 }
 
 // ─── PLAYLIST POP (dulu "Playlist Sedih") ───────────────────
