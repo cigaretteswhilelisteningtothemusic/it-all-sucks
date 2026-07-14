@@ -7018,7 +7018,7 @@ function _createPlayer(videoId) {
   document.getElementById('yt-player').innerHTML = '';
   YTP = new YT.Player('yt-player', {
     width:'1', height:'1', videoId,
-    playerVars:{ autoplay:1, controls:0, playsinline:1, rel:0, modestbranding:1 },
+    playerVars:{ autoplay:1, controls:0, playsinline:1, rel:0, modestbranding:1, enablejsapi:1, origin: window.location.origin },
     events:{
       onReady(e){ e.target.setVolume(parseInt(document.getElementById('vol').value)); e.target.playVideo(); },
       onStateChange(e){
@@ -7570,13 +7570,30 @@ async function doSearch(){
   }finally{ document.getElementById('btn-search').disabled=false; }
 }
 
-async function resolveVid(query){
+async function resolveVid(query, _attempt = 0){
+  const MAX_RETRY = 2; // total 3x percobaan: 0,1,2
   try{
     const url=`${WORKER}/search?q=${encodeURIComponent(query)}`;
     const res=await fetch(url,{signal:AbortSignal.timeout(10000)});
-    if(!res.ok)return null;
+    if(!res.ok){
+      // 502/503/504 biasanya error sementara di worker (cold start / upstream down) — coba lagi
+      if((res.status===502||res.status===503||res.status===504) && _attempt<MAX_RETRY){
+        await new Promise(r=>setTimeout(r, 400*(_attempt+1))); // backoff: 400ms, 800ms
+        return resolveVid(query, _attempt+1);
+      }
+      console.warn('resolveVid gagal:', res.status, query);
+      return null;
+    }
     const data=await res.json(); return data.videoId||null;
-  }catch(e){ return null; }
+  }catch(e){
+    // Timeout / network error — juga layak dicoba ulang sebelum menyerah
+    if(_attempt<MAX_RETRY){
+      await new Promise(r=>setTimeout(r, 400*(_attempt+1)));
+      return resolveVid(query, _attempt+1);
+    }
+    console.warn('resolveVid error:', e, query);
+    return null;
+  }
 }
 
 // Perbarui tombol "Tambah ke Playlist" di hero (search view) — selalu ikon "+"
