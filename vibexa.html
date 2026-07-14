@@ -2934,9 +2934,14 @@ body.np-is-fullscreen #bar{display:none !important;}
 
 /* ── CHAT (Instagram-style DM) ─────────────────────────────── */
 .side-nav-btn{position:relative;}
-.side-nav-badge{position:absolute;top:4px;left:24px;min-width:16px;height:16px;padding:0 4px;border-radius:9px;background:var(--green);color:#fff;font-size:.6rem;font-weight:800;display:none;align-items:center;justify-content:center;line-height:1;box-shadow:0 0 0 2px var(--panel);}
+/* Badge notifikasi chat: default-nya mengalir sebagai bagian dari tombol
+   itu sendiri (didorong ke ujung kanan tombol Chat dengan margin-left:auto)
+   supaya selalu terlihat "menyatu" bersama tombol & label Chat, bukan
+   mengambang menimpa ikon. Saat sidebar diciutkan (hanya ikon), baru
+   dipindah jadi bulatan kecil di pojok kanan-atas ikon. */
+.side-nav-badge{margin-left:auto;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--green);color:#fff;font-size:.66rem;font-weight:800;display:none;align-items:center;justify-content:center;line-height:1;flex-shrink:0;box-shadow:0 0 0 2px var(--panel);}
 .side-nav-badge.show{display:flex;}
-body.side-collapsed .side-nav-badge{left:auto;right:6px;top:2px;}
+body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;right:6px;top:2px;}
 .mob-nav-badge{position:absolute;top:2px;right:14px;min-width:15px;height:15px;padding:0 3px;border-radius:8px;background:var(--green);color:#fff;font-size:.55rem;font-weight:800;display:none;align-items:center;justify-content:center;line-height:1;}
 .mob-nav-badge.show{display:flex;}
 
@@ -4545,6 +4550,7 @@ let _chatInboxData = {};        // cache node userChats/{myUid}
 let _chatCurrentPeer = null;    // { uid, name, photo, chatId } percakapan yg sedang dibuka
 let _chatMsgsRef = null;        // ref listener pesan aktif (utk detach saat pindah percakapan)
 let _chatInboxRef = null;       // ref listener inbox
+let _chatDirRef = null;         // ref listener direktori (live, utk nama/foto terbaru)
 let _chatDirLoaded = false;
 
 // Bikin id chat yang konsisten utk sepasang uid, urutan tidak masalah
@@ -4557,6 +4563,23 @@ function initChatSystem(user) {
   if (!user) return;
   syncMyDirectoryEntry(user);
   subscribeChatInbox();
+  subscribeChatDirectory();
+}
+
+// Dengarkan node "directory" secara REAL-TIME (bukan sekali ambil saja),
+// supaya kalau ada user lain yang mengganti nama / foto profil, daftar
+// chat dan percakapan yang sedang terbuka langsung ikut ter-update tanpa
+// perlu reload halaman.
+function subscribeChatDirectory() {
+  if (_chatDirRef) _chatDirRef.off();
+  _chatDirRef = db.ref('directory');
+  _chatDirRef.on('value', snap => {
+    _chatDirectory = snap.exists() ? (snap.val() || {}) : {};
+    _chatDirLoaded = true;
+    renderChatList();              // refresh nama/foto di daftar chat
+    renderDirectoryList();         // refresh nama/foto di halaman tambah teman
+    refreshOpenConversationHeader(); // refresh header percakapan yg sedang dibuka
+  }, err => console.error('Gagal memuat direktori pengguna (live):', err));
 }
 
 // Tulis/update entri profil publik saya sendiri di node "directory" supaya
@@ -4587,6 +4610,20 @@ function closeChatOverlay() {
   if (mainEl) mainEl.style.overflow = '';
   detachChatMessagesListener();
 }
+
+// ── Auto-tutup halaman Chat saat tombol lain ditekan ─────────
+// Selama overlay Chat terbuka, klik di mana pun DI LUAR overlay itu sendiri
+// (mis. tombol sidebar lain, nav bawah di mobile, bell notifikasi, avatar
+// profil, dst.) akan otomatis menutup halaman Chat — sama seperti membuka
+// halaman lain. Klik pada tombol pembuka Chat sendiri dikecualikan karena
+// sudah punya penanganan buka/tutupnya sendiri lewat openChatOverlay().
+document.addEventListener('click', function(e) {
+  const overlay = document.getElementById('chat-overlay');
+  if (!overlay || !overlay.classList.contains('show')) return;
+  if (overlay.contains(e.target)) return; // klik di dalam Chat sendiri, biarkan
+  if (e.target.closest('#side-btn-chat, #mob-btn-chat')) return; // tombol Chat sendiri
+  closeChatOverlay();
+});
 function showChatSubview(id) {
   document.querySelectorAll('.chat-subview').forEach(el => el.classList.remove('active'));
   const el = document.getElementById(id);
@@ -4625,8 +4662,13 @@ function renderChatList() {
   if (empty) empty.style.display = 'none';
   entries.sort((a, b) => (b[1].lastMessageAt || 0) - (a[1].lastMessageAt || 0));
   wrap.innerHTML = entries.map(([chatId, c]) => {
-    const photo = c.withPhoto || '';
-    const name = c.withName || 'Pengguna';
+    // Pakai data terbaru dari node "directory" (live) kalau ada, supaya kalau
+    // lawan bicara mengganti nama/foto profil, daftar chat langsung ikut
+    // berubah — bukan memakai snapshot withName/withPhoto yang disimpan
+    // sekali saja saat chat pertama kali dimulai.
+    const live = _chatDirectory[c.with];
+    const photo = (live && live.photoURL) || c.withPhoto || '';
+    const name = (live && live.displayName) || c.withName || 'Pengguna';
     const avatarHTML = photo
       ? `<img src="${esc(photo)}" alt="" onerror="this.parentElement.innerHTML='&#128100;'">`
       : '&#128100;';
@@ -4670,7 +4712,14 @@ function openAddFriendView() {
   showChatSubview('chat-addfriend-view');
   const search = document.getElementById('chat-user-search');
   if (search) search.value = '';
-  loadDirectoryUsers();
+  // _chatDirectory sudah disinkronkan secara live oleh subscribeChatDirectory(),
+  // jadi biasanya cukup render langsung dari cache (sudah pasti data terbaru).
+  // Fallback ke fetch sekali kalau listener live-nya belum sempat memuat data.
+  if (_chatDirLoaded) {
+    renderDirectoryList();
+  } else {
+    loadDirectoryUsers();
+  }
 }
 
 function loadDirectoryUsers() {
@@ -4770,13 +4819,19 @@ function startChatWithFriend(uid, name, photo) {
 // ── Percakapan ───────────────────────────────────────────────
 function openConversation(chatId, peerUid, peerName, peerPhoto) {
   detachChatMessagesListener();
-  _chatCurrentPeer = { uid: peerUid, name: peerName, photo: peerPhoto, chatId: chatId };
+  // Kalau ada data terbaru di node "directory" (live), pakai itu — supaya
+  // percakapan langsung menampilkan nama/foto terbaru lawan bicara,
+  // bukan data lama yang mungkin dibawa dari daftar chat.
+  const live = _chatDirectory[peerUid];
+  const name = (live && live.displayName) || peerName || 'Pengguna';
+  const photo = (live && live.photoURL) || peerPhoto || '';
+  _chatCurrentPeer = { uid: peerUid, name: name, photo: photo, chatId: chatId };
 
   const avatarEl = document.getElementById('chat-conv-avatar');
-  avatarEl.innerHTML = peerPhoto
-    ? `<img src="${esc(peerPhoto)}" alt="" onerror="this.parentElement.innerHTML='&#128100;'">`
+  avatarEl.innerHTML = photo
+    ? `<img src="${esc(photo)}" alt="" onerror="this.parentElement.innerHTML='&#128100;'">`
     : '&#128100;';
-  document.getElementById('chat-conv-name').textContent = peerName || 'Pengguna';
+  document.getElementById('chat-conv-name').textContent = name;
 
   showChatSubview('chat-conv-view');
   document.getElementById('chat-messages').innerHTML = '';
@@ -4798,6 +4853,28 @@ function openConversation(chatId, peerUid, peerName, peerPhoto) {
 function detachChatMessagesListener() {
   if (_chatMsgsRef) { _chatMsgsRef.off(); _chatMsgsRef = null; }
   _chatCurrentPeer = null;
+}
+
+// Dipanggil setiap kali node "directory" berubah. Kalau percakapan sedang
+// terbuka dengan lawan bicara yang profilnya baru saja diubah, langsung
+// perbarui nama & foto di header percakapan secara real-time.
+function refreshOpenConversationHeader() {
+  if (!_chatCurrentPeer) return;
+  const live = _chatDirectory[_chatCurrentPeer.uid];
+  if (!live) return;
+  const name = live.displayName || _chatCurrentPeer.name || 'Pengguna';
+  const photo = live.photoURL || _chatCurrentPeer.photo || '';
+  if (name === _chatCurrentPeer.name && photo === _chatCurrentPeer.photo) return;
+  _chatCurrentPeer.name = name;
+  _chatCurrentPeer.photo = photo;
+  const nameEl = document.getElementById('chat-conv-name');
+  const avatarEl = document.getElementById('chat-conv-avatar');
+  if (nameEl) nameEl.textContent = name;
+  if (avatarEl) {
+    avatarEl.innerHTML = photo
+      ? `<img src="${esc(photo)}" alt="" onerror="this.parentElement.innerHTML='&#128100;'">`
+      : '&#128100;';
+  }
 }
 
 function renderChatMessages(msgsObj) {
