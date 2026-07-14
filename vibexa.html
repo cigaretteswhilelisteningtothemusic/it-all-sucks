@@ -8525,7 +8525,11 @@ function _normalizeDeezerTrack(t) {
     artist: (t.artist && t.artist.name) || 'Unknown',
     thumb: (t.album && (t.album.cover_xl || t.album.cover_big || t.album.cover_medium)) || '',
     preview: t.preview || null,
-    duration: t.duration || 0
+    duration: t.duration || 0,
+    // "rank" dari Deezer = skor popularitas lagu (makin tinggi makin sering
+    // diputar/disukai pendengar). Dipakai sebagai proxy "like terbanyak"
+    // untuk mengurutkan lagu terpopuler tiap artis di fitur Tri Mix.
+    rank: typeof t.rank === 'number' ? t.rank : 0
   };
 }
 
@@ -9773,12 +9777,14 @@ async function loadArtistRadioMixes(force) {
     const perArtistPoolSize = 40;
     const perArtistPools = await Promise.all(followed.map(a => fetchArtistTopTracks(a.name, perArtistPoolSize)));
 
-    // TIDAK diacak: pool dibiarkan dalam urutan asli dari Deezer (/artist/{id}/top),
-    // yaitu terurut dari yang PALING POPULER ke bawah. Dengan begitu potongan
-    // pertama yang dipakai (chunk ke-0) selalu berisi 5 lagu paling populer dari
-    // artis tsb, potongan berikutnya (kalau artis dipakai ulang) mengambil lagu
-    // populer berikutnya di bawahnya — bukan lagu acak dari seluruh pool.
-    const shuffledPools = perArtistPools;
+    // Pool TIDAK diacak, dan malah diurutkan ULANG secara eksplisit dari
+    // rank/popularitas TERTINGGI ke terendah (rank = proxy "like" dari
+    // Deezer). Dengan begitu potongan pertama yang dipakai (chunk ke-0)
+    // dijamin berisi 5 lagu dengan LIKE/POPULARITAS TERBANYAK dari artis
+    // tsb (misal "Baby" dari Justin Bieber), potongan berikutnya (kalau
+    // artis dipakai ulang) baru mengambil lagu populer berikutnya di
+    // bawahnya — bukan lagu acak dari seluruh pool.
+    const shuffledPools = perArtistPools.map(pool => [...(pool || [])].sort((a, b) => (b.rank || 0) - (a.rank || 0)));
 
     // Hitung berapa kali tiap artis sudah "dipakai" (baik lintas playlist
     // maupun dalam satu playlist yang sama), supaya tiap pemakaian berikutnya
