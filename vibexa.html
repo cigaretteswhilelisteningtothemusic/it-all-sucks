@@ -1113,6 +1113,14 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
     gap:0;
     padding:0;
   }
+
+  /* "All Playlists" + tombol "Create Playlist" disembunyikan di desktop
+     (lihat inline style="display:none" di HTML), tapi khusus di tampilan
+     mobile tetap dimunculkan seperti semula. */
+  .home-section-title,
+  #playlists-grid{
+    display:flex !important;
+  }
   .home-topbar,#main,#bar{border-radius:0;border-width:0;}
   .home-topbar{border-bottom:1px solid var(--border);}
   #bar{border-top:1px solid var(--border);}
@@ -1178,10 +1186,13 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
   .mob-nav-preview-center svg{width:22px;height:22px}
   .mob-nav-preview-center span{display:none}
   .mob-nav-preview-center:active{transform:translate(-50%,-50%) scale(.92)}
-  /* Beri jarak di kanan-kiri tombol Genre & Temukan supaya tidak tertutup
+  /* Beri jarak di kanan-kiri tombol Home & Temukan supaya tidak tertutup
      lingkaran Preview yang ada persis di tengah */
-  #mob-btn-genre{margin-right:26px}
+  #mob-btn-home{margin-right:26px}
   #mob-btn-finder{margin-left:26px}
+  /* Tombol "Genre" di navigasi bawah disembunyikan — sudah dipindahkan ke
+     topbar (di samping kiri kotak search) supaya tidak dobel. */
+  #mob-btn-genre{display:none}
 
   /* ════════════════════════════════
      SONG PREVIEW — mobile full screen
@@ -2074,7 +2085,12 @@ body.np-is-fullscreen #bar{display:none !important;}
 
 @media(max-width:660px){
   .home-topbar{gap:8px;padding:0 12px;}
-  .topbar-left{display:none;}
+  /* Tombol "Genre Musik" tetap ditampilkan di topbar mobile, diletakkan
+     persis di samping kiri kotak search (mengikuti urutan HTML aslinya).
+     Tombol "Temukan" di dalam cluster ini disembunyikan karena sudah ada
+     tombol "Temukan" tersendiri di navigasi bawah. */
+  .topbar-left{display:flex;gap:0;}
+  #nav-finder{display:none;}
   /* Tombol Home di samping kotak search disembunyikan khusus mobile (sudah
      ada tombol Home di navigasi bawah) */
   .topbar-home-btn{display:none;}
