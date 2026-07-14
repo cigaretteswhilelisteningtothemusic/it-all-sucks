@@ -766,8 +766,6 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .pub-badge{background:linear-gradient(135deg,rgba(46,125,255,.25),rgba(79,168,255,.15));border:1px solid rgba(46,125,255,.4);color:var(--teal);font-size:.6rem;font-weight:700;letter-spacing:1.5px;padding:2px 9px;border-radius:50px;text-transform:uppercase;}
 .pub-grid{display:flex;gap:14px;overflow-x:auto;padding:2px 2px 10px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
 .pub-grid.expanded{flex-wrap:wrap;overflow-x:visible;}
-.pub-show-more-btn svg{transition:transform .18s;}
-.pub-show-more-btn.expanded svg{transform:rotate(180deg);}
 .pub-card{background:var(--card);border-radius:var(--r);padding:13px;cursor:pointer;transition:all .22s;border:1px solid transparent;position:relative;overflow:hidden;flex:0 0 168px;width:168px;}
 .pub-card:hover{background:var(--hover);border-color:var(--border);transform:translateY(-2px);box-shadow:0 10px 30px rgba(0,0,0,.3);}
 .pub-cover-wrap{position:relative;width:100%;margin-bottom:10px;}
@@ -1260,28 +1258,28 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
   .rank-likes svg{width:12px;height:12px;flex-shrink:0}
 
   /* ════════════════════════════════
-     PUBLIC PLAYLIST — list style
+     PUBLIC PLAYLIST — horizontal scroll (mobile)
   ════════════════════════════════ */
-  .pub-grid{flex-direction:column;overflow-x:visible;gap:8px;}
+  .pub-grid{flex-direction:row;overflow-x:auto;gap:10px;flex-wrap:nowrap;}
   .pub-card{
-    flex:0 0 auto;width:100%;
-    padding:10px 12px;
-    display:flex;flex-direction:row;align-items:center;
-    gap:10px;border-radius:12px;
+    flex:0 0 128px;width:128px;
+    padding:10px;
+    display:flex;flex-direction:column;align-items:stretch;
+    gap:0;border-radius:12px;
     overflow:hidden;min-width:0;
   }
-  .pub-grid.expanded{flex-wrap:nowrap;}
   .pub-cover-wrap{
-    width:50px;height:50px;flex-shrink:0;margin-bottom:0;
+    width:100%;height:auto;flex-shrink:0;margin-bottom:9px;
     border-radius:8px;overflow:hidden;
   }
   .pub-card-cover{
-    width:50px!important;height:50px!important;
-    aspect-ratio:unset!important;
-    border-radius:8px;font-size:1.4rem;
+    width:100%!important;height:100%!important;
+    aspect-ratio:1!important;
+    border-radius:8px;font-size:1.8rem;
   }
   .pub-card-img{
-    width:50px!important;height:50px!important;
+    width:100%!important;height:100%!important;
+    aspect-ratio:1;
     border-radius:8px;object-fit:cover;display:block;
   }
   /* wrapper teks */
@@ -1291,23 +1289,23 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
     overflow:hidden;
   }
   .pub-card-name{
-    font-size:.82rem;font-weight:700;
+    font-size:.78rem;font-weight:700;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-    margin-bottom:0;
+    margin-bottom:2px;
   }
   .pub-card-bottom{
     display:flex;align-items:center;
-    gap:6px;flex-wrap:nowrap;overflow:hidden;
+    gap:5px;flex-wrap:wrap;overflow:hidden;
   }
   .pub-card-owner{
-    font-size:.68rem;color:var(--sub);
-    flex:1;min-width:0;
+    font-size:.65rem;color:var(--sub);
+    flex:0 1 100%;min-width:0;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
   /* Like button selalu tampil */
   .pub-like-btn{
     display:flex;align-items:center;gap:3px;
-    font-size:.68rem;padding:3px 7px;
+    font-size:.65rem;padding:3px 6px;
     flex-shrink:0;white-space:nowrap;
   }
   .pub-like-btn svg{width:11px;height:11px;flex-shrink:0}
@@ -3191,10 +3189,6 @@ body.np-is-fullscreen #bar{display:none !important;}
         <div class="pub-section-title">
            Public Playlists
         </div>
-        <button class="home-new-pl-btn pub-show-more-btn" id="pub-show-more-btn" onclick="togglePubShowAll()" style="background:none;border:1px solid var(--border);color:var(--sub);display:none;">
-          <span id="pub-show-more-label">Tampilkan Semua</span>
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
-        </button>
       </div>
       <div class="pub-grid" id="pub-grid">
         <div class="empty" style="grid-column:1/-1;padding:24px 0;font-size:.82rem;">
@@ -10873,30 +10867,23 @@ function renderPublicGrid(pls) {
   const sorted = [...others, ...mine];
 
   _pubFullList = sorted;
-  _pubShowAll = false; // reset ke ringkas tiap kali data di-refresh/reload
   renderPubGridItems();
 }
 
 let _pubFullList = [];
-let _pubShowAll = false;
-const PUB_GRID_LIMIT = 6;
 
 function renderPubGridItems() {
   const c = document.getElementById('pub-grid');
-  const btn = document.getElementById('pub-show-more-btn');
-  const label = document.getElementById('pub-show-more-label');
   if (!c) return;
   c.innerHTML = '';
-  c.classList.toggle('expanded', _pubShowAll);
 
   const sorted = _pubFullList;
   if (!sorted.length) {
     c.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:24px 0;font-size:.82rem;"><i></i><h3>No playlists yet publik</h3></div>';
-    if (btn) btn.style.display = 'none';
     return;
   }
 
-  const visible = _pubShowAll ? sorted : sorted.slice(0, PUB_GRID_LIMIT);
+  const visible = sorted;
 
   visible.forEach(pl => {
     const card = document.createElement('div');
@@ -10933,25 +10920,6 @@ function renderPubGridItems() {
     c.appendChild(card);
   });
 
-  // Tombol "Tampilkan Semua" di header hanya muncul kalau playlist lebih banyak dari batas ringkas
-  if (btn && label) {
-    if (sorted.length > PUB_GRID_LIMIT) {
-      btn.style.display = 'flex';
-      label.textContent = _pubShowAll ? 'Tampilkan Lebih Sedikit' : `Tampilkan Semua (${sorted.length})`;
-      btn.classList.toggle('expanded', _pubShowAll);
-    } else {
-      btn.style.display = 'none';
-    }
-  }
-}
-
-function togglePubShowAll() {
-  _pubShowAll = !_pubShowAll;
-  renderPubGridItems();
-  if (!_pubShowAll) {
-    // Balik ringkas: scroll ke section-nya biar tidak "hilang" ke atas halaman
-    document.getElementById('public-feed-section')?.scrollIntoView({ block: 'nearest' });
-  }
 }
 
 async function toggleLike(e, key, currentlyLiked) {
