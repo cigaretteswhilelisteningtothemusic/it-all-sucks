@@ -409,6 +409,7 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .pv-top{display:flex;gap:20px;align-items:flex-end;}
 .pv-cover-wrap{position:relative;flex-shrink:0;}
 .pv-cover{width:160px;height:160px;border-radius:12px;object-fit:cover;background:var(--hover);box-shadow:0 12px 40px rgba(0,0,0,.6);display:block;}
+.pv-cover.pv-cover-round{border-radius:50%;}
 .pv-cover-ph{width:160px;height:160px;border-radius:12px;background:var(--hover);display:flex;align-items:center;justify-content:center;font-size:4rem;box-shadow:0 12px 40px rgba(0,0,0,.6);}
 .pv-cover-edit{display:none;}
 /* ─── Auto playlist cover collage (Spotify-style: 2x2 grid built from the playlist's own track arts) ─── */
@@ -3117,7 +3118,7 @@ body.np-is-fullscreen #bar{display:none !important;}
     <div class="pub-section" id="artist-radio-section" style="display:none;">
       <div class="pub-section-header">
         <div class="pub-section-title">
-           Radio Artis Favorit
+           Dibuat Khusus Buat Kamu
         </div>
       </div>
       <div class="radio-grid" id="artist-radio-grid"></div>
@@ -9725,9 +9726,12 @@ async function loadArtistRadioMixes(force) {
     const perArtistPoolSize = 40;
     const perArtistPools = await Promise.all(followed.map(a => fetchArtistTopTracks(a.name, perArtistPoolSize)));
 
-    // Acak pool tiap artis dengan seed harian supaya isinya berganti tiap
-    // hari (direset 1x sehari), tapi stabil sepanjang hari yang sama.
-    const shuffledPools = perArtistPools.map((pool, i) => _dmSeededShuffle(pool || [], cacheKey + '_artist' + i));
+    // TIDAK diacak: pool dibiarkan dalam urutan asli dari Deezer (/artist/{id}/top),
+    // yaitu terurut dari yang PALING POPULER ke bawah. Dengan begitu potongan
+    // pertama yang dipakai (chunk ke-0) selalu berisi 5 lagu paling populer dari
+    // artis tsb, potongan berikutnya (kalau artis dipakai ulang) mengambil lagu
+    // populer berikutnya di bawahnya — bukan lagu acak dari seluruh pool.
+    const shuffledPools = perArtistPools;
 
     // Hitung berapa kali tiap artis sudah "dipakai" (baik lintas playlist
     // maupun dalam satu playlist yang sama), supaya tiap pemakaian berikutnya
@@ -9799,11 +9803,13 @@ async function loadArtistRadioMixes(force) {
 
       mixes.push({
         id: 'radio_' + m,
-        label: 'Radio',
+        label: 'Tri Mix',
         title: mainArtistName,
         cover: mainArtistPhoto || firstTrack.thumb || '',
         subtitle: otherNames.length ? ('With ' + otherNames.join(', ') + ',...') : '',
         photos,
+        isArtistRadio: true,
+        colorIdx: m,
         tracks
       });
     }
@@ -9831,16 +9837,32 @@ function renderArtistRadioMixes(mixes) {
   mixes.forEach((mix, i) => c.appendChild(buildArtistRadioCardEl(mix, i)));
 }
 
+// Palet gradient background untuk kartu Tri Mix supaya tiap playlist
+// punya warna latar yang berbeda-beda (tidak selalu mint seperti sebelumnya).
+// Warna teks (badge & nama) tetap gelap karena semua warna di palet ini
+// cukup terang sehingga teks gelap tetap kontras/terbaca.
+const RADIO_CARD_PALETTE = [
+  { bg: 'linear-gradient(150deg,#bdf7db,#74e0a8)', text: '#0a2e1c' }, // mint
+  { bg: 'linear-gradient(150deg,#e3d4ff,#a97bf5)', text: '#2a1240' }, // lavender/ungu
+  { bg: 'linear-gradient(150deg,#ffe1b3,#ff9d47)', text: '#3a1e00' }, // peach/oranye
+  { bg: 'linear-gradient(150deg,#c6e6ff,#5aa8ff)', text: '#02264d' }, // biru langit
+  { bg: 'linear-gradient(150deg,#ffd3e2,#ff7aa6)', text: '#4a0620' }, // pink/rose
+  { bg: 'linear-gradient(150deg,#fff2b0,#ffd23f)', text: '#3d2c00' }, // kuning lemon
+  { bg: 'linear-gradient(150deg,#ffd6c2,#ff7a52)', text: '#3d1200' }, // coral
+  { bg: 'linear-gradient(150deg,#bdf3ea,#3fcbb4)', text: '#00352c' }  // aqua/teal
+];
+
 function buildArtistRadioCardEl(mix, i) {
   const photos = mix.photos || [];
   const photoImg = (src) => src
     ? `<img src="${esc(src)}" alt="" loading="lazy" onerror="this.remove()">`
     : '';
+  const palette = RADIO_CARD_PALETTE[(typeof mix.colorIdx === 'number' ? mix.colorIdx : i) % RADIO_CARD_PALETTE.length];
   const div = document.createElement('div');
   div.className = 'radio-card';
   div.innerHTML = `
-    <div class="radio-cover-wrap">
-      <div class="radio-badge">RADIO</div>
+    <div class="radio-cover-wrap" style="background:${palette.bg};">
+      <div class="radio-badge" style="color:${palette.text};">TRI MIX</div>
       <div class="radio-photos">
         <div class="radio-photo radio-photo-side radio-photo-left">${photoImg(photos[1])}</div>
         <div class="radio-photo radio-photo-main">${photoImg(photos[0])}</div>
@@ -9849,7 +9871,7 @@ function buildArtistRadioCardEl(mix, i) {
       <div class="radio-cover-ov">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
       </div>
-      <div class="radio-name">${esc(mix.title)}</div>
+      <div class="radio-name" style="color:${palette.text};">${esc(mix.title)}</div>
     </div>
     ${mix.subtitle ? `<div class="radio-sub">${esc(mix.subtitle)}</div>` : ''}
   `;
@@ -10384,6 +10406,11 @@ function openDailyMix(mix) {
   } else if (coverEl.tagName === 'IMG') {
     coverEl.outerHTML = `<div class="pv-cover-ph" id="pv-cover"></div>`;
   }
+  // Foto artis dibuat bulat khusus untuk Tri Mix (Radio Artis Favorit),
+  // supaya konsisten dengan foto profil artis di kartunya (bukan kotak
+  // seperti cover album biasa).
+  const coverElAfter = document.getElementById('pv-cover');
+  if (coverElAfter) coverElAfter.classList.toggle('pv-cover-round', !!mix.isArtistRadio);
   document.getElementById('pv-title').textContent = mix.title;
   document.getElementById('pv-sub').textContent = `${mix.label || 'Daily Mix'} · ${mix.tracks.length} lagu · diperbarui hari ini`;
 
