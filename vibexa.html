@@ -4450,6 +4450,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
 
 <script>
 'use strict';
@@ -4488,6 +4489,13 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db   = firebase.database();
+
+// ─── Push Notification (FCM) ───────────────────────────────
+// PENTING: ganti string di bawah ini dengan VAPID key milikmu sendiri.
+// Cara ambil: Firebase Console → Project Settings → Cloud Messaging →
+// tab "Web configuration" → bagian "Web Push certificates" → Generate key pair.
+const FCM_VAPID_KEY = 'BK04LDwaKNarlAry2D07ciAOIQbKWFZobisBUpvDI9ADMrIDncknPa9t8Bh5u3HvA2KRjVl';
+const messaging = firebase.messaging.isSupported() ? firebase.messaging() : null;
 
 let currentUser = null;
 let saveTimeout = null;
@@ -4655,7 +4663,7 @@ auth.onAuthStateChanged(user => {
     loadArtistRadioMixes();
     loadSadPlaylists();
     loadWeekdayPlaylists();
-  } else {
+    setupPushNotifications(user);
     // Belum login (atau cuma sesi anonim dari halaman publik seperti
     // vibeprofile-view.html) → langsung tendang ke halaman login,
     // jangan biarkan masuk ke Home
@@ -4667,6 +4675,57 @@ auth.onAuthStateChanged(user => {
     }
   }
 });
+
+// ─── Push Notification: minta izin & simpan token perangkat ──────────
+// Dipanggil tiap kali user login. Token disimpan di
+// users/{uid}/fcmTokens/{token} = true, dipakai Cloud Function terjadwal
+// untuk mengirim notifikasi jam 07:00 & 19:00 ke semua user yang mengizinkan.
+async function setupPushNotifications(user) {
+  try {
+    if (!messaging) return; // browser tidak mendukung FCM (mis. Safari lama)
+    if (!('Notification' in window)) return;
+    if (FCM_VAPID_KEY === 'GANTI_DENGAN_VAPID_KEY_KAMU') {
+      console.warn('FCM_VAPID_KEY belum diisi — lihat komentar di dekat firebaseConfig.');
+      return;
+    }
+
+    // Jangan tanya lagi kalau user sudah pernah menolak sebelumnya
+    if (Notification.permission === 'denied') return;
+
+    let permission = Notification.permission;
+    if (permission === 'default') {
+      permission = await Notification.requestPermission();
+    }
+    if (permission !== 'granted') return;
+
+    const swReg = await navigator.serviceWorker.ready.catch(() => null);
+    if (!swReg) return;
+
+    const token = await messaging.getToken({
+      vapidKey: FCM_VAPID_KEY,
+      serviceWorkerRegistration: swReg
+    }).catch(err => { console.warn('getToken gagal:', err); return null; });
+
+    if (token) {
+      db.ref('users/' + user.uid + '/fcmTokens/' + token).set(true).catch(() => {});
+    }
+  } catch (e) {
+    console.warn('setupPushNotifications error:', e);
+  }
+}
+
+// Terima notifikasi saat app sedang terbuka (foreground). Saat app di
+// background/tertutup, browser yang otomatis menampilkan notifikasi
+// lewat service worker (lihat handler onBackgroundMessage di sw.js).
+if (messaging) {
+  messaging.onMessage(payload => {
+    const title = payload?.notification?.title || 'Vibexa';
+    const body = payload?.notification?.body || '';
+    if (Notification.permission === 'granted') {
+      new Notification(title, { body, icon: 'icons/icon-192.png' });
+    }
+  });
+}
 
 // Mengembalikan kata sapaan (Good morning/afternoon/evening/night) sesuai jam saat ini
 function getGreetingWord() {
