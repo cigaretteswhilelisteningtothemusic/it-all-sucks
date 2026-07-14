@@ -505,8 +505,8 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .home-section-title{font-size:1rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;}
 .home-new-pl-btn{background:var(--green-dim);border:1px solid rgba(46,125,255,.3);border-radius:50px;padding:5px 14px;color:var(--green);font-family:var(--f);font-size:.75rem;font-weight:700;cursor:pointer;transition:all .18s;display:flex;align-items:center;gap:5px;}
 .home-new-pl-btn:hover{background:var(--green);color:#fff;}
-.playlists-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:14px;}
-.pg-card{background:var(--card);border-radius:var(--r);padding:13px;cursor:pointer;transition:all .22s;border:1px solid transparent;position:relative;overflow:hidden;}
+.playlists-grid{display:flex;gap:14px;overflow-x:auto;padding:2px 2px 10px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
+.pg-card{background:var(--card);border-radius:var(--r);padding:13px;cursor:pointer;transition:all .22s;border:1px solid transparent;position:relative;overflow:hidden;flex:0 0 168px;width:168px;}
 .pg-card:hover{background:var(--hover);border-color:var(--border);transform:translateY(-2px);box-shadow:0 10px 30px rgba(0,0,0,.3);}
 .pg-cover{width:100%;aspect-ratio:1;border-radius:8px;object-fit:cover;background:var(--hover);display:block;margin-bottom:10px;font-size:3rem;display:flex;align-items:center;justify-content:center;}
 .pg-img{width:100%;aspect-ratio:1;border-radius:8px;object-fit:cover;background:var(--hover);display:block;margin-bottom:10px;}
@@ -764,10 +764,11 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .pub-section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
 .pub-section-title{font-size:1rem;font-weight:700;display:flex;align-items:center;gap:8px;}
 .pub-badge{background:linear-gradient(135deg,rgba(46,125,255,.25),rgba(79,168,255,.15));border:1px solid rgba(46,125,255,.4);color:var(--teal);font-size:.6rem;font-weight:700;letter-spacing:1.5px;padding:2px 9px;border-radius:50px;text-transform:uppercase;}
-.pub-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;}
+.pub-grid{display:flex;gap:14px;overflow-x:auto;padding:2px 2px 10px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
+.pub-grid.expanded{flex-wrap:wrap;overflow-x:visible;}
 .pub-show-more-btn svg{transition:transform .18s;}
 .pub-show-more-btn.expanded svg{transform:rotate(180deg);}
-.pub-card{background:var(--card);border-radius:var(--r);padding:13px;cursor:pointer;transition:all .22s;border:1px solid transparent;position:relative;overflow:hidden;}
+.pub-card{background:var(--card);border-radius:var(--r);padding:13px;cursor:pointer;transition:all .22s;border:1px solid transparent;position:relative;overflow:hidden;flex:0 0 168px;width:168px;}
 .pub-card:hover{background:var(--hover);border-color:var(--border);transform:translateY(-2px);box-shadow:0 10px 30px rgba(0,0,0,.3);}
 .pub-cover-wrap{position:relative;width:100%;margin-bottom:10px;}
 .pub-card-cover{width:100%;aspect-ratio:1;border-radius:8px;background:var(--hover);display:flex;align-items:center;justify-content:center;font-size:2.8rem;}
@@ -1220,8 +1221,8 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
     white-space:nowrap;flex-shrink:0;
   }
 
-  /* Playlist grid 2 columns */
-  .playlists-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+  /* All Playlists tetap menyamping (horizontal scroll) di mobile, kartu diperkecil */
+  .pg-card{flex:0 0 128px;width:128px;}
   .dm-card{flex:0 0 128px;width:128px;}
   .reco-card{flex:0 0 128px;width:128px;}
   .reco-grid.expanded{grid-template-columns:repeat(auto-fit,128px);}
@@ -1261,13 +1262,15 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
   /* ════════════════════════════════
      PUBLIC PLAYLIST — list style
   ════════════════════════════════ */
-  .pub-grid{grid-template-columns:1fr;gap:8px}
+  .pub-grid{flex-direction:column;overflow-x:visible;gap:8px;}
   .pub-card{
+    flex:0 0 auto;width:100%;
     padding:10px 12px;
     display:flex;flex-direction:row;align-items:center;
     gap:10px;border-radius:12px;
     overflow:hidden;min-width:0;
   }
+  .pub-grid.expanded{flex-wrap:nowrap;}
   .pub-cover-wrap{
     width:50px;height:50px;flex-shrink:0;margin-bottom:0;
     border-radius:8px;overflow:hidden;
@@ -10884,6 +10887,7 @@ function renderPubGridItems() {
   const label = document.getElementById('pub-show-more-label');
   if (!c) return;
   c.innerHTML = '';
+  c.classList.toggle('expanded', _pubShowAll);
 
   const sorted = _pubFullList;
   if (!sorted.length) {
