@@ -4494,8 +4494,22 @@ const db   = firebase.database();
 // PENTING: ganti string di bawah ini dengan VAPID key milikmu sendiri.
 // Cara ambil: Firebase Console → Project Settings → Cloud Messaging →
 // tab "Web configuration" → bagian "Web Push certificates" → Generate key pair.
-const FCM_VAPID_KEY = 'BK04LDwaKNarlAry2D07ciAOIQbKWFZobisBUpvDI9ADMrIDncknPa9t8Bh5u3HvA2KRjVl';
-const messaging = firebase.messaging.isSupported() ? firebase.messaging() : null;
+const FCM_VAPID_KEY = 'BK04LDwaKNarlAry2D07ciAOIQbKWFZobisBUpvDI9ADMrIDncknPa9t8Bh5u3HvA2KRjVl-VZCewgSIJj8yl_A';
+// firebase.messaging.isSupported() mengembalikan Promise<boolean>, bukan boolean
+// langsung — jadi tidak boleh dipakai sebagai kondisi ternary sinkron (ternary
+// sebelumnya SELALU true karena Promise itu truthy, jadi firebase.messaging()
+// tetap dipanggil walau browsernya tidak didukung). Sekarang di-await, dan
+// dibungkus try/catch supaya kalau browser memang tidak support, error-nya
+// tidak menghentikan script lain di bawahnya (login, dsb tetap jalan normal).
+let messaging = null;
+let _messagingReadyPromise = (async () => {
+  try {
+    const supported = await firebase.messaging.isSupported();
+    if (supported) messaging = firebase.messaging();
+  } catch (e) {
+    console.warn('FCM tidak didukung di browser ini:', e);
+  }
+})();
 
 let currentUser = null;
 let saveTimeout = null;
@@ -4683,6 +4697,7 @@ auth.onAuthStateChanged(user => {
 // untuk mengirim notifikasi jam 07:00 & 19:00 ke semua user yang mengizinkan.
 async function setupPushNotifications(user) {
   try {
+    await _messagingReadyPromise; // tunggu hasil cek firebase.messaging.isSupported()
     if (!messaging) return; // browser tidak mendukung FCM (mis. Safari lama)
     if (!('Notification' in window)) return;
     if (FCM_VAPID_KEY === 'GANTI_DENGAN_VAPID_KEY_KAMU') {
@@ -4718,15 +4733,17 @@ async function setupPushNotifications(user) {
 // Terima notifikasi saat app sedang terbuka (foreground). Saat app di
 // background/tertutup, browser yang otomatis menampilkan notifikasi
 // lewat service worker (lihat handler onBackgroundMessage di sw.js).
-if (messaging) {
-  messaging.onMessage(payload => {
-    const title = payload?.notification?.title || 'Vibexa';
-    const body = payload?.notification?.body || '';
-    if (Notification.permission === 'granted') {
-      new Notification(title, { body, icon: 'icons/icon-192.png' });
-    }
-  });
-}
+_messagingReadyPromise.then(() => {
+  if (messaging) {
+    messaging.onMessage(payload => {
+      const title = payload?.notification?.title || 'Vibexa';
+      const body = payload?.notification?.body || '';
+      if (Notification.permission === 'granted') {
+        new Notification(title, { body, icon: 'icons/icon-192.png' });
+      }
+    });
+  }
+});
 
 // Mengembalikan kata sapaan (Good morning/afternoon/evening/night) sesuai jam saat ini
 function getGreetingWord() {
