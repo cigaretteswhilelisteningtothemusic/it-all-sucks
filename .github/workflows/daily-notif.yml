@@ -1,0 +1,55 @@
+name: Vibexa Daily Notifications
+
+on:
+  schedule:
+    # GitHub Actions cron pakai waktu UTC. WIB = UTC+7.
+    - cron: '0 0 * * *'   # 00:00 UTC = 07:00 WIB → notifikasi pagi
+    - cron: '0 12 * * *'  # 12:00 UTC = 19:00 WIB → notifikasi malam
+  workflow_dispatch:       # supaya bisa di-trigger manual buat testing
+    inputs:
+      slot:
+        description: 'Pilih slot untuk testing manual (kosongkan untuk otomatis dari jadwal)'
+        required: false
+        type: choice
+        options:
+          - auto
+          - morning
+          - night
+        default: auto
+
+jobs:
+  send-notification:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: scripts
+        run: npm install
+
+      - name: Tentukan slot notifikasi (pagi/malam)
+        id: slot
+        run: |
+          MANUAL_SLOT="${{ github.event.inputs.slot }}"
+          if [ -n "$MANUAL_SLOT" ] && [ "$MANUAL_SLOT" != "auto" ]; then
+            echo "value=$MANUAL_SLOT" >> "$GITHUB_OUTPUT"
+          else
+            HOUR_UTC=$(date -u +%H)
+            if [ "$HOUR_UTC" = "00" ]; then
+              echo "value=morning" >> "$GITHUB_OUTPUT"
+            else
+              echo "value=night" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Kirim notifikasi
+        working-directory: scripts
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node send-notif.js ${{ steps.slot.outputs.value }}
