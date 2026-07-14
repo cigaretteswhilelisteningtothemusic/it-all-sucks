@@ -1186,10 +1186,11 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
   .mob-nav-preview-center svg{width:22px;height:22px}
   .mob-nav-preview-center span{display:none}
   .mob-nav-preview-center:active{transform:translate(-50%,-50%) scale(.92)}
-  /* Beri jarak di kanan-kiri tombol Home & Temukan supaya tidak tertutup
-     lingkaran Preview yang ada persis di tengah */
-  #mob-btn-home{margin-right:26px}
-  #mob-btn-finder{margin-left:26px}
+  /* Tombol "Temukan" diletakkan berdekatan dengan tombol Home (tanpa jarak
+     di antara keduanya). Jarak untuk menghindari lingkaran Preview yang ada
+     persis di tengah dipindah ke SETELAH tombol Temukan (sebelum
+     VibeProfile), bukan lagi di antara Home & Temukan. */
+  #mob-btn-finder{margin-right:26px}
   /* Tombol "Genre" di navigasi bawah disembunyikan — sudah dipindahkan ke
      topbar (di samping kiri kotak search) supaya tidak dobel. */
   #mob-btn-genre{display:none}
@@ -10568,6 +10569,23 @@ function toggleMadeForYouShowAll() {
 const FY_TRACKS_PER_ARTIST = 15;
 const FY_COLORS = ['#e8115b','#27856a','#e13300','#8d67ab','#1e3264','#7358ff','#148a08','#bc5900','#af2896','#dc148c','#503750','#0d73ec','#477d95','#b02897'];
 
+// Kadang fetchArtistTopTracks() gagal SEMENTARA (timeout/gangguan jaringan
+// singkat ke Deezer, bukan karena artisnya benar-benar tidak ada), yang
+// akibatnya jumlah playlist "I think you're gonna love it" jadi lebih
+// sedikit dari jumlah artis yang di-follow. Untuk itu, coba ulang beberapa
+// kali (dengan jeda singkat) sebelum benar-benar dianggap gagal —
+// fetchArtistTopTracks() sendiri sudah otomatis membuang cache in-memory-nya
+// kalau hasilnya kosong, jadi percobaan ulang di sini benar-benar menembak
+// request baru, bukan cuma mengembalikan hasil kosong yang sama.
+async function _fetchArtistTopTracksWithRetry(name, limit, retries) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const tracks = await fetchArtistTopTracks(name, limit);
+    if (tracks && tracks.length) return tracks;
+    if (attempt < retries) await new Promise(res => setTimeout(res, 700 + attempt * 500));
+  }
+  return [];
+}
+
 async function loadForYouPlaylists(force) {
   const section = document.getElementById('for-you-section');
   const grid = document.getElementById('for-you-grid');
@@ -10598,12 +10616,28 @@ async function loadForYouPlaylists(force) {
           }
         } catch (e) {}
       }
-      const tracks = await fetchArtistTopTracks(a.name, FY_TRACKS_PER_ARTIST);
+      const tracks = await _fetchArtistTopTracksWithRetry(a.name, FY_TRACKS_PER_ARTIST, 2);
       if (tracks && tracks.length) {
         try { localStorage.setItem(cacheKey, JSON.stringify(tracks)); } catch (e) {}
       }
       return { artist: a, tracks };
     }));
+
+    // Kalau setelah percobaan di atas MASIH ada artis yang gagal (tracks
+    // kosong) — misalnya gara-gara antrian request Deezer penuh di
+    // percobaan pertama — coba SEKALI LAGI khusus untuk artis-artis yang
+    // gagal itu saja, supaya jumlah playlist akhir tetap sesuai jumlah
+    // artis yang di-follow selama datanya memang tersedia di Deezer.
+    const stillMissing = results.filter(r => !r.tracks || !r.tracks.length);
+    if (stillMissing.length) {
+      await Promise.all(stillMissing.map(async (r) => {
+        const tracks = await _fetchArtistTopTracksWithRetry(r.artist.name, FY_TRACKS_PER_ARTIST, 1);
+        if (tracks && tracks.length) {
+          r.tracks = tracks;
+          try { localStorage.setItem(cachePrefix + r.artist.name.toLowerCase(), JSON.stringify(tracks)); } catch (e) {}
+        }
+      }));
+    }
 
     // Buang cache milik artis yang sudah di-unfollow, supaya localStorage
     // tidak menumpuk terus dan playlist lama tidak muncul lagi kalau
