@@ -2940,11 +2940,8 @@ body.side-collapsed .side-nav-badge{left:auto;right:6px;top:2px;}
 .mob-nav-badge{position:absolute;top:2px;right:14px;min-width:15px;height:15px;padding:0 3px;border-radius:8px;background:var(--green);color:#fff;font-size:.55rem;font-weight:800;display:none;align-items:center;justify-content:center;line-height:1;}
 .mob-nav-badge.show{display:flex;}
 
-#chat-overlay{position:fixed;top:0;left:0;right:0;bottom:0;z-index:2200;background:var(--bg);display:none;flex-direction:column;}
+#chat-overlay{position:absolute;inset:0;z-index:60;background:var(--bg);display:none;flex-direction:column;border-radius:var(--r);}
 #chat-overlay.show{display:flex;}
-@media(min-width:1051px){
-  #chat-overlay{bottom:96px;border-top-left-radius:var(--r);border-top-right-radius:var(--r);overflow:hidden;}
-}
 .chat-subview{display:none;flex-direction:column;height:100%;min-height:0;}
 .chat-subview.active{display:flex;}
 
@@ -2996,7 +2993,6 @@ body.side-collapsed .side-nav-badge{left:auto;right:6px;top:2px;}
 .chat-send-btn:hover{transform:scale(1.08);}
 
 @media(max-width:1050px){
-  #chat-overlay{bottom:0;}
   .chat-header{padding:14px 16px;}
   .chat-item{padding:11px 16px;}
   .chat-messages{padding:16px;}
@@ -3709,6 +3705,78 @@ body.side-collapsed .side-nav-badge{left:auto;right:6px;top:2px;}
     </div>
   </div>
 
+  <!-- CHAT OVERLAY — Instagram-style DM. Ditempatkan SEBAGAI VIEW DI DALAM
+       #main (bukan overlay layar penuh & bukan navigasi ke halaman lain),
+       jadi hanya menutupi konten utama (Home). Sidebar kiri, panel kanan
+       (lirik/artis), top bar, dan player musik di bawah tetap terlihat &
+       lagu tetap berjalan selagi chat dibuka. -->
+  <div id="chat-overlay">
+
+    <!-- 1) DAFTAR CHAT (inbox) -->
+    <div id="chat-list-view" class="chat-subview active">
+      <div class="chat-header">
+        <button class="chat-back-btn" onclick="closeChatOverlay()" title="Tutup Chat">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        </button>
+        <span class="chat-header-title">Chat</span>
+        <button class="chat-addfriend-btn" onclick="openAddFriendView()" title="Tambah Teman">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
+        </button>
+      </div>
+      <div class="chat-list-body" id="chat-list-body">
+        <div class="chat-empty" id="chat-list-empty">
+          <i>&#128172;</i>
+          <h3>Belum ada percakapan</h3>
+          <p>Tekan tombol tambah teman di pojok kanan atas untuk mulai chat dengan pengguna lain</p>
+        </div>
+        <div id="chat-list-items"></div>
+      </div>
+    </div>
+
+    <!-- 2) TAMBAH TEMAN — daftar semua pengguna yang pernah daftar/login -->
+    <div id="chat-addfriend-view" class="chat-subview">
+      <div class="chat-header">
+        <button class="chat-back-btn" onclick="closeAddFriendView()" title="Kembali">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        </button>
+        <span class="chat-header-title">Tambah Teman</span>
+        <span style="width:38px;flex-shrink:0"></span>
+      </div>
+      <div class="chat-search-wrap">
+        <input type="text" id="chat-user-search" placeholder="Cari nama pengguna..." oninput="filterDirectoryList()">
+      </div>
+      <div class="chat-list-body" id="chat-directory-body">
+        <div class="chat-empty" id="chat-directory-empty">
+          <i>&#128101;</i>
+          <h3>Memuat pengguna...</h3>
+          <p></p>
+        </div>
+        <div id="chat-directory-items"></div>
+      </div>
+    </div>
+
+    <!-- 3) PERCAKAPAN -->
+    <div id="chat-conv-view" class="chat-subview">
+      <div class="chat-header">
+        <button class="chat-back-btn" onclick="backToChatList()" title="Kembali">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        </button>
+        <div class="chat-conv-peer" id="chat-conv-peer">
+          <div class="chat-avatar" id="chat-conv-avatar"></div>
+          <span class="chat-conv-name" id="chat-conv-name">—</span>
+        </div>
+      </div>
+      <div class="chat-messages" id="chat-messages"></div>
+      <div class="chat-input-bar">
+        <input type="text" id="chat-input" placeholder="Tulis pesan..." autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();sendChatMessage();}">
+        <button class="chat-send-btn" onclick="sendChatMessage()" title="Kirim">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        </button>
+      </div>
+    </div>
+
+  </div>
+
 </main>
 
 <!-- IMAGE VIEWER FULLSCREEN -->
@@ -3869,76 +3937,6 @@ body.side-collapsed .side-nav-badge{left:auto;right:6px;top:2px;}
       <input type="range" id="vol" min="0" max="100" value="80">
     </div>
   </div>
-</div>
-
-<!-- CHAT OVERLAY — Instagram-style DM. Ditempatkan sebagai overlay terpisah
-     (bukan navigasi ke halaman lain) supaya #bar (player musik) di bawahnya
-     tetap terlihat & lagu tetap berjalan selagi chat dibuka. -->
-<div id="chat-overlay">
-
-  <!-- 1) DAFTAR CHAT (inbox) -->
-  <div id="chat-list-view" class="chat-subview active">
-    <div class="chat-header">
-      <button class="chat-back-btn" onclick="closeChatOverlay()" title="Tutup Chat">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-      </button>
-      <span class="chat-header-title">Chat</span>
-      <button class="chat-addfriend-btn" onclick="openAddFriendView()" title="Tambah Teman">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
-      </button>
-    </div>
-    <div class="chat-list-body" id="chat-list-body">
-      <div class="chat-empty" id="chat-list-empty">
-        <i>&#128172;</i>
-        <h3>Belum ada percakapan</h3>
-        <p>Tekan tombol tambah teman di pojok kanan atas untuk mulai chat dengan pengguna lain</p>
-      </div>
-      <div id="chat-list-items"></div>
-    </div>
-  </div>
-
-  <!-- 2) TAMBAH TEMAN — daftar semua pengguna yang pernah daftar/login -->
-  <div id="chat-addfriend-view" class="chat-subview">
-    <div class="chat-header">
-      <button class="chat-back-btn" onclick="closeAddFriendView()" title="Kembali">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-      </button>
-      <span class="chat-header-title">Tambah Teman</span>
-      <span style="width:38px;flex-shrink:0"></span>
-    </div>
-    <div class="chat-search-wrap">
-      <input type="text" id="chat-user-search" placeholder="Cari nama pengguna..." oninput="filterDirectoryList()">
-    </div>
-    <div class="chat-list-body" id="chat-directory-body">
-      <div class="chat-empty" id="chat-directory-empty">
-        <i>&#128101;</i>
-        <h3>Memuat pengguna...</h3>
-        <p></p>
-      </div>
-      <div id="chat-directory-items"></div>
-    </div>
-  </div>
-
-  <!-- 3) PERCAKAPAN -->
-  <div id="chat-conv-view" class="chat-subview">
-    <div class="chat-header">
-      <button class="chat-back-btn" onclick="backToChatList()" title="Kembali">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-      </button>
-      <div class="chat-conv-peer" id="chat-conv-peer">
-        <div class="chat-avatar" id="chat-conv-avatar"></div>
-        <span class="chat-conv-name" id="chat-conv-name">—</span>
-      </div>
-    </div>
-    <div class="chat-messages" id="chat-messages"></div>
-    <div class="chat-input-bar">
-      <input type="text" id="chat-input" placeholder="Tulis pesan..." autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();sendChatMessage();}">
-      <button class="chat-send-btn" onclick="sendChatMessage()" title="Kirim">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-      </button>
-    </div>
-  </div>
-
 </div>
 
 <!-- Hidden YT -->
@@ -4578,11 +4576,15 @@ function syncMyDirectoryEntry(user) {
 
 // ── Buka / tutup overlay chat ───────────────────────────────
 function openChatOverlay() {
+  const mainEl = document.getElementById('main');
+  if (mainEl) { mainEl.scrollTop = 0; mainEl.style.overflow = 'hidden'; }
   document.getElementById('chat-overlay').classList.add('show');
   showChatSubview('chat-list-view');
 }
 function closeChatOverlay() {
   document.getElementById('chat-overlay').classList.remove('show');
+  const mainEl = document.getElementById('main');
+  if (mainEl) mainEl.style.overflow = '';
   detachChatMessagesListener();
 }
 function showChatSubview(id) {
