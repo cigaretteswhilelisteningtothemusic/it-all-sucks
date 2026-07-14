@@ -3010,8 +3010,11 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 
 .chat-item{display:flex;align-items:center;gap:13px;padding:12px 22px;cursor:pointer;transition:background .15s;}
 .chat-item:hover{background:var(--hover);}
+.chat-avatar-wrap{position:relative;flex-shrink:0;}
 .chat-avatar{width:50px;height:50px;border-radius:50%;object-fit:cover;background:var(--card);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.25rem;color:var(--muted);overflow:hidden;border:1px solid var(--border);}
 .chat-avatar img{width:100%;height:100%;object-fit:cover;display:block;}
+/* Titik biru status online, ditempel di sudut kanan-bawah foto profil ala Instagram */
+.chat-online-dot{position:absolute;bottom:1px;right:1px;width:13px;height:13px;border-radius:50%;background:var(--green);border:2.5px solid var(--bg);box-shadow:0 0 5px rgba(46,125,255,.7);}
 .chat-item-info{flex:1;min-width:0;}
 .chat-item-name{font-weight:700;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .chat-item-preview{font-size:.78rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;}
@@ -3022,6 +3025,10 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 
 .chat-conv-peer{display:flex;align-items:center;gap:12px;flex:1;min-width:0;cursor:pointer;}
 .chat-conv-name{font-size:.92rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.chat-conv-namewrap{display:flex;flex-direction:column;min-width:0;}
+.chat-conv-status{font-size:.72rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}
+.chat-conv-status.online{color:var(--green);font-weight:600;}
+
 
 .chat-messages{flex:1;overflow-y:auto;padding:20px 22px;display:flex;flex-direction:column;gap:9px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
 .chat-bubble-row{display:flex;flex-direction:column;max-width:66%;}
@@ -3090,6 +3097,63 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   .chat-item{padding:11px 16px;}
   .chat-messages{padding:16px;}
   .chat-input-bar{padding:12px 16px;}
+}
+
+/* ── Kirim Foto/Video di Chat (Cloudinary) ─────────────────── */
+.chat-attach-btn{width:42px;height:42px;border-radius:50%;background:var(--card);border:1px solid var(--border);color:var(--sub);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all .15s;}
+.chat-attach-btn:hover{color:var(--green);border-color:var(--green);background:var(--hover);}
+.chat-attach-btn svg{width:19px;height:19px;}
+.chat-attach-btn:disabled{opacity:.5;cursor:not-allowed;}
+
+/* Preview file yang dipilih, sebelum benar-benar dikirim */
+.chat-media-preview{display:none;align-items:center;gap:12px;padding:10px 22px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.chat-media-preview.show{display:flex;}
+.chat-media-preview-thumb{width:54px;height:54px;border-radius:10px;object-fit:cover;background:var(--card);flex-shrink:0;border:1px solid var(--border);}
+.chat-media-preview-thumb.video{display:flex;align-items:center;justify-content:center;font-size:1.3rem;}
+.chat-media-preview-body{flex:1;min-width:0;}
+.chat-media-preview-name{font-size:.78rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.chat-media-preview-status{font-size:.72rem;color:var(--sub);margin-top:2px;}
+.chat-media-preview-bar{width:100%;height:4px;border-radius:3px;background:var(--card);margin-top:6px;overflow:hidden;display:none;}
+.chat-media-preview-bar.show{display:block;}
+.chat-media-preview-bar-fill{height:100%;width:0%;background:var(--green);transition:width .15s;}
+.chat-media-preview-close{background:none;border:none;color:var(--sub);cursor:pointer;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;}
+.chat-media-preview-close:hover{color:var(--text);background:var(--hover);}
+.chat-media-preview-close svg{width:15px;height:15px;}
+
+/* Bubble berisi foto/video di dalam percakapan */
+.chat-bubble-media{padding:4px;border-radius:16px;overflow:hidden;max-width:260px;cursor:pointer;line-height:0;position:relative;}
+.chat-bubble-media img,.chat-bubble-media video{width:100%;max-height:320px;border-radius:13px;display:block;object-fit:cover;background:#000;}
+.chat-bubble-media video{cursor:pointer;}
+.chat-bubble-caption{padding:8px 14px 2px;font-size:.86rem;line-height:1.42;word-wrap:break-word;white-space:pre-wrap;}
+.chat-bubble-gif-badge{position:absolute;top:9px;left:9px;background:rgba(0,0,0,.65);color:#fff;font-size:.62rem;font-weight:800;letter-spacing:.5px;padding:2px 7px;border-radius:5px;pointer-events:none;}
+
+@media(max-width:1050px){
+  .chat-media-preview{padding:10px 16px;}
+}
+
+/* ── Kirim GIF di Chat (Giphy) ──────────────────────────────── */
+.chat-gif-btn{width:42px;height:42px;border-radius:50%;background:var(--card);border:1px solid var(--border);color:var(--sub);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all .15s;font-family:var(--f);font-size:.68rem;font-weight:800;letter-spacing:.3px;}
+.chat-gif-btn:hover{color:var(--green);border-color:var(--green);background:var(--hover);}
+.chat-gif-btn.active{color:var(--green);border-color:var(--green);background:var(--green-dim);}
+
+#chat-conv-view{position:relative;}
+.chat-gif-picker{position:absolute;left:0;right:0;bottom:0;height:0;overflow:hidden;background:var(--panel);border-top:1px solid var(--border);display:flex;flex-direction:column;z-index:40;border-radius:var(--r) var(--r) 0 0;transition:height .22s cubic-bezier(.22,1,.36,1);}
+.chat-gif-picker.show{height:360px;}
+.chat-gif-picker-header{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border);flex-shrink:0;}
+#chat-gif-search{flex:1;background:var(--card);border:1px solid var(--border);border-radius:20px;padding:9px 14px;color:var(--text);font-family:var(--f);font-size:.82rem;outline:none;transition:border-color .15s;}
+#chat-gif-search:focus{border-color:var(--green);}
+.chat-gif-picker-close{background:none;border:none;color:var(--sub);cursor:pointer;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;}
+.chat-gif-picker-close:hover{color:var(--text);background:var(--hover);}
+.chat-gif-picker-close svg{width:15px;height:15px;}
+.chat-gif-grid{flex:1;overflow-y:auto;padding:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px;align-content:start;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
+.chat-gif-grid-item{border-radius:8px;overflow:hidden;cursor:pointer;background:var(--card);aspect-ratio:1/1;border:1px solid transparent;transition:border-color .15s,transform .1s;}
+.chat-gif-grid-item:hover{border-color:var(--green);transform:scale(1.02);}
+.chat-gif-grid-item img{width:100%;height:100%;object-fit:cover;display:block;}
+.chat-gif-empty,.chat-gif-loading{grid-column:1/-1;text-align:center;color:var(--sub);font-size:.8rem;padding:40px 10px;}
+.chat-gif-attribution{flex-shrink:0;text-align:center;padding:6px;font-size:.62rem;color:var(--muted);border-top:1px solid var(--border);}
+
+@media(max-width:1050px){
+  .chat-gif-picker.show{height:300px;}
 }
 </style>
 <body>
@@ -3869,8 +3933,14 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
         </button>
         <div class="chat-conv-peer" id="chat-conv-peer" onclick="goToPeerProfile()" title="Lihat profil">
-          <div class="chat-avatar" id="chat-conv-avatar"></div>
-          <span class="chat-conv-name" id="chat-conv-name">—</span>
+          <div class="chat-avatar-wrap">
+            <div class="chat-avatar" id="chat-conv-avatar"></div>
+            <span class="chat-online-dot" id="chat-conv-dot" style="display:none;"></span>
+          </div>
+          <div class="chat-conv-namewrap">
+            <span class="chat-conv-name" id="chat-conv-name">—</span>
+            <span class="chat-conv-status" id="chat-conv-status"></span>
+          </div>
         </div>
       </div>
       <div class="chat-messages" id="chat-messages"></div>
@@ -3884,7 +3954,33 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </button>
       </div>
+      <div class="chat-gif-picker" id="chat-gif-picker">
+        <div class="chat-gif-picker-header">
+          <input type="text" id="chat-gif-search" placeholder="Cari GIF..." oninput="onGifSearchInput()">
+          <button class="chat-gif-picker-close" onclick="closeGifPicker()" title="Tutup">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="chat-gif-grid" id="chat-gif-grid"></div>
+        <div class="chat-gif-attribution">Didukung oleh GIPHY</div>
+      </div>
+      <div class="chat-media-preview" id="chat-media-preview">
+        <img class="chat-media-preview-thumb" id="chat-media-preview-thumb" alt="">
+        <div class="chat-media-preview-body">
+          <div class="chat-media-preview-name" id="chat-media-preview-name">—</div>
+          <div class="chat-media-preview-status" id="chat-media-preview-status">Siap dikirim</div>
+          <div class="chat-media-preview-bar" id="chat-media-preview-bar"><div class="chat-media-preview-bar-fill" id="chat-media-preview-bar-fill"></div></div>
+        </div>
+        <button class="chat-media-preview-close" id="chat-media-preview-close" onclick="cancelChatMediaPreview()" title="Batal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
       <div class="chat-input-bar">
+        <input type="file" id="chat-media-input" accept="image/*,video/*" style="display:none" onchange="handleChatMediaSelected(event)">
+        <button class="chat-attach-btn" id="chat-attach-btn" onclick="document.getElementById('chat-media-input').click()" title="Kirim foto/video">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+        </button>
+        <button class="chat-gif-btn" id="chat-gif-btn" onclick="toggleGifPicker()" title="Kirim GIF">GIF</button>
         <input type="text" id="chat-input" placeholder="Tulis pesan..." autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();sendChatMessage();}">
         <button class="chat-send-btn" onclick="sendChatMessage()" title="Kirim">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
@@ -4696,6 +4792,31 @@ let _chatOpenActionsMode = 'actions'; // 'actions' atau 'confirm-delete'
 let _chatInboxRef = null;       // ref listener inbox
 let _chatDirRef = null;         // ref listener direktori (live, utk nama/foto terbaru)
 let _chatDirLoaded = false;
+let _chatStatusCache = {};      // cache node "status" (online/offline + last_changed semua user)
+let _chatStatusRef = null;      // ref listener node "status"
+
+// ── Kirim Foto/Video di Chat (Cloudinary, unsigned upload preset) ──────
+// Cloud name & upload preset akun Cloudinary Vibexa. Aman ditaruh di
+// client-side karena ini BUKAN API Secret — upload preset unsigned hanya
+// mengizinkan upload sesuai batasan yang dikonfigurasi di dashboard
+// Cloudinary (Settings → Upload → Upload presets), tidak bisa dipakai
+// untuk hal lain (hapus/ubah aset, baca API secret, dsb).
+const CLOUDINARY_CLOUD_NAME = 'ourgabsi';
+const CLOUDINARY_UPLOAD_PRESET = 'vibexa_unsigned';
+const CLOUDINARY_MAX_IMAGE_MB = 15;
+const CLOUDINARY_MAX_VIDEO_MB = 100;
+
+let _chatPendingMediaFile = null; // File yg dipilih user, menunggu dikirim
+let _chatPendingMediaType = null; // 'image' | 'video'
+let _chatPendingMediaPreviewUrl = null; // object URL utk thumbnail preview
+let _chatMediaUploading = false;
+
+// ── Kirim GIF di Chat (Giphy) ───────────────────────────────────────────
+// API Key ini BUKAN rahasia — memang didesain Giphy untuk dipakai langsung
+// di sisi client (browser), beda dengan API Secret Cloudinary.
+const GIPHY_API_KEY = 'a66wRYtqYPmQPBMXFSiE9Hvsfe1Wn0ez';
+let _gifSearchDebounce = null;
+let _gifSearchSeq = 0; // penanda request pencarian terakhir, cegah race condition hasil lama menimpa hasil baru
 
 // Bikin id chat yang konsisten utk sepasang uid, urutan tidak masalah
 function chatIdFor(a, b) {
@@ -4708,6 +4829,96 @@ function initChatSystem(user) {
   syncMyDirectoryEntry(user);
   subscribeChatInbox();
   subscribeChatDirectory();
+  setupPresence(user);
+  subscribeChatStatus();
+}
+
+// ── Status Online / Terakhir Dilihat (ala Instagram) ────────────────────
+// Menyimpan status "online"/"offline" tiap user di node "status/{uid}",
+// dengan memanfaatkan koneksi realtime bawaan Firebase:
+//   - ".info/connected" bernilai true selama browser tersambung ke server.
+//   - onDisconnect() didaftarkan SETIAP KALI baru tersambung, supaya kalau
+//     koneksi putus tiba-tiba (tutup tab, internet mati, dsb), server
+//     Firebase sendiri yang otomatis menandai status jadi "offline" beserta
+//     jam terakhir terlihatnya — tanpa perlu browser masih menyala.
+//
+// CATATAN Firebase Security Rules — tambahkan (gabungkan dgn rules lain):
+//   "status": {
+//     ".read": "auth != null",
+//     "$uid": { ".write": "auth != null && auth.uid === $uid" }
+//   }
+function setupPresence(user) {
+  if (!user) return;
+  const myStatusRef = db.ref('status/' + user.uid);
+  db.ref('.info/connected').on('value', snap => {
+    if (snap.val() !== true) return;
+    myStatusRef.onDisconnect().set({
+      state: 'offline',
+      last_changed: firebase.database.ServerValue.TIMESTAMP
+    }).then(() => {
+      myStatusRef.set({
+        state: 'online',
+        last_changed: firebase.database.ServerValue.TIMESTAMP
+      });
+    }).catch(err => console.error('Gagal mengatur presence:', err));
+  });
+}
+
+// Tandai status saya "offline" secara manual — dipanggil saat logout,
+// supaya lawan bicara langsung melihat "offline" tanpa menunggu deteksi
+// putus-koneksi (yang baru terjadi kalau tab benar-benar ditutup).
+function markMyselfOffline() {
+  if (!currentUser) return Promise.resolve();
+  return db.ref('status/' + currentUser.uid).set({
+    state: 'offline',
+    last_changed: firebase.database.ServerValue.TIMESTAMP
+  }).catch(() => {});
+}
+
+function subscribeChatStatus() {
+  if (_chatStatusRef) _chatStatusRef.off();
+  _chatStatusRef = db.ref('status');
+  _chatStatusRef.on('value', snap => {
+    _chatStatusCache = snap.exists() ? (snap.val() || {}) : {};
+    renderChatList();               // refresh titik online di daftar chat
+    renderDirectoryList();          // refresh titik online di halaman tambah teman
+    refreshOpenConversationHeader(); // refresh status di header percakapan yg sedang dibuka
+  }, err => console.error('Gagal memuat status online:', err));
+}
+
+// Menghasilkan HTML titik online (kalau user tsb sedang online) utk ditempel
+// di sudut foto profil, dan teks status utk ditampilkan di tempat lain.
+function getPeerOnlineDotHTML(uid) {
+  const s = _chatStatusCache[uid];
+  const online = !!(s && s.state === 'online');
+  return online ? '<span class="chat-online-dot"></span>' : '';
+}
+
+// Label ala Instagram: "Online" kalau sedang online, atau
+// "Terakhir dilihat X yang lalu" berdasarkan last_changed.
+function formatPeerStatusLabel(uid) {
+  const s = _chatStatusCache[uid];
+  if (!s) return '';
+  if (s.state === 'online') return 'Online';
+  if (!s.last_changed) return '';
+  return 'Terakhir dilihat ' + formatLastSeen(s.last_changed);
+}
+
+// "Baru saja" / "5 menit yang lalu" / "3 jam yang lalu" / "Kemarin" / tanggal
+function formatLastSeen(ts) {
+  const diffMs = Date.now() - ts;
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return 'baru saja';
+  if (diffMin < 60) return diffMin + ' menit yang lalu';
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return diffHour + ' jam yang lalu';
+  const d = new Date(ts);
+  const now = new Date();
+  const yest = new Date(now); yest.setDate(now.getDate() - 1);
+  if (d.toDateString() === yest.toDateString()) {
+    return 'kemarin, ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+  }
+  return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 // Dengarkan node "directory" secara REAL-TIME (bukan sekali ambil saja),
@@ -4819,9 +5030,13 @@ function renderChatList() {
       : '&#128100;';
     const preview = c.lastMessage ? esc(c.lastMessage) : 'Mulai percakapan…';
     const unread = !!c.unread;
+    const dotHTML = getPeerOnlineDotHTML(c.with);
     return `
       <div class="chat-item" data-chatid="${esc(chatId)}" data-uid="${esc(c.with)}" data-name="${esc(name)}" data-photo="${esc(photo)}">
-        <div class="chat-avatar">${avatarHTML}</div>
+        <div class="chat-avatar-wrap">
+          <div class="chat-avatar">${avatarHTML}</div>
+          ${dotHTML}
+        </div>
         <div class="chat-item-info">
           <div class="chat-item-name">${esc(name)}</div>
           <div class="chat-item-preview${unread ? ' unread' : ''}">${preview}</div>
@@ -4911,9 +5126,13 @@ function renderDirectoryList() {
       ? `<img src="${esc(photo)}" alt="" onerror="this.parentElement.innerHTML='&#128100;'">`
       : '&#128100;';
     const name = u.displayName || 'Pengguna';
+    const dotHTML = getPeerOnlineDotHTML(uid);
     return `
       <div class="chat-item" data-uid="${esc(uid)}" data-name="${esc(name)}" data-photo="${esc(photo)}">
-        <div class="chat-avatar">${avatarHTML}</div>
+        <div class="chat-avatar-wrap">
+          <div class="chat-avatar">${avatarHTML}</div>
+          ${dotHTML}
+        </div>
         <div class="chat-item-info">
           <div class="chat-item-name">${esc(name)}</div>
           <div class="chat-item-preview">Tekan untuk mulai chat</div>
@@ -4977,6 +5196,7 @@ function openConversation(chatId, peerUid, peerName, peerPhoto) {
     ? `<img src="${esc(photo)}" alt="" onerror="this.parentElement.innerHTML='&#128100;'">`
     : '&#128100;';
   document.getElementById('chat-conv-name').textContent = name;
+  renderConvStatusUI(peerUid);
 
   showChatSubview('chat-conv-view');
   document.getElementById('chat-messages').innerHTML = '';
@@ -4986,6 +5206,8 @@ function openConversation(chatId, peerUid, peerName, peerPhoto) {
   _chatOpenActionsKey = null;
   _chatOpenActionsMode = 'actions';
   renderReplyPreview();
+  cancelChatMediaPreview(); // buang preview foto/video milik percakapan sebelumnya (kalau ada & tidak sedang upload)
+  closeGifPicker();
 
   // Tandai sudah dibaca di sisi saya
   if (currentUser) {
@@ -5037,6 +5259,7 @@ function detachChatMessagesListener() {
   _chatReplyTarget = null;
   _chatOpenActionsKey = null;
   _chatOpenActionsMode = 'actions';
+  closeGifPicker();
 }
 
 // Dipanggil setiap kali node "directory" berubah. Kalau percakapan sedang
@@ -5045,20 +5268,37 @@ function detachChatMessagesListener() {
 function refreshOpenConversationHeader() {
   if (!_chatCurrentPeer) return;
   const live = _chatDirectory[_chatCurrentPeer.uid];
-  if (!live) return;
-  const name = live.displayName || _chatCurrentPeer.name || 'Pengguna';
-  const photo = live.photoURL || _chatCurrentPeer.photo || '';
-  if (name === _chatCurrentPeer.name && photo === _chatCurrentPeer.photo) return;
-  _chatCurrentPeer.name = name;
-  _chatCurrentPeer.photo = photo;
-  const nameEl = document.getElementById('chat-conv-name');
-  const avatarEl = document.getElementById('chat-conv-avatar');
-  if (nameEl) nameEl.textContent = name;
-  if (avatarEl) {
-    avatarEl.innerHTML = photo
-      ? `<img src="${esc(photo)}" alt="" onerror="this.parentElement.innerHTML='&#128100;'">`
-      : '&#128100;';
+  if (live) {
+    const name = live.displayName || _chatCurrentPeer.name || 'Pengguna';
+    const photo = live.photoURL || _chatCurrentPeer.photo || '';
+    if (name !== _chatCurrentPeer.name || photo !== _chatCurrentPeer.photo) {
+      _chatCurrentPeer.name = name;
+      _chatCurrentPeer.photo = photo;
+      const nameEl = document.getElementById('chat-conv-name');
+      const avatarEl = document.getElementById('chat-conv-avatar');
+      if (nameEl) nameEl.textContent = name;
+      if (avatarEl) {
+        avatarEl.innerHTML = photo
+          ? `<img src="${esc(photo)}" alt="" onerror="this.parentElement.innerHTML='&#128100;'">`
+          : '&#128100;';
+      }
+    }
   }
+  // Status online/terakhir dilihat dicek terpisah dari nama/foto, supaya
+  // tetap ter-update real-time walau nama/foto lawan bicara tidak berubah.
+  renderConvStatusUI(_chatCurrentPeer.uid);
+}
+
+// Set titik online + label "Online" / "Terakhir dilihat ..." di header percakapan.
+function renderConvStatusUI(uid) {
+  const dotEl = document.getElementById('chat-conv-dot');
+  const statusEl = document.getElementById('chat-conv-status');
+  if (!dotEl || !statusEl) return;
+  const s = _chatStatusCache[uid];
+  const online = !!(s && s.state === 'online');
+  dotEl.style.display = online ? '' : 'none';
+  statusEl.textContent = formatPeerStatusLabel(uid);
+  statusEl.classList.toggle('online', online);
 }
 
 function renderChatMessages(msgsObj) {
@@ -5106,12 +5346,28 @@ function renderChatMessages(msgsObj) {
         </div>`;
     }
 
-    const bubbleHTML = deleted
-      ? `<div class="chat-bubble chat-bubble-deleted">
+    let bubbleHTML;
+    if (deleted) {
+      bubbleHTML = `<div class="chat-bubble chat-bubble-deleted">
            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5 14.5 14.5M14.5 9.5 9.5 14.5"/></svg>
            Pesan ini telah dihapus
-         </div>`
-      : `<div class="chat-bubble">${esc(m.text || '')}</div>`;
+         </div>`;
+    } else if (m.type === 'image' && m.mediaUrl) {
+      bubbleHTML = `<div class="chat-bubble-media" onclick="event.stopPropagation();openImgViewer('${esc(m.mediaUrl)}')">
+           <img src="${esc(m.mediaUrl)}" alt="Foto" loading="lazy">
+         </div>${m.text ? `<div class="chat-bubble-caption">${esc(m.text)}</div>` : ''}`;
+    } else if (m.type === 'video' && m.mediaUrl) {
+      bubbleHTML = `<div class="chat-bubble-media" onclick="event.stopPropagation();">
+           <video src="${esc(m.mediaUrl)}" controls preload="metadata" playsinline></video>
+         </div>${m.text ? `<div class="chat-bubble-caption">${esc(m.text)}</div>` : ''}`;
+    } else if (m.type === 'gif' && m.mediaUrl) {
+      bubbleHTML = `<div class="chat-bubble-media" onclick="event.stopPropagation();openImgViewer('${esc(m.mediaUrl)}')">
+           <span class="chat-bubble-gif-badge">GIF</span>
+           <img src="${esc(m.mediaUrl)}" alt="GIF" loading="lazy">
+         </div>${m.text ? `<div class="chat-bubble-caption">${esc(m.text)}</div>` : ''}`;
+    } else {
+      bubbleHTML = `<div class="chat-bubble">${esc(m.text || '')}</div>`;
+    }
 
     let readHTML = '';
     if (mine && key === lastMineKey) {
@@ -5181,7 +5437,7 @@ document.addEventListener('click', e => {
     return;
   }
 
-  const bubble = e.target.closest('.chat-bubble:not(.chat-bubble-deleted)');
+  const bubble = e.target.closest('.chat-bubble:not(.chat-bubble-deleted), .chat-bubble-caption');
   if (bubble) {
     const row = bubble.closest('.chat-bubble-row');
     const key = row && row.dataset.msgkey;
@@ -5282,6 +5538,10 @@ function formatChatDateSeparator(ts) {
 
 function sendChatMessage() {
   if (!currentUser || !_chatCurrentPeer) return;
+  // Kalau ada foto/video yang sedang dipilih (menunggu di preview bar),
+  // kirim sebagai pesan media — teks di kolom input dipakai sebagai caption.
+  if (_chatPendingMediaFile) { sendChatMediaMessage(); return; }
+
   const input = document.getElementById('chat-input');
   const text = (input.value || '').trim();
   if (!text) return;
@@ -5320,6 +5580,333 @@ function sendChatMessage() {
     console.error('Gagal mengirim pesan:', err);
     input.value = text; // kembalikan teks kalau gagal terkirim
   });
+}
+
+// ── Kirim Foto/Video: pilih file → preview → upload Cloudinary → kirim ──
+
+// Dipanggil saat user memilih file dari input[type=file] (tombol lampiran).
+function handleChatMediaSelected(event) {
+  const file = event.target.files && event.target.files[0];
+  event.target.value = ''; // reset supaya bisa pilih file yg sama lagi nanti
+  if (!file) return;
+  closeGifPicker();
+
+  const isImage = file.type.startsWith('image/');
+  const isVideo = file.type.startsWith('video/');
+  if (!isImage && !isVideo) {
+    alert('Hanya file foto atau video yang didukung.');
+    return;
+  }
+  const maxMb = isImage ? CLOUDINARY_MAX_IMAGE_MB : CLOUDINARY_MAX_VIDEO_MB;
+  if (file.size > maxMb * 1024 * 1024) {
+    alert(`Ukuran file terlalu besar. Maksimal ${maxMb}MB untuk ${isImage ? 'foto' : 'video'}.`);
+    return;
+  }
+
+  cancelChatMediaPreview(); // bersihkan pilihan sebelumnya (kalau ada)
+  _chatPendingMediaFile = file;
+  _chatPendingMediaType = isImage ? 'image' : 'video';
+  _chatPendingMediaPreviewUrl = URL.createObjectURL(file);
+
+  const thumb = document.getElementById('chat-media-preview-thumb');
+  thumb.className = 'chat-media-preview-thumb' + (isVideo ? ' video' : '');
+  if (isImage) {
+    thumb.style.display = '';
+    thumb.src = _chatPendingMediaPreviewUrl;
+    thumb.innerHTML = '';
+  } else {
+    // Untuk video, tampilkan ikon sederhana sbg thumbnail (hemat proses).
+    thumb.removeAttribute('src');
+    thumb.style.display = 'flex';
+    thumb.innerHTML = '&#127916;';
+  }
+
+  document.getElementById('chat-media-preview-name').textContent = file.name;
+  document.getElementById('chat-media-preview-status').textContent = 'Siap dikirim · tulis caption (opsional) lalu tekan kirim';
+  const bar = document.getElementById('chat-media-preview-bar');
+  bar.classList.remove('show');
+  document.getElementById('chat-media-preview-bar-fill').style.width = '0%';
+  document.getElementById('chat-media-preview').classList.add('show');
+  document.getElementById('chat-input')?.focus();
+}
+
+// Batalkan pemilihan foto/video sebelum dikirim.
+function cancelChatMediaPreview() {
+  if (_chatMediaUploading) return; // jangan batalkan selagi sedang upload
+  if (_chatPendingMediaPreviewUrl) URL.revokeObjectURL(_chatPendingMediaPreviewUrl);
+  _chatPendingMediaFile = null;
+  _chatPendingMediaType = null;
+  _chatPendingMediaPreviewUrl = null;
+  document.getElementById('chat-media-preview')?.classList.remove('show');
+  const closeBtn = document.getElementById('chat-media-preview-close');
+  const attachBtn = document.getElementById('chat-attach-btn');
+  const barWrap = document.getElementById('chat-media-preview-bar');
+  const barFill = document.getElementById('chat-media-preview-bar-fill');
+  if (closeBtn) closeBtn.style.visibility = '';
+  if (attachBtn) attachBtn.disabled = false;
+  if (barWrap) barWrap.classList.remove('show');
+  if (barFill) barFill.style.width = '0%';
+}
+
+// Upload satu file ke Cloudinary lewat unsigned upload preset.
+// resourceType: 'image' atau 'video'. onProgress(percent 0-100) opsional.
+function uploadToCloudinary(file, resourceType, onProgress) {
+  return new Promise((resolve, reject) => {
+    const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`;
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url, true);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      let res;
+      try { res = JSON.parse(xhr.responseText); } catch (e) { res = null; }
+      if (xhr.status >= 200 && xhr.status < 300 && res && res.secure_url) {
+        resolve(res);
+      } else {
+        const msg = (res && res.error && res.error.message) || `Upload gagal (status ${xhr.status})`;
+        reject(new Error(msg));
+      }
+    };
+    xhr.onerror = () => reject(new Error('Koneksi gagal saat upload ke Cloudinary.'));
+    xhr.send(formData);
+  });
+}
+
+// Upload file yang sedang dipilih ke Cloudinary lalu kirim sbg pesan chat
+// (caption diambil dari kolom teks, boleh kosong).
+async function sendChatMediaMessage() {
+  if (!currentUser || !_chatCurrentPeer || !_chatPendingMediaFile) return;
+  if (_chatMediaUploading) return;
+
+  const file = _chatPendingMediaFile;
+  const mediaType = _chatPendingMediaType;
+  const peer = _chatCurrentPeer;      // tangkap sekarang, sebelum upload async berjalan,
+  const chatId = peer.chatId;         // supaya kalau user pindah percakapan selagi upload
+  const myUid = currentUser.uid;      // masih berjalan, pesan tetap terkirim ke chat yg benar
+  const replyTargetSnapshot = _chatReplyTarget;
+  const input = document.getElementById('chat-input');
+  const caption = (input.value || '').trim();
+  const statusEl = document.getElementById('chat-media-preview-status');
+  const barWrap = document.getElementById('chat-media-preview-bar');
+  const barFill = document.getElementById('chat-media-preview-bar-fill');
+  const closeBtn = document.getElementById('chat-media-preview-close');
+  const attachBtn = document.getElementById('chat-attach-btn');
+
+  _chatMediaUploading = true;
+  if (closeBtn) closeBtn.style.visibility = 'hidden';
+  if (attachBtn) attachBtn.disabled = true;
+  barWrap.classList.add('show');
+  statusEl.textContent = 'Mengunggah 0%...';
+
+  try {
+    const result = await uploadToCloudinary(file, mediaType, (pct) => {
+      barFill.style.width = pct + '%';
+      statusEl.textContent = `Mengunggah ${pct}%...`;
+    });
+
+    statusEl.textContent = 'Mengirim...';
+    input.value = '';
+
+    const now = Date.now();
+    const msgKey = db.ref('chats/' + chatId + '/messages').push().key;
+
+    const msgData = {
+      from: myUid,
+      text: caption,
+      ts: now,
+      type: mediaType,               // 'image' | 'video'
+      mediaUrl: result.secure_url,
+      mediaWidth: result.width || null,
+      mediaHeight: result.height || null
+    };
+    if (replyTargetSnapshot) {
+      msgData.replyTo = {
+        key: replyTargetSnapshot.key,
+        text: replyTargetSnapshot.text,
+        from: replyTargetSnapshot.from,
+        name: replyTargetSnapshot.name
+      };
+    }
+
+    const previewLabel = (mediaType === 'image' ? '📷 Foto' : '🎥 Video') + (caption ? ': ' + caption : '');
+
+    const updates = {};
+    updates['chats/' + chatId + '/participants/' + myUid] = true;
+    updates['chats/' + chatId + '/participants/' + peer.uid] = true;
+    updates['chats/' + chatId + '/messages/' + msgKey] = msgData;
+    updates['userChats/' + myUid + '/' + chatId + '/lastMessage'] = previewLabel;
+    updates['userChats/' + myUid + '/' + chatId + '/lastMessageAt'] = now;
+    updates['userChats/' + myUid + '/' + chatId + '/unread'] = false;
+    updates['userChats/' + peer.uid + '/' + chatId + '/lastMessage'] = previewLabel;
+    updates['userChats/' + peer.uid + '/' + chatId + '/lastMessageAt'] = now;
+    updates['userChats/' + peer.uid + '/' + chatId + '/unread'] = true;
+
+    cancelReply();
+    await db.ref().update(updates);
+    _chatMediaUploading = false;
+    cancelChatMediaPreview();
+  } catch (err) {
+    console.error('Gagal mengirim foto/video:', err);
+    _chatMediaUploading = false;
+    statusEl.textContent = 'Gagal mengunggah — coba lagi.';
+    barWrap.classList.remove('show');
+    if (closeBtn) closeBtn.style.visibility = '';
+    if (attachBtn) attachBtn.disabled = false;
+  }
+}
+
+// ── GIF Picker (Giphy) ──────────────────────────────────────────────────
+
+function toggleGifPicker() {
+  const panel = document.getElementById('chat-gif-picker');
+  if (!panel) return;
+  if (panel.classList.contains('show')) closeGifPicker();
+  else openGifPicker();
+}
+
+function openGifPicker() {
+  cancelChatMediaPreview(); // jangan tumpang-tindih dgn preview foto/video
+  const panel = document.getElementById('chat-gif-picker');
+  const btn = document.getElementById('chat-gif-btn');
+  if (!panel) return;
+  panel.classList.add('show');
+  if (btn) btn.classList.add('active');
+  const searchInput = document.getElementById('chat-gif-search');
+  const grid = document.getElementById('chat-gif-grid');
+  // Kalau grid masih kosong (belum pernah dibuka / belum ada hasil), muat trending
+  if (grid && !grid.children.length) fetchGiphyTrending();
+  setTimeout(() => searchInput?.focus(), 150);
+}
+
+function closeGifPicker() {
+  const panel = document.getElementById('chat-gif-picker');
+  const btn = document.getElementById('chat-gif-btn');
+  if (panel) panel.classList.remove('show');
+  if (btn) btn.classList.remove('active');
+}
+
+// Debounce 400ms supaya tidak fetch API di setiap ketikan huruf
+function onGifSearchInput() {
+  clearTimeout(_gifSearchDebounce);
+  const q = (document.getElementById('chat-gif-search')?.value || '').trim();
+  _gifSearchDebounce = setTimeout(() => {
+    if (q) fetchGiphySearch(q); else fetchGiphyTrending();
+  }, 400);
+}
+
+function fetchGiphyTrending() {
+  const seq = ++_gifSearchSeq;
+  renderGifGridLoading();
+  const url = `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_API_KEY}&limit=24&rating=pg-13`;
+  fetch(url)
+    .then(r => r.json())
+    .then(data => { if (seq === _gifSearchSeq) renderGifGrid(data.data || []); })
+    .catch(err => { console.error('Gagal memuat GIF trending:', err); if (seq === _gifSearchSeq) renderGifGridError(); });
+}
+
+function fetchGiphySearch(query) {
+  const seq = ++_gifSearchSeq;
+  renderGifGridLoading();
+  const url = `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(query)}&limit=24&rating=pg-13`;
+  fetch(url)
+    .then(r => r.json())
+    .then(data => { if (seq === _gifSearchSeq) renderGifGrid(data.data || []); })
+    .catch(err => { console.error('Gagal mencari GIF:', err); if (seq === _gifSearchSeq) renderGifGridError(); });
+}
+
+function renderGifGridLoading() {
+  const grid = document.getElementById('chat-gif-grid');
+  if (grid) grid.innerHTML = '<div class="chat-gif-loading">Memuat GIF...</div>';
+}
+
+function renderGifGridError() {
+  const grid = document.getElementById('chat-gif-grid');
+  if (grid) grid.innerHTML = '<div class="chat-gif-empty">Gagal memuat GIF. Coba lagi.</div>';
+}
+
+function renderGifGrid(items) {
+  const grid = document.getElementById('chat-gif-grid');
+  if (!grid) return;
+  if (!items.length) {
+    grid.innerHTML = '<div class="chat-gif-empty">Tidak ada GIF ditemukan</div>';
+    return;
+  }
+  // _gifCache menyimpan url final per index, supaya klik item tidak perlu
+  // menaruh URL panjang di atribut HTML (aman dari karakter aneh & rapi).
+  _gifCache = {};
+  grid.innerHTML = items.map((g, i) => {
+    const thumbUrl = (g.images.fixed_width_small || g.images.fixed_width || g.images.original).url;
+    const sendImg = g.images.fixed_height || g.images.original;
+    _gifCache[i] = { url: sendImg.url, width: sendImg.width, height: sendImg.height };
+    return `<div class="chat-gif-grid-item" data-gifidx="${i}" title="${esc(g.title || 'GIF')}">
+      <img src="${esc(thumbUrl)}" alt="${esc(g.title || 'GIF')}" loading="lazy">
+    </div>`;
+  }).join('');
+}
+let _gifCache = {};
+
+document.addEventListener('click', e => {
+  const item = e.target.closest('#chat-gif-grid .chat-gif-grid-item');
+  if (!item) return;
+  const idx = item.dataset.gifidx;
+  const g = _gifCache[idx];
+  if (g) sendGifMessage(g.url, g.width, g.height);
+});
+
+// Kirim GIF langsung begitu dipilih — sama seperti WhatsApp/Instagram,
+// tanpa perlu tombol kirim terpisah. Teks di kolom input (kalau ada)
+// dikirim sebagai caption.
+function sendGifMessage(gifUrl, width, height) {
+  if (!currentUser || !_chatCurrentPeer) return;
+  const input = document.getElementById('chat-input');
+  const caption = (input.value || '').trim();
+  input.value = '';
+  closeGifPicker();
+
+  const myUid = currentUser.uid;
+  const peer = _chatCurrentPeer;
+  const chatId = peer.chatId;
+  const now = Date.now();
+  const msgKey = db.ref('chats/' + chatId + '/messages').push().key;
+
+  const msgData = {
+    from: myUid,
+    text: caption,
+    ts: now,
+    type: 'gif',
+    mediaUrl: gifUrl,
+    mediaWidth: width || null,
+    mediaHeight: height || null
+  };
+  if (_chatReplyTarget) {
+    msgData.replyTo = {
+      key: _chatReplyTarget.key,
+      text: _chatReplyTarget.text,
+      from: _chatReplyTarget.from,
+      name: _chatReplyTarget.name
+    };
+  }
+
+  const previewLabel = '🎞️ GIF' + (caption ? ': ' + caption : '');
+
+  const updates = {};
+  updates['chats/' + chatId + '/participants/' + myUid] = true;
+  updates['chats/' + chatId + '/participants/' + peer.uid] = true;
+  updates['chats/' + chatId + '/messages/' + msgKey] = msgData;
+  updates['userChats/' + myUid + '/' + chatId + '/lastMessage'] = previewLabel;
+  updates['userChats/' + myUid + '/' + chatId + '/lastMessageAt'] = now;
+  updates['userChats/' + myUid + '/' + chatId + '/unread'] = false;
+  updates['userChats/' + peer.uid + '/' + chatId + '/lastMessage'] = previewLabel;
+  updates['userChats/' + peer.uid + '/' + chatId + '/lastMessageAt'] = now;
+  updates['userChats/' + peer.uid + '/' + chatId + '/unread'] = true;
+
+  cancelReply();
+  db.ref().update(updates).catch(err => console.error('Gagal mengirim GIF:', err));
 }
 
 // Format waktu singkat ala Instagram: "14:05" utk hari ini, "Kmr" utk kemarin,
@@ -5431,7 +6018,9 @@ function doLogout() {
   if (confirm('Apakah kamu yakin ingin logout?')) {
     setCloudStatus('saving', 'Menyimpan sebelum logout...');
     flushPendingSaveBeforeExit().finally(() => {
-      auth.signOut().then(() => { window.location.href = 'index.html'; });
+      markMyselfOffline().finally(() => {
+        auth.signOut().then(() => { window.location.href = 'index.html'; });
+      });
     });
   }
 }
