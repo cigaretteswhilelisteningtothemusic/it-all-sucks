@@ -532,6 +532,73 @@ textarea.form-input { resize: none; line-height: 1.6; }
 .upv-pl-play:hover { transform: scale(1.1); }
 .upv-pl-play svg { width: 15px; height: 15px; color: #fff; }
 
+/* ── UPV: Banner + Square Avatar (facebook-style header) ── */
+.upv-banner-wrap { position: relative; width: 100%; margin-bottom: 56px; }
+.upv-banner {
+  width: 100%; height: 160px; border-radius: var(--r);
+  overflow: hidden; background: linear-gradient(135deg, var(--card), var(--panel));
+  border: 1px solid var(--border);
+}
+.upv-banner img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.upv-banner-empty { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 1.8rem; }
+.upv-header-row {
+  position: absolute; left: 16px; bottom: -46px;
+  display: flex; align-items: flex-end; gap: 14px;
+  right: 16px;
+}
+.upv-avatar-square {
+  width: 92px; height: 92px; border-radius: 18px; flex-shrink: 0;
+  background: var(--card); border: 4px solid var(--bg);
+  overflow: hidden; display: flex; align-items: center; justify-content: center;
+  font-size: 2.1rem; box-shadow: 0 4px 14px rgba(0,0,0,.35);
+}
+.upv-avatar-square img { width: 100%; height: 100%; object-fit: cover; }
+.upv-header-name-wrap { padding-bottom: 8px; min-width: 0; }
+.upv-header-name-wrap .upv-h-name { font-size: 1.25rem; font-weight: 800; letter-spacing: -.3px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── UPV: horizontal scroll strips (liked songs / catatan) ── */
+.upv-hscroll {
+  display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 10px;
+  scrollbar-width: thin; scrollbar-color: var(--muted) transparent;
+}
+.upv-hscroll::-webkit-scrollbar { height: 6px; }
+.upv-hscroll::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 10px; }
+
+.upv-liked-card {
+  flex: 0 0 auto; width: 118px; cursor: pointer;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 8px; transition: all .2s;
+}
+.upv-liked-card:hover { border-color: rgba(29,107,219,.4); background: var(--hover); }
+.upv-liked-thumb { width: 100%; aspect-ratio: 1/1; border-radius: 8px; overflow: hidden; background: var(--panel); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; margin-bottom: 6px; }
+.upv-liked-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.upv-liked-title { font-size: .74rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.upv-liked-artist { font-size: .66rem; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.upv-note-card {
+  flex: 0 0 auto; width: 200px; background: var(--card);
+  border: 1px solid var(--border); border-radius: 12px; padding: 12px;
+}
+.upv-note-text { font-size: .8rem; line-height: 1.55; color: var(--text); white-space: pre-wrap; word-break: break-word; }
+.upv-note-time { font-size: .65rem; color: var(--muted); margin-top: 8px; }
+
+/* ── UPV: two-column About / Favorite Songs ── */
+.upv-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 560px) { .upv-columns { grid-template-columns: 1fr; } }
+.upv-about-text { font-size: .84rem; line-height: 1.7; color: var(--sub); white-space: pre-wrap; word-break: break-word; }
+.upv-fav-list { max-height: 360px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 2px; }
+.upv-fav-list::-webkit-scrollbar { width: 6px; }
+.upv-fav-list::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 10px; }
+.upv-fav-item { display: flex; gap: 10px; padding: 8px; border-radius: 10px; background: var(--panel); border: 1px solid var(--border); cursor: pointer; transition: all .2s; }
+.upv-fav-item:hover { border-color: rgba(29,107,219,.4); }
+.upv-fav-thumb { width: 42px; height: 42px; border-radius: 8px; overflow: hidden; flex-shrink: 0; background: var(--card); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+.upv-fav-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.upv-fav-info { min-width: 0; flex: 1; }
+.upv-fav-title { font-size: .8rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.upv-fav-artist { font-size: .68rem; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; }
+.upv-fav-note { font-size: .7rem; color: var(--teal); line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
+.upv-empty-mini { text-align: center; padding: 20px 8px; color: var(--muted); font-size: .74rem; }
+
 /* Track row in detail view */
 .pld-track-row {
   display: flex; align-items: center; gap: 10px;
@@ -603,8 +670,17 @@ textarea.form-input { resize: none; line-height: 1.6; }
 <!-- MAIN APP -->
 <div id="app">
 
+  <!-- COVER / BACKGROUND PHOTO -->
+  <div style="position:relative;width:100%;height:140px;border-radius:var(--r);overflow:hidden;background:linear-gradient(135deg,var(--card),var(--panel));border:1px solid var(--border);margin-top:14px;cursor:pointer;" onclick="openCoverModal()">
+    <div id="cover-preview-wrap" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:1.6rem;">🖼️</div>
+    <div style="position:absolute;bottom:8px;right:8px;background:rgba(8,11,18,0.75);border:1px solid var(--border);border-radius:50px;padding:5px 12px;font-size:.68rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:5px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      Ubah Sampul
+    </div>
+  </div>
+
   <!-- PROFILE HEADER -->
-  <div class="profile-header">
+  <div class="profile-header" style="padding-top:0;margin-top:-40px;">
     <div class="avatar-wrap" onclick="openPhotoModal()">
       <div class="avatar-ring">
         <div class="avatar-inner" id="avatar-inner">🎵</div>
@@ -646,10 +722,45 @@ textarea.form-input { resize: none; line-height: 1.6; }
       <textarea class="form-input" id="inp-bio" rows="3" placeholder="Tell us a little about yourself or your favorite music..." maxlength="120"></textarea>
       <div class="char-count"><span id="bio-count">0</span>/120</div>
     </div>
+    <div class="form-group">
+      <label class="form-label">Tentang (About)</label>
+      <textarea class="form-input" id="inp-about" rows="4" placeholder="Ceritakan lebih banyak tentang dirimu..." maxlength="500"></textarea>
+      <div class="char-count"><span id="about-count">0</span>/500</div>
+    </div>
     <button class="btn-save" id="btn-save-profile" onclick="saveProfile()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>
       Save Changes
     </button>
+  </div>
+
+  <!-- CATATAN (NOTES) -->
+  <div class="section-card">
+    <div class="section-title">Catatan</div>
+    <div class="form-group">
+      <textarea class="form-input" id="inp-note" rows="2" placeholder="Tulis catatan singkat..." maxlength="200"></textarea>
+      <div class="char-count"><span id="note-count">0</span>/200</div>
+    </div>
+    <button class="btn-save" id="btn-post-note" onclick="postNote()">Post Catatan</button>
+    <div id="my-notes-list" style="margin-top:14px;display:flex;flex-direction:column;gap:8px;"></div>
+  </div>
+
+  <!-- LAGU FAVORIT -->
+  <div class="section-card">
+    <div class="section-title">Lagu Favorit <span style="color:var(--muted);text-transform:none;letter-spacing:0;">(maks. 10)</span></div>
+    <div class="form-group">
+      <label class="form-label">Judul Lagu</label>
+      <input type="text" class="form-input" id="inp-fav-title" placeholder="Judul lagu...">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Artis</label>
+      <input type="text" class="form-input" id="inp-fav-artist" placeholder="Nama artis...">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Catatan untuk lagu ini</label>
+      <textarea class="form-input" id="inp-fav-note" rows="2" placeholder="Kenapa lagu ini spesial buatmu?" maxlength="150"></textarea>
+    </div>
+    <button class="btn-save" id="btn-add-fav" onclick="addFavoriteSong()">+ Tambah ke Lagu Favorit</button>
+    <div id="my-favorites-list" style="margin-top:14px;display:flex;flex-direction:column;gap:8px;"></div>
   </div>
 
   <!-- PLAYLIST PUBLISH -->
@@ -705,6 +816,25 @@ textarea.form-input { resize: none; line-height: 1.6; }
     <div class="sheet-btns">
       <button class="btn-s" onclick="closePhotoModal()">Cancel</button>
       <button class="btn-p" id="btn-save-photo" onclick="savePhoto()" disabled>Save Photo</button>
+    </div>
+  </div>
+</div>
+
+<!-- COVER PHOTO MODAL -->
+<div id="cover-modal" class="modal-bg" style="display:none" onclick="closeCoverModalBg(event)">
+  <div class="modal-sheet">
+    <div class="sheet-title">Foto Sampul</div>
+    <div class="sheet-sub">Upload foto latar profil kamu</div>
+    <img class="preview-img" id="cover-preview" src="" alt="" style="aspect-ratio:16/6;object-fit:cover;">
+    <div class="drop-z" id="cover-drop-zone" onclick="document.getElementById('cover-inp').click()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+      <span>Klik atau seret foto ke sini</span>
+      <small>JPG · PNG · WebP · Max 3MB</small>
+    </div>
+    <input type="file" id="cover-inp" accept="image/*" style="display:none">
+    <div class="sheet-btns">
+      <button class="btn-s" onclick="closeCoverModal()">Cancel</button>
+      <button class="btn-p" id="btn-save-cover" onclick="saveCover()" disabled>Save Cover</button>
     </div>
   </div>
 </div>
@@ -766,27 +896,66 @@ textarea.form-input { resize: none; line-height: 1.6; }
     <div id="upv-nav-name" style="font-size:1rem;font-weight:700;flex:1;">User Profile</div>
   </div>
   <!-- Content -->
-  <div style="max-width:700px;margin:0 auto;padding:0 16px 100px;">
-    <!-- Profile Header -->
-    <div style="padding:28px 0 20px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px;">
-      <div style="width:90px;height:90px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--teal));padding:2.5px;">
-        <div id="upv-avatar" style="width:100%;height:100%;border-radius:50%;background:var(--card);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:2.4rem;"></div>
+  <div style="max-width:700px;margin:0 auto;padding:14px 16px 100px;">
+
+    <!-- Banner + Square Avatar -->
+    <div class="upv-banner-wrap">
+      <div class="upv-banner" id="upv-banner">
+        <div class="upv-banner-empty">🖼️</div>
       </div>
-      <div>
-        <div id="upv-name" style="font-size:1.4rem;font-weight:800;letter-spacing:-.4px;"></div>
-      </div>
-      <div id="upv-bio" style="font-size:.85rem;color:var(--sub);max-width:300px;line-height:1.65;text-align:center;"></div>
-      <div style="display:flex;gap:32px;justify-content:center;padding:14px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);width:100%;">
-        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-          <div id="upv-stat-pl" style="font-size:1.2rem;font-weight:800;">0</div>
-          <div style="font-size:.62rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);">Playlist</div>
-        </div>
-        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-          <div id="upv-stat-likes" style="font-size:1.2rem;font-weight:800;">0</div>
-          <div style="font-size:.62rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);">Total Likes</div>
+      <div class="upv-header-row">
+        <div class="upv-avatar-square" id="upv-avatar"></div>
+        <div class="upv-header-name-wrap">
+          <div class="upv-h-name" id="upv-name">—</div>
         </div>
       </div>
     </div>
+
+    <!-- Bio / Description -->
+    <div id="upv-bio" style="font-size:.85rem;color:var(--sub);line-height:1.65;margin-bottom:16px;"></div>
+
+    <!-- Stats -->
+    <div style="display:flex;gap:28px;padding:12px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-bottom:18px;">
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <div id="upv-stat-pl" style="font-size:1.15rem;font-weight:800;">0</div>
+        <div style="font-size:.6rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);">Playlist</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <div id="upv-stat-likes" style="font-size:1.15rem;font-weight:800;">0</div>
+        <div style="font-size:.6rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);">Total Likes</div>
+      </div>
+    </div>
+
+    <!-- Liked Songs (horizontal scroll) -->
+    <div style="margin-bottom:20px;">
+      <div style="font-size:.68rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Liked Songs</div>
+      <div class="upv-hscroll" id="upv-liked-scroll">
+        <div class="upv-empty-mini" style="width:100%;">Loading...</div>
+      </div>
+    </div>
+
+    <!-- Catatan (Notes) -->
+    <div style="margin-bottom:20px;">
+      <div style="font-size:.68rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Catatan</div>
+      <div class="upv-hscroll" id="upv-notes-scroll">
+        <div class="upv-empty-mini" style="width:100%;">Loading...</div>
+      </div>
+    </div>
+
+    <!-- About + Favorite Songs (two columns) -->
+    <div class="upv-columns" style="margin-bottom:20px;">
+      <div class="section-card" style="margin-bottom:0;">
+        <div class="section-title">Tentang</div>
+        <div class="upv-about-text" id="upv-about">Loading...</div>
+      </div>
+      <div class="section-card" style="margin-bottom:0;">
+        <div class="section-title">Lagu Favorit</div>
+        <div class="upv-fav-list" id="upv-favorites">
+          <div class="upv-empty-mini">Loading...</div>
+        </div>
+      </div>
+    </div>
+
     <!-- Public Playlists -->
     <div>
       <div style="font-size:.68rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:14px;">Public Playlists</div>
@@ -884,6 +1053,8 @@ async function loadProfile() {
     const data = snap.exists() ? snap.val() : {};
     const name = data.displayName || currentUser.displayName || currentUser.email.split('@')[0];
     const bio  = data.bio || '';
+    const about = data.about || '';
+    const cover = data.backgroundURL || '';
     const photo = data.photoURL || currentUser.photoURL || '';
 
     document.getElementById('display-name').textContent = name;
@@ -895,10 +1066,24 @@ async function loadProfile() {
     document.getElementById('inp-name').value = name;
     document.getElementById('inp-bio').value  = bio;
     document.getElementById('bio-count').textContent = bio.length;
+    document.getElementById('inp-about').value = about;
+    document.getElementById('about-count').textContent = about.length;
 
     setAvatar(photo, name);
+    setCoverPreview(cover);
+    loadMyNotes();
+    loadMyFavorites();
   } catch(e) {
     console.error(e);
+  }
+}
+
+function setCoverPreview(coverURL) {
+  const wrap = document.getElementById('cover-preview-wrap');
+  if (coverURL) {
+    wrap.innerHTML = `<img src="${esc(coverURL)}" alt="" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentNode.innerHTML='🖼️'">`;
+  } else {
+    wrap.innerHTML = `🖼️`;
   }
 }
 
@@ -1038,11 +1223,12 @@ async function saveProfile() {
   const btn  = document.getElementById('btn-save-profile');
   const name = document.getElementById('inp-name').value.trim();
   const bio  = document.getElementById('inp-bio').value.trim();
+  const about = document.getElementById('inp-about').value.trim();
   if (!name) { toast('❗ Name cannot be empty'); return; }
   btn.disabled = true;
   btn.textContent = 'Saving...';
   try {
-    await db.ref('users/' + currentUser.uid + '/profile').update({ displayName: name, bio });
+    await db.ref('users/' + currentUser.uid + '/profile').update({ displayName: name, bio, about });
     await currentUser.updateProfile({ displayName: name });
     document.getElementById('display-name').textContent = name;
     document.getElementById('user-bio').textContent = bio || 'No description yet';
@@ -1145,6 +1331,177 @@ function compressImage(dataURL, maxW, maxH, quality) {
 document.getElementById('inp-bio').addEventListener('input', function() {
   document.getElementById('bio-count').textContent = this.value.length;
 });
+document.getElementById('inp-about').addEventListener('input', function() {
+  document.getElementById('about-count').textContent = this.value.length;
+});
+document.getElementById('inp-note').addEventListener('input', function() {
+  document.getElementById('note-count').textContent = this.value.length;
+});
+
+// ── Cover Photo Upload ─────────────────────────────────────
+let pendingCoverData = null;
+function openCoverModal() {
+  pendingCoverData = null;
+  document.getElementById('cover-preview').style.display = 'none';
+  document.getElementById('btn-save-cover').disabled = true;
+  document.getElementById('cover-drop-zone').style.display = 'flex';
+  document.getElementById('cover-modal').style.display = 'flex';
+}
+function closeCoverModal() { document.getElementById('cover-modal').style.display = 'none'; }
+function closeCoverModalBg(e) { if (e.target === document.getElementById('cover-modal')) closeCoverModal(); }
+
+document.getElementById('cover-inp').addEventListener('change', function() {
+  const file = this.files[0];
+  if (!file) return;
+  if (file.size > 3 * 1024 * 1024) { toast('❗ Foto terlalu besar (maks 3MB)'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    pendingCoverData = e.target.result;
+    document.getElementById('cover-preview').src = pendingCoverData;
+    document.getElementById('cover-preview').style.display = 'block';
+    document.getElementById('cover-drop-zone').style.display = 'none';
+    document.getElementById('btn-save-cover').disabled = false;
+  };
+  reader.readAsDataURL(file);
+});
+
+const coverDz = document.getElementById('cover-drop-zone');
+coverDz.addEventListener('dragover', e => { e.preventDefault(); coverDz.style.borderColor = 'var(--blue)'; });
+coverDz.addEventListener('dragleave', () => { coverDz.style.borderColor = ''; });
+coverDz.addEventListener('drop', e => {
+  e.preventDefault(); coverDz.style.borderColor = '';
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) {
+    document.getElementById('cover-inp').files = e.dataTransfer.files;
+    document.getElementById('cover-inp').dispatchEvent(new Event('change'));
+  }
+});
+
+async function saveCover() {
+  if (!pendingCoverData || !currentUser) return;
+  const btn = document.getElementById('btn-save-cover');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const compressed = await compressImage(pendingCoverData, 900, 340, 0.72);
+    await db.ref('users/' + currentUser.uid + '/profile/backgroundURL').set(compressed);
+    setCoverPreview(compressed);
+    closeCoverModal();
+    toast('✅ Foto sampul diperbarui!');
+  } catch(e) {
+    toast('❌ Gagal: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save Cover';
+  }
+}
+
+// ── Catatan (Notes) ────────────────────────────────────────
+async function postNote() {
+  if (!currentUser) return;
+  const inp = document.getElementById('inp-note');
+  const text = inp.value.trim();
+  if (!text) { toast('❗ Catatan tidak boleh kosong'); return; }
+  const btn = document.getElementById('btn-post-note');
+  btn.disabled = true;
+  try {
+    await db.ref('users/' + currentUser.uid + '/notes').push({ text, ts: Date.now() });
+    inp.value = '';
+    document.getElementById('note-count').textContent = '0';
+    toast('✅ Catatan diposting!');
+    loadMyNotes();
+  } catch(e) {
+    toast('❌ Gagal: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function loadMyNotes() {
+  if (!currentUser) return;
+  const listEl = document.getElementById('my-notes-list');
+  try {
+    const snap = await db.ref('users/' + currentUser.uid + '/notes').orderByChild('ts').limitToLast(20).get();
+    if (!snap.exists()) { listEl.innerHTML = `<div style="text-align:center;padding:14px 0;color:var(--muted);font-size:.78rem;">Belum ada catatan</div>`; return; }
+    const val = snap.val();
+    const arr = Object.entries(val).sort((a,b) => (b[1].ts||0) - (a[1].ts||0));
+    listEl.innerHTML = arr.map(([key, n]) => `
+      <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
+        <div style="min-width:0;">
+          <div style="font-size:.8rem;line-height:1.5;white-space:pre-wrap;word-break:break-word;">${esc(n.text||'')}</div>
+          <div style="font-size:.65rem;color:var(--muted);margin-top:4px;">${timeSince(n.ts)}</div>
+        </div>
+        <button onclick="deleteNote('${key}')" style="flex-shrink:0;background:none;border:none;color:var(--muted);cursor:pointer;font-size:.9rem;" title="Hapus">✕</button>
+      </div>`).join('');
+  } catch(e) {
+    listEl.innerHTML = `<div style="text-align:center;padding:14px 0;color:var(--muted);font-size:.78rem;">Belum ada catatan</div>`;
+  }
+}
+
+async function deleteNote(key) {
+  if (!currentUser) return;
+  try {
+    await db.ref('users/' + currentUser.uid + '/notes/' + key).remove();
+    toast('🗑️ Catatan dihapus');
+    loadMyNotes();
+  } catch(e) { toast('❌ Gagal: ' + e.message); }
+}
+
+// ── Lagu Favorit ────────────────────────────────────────────
+async function addFavoriteSong() {
+  if (!currentUser) return;
+  const title = document.getElementById('inp-fav-title').value.trim();
+  const artist = document.getElementById('inp-fav-artist').value.trim();
+  const note = document.getElementById('inp-fav-note').value.trim();
+  if (!title) { toast('❗ Judul lagu tidak boleh kosong'); return; }
+
+  try {
+    const snap = await db.ref('users/' + currentUser.uid + '/favoriteSongs').get();
+    const existing = snap.exists() ? snap.val() : {};
+    if (Object.keys(existing).length >= 10) { toast('❗ Maksimal 10 lagu favorit'); return; }
+
+    const order = Object.keys(existing).length;
+    await db.ref('users/' + currentUser.uid + '/favoriteSongs').push({
+      title, artist, note, order, addedAt: Date.now()
+    });
+    document.getElementById('inp-fav-title').value = '';
+    document.getElementById('inp-fav-artist').value = '';
+    document.getElementById('inp-fav-note').value = '';
+    toast('✅ Ditambahkan ke lagu favorit!');
+    loadMyFavorites();
+  } catch(e) {
+    toast('❌ Gagal: ' + e.message);
+  }
+}
+
+async function loadMyFavorites() {
+  if (!currentUser) return;
+  const listEl = document.getElementById('my-favorites-list');
+  try {
+    const snap = await db.ref('users/' + currentUser.uid + '/favoriteSongs').get();
+    if (!snap.exists()) { listEl.innerHTML = `<div style="text-align:center;padding:14px 0;color:var(--muted);font-size:.78rem;">Belum ada lagu favorit</div>`; return; }
+    const val = snap.val();
+    const arr = Object.entries(val).sort((a,b) => (a[1].order??0) - (b[1].order??0));
+    listEl.innerHTML = arr.map(([key, f]) => `
+      <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
+        <div style="min-width:0;">
+          <div style="font-size:.82rem;font-weight:700;">${esc(f.title||'—')}</div>
+          <div style="font-size:.72rem;color:var(--sub);margin-bottom:3px;">${esc(f.artist||'—')}</div>
+          ${f.note ? `<div style="font-size:.72rem;color:var(--teal);white-space:pre-wrap;word-break:break-word;">"${esc(f.note)}"</div>` : ''}
+        </div>
+        <button onclick="removeFavoriteSong('${key}')" style="flex-shrink:0;background:none;border:none;color:var(--muted);cursor:pointer;font-size:.9rem;" title="Hapus">✕</button>
+      </div>`).join('');
+  } catch(e) {
+    listEl.innerHTML = `<div style="text-align:center;padding:14px 0;color:var(--muted);font-size:.78rem;">Belum ada lagu favorit</div>`;
+  }
+}
+
+async function removeFavoriteSong(key) {
+  if (!currentUser) return;
+  try {
+    await db.ref('users/' + currentUser.uid + '/favoriteSongs/' + key).remove();
+    toast('🗑️ Dihapus dari lagu favorit');
+    loadMyFavorites();
+  } catch(e) { toast('❌ Gagal: ' + e.message); }
+}
 
 // ── EXPLORE ──────────────────────────────────────────────
 let exploreFeedLoaded = false;
@@ -1471,9 +1828,12 @@ async function doSearchUsers(q) {
 let currentViewedUid = null;
 let currentViewedPlaylists = {};
 
+const LIKED_PLAYLIST_ID_UPV = 'liked-songs';
+
 async function openUserProfile(uid) {
   currentViewedUid = uid;
   currentViewedPlaylists = {};
+
   document.getElementById('user-profile-view').style.display = 'block';
   document.getElementById('upv-nav-name').textContent = 'User Profile';
   document.getElementById('upv-avatar').textContent = '...';
@@ -1481,6 +1841,11 @@ async function openUserProfile(uid) {
   document.getElementById('upv-bio').textContent = '';
   document.getElementById('upv-stat-pl').textContent = '0';
   document.getElementById('upv-stat-likes').textContent = '0';
+  document.getElementById('upv-banner').innerHTML = `<div class="upv-banner-empty">🖼️</div>`;
+  document.getElementById('upv-about').textContent = 'Loading...';
+  document.getElementById('upv-liked-scroll').innerHTML = `<div class="upv-empty-mini" style="width:100%;">Loading...</div>`;
+  document.getElementById('upv-notes-scroll').innerHTML = `<div class="upv-empty-mini" style="width:100%;">Loading...</div>`;
+  document.getElementById('upv-favorites').innerHTML = `<div class="upv-empty-mini">Loading...</div>`;
   document.getElementById('upv-playlists').innerHTML = `<div style="text-align:center;padding:40px 0;color:var(--muted);font-size:.83rem;">Loading...</div>`;
 
   // ── 1. Ambil semua public_playlists dulu (dapat ownerName & ownerPhoto dari sini) ──
@@ -1510,6 +1875,8 @@ async function openUserProfile(uid) {
   let name = nameFromPl || 'User';
   let photo = photoFromPl || '';
   let bio = '';
+  let about = '';
+  let background = '';
 
   try {
     const profSnap = await db.ref('users/' + uid + '/profile').get();
@@ -1518,44 +1885,111 @@ async function openUserProfile(uid) {
       if (prof.displayName) name = prof.displayName;
       if (prof.photoURL || prof.photoBase64) photo = prof.photoURL || prof.photoBase64;
       bio = prof.bio || '';
+      about = prof.about || '';
+      background = prof.backgroundURL || '';
     }
   } catch(e) {
     // Tidak apa-apa, sudah ada data dari playlist
     console.warn('Tidak bisa baca users profile, pakai data dari playlist:', e.message);
   }
 
-  // ── 3. Render header profil ──
+  // ── 3. Render header profil (banner + square avatar + name) ──
   document.getElementById('upv-nav-name').textContent = name;
   document.getElementById('upv-name').textContent = name;
   document.getElementById('upv-bio').textContent = bio || 'No description yet';
   document.getElementById('upv-bio').style.fontStyle = bio ? 'normal' : 'italic';
 
+  const bannerEl = document.getElementById('upv-banner');
+  bannerEl.innerHTML = background
+    ? `<img src="${esc(background)}" alt="" onerror="this.parentNode.innerHTML='<div class=&quot;upv-banner-empty&quot;>🖼️</div>'">`
+    : `<div class="upv-banner-empty">🖼️</div>`;
+
   const avEl = document.getElementById('upv-avatar');
   if (photo) {
-    avEl.innerHTML = `<img src="${esc(photo)}" alt="${esc(name)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentNode.textContent='${name.charAt(0).toUpperCase()}'">`;
+    avEl.innerHTML = `<img src="${esc(photo)}" alt="${esc(name)}" onerror="this.parentNode.textContent='${name.charAt(0).toUpperCase()}'">`;
   } else {
     avEl.textContent = name.charAt(0).toUpperCase();
   }
 
-  // ── 4. Render playlist ──
-  const keys = Object.keys(userPls);
+  document.getElementById('upv-about').textContent = about || 'Belum ada deskripsi tentang user ini.';
+  document.getElementById('upv-about').style.fontStyle = about ? 'normal' : 'italic';
+
+  // ── 4. Ambil Catatan (notes) user ──
+  try {
+    const notesSnap = await db.ref('users/' + uid + '/notes').orderByChild('ts').limitToLast(20).get();
+    const notesEl = document.getElementById('upv-notes-scroll');
+    if (notesSnap.exists()) {
+      const notesVal = notesSnap.val();
+      const notesArr = Object.values(notesVal).sort((a,b) => (b.ts||0) - (a.ts||0));
+      notesEl.innerHTML = notesArr.map(n => `
+        <div class="upv-note-card">
+          <div class="upv-note-text">${esc(n.text || '')}</div>
+          <div class="upv-note-time">${timeSince(n.ts)}</div>
+        </div>`).join('');
+    } else {
+      notesEl.innerHTML = `<div class="upv-empty-mini" style="width:100%;">Belum ada catatan</div>`;
+    }
+  } catch(e) {
+    document.getElementById('upv-notes-scroll').innerHTML = `<div class="upv-empty-mini" style="width:100%;">Belum ada catatan</div>`;
+  }
+
+  // ── 5. Ambil Lagu Favorit (max 10, tiap lagu ada catatan) ──
+  try {
+    const favSnap = await db.ref('users/' + uid + '/favoriteSongs').get();
+    const favEl = document.getElementById('upv-favorites');
+    if (favSnap.exists()) {
+      const favVal = favSnap.val();
+      const favArr = Object.values(favVal)
+        .sort((a,b) => (a.order ?? 0) - (b.order ?? 0))
+        .slice(0, 10);
+      favEl.innerHTML = favArr.map(f => `
+        <div class="upv-fav-item" onclick="${f._query ? `window.open('vibexa.html?play=' + encodeURIComponent('${esc(f._query).replace(/'/g,"\\'")}'), '_blank')` : ''}">
+          <div class="upv-fav-thumb">${f.thumb ? `<img src="${esc(f.thumb)}" alt="">` : '♪'}</div>
+          <div class="upv-fav-info">
+            <div class="upv-fav-title">${esc(f.title || '—')}</div>
+            <div class="upv-fav-artist">${esc(f.artist || '—')}</div>
+            ${f.note ? `<div class="upv-fav-note">"${esc(f.note)}"</div>` : ''}
+          </div>
+        </div>`).join('');
+    } else {
+      favEl.innerHTML = `<div class="upv-empty-mini">Belum ada lagu favorit</div>`;
+    }
+  } catch(e) {
+    document.getElementById('upv-favorites').innerHTML = `<div class="upv-empty-mini">Belum ada lagu favorit</div>`;
+  }
+
+  // ── 6. Liked Songs (dari public playlist khusus "liked-songs") ──
+  const likedKey = uid + '_' + LIKED_PLAYLIST_ID_UPV;
+  const likedPl = userPls[likedKey];
+  const likedScrollEl = document.getElementById('upv-liked-scroll');
+  if (likedPl && (likedPl.tracks || []).length) {
+    likedScrollEl.innerHTML = likedPl.tracks.map((t, i) => `
+      <div class="upv-liked-card" onclick="playLikedTrackUpv('${likedKey}', ${i})">
+        <div class="upv-liked-thumb">${t.thumb ? `<img src="${esc(t.thumb)}" alt="">` : '♪'}</div>
+        <div class="upv-liked-title">${esc(t.title || '—')}</div>
+        <div class="upv-liked-artist">${esc(t.artist || '—')}</div>
+      </div>`).join('');
+  } else {
+    likedScrollEl.innerHTML = `<div class="upv-empty-mini" style="width:100%;">Liked songs belum dipublikasikan</div>`;
+  }
+
+  // ── 7. Render Public Playlists (kecuali playlist "Liked Songs", sudah tampil di atas) ──
+  const keys = Object.keys(userPls).filter(k => k !== likedKey);
+  currentViewedPlaylists = userPls;
+
+  let totalLikes = 0;
+  Object.keys(userPls).forEach(k => {
+    totalLikes += userPls[k].likes ? Object.keys(userPls[k].likes).length : 0;
+  });
+  document.getElementById('upv-stat-pl').textContent = Object.keys(userPls).length;
+  document.getElementById('upv-stat-likes').textContent = totalLikes;
+
   if (!keys.length) {
     document.getElementById('upv-playlists').innerHTML = `<div style="text-align:center;padding:40px 0;color:var(--muted);"><div style="font-size:2rem;margin-bottom:8px">🎵</div><div style="font-size:.83rem;">No playlists yet publik</div></div>`;
-    document.getElementById('upv-stat-pl').textContent = '0';
-    document.getElementById('upv-stat-likes').textContent = '0';
     return;
   }
 
-  currentViewedPlaylists = userPls;
   keys.sort((a,b) => (userPls[b].publishedAt||0) - (userPls[a].publishedAt||0));
-
-  let totalLikes = 0;
-  keys.forEach(k => {
-    totalLikes += userPls[k].likes ? Object.keys(userPls[k].likes).length : 0;
-  });
-
-  document.getElementById('upv-stat-pl').textContent = keys.length;
-  document.getElementById('upv-stat-likes').textContent = totalLikes;
 
   document.getElementById('upv-playlists').innerHTML = keys.map(key => {
     const pl = userPls[key];
@@ -1576,6 +2010,13 @@ async function openUserProfile(uid) {
       </button>
     </div>`;
   }).join('');
+}
+
+function playLikedTrackUpv(likedKey, idx) {
+  const pl = currentViewedPlaylists[likedKey];
+  const t = pl && pl.tracks && pl.tracks[idx];
+  if (!t || !t._query) { toast('ℹ️ Info songs tidak tersedia'); return; }
+  window.open('vibexa.html?play=' + encodeURIComponent(t._query), '_blank');
 }
 
 function closeUserProfile() {
