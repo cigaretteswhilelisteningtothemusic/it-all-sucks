@@ -12425,9 +12425,11 @@ function buildRankItemEl(t, i, showDuration = true) {
     title: t.title, artist: t.artist, thumb: t.thumb || '', preview: t.preview || null,
     videoId: null, photo: null, duration: t.duration, _query: `${t.artist}|||${t.title}|||${t.id}`
   };
-  const changeHTML = t.rankChange === 'down'
-    ? `<div class="rank-change down" title="Turun peringkat">▼</div>`
-    : `<div class="rank-change up" title="Naik / tetap peringkat">▲</div>`;
+  const changeHTML = t.rankChange
+    ? (t.rankChange === 'down'
+        ? `<div class="rank-change down" title="Turun peringkat">▼</div>`
+        : `<div class="rank-change up" title="Naik / tetap peringkat">▲</div>`)
+    : '';
   const div = document.createElement('div');
   div.className = 'rank-item';
   div.innerHTML = `
