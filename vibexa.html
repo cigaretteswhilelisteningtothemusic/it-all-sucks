@@ -1819,6 +1819,13 @@ body.np-is-fullscreen #bar{display:none !important;}
 }
 #fs-lyr.kinetic-mode #kinetic-stage { display: flex; }
 
+/* Sembunyikan baris konteks (prev/next) & titik progres pada mode kinetic */
+#kinetic-stage .k-line.k-prev,
+#kinetic-stage .k-line.k-next,
+#kinetic-stage #k-progress-dots {
+  display: none !important;
+}
+
 /* ── Baris konteks (prev / next) ── */
 .k-line {
   font-family: 'Outfit', sans-serif;
