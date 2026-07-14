@@ -2989,6 +2989,12 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 .chat-bubble-row.me .chat-bubble{background:var(--green);color:#fff;border-bottom-right-radius:4px;}
 .chat-bubble-row.them .chat-bubble{background:var(--card);color:var(--text);border-bottom-left-radius:4px;}
 .chat-bubble-time{font-size:.62rem;color:var(--muted);margin-top:3px;padding:0 4px;}
+.chat-read-status{font-size:.62rem;color:var(--muted);margin-top:2px;padding:0 4px;display:flex;align-items:center;gap:3px;}
+.chat-read-status.seen{color:var(--teal);}
+.chat-read-status svg{width:12px;height:12px;flex-shrink:0;}
+
+.chat-date-sep{display:flex;align-items:center;justify-content:center;margin:14px 0 6px;align-self:center;}
+.chat-date-sep span{background:var(--card);color:var(--sub);font-size:.68rem;font-weight:600;padding:4px 14px;border-radius:20px;border:1px solid var(--border);}
 
 .chat-input-bar{display:flex;align-items:center;gap:10px;padding:14px 22px;border-top:1px solid var(--border);flex-shrink:0;}
 #chat-input{flex:1;background:var(--card);border:1px solid var(--border);border-radius:24px;padding:11px 18px;color:var(--text);font-family:var(--f);font-size:.86rem;outline:none;transition:border-color .15s;}
@@ -2996,6 +3002,46 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 .chat-send-btn{width:42px;height:42px;border-radius:50%;background:var(--green);border:none;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:transform .15s;}
 .chat-send-btn svg{width:18px;height:18px;}
 .chat-send-btn:hover{transform:scale(1.08);}
+
+/* Preview "membalas pesan" di atas kotak input, ala WhatsApp */
+.chat-reply-preview{display:none;align-items:center;gap:10px;padding:8px 22px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.chat-reply-preview.show{display:flex;}
+.chat-reply-preview-bar{width:3px;align-self:stretch;background:var(--green);border-radius:2px;flex-shrink:0;}
+.chat-reply-preview-body{flex:1;min-width:0;}
+.chat-reply-preview-name{font-size:.76rem;font-weight:700;color:var(--green);}
+.chat-reply-preview-text{font-size:.78rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}
+.chat-reply-preview-close{background:none;border:none;color:var(--sub);cursor:pointer;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;}
+.chat-reply-preview-close:hover{color:var(--text);background:var(--hover);}
+.chat-reply-preview-close svg{width:15px;height:15px;}
+
+/* Kutipan pesan yang dibalas, ditampilkan menempel di atas bubble */
+.chat-bubble{cursor:pointer;}
+.chat-bubble-quote{display:flex;align-items:center;gap:7px;padding:6px 10px;border-radius:10px 10px 0 0;margin-bottom:1px;background:rgba(0,0,0,0.18);border-left:3px solid var(--green);cursor:pointer;}
+.chat-bubble-row.them .chat-bubble-quote{background:rgba(255,255,255,0.06);}
+.chat-bubble-quote-body{min-width:0;flex:1;}
+.chat-bubble-quote-name{font-size:.68rem;font-weight:700;color:var(--teal);}
+.chat-bubble-row.me .chat-bubble-quote-name{color:#eaf3ff;}
+.chat-bubble-quote-text{font-size:.72rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.chat-bubble-row.me .chat-bubble-quote-text{color:rgba(255,255,255,0.75);}
+.chat-bubble-row.me .chat-bubble-quote+.chat-bubble{border-radius:0 0 16px 4px;}
+.chat-bubble-row.them .chat-bubble-quote+.chat-bubble{border-radius:0 0 4px 16px;}
+
+.chat-bubble-deleted{font-style:italic;color:var(--muted)!important;background:transparent!important;border:1px dashed var(--border);display:flex;align-items:center;gap:6px;cursor:default;}
+.chat-bubble-deleted svg{width:14px;height:14px;flex-shrink:0;}
+
+/* Menu aksi (Balas / Hapus) yg muncul saat bubble ditekan, ala WhatsApp */
+.chat-bubble-actions{display:none;gap:6px;margin-top:5px;}
+.chat-bubble-actions.open{display:flex;}
+.chat-bubble-row.me .chat-bubble-actions{justify-content:flex-end;}
+.chat-bubble-row.them .chat-bubble-actions{justify-content:flex-start;}
+.cba-btn{display:flex;align-items:center;gap:5px;background:var(--card);border:1px solid var(--border);color:var(--sub);font-family:var(--f);font-size:.7rem;font-weight:600;padding:6px 11px;border-radius:16px;cursor:pointer;transition:all .15s;}
+.cba-btn svg{width:13px;height:13px;flex-shrink:0;}
+.cba-btn:hover{color:var(--text);border-color:var(--green);background:var(--hover);}
+.cba-btn.danger:hover{color:#ff5555;border-color:#ff5555;}
+
+@media(max-width:1050px){
+  .chat-reply-preview{padding:8px 16px;}
+}
 
 @media(max-width:1050px){
   .chat-header{padding:14px 16px;}
@@ -3772,6 +3818,16 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
         </div>
       </div>
       <div class="chat-messages" id="chat-messages"></div>
+      <div class="chat-reply-preview" id="chat-reply-preview">
+        <div class="chat-reply-preview-bar"></div>
+        <div class="chat-reply-preview-body">
+          <div class="chat-reply-preview-name" id="chat-reply-preview-name"></div>
+          <div class="chat-reply-preview-text" id="chat-reply-preview-text"></div>
+        </div>
+        <button class="chat-reply-preview-close" onclick="cancelReply()" title="Batal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
       <div class="chat-input-bar">
         <input type="text" id="chat-input" placeholder="Tulis pesan..." autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();sendChatMessage();}">
         <button class="chat-send-btn" onclick="sendChatMessage()" title="Kirim">
@@ -4549,6 +4605,12 @@ let _chatDirectory = {};        // cache semua user dari node "directory"
 let _chatInboxData = {};        // cache node userChats/{myUid}
 let _chatCurrentPeer = null;    // { uid, name, photo, chatId } percakapan yg sedang dibuka
 let _chatMsgsRef = null;        // ref listener pesan aktif (utk detach saat pindah percakapan)
+let _chatSeenRef = null;        // ref listener "seen" milik lawan bicara (utk status dibaca real-time)
+let _chatPeerSeenAt = 0;        // timestamp terakhir lawan bicara membaca percakapan ini
+let _chatCurrentMessages = {};  // cache pesan percakapan yg sedang terbuka (utk re-render saat status "dibaca" berubah)
+let _chatReplyTarget = null;    // pesan yg sedang dibalas: { key, text, from, name }
+let _chatOpenActionsKey = null; // key pesan yg menu aksinya (Balas/Hapus) sedang terbuka
+let _chatOpenActionsMode = 'actions'; // 'actions' atau 'confirm-delete'
 let _chatInboxRef = null;       // ref listener inbox
 let _chatDirRef = null;         // ref listener direktori (live, utk nama/foto terbaru)
 let _chatDirLoaded = false;
@@ -4836,19 +4898,45 @@ function openConversation(chatId, peerUid, peerName, peerPhoto) {
 
   showChatSubview('chat-conv-view');
   document.getElementById('chat-messages').innerHTML = '';
+  _chatPeerSeenAt = 0;
+  _chatCurrentMessages = {};
+  _chatReplyTarget = null;
+  _chatOpenActionsKey = null;
+  _chatOpenActionsMode = 'actions';
+  renderReplyPreview();
 
   // Tandai sudah dibaca di sisi saya
   if (currentUser) {
     db.ref('userChats/' + currentUser.uid + '/' + chatId + '/unread').set(false).catch(() => {});
+    markChatSeen(chatId, currentUser.uid);
   }
+
+  // Dengarkan status "dibaca" milik lawan bicara secara real-time — kalau
+  // lawan bicara membuka percakapan ini, tampilkan "Dibaca · jam" di bawah
+  // pesan terakhir yang saya kirim, seperti Instagram.
+  _chatSeenRef = db.ref('chats/' + chatId + '/seen/' + peerUid);
+  _chatSeenRef.on('value', snap => {
+    _chatPeerSeenAt = snap.exists() ? (snap.val() || 0) : 0;
+    renderChatMessages(_chatCurrentMessages);
+  }, err => console.error('Gagal memuat status dibaca:', err));
 
   _chatMsgsRef = db.ref('chats/' + chatId + '/messages').orderByChild('ts').limitToLast(200);
   _chatMsgsRef.on('value', snap => {
     const val = snap.exists() ? (snap.val() || {}) : {};
+    _chatCurrentMessages = val;
     renderChatMessages(val);
+    // Ada pesan baru masuk selagi percakapan ini terbuka → tandai langsung
+    // dibaca supaya lawan bicara melihat status "Dibaca" secara real-time.
+    if (currentUser) markChatSeen(chatId, currentUser.uid);
   }, err => console.error('Gagal memuat pesan:', err));
 
   setTimeout(() => document.getElementById('chat-input')?.focus(), 150);
+}
+
+// Menyimpan timestamp "terakhir dibaca" milik user saat ini utk sebuah chat.
+// Dibaca oleh lawan bicara utk menampilkan status "Dibaca · jam" ala Instagram.
+function markChatSeen(chatId, uid) {
+  db.ref('chats/' + chatId + '/seen/' + uid).set(Date.now()).catch(() => {});
 }
 
 // Menekan foto profil / nama lawan bicara di header percakapan → buka
@@ -4860,7 +4948,13 @@ function goToPeerProfile() {
 
 function detachChatMessagesListener() {
   if (_chatMsgsRef) { _chatMsgsRef.off(); _chatMsgsRef = null; }
+  if (_chatSeenRef) { _chatSeenRef.off(); _chatSeenRef = null; }
   _chatCurrentPeer = null;
+  _chatPeerSeenAt = 0;
+  _chatCurrentMessages = {};
+  _chatReplyTarget = null;
+  _chatOpenActionsKey = null;
+  _chatOpenActionsMode = 'actions';
 }
 
 // Dipanggil setiap kali node "directory" berubah. Kalau percakapan sedang
@@ -4889,16 +4983,219 @@ function renderChatMessages(msgsObj) {
   const wrap = document.getElementById('chat-messages');
   if (!wrap) return;
   const myUid = currentUser ? currentUser.uid : null;
-  const list = Object.values(msgsObj).sort((a, b) => (a.ts || 0) - (b.ts || 0));
-  wrap.innerHTML = list.map(m => {
+
+  // Sembunyikan pesan yang saya hapus "untuk saya" — pesan tsb tetap ada
+  // di database (lawan bicara masih bisa melihatnya), hanya disaring dari
+  // tampilan saya sendiri.
+  const list = Object.entries(msgsObj)
+    .filter(([, m]) => !(myUid && m.deletedFor && m.deletedFor[myUid]))
+    .sort((a, b) => (a[1].ts || 0) - (b[1].ts || 0));
+
+  // Cari key pesan terakhir yang saya kirim → hanya pesan itu yang
+  // menampilkan status "Terkirim" / "Dibaca", persis seperti Instagram
+  // (bukan per-pesan seperti centang WhatsApp).
+  let lastMineKey = null;
+  list.forEach(([key, m]) => { if (m.from === myUid) lastMineKey = key; });
+
+  let lastDateKey = '';
+  const html = list.map(([key, m]) => {
     const mine = m.from === myUid;
-    return `
-      <div class="chat-bubble-row ${mine ? 'me' : 'them'}">
-        <div class="chat-bubble">${esc(m.text || '')}</div>
+    const deleted = !!m.deletedForEveryone;
+
+    let sepHTML = '';
+    if (m.ts) {
+      const dateKey = new Date(m.ts).toDateString();
+      if (dateKey !== lastDateKey) {
+        lastDateKey = dateKey;
+        sepHTML = `<div class="chat-date-sep"><span>${formatChatDateSeparator(m.ts)}</span></div>`;
+      }
+    }
+
+    let quoteHTML = '';
+    if (m.replyTo && !deleted) {
+      const rt = m.replyTo;
+      const rtName = rt.from === myUid ? 'Anda' : (rt.name || (_chatCurrentPeer && _chatCurrentPeer.name) || 'Pengguna');
+      quoteHTML = `
+        <div class="chat-bubble-quote" data-gotokey="${esc(rt.key || '')}">
+          <div class="chat-bubble-quote-body">
+            <div class="chat-bubble-quote-name">${esc(rtName)}</div>
+            <div class="chat-bubble-quote-text">${esc(rt.text || 'Pesan')}</div>
+          </div>
+        </div>`;
+    }
+
+    const bubbleHTML = deleted
+      ? `<div class="chat-bubble chat-bubble-deleted">
+           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5 14.5 14.5M14.5 9.5 9.5 14.5"/></svg>
+           Pesan ini telah dihapus
+         </div>`
+      : `<div class="chat-bubble">${esc(m.text || '')}</div>`;
+
+    let readHTML = '';
+    if (mine && key === lastMineKey) {
+      const seen = _chatPeerSeenAt && _chatPeerSeenAt >= (m.ts || 0);
+      readHTML = seen
+        ? `<div class="chat-read-status seen">Dibaca · ${formatChatTime(_chatPeerSeenAt)}</div>`
+        : `<div class="chat-read-status">Terkirim</div>`;
+    }
+
+    let actionsHTML = '';
+    if (!deleted && _chatOpenActionsKey === key) {
+      if (_chatOpenActionsMode === 'confirm-delete') {
+        actionsHTML = `
+          <div class="chat-bubble-actions open">
+            <button class="cba-btn" data-act="delete-me" data-key="${key}">Hapus utk saya</button>
+            ${mine ? `<button class="cba-btn danger" data-act="delete-everyone" data-key="${key}">Hapus utk semua orang</button>` : ''}
+            <button class="cba-btn" data-act="cancel-delete" data-key="${key}">Batal</button>
+          </div>`;
+      } else {
+        actionsHTML = `
+          <div class="chat-bubble-actions open">
+            <button class="cba-btn" data-act="reply" data-key="${key}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-1"/></svg>
+              Balas
+            </button>
+            <button class="cba-btn danger" data-act="ask-delete" data-key="${key}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
+              Hapus
+            </button>
+          </div>`;
+      }
+    }
+
+    return `${sepHTML}
+      <div class="chat-bubble-row ${mine ? 'me' : 'them'}" data-msgkey="${key}">
+        ${quoteHTML}
+        ${bubbleHTML}
         <div class="chat-bubble-time">${formatChatTime(m.ts)}</div>
+        ${readHTML}
+        ${actionsHTML}
       </div>`;
   }).join('');
+
+  wrap.innerHTML = html;
   wrap.scrollTop = wrap.scrollHeight;
+}
+
+// Delegasi klik utk seluruh interaksi di area pesan: buka/tutup menu aksi
+// (Balas/Hapus) saat bubble ditekan, dan tombol-tombol di dalam menu itu.
+document.addEventListener('click', e => {
+  const wrap = document.getElementById('chat-messages');
+  if (!wrap || !wrap.contains(e.target)) return;
+
+  const actBtn = e.target.closest('.cba-btn');
+  if (actBtn) {
+    handleBubbleAction(actBtn.dataset.act, actBtn.dataset.key);
+    return;
+  }
+
+  const quote = e.target.closest('.chat-bubble-quote');
+  if (quote) {
+    const target = quote.dataset.gotokey;
+    if (target) {
+      const row = wrap.querySelector(`.chat-bubble-row[data-msgkey="${CSS.escape(target)}"]`);
+      if (row) { row.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    }
+    return;
+  }
+
+  const bubble = e.target.closest('.chat-bubble:not(.chat-bubble-deleted)');
+  if (bubble) {
+    const row = bubble.closest('.chat-bubble-row');
+    const key = row && row.dataset.msgkey;
+    if (!key) return;
+    _chatOpenActionsKey = (_chatOpenActionsKey === key) ? null : key;
+    _chatOpenActionsMode = 'actions';
+    renderChatMessages(_chatCurrentMessages);
+  }
+});
+
+function handleBubbleAction(act, key) {
+  const chatId = _chatCurrentPeer && _chatCurrentPeer.chatId;
+  if (!chatId || !key) return;
+  if (act === 'reply') {
+    startReply(key);
+    _chatOpenActionsKey = null;
+    renderChatMessages(_chatCurrentMessages);
+  } else if (act === 'ask-delete') {
+    _chatOpenActionsKey = key;
+    _chatOpenActionsMode = 'confirm-delete';
+    renderChatMessages(_chatCurrentMessages);
+  } else if (act === 'cancel-delete') {
+    _chatOpenActionsMode = 'actions';
+    renderChatMessages(_chatCurrentMessages);
+  } else if (act === 'delete-me') {
+    deleteMessageForMe(chatId, key);
+    _chatOpenActionsKey = null;
+    renderChatMessages(_chatCurrentMessages);
+  } else if (act === 'delete-everyone') {
+    deleteMessageForEveryone(chatId, key);
+    _chatOpenActionsKey = null;
+    renderChatMessages(_chatCurrentMessages);
+  }
+}
+
+// Menyimpan pesan yg akan dibalas & menampilkan preview-nya di atas kotak input.
+function startReply(key) {
+  const m = _chatCurrentMessages[key];
+  if (!m || m.deletedForEveryone) return;
+  const myUid = currentUser ? currentUser.uid : null;
+  const mine = m.from === myUid;
+  const name = mine ? 'Anda' : ((_chatCurrentPeer && _chatCurrentPeer.name) || 'Pengguna');
+  _chatReplyTarget = { key: key, text: m.text || '', from: m.from, name: name };
+  renderReplyPreview();
+  document.getElementById('chat-input')?.focus();
+}
+
+function cancelReply() {
+  _chatReplyTarget = null;
+  renderReplyPreview();
+}
+
+function renderReplyPreview() {
+  const wrap = document.getElementById('chat-reply-preview');
+  if (!wrap) return;
+  if (!_chatReplyTarget) {
+    wrap.classList.remove('show');
+    return;
+  }
+  const nameEl = document.getElementById('chat-reply-preview-name');
+  const textEl = document.getElementById('chat-reply-preview-text');
+  if (nameEl) nameEl.textContent = 'Membalas ' + _chatReplyTarget.name;
+  if (textEl) textEl.textContent = _chatReplyTarget.text || '';
+  wrap.classList.add('show');
+}
+
+// Hapus pesan hanya utk saya sendiri — pesan tetap ada bagi lawan bicara.
+function deleteMessageForMe(chatId, key) {
+  if (!currentUser) return;
+  db.ref('chats/' + chatId + '/messages/' + key + '/deletedFor/' + currentUser.uid).set(true).catch(err => console.error('Gagal menghapus pesan:', err));
+}
+
+// Hapus pesan utk semua orang — hanya berlaku utk pesan milik sendiri.
+// Isi teksnya dikosongkan & ditandai deletedForEveryone, lalu semua
+// perangkat (termasuk milik lawan bicara) akan menampilkan placeholder
+// "Pesan ini telah dihapus".
+function deleteMessageForEveryone(chatId, key) {
+  if (!currentUser) return;
+  const m = _chatCurrentMessages[key];
+  if (!m || m.from !== currentUser.uid) return; // jaga-jaga: hanya pesan sendiri
+  db.ref('chats/' + chatId + '/messages/' + key).update({
+    text: '',
+    deletedForEveryone: true,
+    deletedBy: currentUser.uid
+  }).catch(err => console.error('Gagal menghapus pesan:', err));
+}
+
+// Label pemisah tanggal ala WhatsApp: "Hari Ini", "Kemarin", atau tanggal
+// lengkap (mis. "14 Juli 2026") utk hari-hari sebelumnya.
+function formatChatDateSeparator(ts) {
+  const d = new Date(ts);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return 'Hari Ini';
+  const yest = new Date(now); yest.setDate(now.getDate() - 1);
+  if (d.toDateString() === yest.toDateString()) return 'Kemarin';
+  return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
 function sendChatMessage() {
@@ -4914,16 +5211,28 @@ function sendChatMessage() {
   const now = Date.now();
   const msgKey = db.ref('chats/' + chatId + '/messages').push().key;
 
+  const msgData = { from: myUid, text: text, ts: now };
+  if (_chatReplyTarget) {
+    msgData.replyTo = {
+      key: _chatReplyTarget.key,
+      text: _chatReplyTarget.text,
+      from: _chatReplyTarget.from,
+      name: _chatReplyTarget.name
+    };
+  }
+
   const updates = {};
   updates['chats/' + chatId + '/participants/' + myUid] = true;
   updates['chats/' + chatId + '/participants/' + peer.uid] = true;
-  updates['chats/' + chatId + '/messages/' + msgKey] = { from: myUid, text: text, ts: now };
+  updates['chats/' + chatId + '/messages/' + msgKey] = msgData;
   updates['userChats/' + myUid + '/' + chatId + '/lastMessage'] = text;
   updates['userChats/' + myUid + '/' + chatId + '/lastMessageAt'] = now;
   updates['userChats/' + myUid + '/' + chatId + '/unread'] = false;
   updates['userChats/' + peer.uid + '/' + chatId + '/lastMessage'] = text;
   updates['userChats/' + peer.uid + '/' + chatId + '/lastMessageAt'] = now;
   updates['userChats/' + peer.uid + '/' + chatId + '/unread'] = true;
+
+  cancelReply();
 
   db.ref().update(updates).catch(err => {
     console.error('Gagal mengirim pesan:', err);
