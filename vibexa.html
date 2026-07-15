@@ -2974,6 +2974,37 @@ body.np-is-fullscreen #bar{display:none !important;}
   .fav-artist-card{flex:0 0 92px;width:92px;}
   .fav-artist-photo{width:84px;height:84px;}
 }
+/* LAGU FAVORIT TEMAN (Home) — lagu favorit dari user yang kita follow
+   (dan permintaan follow-nya sudah diterima). Dikelompokkan per teman:
+   avatar+nama teman di atas, lalu daftar lagu favoritnya (dengan bubble
+   catatan kalau ada) yang bisa discroll horizontal & diputar penuh. */
+.friend-fav-grid{display:flex;flex-direction:column;gap:22px;padding:4px 2px 4px;}
+.friend-fav-group{min-width:0;}
+.friend-fav-group-header{display:flex;align-items:center;gap:10px;margin-bottom:10px;cursor:pointer;width:fit-content;}
+.friend-fav-avatar{width:34px;height:34px;border-radius:50%;object-fit:cover;background:var(--card);border:1px solid var(--border);flex-shrink:0;}
+.friend-fav-avatar-ph{width:34px;height:34px;border-radius:50%;background:var(--card);border:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.85rem;color:var(--muted);}
+.friend-fav-group-header:hover .friend-fav-name{color:var(--green);text-decoration:underline;}
+.friend-fav-name{font-size:.86rem;font-weight:700;color:var(--text);transition:color .15s;}
+.friend-fav-sub{font-size:.68rem;color:var(--muted);margin-top:1px;}
+.friend-fav-row{display:flex;gap:16px;overflow-x:auto;padding:2px 2px 10px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
+.friend-fav-item{flex:0 0 132px;width:132px;display:flex;flex-direction:column;}
+/* Bubble speech (versi tema Vibexa: aksen biru --green) */
+.friend-fav-bubble{position:relative;background:var(--bubble-color,var(--green));border-radius:16px;margin:0 0 8px;box-shadow:0 8px 20px rgba(0,0,0,.35);text-align:left;}
+.friend-fav-bubble-text{padding:10px 13px 8px;font-size:.66rem;font-weight:600;line-height:1.4;color:#fff;max-height:58px;overflow:hidden;word-break:break-word;}
+.friend-fav-bubble::after{content:'';position:absolute;left:20px;bottom:-6px;width:13px;height:13px;background:var(--bubble-color,var(--green));border-radius:65% 0 0 0;transform:rotate(-135deg);}
+.friend-fav-thumb-wrap{position:relative;width:100%;aspect-ratio:1/1;border-radius:10px;overflow:hidden;cursor:pointer;background:var(--card);border:1px solid var(--border);transition:transform .18s,border-color .18s;}
+.friend-fav-thumb-wrap:hover{transform:translateY(-2px);border-color:var(--green);}
+.friend-fav-thumb-wrap img{width:100%;height:100%;object-fit:cover;display:block;}
+.friend-fav-thumb-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:1.6rem;color:var(--muted);}
+.friend-fav-play-ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;background:rgba(0,0,0,0);transition:all .18s;}
+.friend-fav-thumb-wrap:hover .friend-fav-play-ov{opacity:1;background:rgba(0,0,0,.35);}
+.friend-fav-play-ov svg{width:26px;height:26px;color:#fff;filter:drop-shadow(0 2px 6px rgba(0,0,0,.6));}
+.friend-fav-title{font-size:.76rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:7px;cursor:pointer;}
+.friend-fav-artist{font-size:.66rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}
+@media (max-width:900px){
+  .friend-fav-item{flex:0 0 112px;width:112px;}
+}
+
 .artist-albums-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;}
 .artist-album-card{background:var(--card);border-radius:var(--r);padding:13px;cursor:pointer;transition:all .22s;border:1px solid transparent;}
 .artist-album-card:hover{background:var(--hover);border-color:var(--border);transform:translateY(-2px);box-shadow:0 10px 30px rgba(0,0,0,.3);}
@@ -3346,6 +3377,20 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
         </div>
       </div>
       <div class="fav-artist-grid" id="fav-artist-grid"></div>
+    </div>
+
+    <!-- LAGU FAVORIT TEMAN (lagu favorit dari user yang kita follow DAN
+         permintaan follow-nya sudah diterima — lihat startFriendFavListeners).
+         Realtime: langsung menyesuaikan begitu teman ganti lagu favorit atau
+         ubah teks bubble catatannya, dan langsung hilang kalau kita unfollow
+         atau permintaan follow kita ditolak/dihapus. -->
+    <div class="pub-section" id="friend-fav-section" style="display:none;">
+      <div class="pub-section-header">
+        <div class="pub-section-title">
+           Lagu Favorit Teman
+        </div>
+      </div>
+      <div class="friend-fav-grid" id="friend-fav-grid"></div>
     </div>
 
     <!-- WEEKDAY VIBES (9 playlist x 15 lagu trending saat ini, judul berubah tiap hari sesuai hari dalam seminggu, GLOBAL untuk semua user, diperbarui 1x sehari) -->
@@ -4718,6 +4763,7 @@ auth.onAuthStateChanged(user => {
     _cleanupStaleLocalCache();
     loadAllPlaylistsFromCloud();
     loadFavoriteArtistsFromCloud();
+    startFriendFavListeners();
     loadPublicFeed();
     loadTrendingSongs();
     loadRecentlyPlayedFromCloud();
@@ -6714,6 +6760,154 @@ function renderFavoriteArtists() {
     card.addEventListener('click', () => openArtistView(a.name));
     grid.appendChild(card);
   });
+}
+
+// ─── LAGU FAVORIT TEMAN (Home) ──────────────────────────────────────────
+// Menampilkan lagu favorit (lihat profile.html: users/{uid}/favoriteSongs,
+// tiap lagu bisa punya bubble catatan) milik user-user yang KITA follow —
+// tapi HANYA yang permintaan follow-nya sudah diterima. Ini otomatis benar
+// karena node "follows/{myUid}/following/{otherUid}" cuma pernah ditulis di
+// acceptFollowRequest() (lihat langkah 2 di atas) saat pemilik akun lain
+// menekan "Terima". Kalau ditolak/belum diterima, uid itu TIDAK PERNAH
+// muncul di "follows/{myUid}/following", jadi lagu favoritnya otomatis
+// tidak pernah ditarik/ditampilkan di sini. Kalau di-unfollow, uid tsb
+// dihapus dari node itu dan section ini otomatis menyesuaikan (realtime).
+//
+// friendFavFriends: { [uid]: { name, photo } }               — profil teman
+// friendFavSongs:   { [uid]: [ {key, uid, title, artist, thumb, note,
+//                     noteColor, preview, _query, order, addedAt}, ... ] }
+let friendFavFriends = {};
+let friendFavSongs = {};
+let _friendFavSongOffs = {};   // uid -> fungsi untuk stop listener favoriteSongs
+let _friendFavFollowingOff = null; // fungsi untuk stop listener follows/.../following
+
+// Dipanggil sekali setelah login (lihat auth.onAuthStateChanged di atas).
+// Memasang listener REALTIME (bukan sekali ambil) supaya section ini
+// otomatis ter-update begitu:
+//   - kita follow teman baru & diterima → lagu favoritnya langsung muncul
+//   - kita unfollow / diblokir → lagu favoritnya langsung hilang
+//   - teman menambah/menghapus/ubah bubble catatan lagu favoritnya → section
+//     ini langsung menyesuaikan tanpa perlu refresh halaman
+function startFriendFavListeners() {
+  if (!currentUser) return;
+  const myUid = currentUser.uid;
+
+  if (_friendFavFollowingOff) { _friendFavFollowingOff(); _friendFavFollowingOff = null; }
+  Object.values(_friendFavSongOffs).forEach(off => off());
+  _friendFavSongOffs = {};
+  friendFavFriends = {};
+  friendFavSongs = {};
+
+  const followingRef = db.ref('follows/' + myUid + '/following');
+  const onFollowingChange = (snap) => {
+    const ids = snap.exists() ? Object.keys(snap.val()).filter(uid => snap.val()[uid] === true) : [];
+    const idSet = new Set(ids);
+
+    // Lepas listener + buang data teman yang sudah tidak diikuti lagi
+    for (const uid in _friendFavSongOffs) {
+      if (!idSet.has(uid)) {
+        _friendFavSongOffs[uid]();
+        delete _friendFavSongOffs[uid];
+        delete friendFavFriends[uid];
+        delete friendFavSongs[uid];
+      }
+    }
+
+    // Pasang listener untuk teman baru yang belum dipantau
+    ids.forEach(uid => {
+      if (_friendFavSongOffs[uid]) return; // sudah dipantau
+      // Ambil profil teman (nama + foto) sekali, untuk header grup
+      db.ref('users/' + uid + '/profile').get().then(pSnap => {
+        const p = pSnap.exists() ? pSnap.val() : {};
+        friendFavFriends[uid] = { name: p.displayName || 'User', photo: p.photoURL || '' };
+        renderFriendFavorites();
+      }).catch(() => {});
+
+      const songsRef = db.ref('users/' + uid + '/favoriteSongs');
+      const onSongsChange = (sSnap) => {
+        const val = sSnap.exists() ? sSnap.val() : {};
+        friendFavSongs[uid] = Object.entries(val)
+          .map(([key, f]) => ({ key, uid, ...f }))
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        renderFriendFavorites();
+      };
+      songsRef.on('value', onSongsChange);
+      _friendFavSongOffs[uid] = () => songsRef.off('value', onSongsChange);
+    });
+
+    renderFriendFavorites();
+  };
+  followingRef.on('value', onFollowingChange);
+  _friendFavFollowingOff = () => followingRef.off('value', onFollowingChange);
+}
+
+// Render bagian "Lagu Favorit Teman" di Home: dikelompokkan per teman
+// (avatar + nama di atas, klik untuk buka profilnya), lalu daftar lagu
+// favoritnya secara horizontal — tiap lagu tampil dengan bubble catatan
+// (kalau diisi teman itu) persis seperti di halaman profil, dan bisa
+// diklik untuk diputar penuh (bukan cuma preview 30 detik).
+function renderFriendFavorites() {
+  const section = document.getElementById('friend-fav-section');
+  const grid = document.getElementById('friend-fav-grid');
+  if (!section || !grid) return;
+
+  // Hanya teman yang profilnya sudah termuat DAN punya minimal 1 lagu favorit
+  const uids = Object.keys(friendFavFriends).filter(uid => (friendFavSongs[uid] || []).length > 0);
+  if (!uids.length) { section.style.display = 'none'; grid.innerHTML = ''; return; }
+
+  section.style.display = 'block';
+  grid.innerHTML = uids.map(uid => {
+    const f = friendFavFriends[uid];
+    const songs = friendFavSongs[uid] || [];
+    const avatarHTML = f.photo
+      ? `<img class="friend-fav-avatar" src="${esc(f.photo)}" alt="${esc(f.name)}" loading="lazy" onerror="this.outerHTML='<div class=&quot;friend-fav-avatar-ph&quot;>👤</div>'">`
+      : `<div class="friend-fav-avatar-ph">👤</div>`;
+    const songsHTML = songs.map(s => {
+      const bubble = s.note
+        ? `<div class="friend-fav-bubble" style="--bubble-color:${esc(s.noteColor || '#2E7DFF')}"><div class="friend-fav-bubble-text">${esc(s.note)}</div></div>`
+        : '';
+      return `
+        <div class="friend-fav-item">
+          ${bubble}
+          <div class="friend-fav-thumb-wrap" onclick="playFriendFavSong('${uid}','${s.key}')" title="Putar penuh: ${esc(s.title)}">
+            ${s.thumb ? `<img src="${esc(s.thumb)}" alt="" loading="lazy">` : `<div class="friend-fav-thumb-ph">♪</div>`}
+            <div class="friend-fav-play-ov"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+          </div>
+          <div class="friend-fav-title" onclick="playFriendFavSong('${uid}','${s.key}')">${esc(s.title || '—')}</div>
+          <div class="friend-fav-artist">${esc(s.artist || '—')}</div>
+        </div>`;
+    }).join('');
+    return `
+      <div class="friend-fav-group">
+        <div class="friend-fav-group-header" onclick="window.location.href='profile.html?uid=${encodeURIComponent(uid)}'">
+          ${avatarHTML}
+          <div>
+            <div class="friend-fav-name">${esc(f.name)}</div>
+            <div class="friend-fav-sub">${songs.length} lagu favorit</div>
+          </div>
+        </div>
+        <div class="friend-fav-row">${songsHTML}</div>
+      </div>`;
+  }).join('');
+}
+
+// Klik lagu favorit teman → putar PENUH lewat player utama (sama seperti
+// klik lagu di Rekomendasi/Top Songs/dll), bukan cuma preview 30 detik.
+function playFriendFavSong(uid, key) {
+  const songs = friendFavSongs[uid] || [];
+  const s = songs.find(x => x.key === key);
+  if (!s) return;
+  const track = {
+    title: s.title || 'Unknown',
+    artist: s.artist || 'Unknown',
+    thumb: s.thumb || '',
+    preview: s.preview || null,
+    videoId: null,
+    photo: null,
+    duration: 0,
+    _query: s._query || `${s.artist || ''}|||${s.title || ''}|||${key}`
+  };
+  loadPlay(track, null);
 }
 
 // Sinkronkan label semua tombol "Ikuti" yang mungkin sedang tampil
