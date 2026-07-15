@@ -535,18 +535,24 @@ textarea.form-input { resize: none; line-height: 1.6; }
 .upv-header-stat-lbl { font-size: .65rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
 .upv-name-wrap { padding: 0 2px; margin-bottom: 4px; }
 .upv-name-wrap .upv-h-name { font-size: 1.35rem; font-weight: 800; letter-spacing: -.3px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.upv-header-liked-block { margin: 4px 2px 0; }
-.upv-header-liked-lbl { font-size: .62rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
-.upv-header-liked .upv-liked-card { width: 64px; }
-.upv-header-liked { padding: 2px 2px 4px; }
 
-/* ── UPV: horizontal scroll strips (liked songs / catatan) ── */
-.upv-hscroll {
-  display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 10px;
-  scrollbar-width: thin; scrollbar-color: var(--muted) transparent;
+/* ── Teks Berjalan (running/marquee text, menggantikan Liked Songs) ── */
+.marquee-wrap {
+  margin: 6px 2px 18px; padding: 11px 0;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 50px; overflow: hidden; white-space: nowrap;
 }
-.upv-hscroll::-webkit-scrollbar { height: 6px; }
-.upv-hscroll::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 10px; }
+.marquee-track { display: inline-flex; width: max-content; animation: marquee-scroll 14s linear infinite; }
+.marquee-track:hover { animation-play-state: paused; }
+.marquee-item {
+  padding: 0 22px; font-size: .82rem; font-weight: 700; color: var(--text);
+  letter-spacing: .2px; white-space: nowrap; display: flex; align-items: center; gap: 22px;
+}
+.marquee-item::after { content: '✦'; color: var(--muted); font-size: .68rem; }
+@keyframes marquee-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
 
 /* ── Full-photo square song tile (dipakai utk Liked Songs & Lagu Favorit) ── */
 .photo-tile {
@@ -575,10 +581,6 @@ textarea.form-input { resize: none; line-height: 1.6; }
 .song-tile { display: flex; flex-direction: column; gap: 4px; min-width: 0; cursor: pointer; }
 .song-tile-title { font-size: .78rem; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .song-tile-artist { font-size: .68rem; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.upv-header-liked .song-tile-title { font-size: .66rem; }
-.upv-header-liked .song-tile-artist { font-size: .58rem; }
-
-.upv-liked-card { flex: 0 0 auto; width: 130px; }
 
 /* ── Speech-bubble catatan di atas photo tile (rounded rectangle, solid, warna bisa dipilih) ── */
 .fav-bubble-wrap { display: flex; flex-direction: column; }
@@ -642,13 +644,6 @@ textarea.form-input { resize: none; line-height: 1.6; }
 }
 .fav-picker-play-btn:hover { background: var(--blue); color: #fff; }
 .fav-picker-play-btn svg { width: 12px; height: 12px; }
-
-.upv-note-card {
-  flex: 0 0 auto; width: 200px; background: var(--card);
-  border: 1px solid var(--border); border-radius: 12px; padding: 12px;
-}
-.upv-note-text { font-size: .8rem; line-height: 1.55; color: var(--text); white-space: pre-wrap; word-break: break-word; }
-.upv-note-time { font-size: .65rem; color: var(--muted); margin-top: 8px; }
 
 /* ── UPV: two-column About / Favorite Songs ── */
 .upv-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: stretch; }
@@ -784,11 +779,11 @@ textarea.form-input { resize: none; line-height: 1.6; }
   <div id="user-email" style="font-size:.72rem;color:var(--muted);margin:0 2px 8px;">—</div>
   <div id="user-bio" style="font-size:.85rem;color:var(--muted);font-style:italic;line-height:1.65;margin:0 2px 6px;">No description yet</div>
 
-  <!-- Liked Songs (sejajar dengan nama & deskripsi, sama seperti tampilan publik) -->
-  <div class="upv-header-liked-block" style="margin-bottom:18px;">
-    <div class="upv-header-liked-lbl">Liked Songs</div>
-    <div class="upv-hscroll upv-header-liked" id="my-liked-scroll">
-      <div class="upv-empty-mini" style="width:100%;">Loading...</div>
+  <!-- Teks Berjalan (menggantikan Liked Songs, sejajar dengan nama & deskripsi) -->
+  <div class="marquee-wrap" id="my-marquee-wrap" style="display:none;">
+    <div class="marquee-track" id="my-marquee-track">
+      <span class="marquee-item"></span>
+      <span class="marquee-item"></span>
     </div>
   </div>
 
@@ -810,6 +805,11 @@ textarea.form-input { resize: none; line-height: 1.6; }
       <div class="char-count"><span id="about-count">0</span>/500</div>
     </div>
     <div class="form-group">
+      <label class="form-label">Teks Berjalan</label>
+      <input type="text" class="form-input" id="inp-marquee" placeholder="Tulis teks yang akan bergerak ke samping..." maxlength="100">
+      <div class="char-count"><span id="marquee-count">0</span>/100</div>
+    </div>
+    <div class="form-group">
       <label class="form-label">Warna Latar Belakang Profil</label>
       <div style="display:flex;align-items:center;gap:10px;">
         <input type="color" id="inp-bg-color" value="#080B12" oninput="previewBgColor(this.value)" style="width:44px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--panel);cursor:pointer;padding:2px;">
@@ -821,17 +821,6 @@ textarea.form-input { resize: none; line-height: 1.6; }
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>
       Save Changes
     </button>
-  </div>
-
-  <!-- CATATAN (NOTES) -->
-  <div class="section-card">
-    <div class="section-title">Catatan</div>
-    <div class="form-group">
-      <textarea class="form-input" id="inp-note" rows="2" placeholder="Tulis catatan singkat..." maxlength="200"></textarea>
-      <div class="char-count"><span id="note-count">0</span>/200</div>
-    </div>
-    <button class="btn-save" id="btn-post-note" onclick="postNote()">Post Catatan</button>
-    <div id="my-notes-list" style="margin-top:14px;display:flex;flex-direction:column;gap:8px;"></div>
   </div>
 
   <!-- LAGU FAVORIT -->
@@ -1021,19 +1010,11 @@ textarea.form-input { resize: none; line-height: 1.6; }
     <!-- Bio / Description -->
     <div id="upv-bio" style="font-size:.85rem;color:var(--sub);line-height:1.65;margin-bottom:6px;"></div>
 
-    <!-- Liked Songs (sejajar dengan nama & deskripsi) -->
-    <div class="upv-header-liked-block" style="margin-bottom:18px;">
-      <div class="upv-header-liked-lbl">Liked Songs</div>
-      <div class="upv-hscroll upv-header-liked" id="upv-liked-scroll">
-        <div class="upv-empty-mini" style="width:100%;">Loading...</div>
-      </div>
-    </div>
-
-    <!-- Catatan (Notes) -->
-    <div style="margin-bottom:20px;">
-      <div style="font-size:.68rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Catatan</div>
-      <div class="upv-hscroll" id="upv-notes-scroll">
-        <div class="upv-empty-mini" style="width:100%;">Loading...</div>
+    <!-- Teks Berjalan (menggantikan Liked Songs) -->
+    <div class="marquee-wrap" id="upv-marquee-wrap" style="display:none;">
+      <div class="marquee-track" id="upv-marquee-track">
+        <span class="marquee-item"></span>
+        <span class="marquee-item"></span>
       </div>
     </div>
 
@@ -1154,6 +1135,7 @@ async function loadProfile() {
     const cover = data.backgroundURL || '';
     const photo = data.photoURL || currentUser.photoURL || '';
     const bgColor = data.bgColor || '';
+    const marqueeText = data.marqueeText || '';
 
     document.getElementById('display-name').textContent = name;
     document.getElementById('user-email').textContent   = currentUser.email;
@@ -1166,6 +1148,8 @@ async function loadProfile() {
     document.getElementById('bio-count').textContent = bio.length;
     document.getElementById('inp-about').value = about;
     document.getElementById('about-count').textContent = about.length;
+    document.getElementById('inp-marquee').value = marqueeText;
+    document.getElementById('marquee-count').textContent = marqueeText.length;
     document.getElementById('inp-bg-color').value = bgColor || '#080B12';
     applyBgColor(bgColor);
     myDisplayName = name;
@@ -1173,9 +1157,8 @@ async function loadProfile() {
 
     setAvatar(photo, name);
     setCoverPreview(cover);
-    loadMyNotes();
+    setMarquee('my', marqueeText);
     loadMyFavorites();
-    loadMyLikedSongsPreview();
   } catch(e) {
     console.error(e);
   }
@@ -1193,35 +1176,17 @@ function resetBgColor() {
   applyBgColor('');
 }
 
-async function loadMyLikedSongsPreview() {
-  if (!currentUser) return;
-  const el = document.getElementById('my-liked-scroll');
-  try {
-    const snap = await db.ref('music_playlists_v2/' + currentUser.uid + '/liked-songs/tracks').get();
-    const tracks = snap.exists() ? (snap.val() || []) : [];
-    if (!tracks.length) {
-      el.innerHTML = `<div class="upv-empty-mini" style="width:100%;">Belum ada liked songs</div>`;
-      return;
-    }
-    el.innerHTML = tracks.map((t, i) => {
-      const prev = t.preview ? esc(t.preview).replace(/'/g,"\\'") : '';
-      const titleEsc = esc(t.title || '').replace(/'/g,"\\'");
-      const clickAction = prev
-        ? `previewOwnFavTrack('${prev}','${titleEsc}')`
-        : (t._query ? `playQueryUpv('${esc(t._query).replace(/'/g,"\\'")}')` : "toast('ℹ️ Info songs tidak tersedia')");
-      return `
-      <div class="upv-liked-card song-tile" onclick="${clickAction}">
-        <div class="photo-tile">
-          ${t.thumb ? `<img src="${esc(t.thumb)}" alt="">` : `<div class="photo-tile-ph">♪</div>`}
-          <div class="photo-tile-play-ov"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
-        </div>
-        <div class="song-tile-title">${esc(t.title || '—')}</div>
-        <div class="song-tile-artist">${esc(t.artist || '—')}</div>
-      </div>`;
-    }).join('');
-  } catch(e) {
-    el.innerHTML = `<div class="upv-empty-mini" style="width:100%;">Belum ada liked songs</div>`;
-  }
+// ── Teks Berjalan (running / marquee text) ──────────────────
+function setMarquee(prefix, text) {
+  const wrap  = document.getElementById(prefix + '-marquee-wrap');
+  const track = document.getElementById(prefix + '-marquee-track');
+  if (!wrap || !track) return;
+  const t = (text || '').trim();
+  if (!t) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  const items = track.querySelectorAll('.marquee-item');
+  items.forEach(el => { el.textContent = t; });
+  track.style.animationDuration = Math.max(8, t.length * 0.35) + 's';
 }
 
 function setCoverPreview(coverURL) {
@@ -1370,17 +1335,19 @@ async function saveProfile() {
   const name = document.getElementById('inp-name').value.trim();
   const bio  = document.getElementById('inp-bio').value.trim();
   const about = document.getElementById('inp-about').value.trim();
+  const marqueeText = document.getElementById('inp-marquee').value.trim();
   const bgColor = document.getElementById('inp-bg-color').value || '';
   if (!name) { toast('❗ Name cannot be empty'); return; }
   btn.disabled = true;
   btn.textContent = 'Saving...';
   try {
-    await db.ref('users/' + currentUser.uid + '/profile').update({ displayName: name, bio, about, bgColor });
+    await db.ref('users/' + currentUser.uid + '/profile').update({ displayName: name, bio, about, marqueeText, bgColor });
     await currentUser.updateProfile({ displayName: name });
     document.getElementById('display-name').textContent = name;
     document.getElementById('user-bio').textContent = bio || 'No description yet';
     document.getElementById('user-bio').style.fontStyle = bio ? 'normal' : 'italic';
     document.getElementById('user-bio').style.color = bio ? 'var(--sub)' : 'var(--muted)';
+    setMarquee('my', marqueeText);
     applyBgColor(bgColor);
     // Also update owner name in all public playlists
     const ids = Object.keys(myPlaylists).filter(id => myPlaylists[id].public);
@@ -1482,8 +1449,8 @@ document.getElementById('inp-bio').addEventListener('input', function() {
 document.getElementById('inp-about').addEventListener('input', function() {
   document.getElementById('about-count').textContent = this.value.length;
 });
-document.getElementById('inp-note').addEventListener('input', function() {
-  document.getElementById('note-count').textContent = this.value.length;
+document.getElementById('inp-marquee').addEventListener('input', function() {
+  document.getElementById('marquee-count').textContent = this.value.length;
 });
 
 // ── Cover Photo Upload ─────────────────────────────────────
@@ -1540,57 +1507,6 @@ async function saveCover() {
   } finally {
     btn.disabled = false; btn.textContent = 'Save Cover';
   }
-}
-
-// ── Catatan (Notes) ────────────────────────────────────────
-async function postNote() {
-  if (!currentUser) return;
-  const inp = document.getElementById('inp-note');
-  const text = inp.value.trim();
-  if (!text) { toast('❗ Catatan tidak boleh kosong'); return; }
-  const btn = document.getElementById('btn-post-note');
-  btn.disabled = true;
-  try {
-    await db.ref('users/' + currentUser.uid + '/notes').push({ text, ts: Date.now() });
-    inp.value = '';
-    document.getElementById('note-count').textContent = '0';
-    toast('✅ Catatan diposting!');
-    loadMyNotes();
-  } catch(e) {
-    toast('❌ Gagal: ' + e.message);
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-async function loadMyNotes() {
-  if (!currentUser) return;
-  const listEl = document.getElementById('my-notes-list');
-  try {
-    const snap = await db.ref('users/' + currentUser.uid + '/notes').orderByChild('ts').limitToLast(20).get();
-    if (!snap.exists()) { listEl.innerHTML = `<div style="text-align:center;padding:14px 0;color:var(--muted);font-size:.78rem;">Belum ada catatan</div>`; return; }
-    const val = snap.val();
-    const arr = Object.entries(val).sort((a,b) => (b[1].ts||0) - (a[1].ts||0));
-    listEl.innerHTML = arr.map(([key, n]) => `
-      <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
-        <div style="min-width:0;">
-          <div style="font-size:.8rem;line-height:1.5;white-space:pre-wrap;word-break:break-word;">${esc(n.text||'')}</div>
-          <div style="font-size:.65rem;color:var(--muted);margin-top:4px;">${timeSince(n.ts)}</div>
-        </div>
-        <button onclick="deleteNote('${key}')" style="flex-shrink:0;background:none;border:none;color:var(--muted);cursor:pointer;font-size:.9rem;" title="Hapus">✕</button>
-      </div>`).join('');
-  } catch(e) {
-    listEl.innerHTML = `<div style="text-align:center;padding:14px 0;color:var(--muted);font-size:.78rem;">Belum ada catatan</div>`;
-  }
-}
-
-async function deleteNote(key) {
-  if (!currentUser) return;
-  try {
-    await db.ref('users/' + currentUser.uid + '/notes/' + key).remove();
-    toast('🗑️ Catatan dihapus');
-    loadMyNotes();
-  } catch(e) { toast('❌ Gagal: ' + e.message); }
 }
 
 // ── Lagu Favorit ────────────────────────────────────────────
@@ -2093,7 +2009,6 @@ async function doSearchUsers(q) {
 // ── USER PUBLIC PROFILE ────────────────────────────────────
 let currentViewedUid = null;
 let currentViewedPlaylists = {};
-let currentViewedLikedTracks = [];
 
 const LIKED_PLAYLIST_ID_UPV = 'liked-songs';
 
@@ -2110,8 +2025,7 @@ async function openUserProfile(uid) {
   document.getElementById('upv-stat-likes').textContent = '0';
   document.getElementById('upv-banner').innerHTML = `<div class="upv-banner-empty">🖼️</div>`;
   document.getElementById('upv-about').textContent = 'Loading...';
-  document.getElementById('upv-liked-scroll').innerHTML = `<div class="upv-empty-mini" style="width:100%;">Loading...</div>`;
-  document.getElementById('upv-notes-scroll').innerHTML = `<div class="upv-empty-mini" style="width:100%;">Loading...</div>`;
+  document.getElementById('upv-marquee-wrap').style.display = 'none';
   document.getElementById('upv-favorites').innerHTML = `<div class="upv-empty-mini">Loading...</div>`;
   document.getElementById('upv-playlists').innerHTML = `<div style="text-align:center;padding:40px 0;color:var(--muted);font-size:.83rem;">Loading...</div>`;
 
@@ -2145,6 +2059,7 @@ async function openUserProfile(uid) {
   let about = '';
   let background = '';
   let bgColor = '';
+  let marqueeText = '';
 
   try {
     const profSnap = await db.ref('users/' + uid + '/profile').get();
@@ -2156,6 +2071,7 @@ async function openUserProfile(uid) {
       about = prof.about || '';
       background = prof.backgroundURL || '';
       bgColor = prof.bgColor || '';
+      marqueeText = prof.marqueeText || '';
     }
   } catch(e) {
     // Tidak apa-apa, sudah ada data dari playlist
@@ -2163,6 +2079,7 @@ async function openUserProfile(uid) {
   }
 
   document.getElementById('upv-content').style.background = bgColor || '';
+  setMarquee('upv', marqueeText);
 
   // ── 3. Render header profil (banner + square avatar + name) ──
   document.getElementById('upv-nav-name').textContent = name;
@@ -2184,25 +2101,6 @@ async function openUserProfile(uid) {
 
   document.getElementById('upv-about').textContent = about || 'Belum ada deskripsi tentang user ini.';
   document.getElementById('upv-about').style.fontStyle = about ? 'normal' : 'italic';
-
-  // ── 4. Ambil Catatan (notes) user ──
-  try {
-    const notesSnap = await db.ref('users/' + uid + '/notes').orderByChild('ts').limitToLast(20).get();
-    const notesEl = document.getElementById('upv-notes-scroll');
-    if (notesSnap.exists()) {
-      const notesVal = notesSnap.val();
-      const notesArr = Object.values(notesVal).sort((a,b) => (b.ts||0) - (a.ts||0));
-      notesEl.innerHTML = notesArr.map(n => `
-        <div class="upv-note-card">
-          <div class="upv-note-text">${esc(n.text || '')}</div>
-          <div class="upv-note-time">${timeSince(n.ts)}</div>
-        </div>`).join('');
-    } else {
-      notesEl.innerHTML = `<div class="upv-empty-mini" style="width:100%;">Belum ada catatan</div>`;
-    }
-  } catch(e) {
-    document.getElementById('upv-notes-scroll').innerHTML = `<div class="upv-empty-mini" style="width:100%;">Belum ada catatan</div>`;
-  }
 
   // ── 5. Ambil Lagu Favorit (max 10, tiap lagu ada catatan, bisa diputar) ──
   try {
@@ -2240,43 +2138,10 @@ async function openUserProfile(uid) {
     document.getElementById('upv-favorites').innerHTML = `<div class="upv-empty-mini">Belum ada lagu favorit</div>`;
   }
 
-  // ── 6. Liked Songs — langsung dari data privat user (TANPA perlu publish) ──
-  const likedScrollEl = document.getElementById('upv-liked-scroll');
-  let likedTracks = [];
-  try {
-    // Coba akses langsung playlist "Liked Songs" milik user (music_playlists_v2/{uid}/liked-songs)
-    const likedSnap = await db.ref('music_playlists_v2/' + uid + '/' + LIKED_PLAYLIST_ID_UPV + '/tracks').get();
-    if (likedSnap.exists()) likedTracks = likedSnap.val() || [];
-  } catch(e) {
-    console.warn('Tidak bisa baca liked songs langsung (cek Firebase rules), fallback ke public_playlists:', e.message);
-  }
+  // ── 6. Kunci playlist "Liked Songs" (dikecualikan dari grid Public Playlists) ──
   const likedKey = uid + '_' + LIKED_PLAYLIST_ID_UPV;
-  if (!likedTracks.length && userPls[likedKey]) {
-    likedTracks = userPls[likedKey].tracks || [];
-  }
-  if (likedTracks.length) {
-    likedScrollEl.innerHTML = likedTracks.map((t, i) => {
-      const prev = t.preview ? esc(t.preview).replace(/'/g,"\\'") : '';
-      const titleEsc = esc(t.title || '').replace(/'/g,"\\'");
-      const clickAction = prev
-        ? `previewUpvTrack('${prev}','${titleEsc}')`
-        : `playLikedTrackUpv2(${i}, '${uid}')`;
-      return `
-      <div class="upv-liked-card song-tile" onclick="${clickAction}">
-        <div class="photo-tile">
-          ${t.thumb ? `<img src="${esc(t.thumb)}" alt="">` : `<div class="photo-tile-ph">♪</div>`}
-          <div class="photo-tile-play-ov"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
-        </div>
-        <div class="song-tile-title">${esc(t.title || '—')}</div>
-        <div class="song-tile-artist">${esc(t.artist || '—')}</div>
-      </div>`;
-    }).join('');
-  } else {
-    likedScrollEl.innerHTML = `<div class="upv-empty-mini" style="width:100%;">Belum ada liked songs</div>`;
-  }
-  currentViewedLikedTracks = likedTracks;
 
-  // ── 7. Render Public Playlists (kecuali playlist "Liked Songs", sudah tampil di atas) ──
+  // ── 7. Render Public Playlists (kecuali playlist "Liked Songs") ──
   const keys = Object.keys(userPls).filter(k => k !== likedKey);
   currentViewedPlaylists = userPls;
 
@@ -2322,12 +2187,6 @@ function previewUpvTrack(previewUrl, title) {
   upvPreviewAudio = new Audio(previewUrl);
   upvPreviewAudio.play().catch(() => toast('❌ Gagal memutar preview'));
   toast('▶️ Memutar preview: ' + title);
-}
-
-function playLikedTrackUpv2(idx, uid) {
-  const t = currentViewedLikedTracks[idx];
-  if (!t || !t._query) { toast('ℹ️ Info songs tidak tersedia'); return; }
-  window.open('vibexa.html?play=' + encodeURIComponent(t._query), '_blank');
 }
 
 function playQueryUpv(query) {
