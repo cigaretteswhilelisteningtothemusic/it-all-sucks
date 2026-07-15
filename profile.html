@@ -659,6 +659,18 @@ textarea.form-input { resize: none; line-height: 1.6; }
   border-radius: 65% 0 0 0;
   transform: rotate(45deg);
 }
+.fav-note-edit-btn {
+  position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border-radius: 50%;
+  background: rgba(0,0,0,.28); border: 1px solid rgba(255,255,255,.35);
+  color: #fff; display: flex; align-items: center; justify-content: center; font-size: .68rem;
+  cursor: pointer; z-index: 2; transition: all .18s;
+}
+.fav-note-edit-btn:hover { background: rgba(0,0,0,.5); }
+.fav-note-add-btn {
+  display: flex; align-items: center; gap: 4px; font-size: .66rem; font-weight: 700;
+  color: var(--blue); cursor: pointer; margin: 0 8px 8px; padding: 4px 2px; width: fit-content;
+}
+.fav-note-add-btn:hover { text-decoration: underline; }
 
 /* ── Dropdown hasil pencarian lagu (Lagu Favorit) ── */
 .fav-picker-wrap { position: relative; }
@@ -953,6 +965,29 @@ textarea.form-input { resize: none; line-height: 1.6; }
     <div class="sheet-btns">
       <button class="btn-s" onclick="closeAddFavModal()">Batal</button>
       <button class="btn-p" id="btn-add-fav" onclick="addFavoriteSong()">+ Tambah</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: EDIT BUBBLE CATATAN LAGU FAVORIT ═══ -->
+<div id="modal-edit-fav-note" class="modal-bg" style="display:none" onclick="if(event.target===this) closeEditFavNoteModal()">
+  <div class="modal-sheet">
+    <div class="sheet-title">Edit Bubble Catatan</div>
+    <div class="sheet-sub">Teks ini otomatis terupdate di halaman chat teman-temanmu (bagian "Dari Teman Mu")</div>
+    <div class="form-group">
+      <label class="form-label">Bubble Catatan</label>
+      <textarea class="form-input" id="inp-edit-fav-note" rows="2" placeholder="Kenapa lagu ini spesial buatmu?" maxlength="150"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Warna Bubble Catatan</label>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <input type="color" id="inp-edit-fav-note-color" value="#3D9DD6" style="width:44px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--panel);cursor:pointer;padding:2px;">
+        <span style="font-size:.75rem;color:var(--sub);">Pilih warna bubble catatan untuk lagu ini</span>
+      </div>
+    </div>
+    <div class="sheet-btns">
+      <button class="btn-s" onclick="closeEditFavNoteModal()">Batal</button>
+      <button class="btn-p" id="btn-save-edit-fav-note" onclick="saveEditFavNote()">Simpan</button>
     </div>
   </div>
 </div>
@@ -1471,33 +1506,41 @@ function setMarquee(prefix, text) {
   if (!wrap || !track) return;
   const t = (text || '').trim();
   if (!t) { wrap.style.display = 'none'; return; }
+  // Sembunyikan track dulu (opacity 0) selama posisi awal belum dihitung & dipasang,
+  // supaya teks TIDAK pernah kelihatan sekilas di posisi normal sebelum meluncur
+  // masuk dari kanan — ini yang sebelumnya bikin efeknya terasa "langsung muncul".
+  track.style.opacity = '0';
   wrap.style.display = 'block';
   const items = track.querySelectorAll('.marquee-item');
   const gapStr = ' '.repeat(MQ_GAP_CHARS);
   items.forEach(el => { el.textContent = t + gapStr; });
 
-  const MQ_SPEED = 170; // px per detik
+  const MQ_SPEED = 130; // px per detik (sedikit lebih lambat dari sebelumnya)
 
   const runMarquee = () => {
     const containerWidth = wrap.offsetWidth || 300;
     const itemWidth = items[0].scrollWidth || 100; // lebar teks + jarak 5 spasi
     const entranceGapPx = MQ_GAP_CHARS * getMarqueeSpaceWidth(items[0]);
 
-    // Fase masuk: dari luar kotak (kanan) dengan jarak hanya 5 spasi, lalu masuk ke posisi 0
-    track.style.setProperty('--mq-enter-start', (containerWidth + entranceGapPx) + 'px');
+    // Fase masuk: mulai persis di luar tepi kanan kotak (+ jarak 5 spasi), lalu meluncur ke posisi 0
+    const enterStartPx = containerWidth + entranceGapPx;
+    track.style.setProperty('--mq-enter-start', enterStartPx + 'px');
     // Fase loop: bergeser tepat selebar satu salinan (teks + 5 spasi) agar salinan berikutnya
     // langsung menyambung tanpa menunggu teks sebelumnya hilang total
     track.style.setProperty('--mq-loop-end', (-itemWidth) + 'px');
 
-    const enterDuration = Math.max(0.4, (containerWidth + entranceGapPx) / MQ_SPEED);
+    const enterDuration = Math.max(0.6, enterStartPx / MQ_SPEED);
     const loopDuration = Math.max(2, itemWidth / MQ_SPEED);
 
     if (track._mqEnterHandler) track.removeEventListener('animationend', track._mqEnterHandler);
     track.style.animation = 'none';
     void track.offsetWidth; // force reflow
-    track.style.transform = `translateX(${containerWidth + entranceGapPx}px)`;
+    track.style.transform = `translateX(${enterStartPx}px)`;
     void track.offsetWidth;
-    track.style.animation = `marquee-enter ${enterDuration}s linear forwards`;
+    // Posisi awal (di luar kanan) sudah terpasang → sekarang aman ditampilkan,
+    // lalu langsung mulai meluncur masuk dengan easing halus (melambat saat tiba).
+    track.style.opacity = '1';
+    track.style.animation = `marquee-enter ${enterDuration}s cubic-bezier(0.22,1,0.36,1) forwards`;
 
     const handler = (e) => {
       if (e.animationName !== 'marquee-enter') return;
@@ -1861,6 +1904,7 @@ let favSearchResults = [];
 let favSearchTimer = null;
 let favSearchAudio = null;
 let favSearchSeq = 0;
+let myFavCache = {}; // cache lagu favorit sendiri (key -> data), dipakai openEditFavNoteModal()
 
 function onFavPickerInput(val) {
   selectedFavTrack = null;
@@ -1991,14 +2035,22 @@ async function loadMyFavorites() {
   listEl.className = 'upv-fav-list';
   try {
     const snap = await db.ref('users/' + currentUser.uid + '/favoriteSongs').get();
-    if (!snap.exists()) { listEl.innerHTML = `<div class="upv-empty-mini">Belum ada lagu favorit</div>`; return; }
+    if (!snap.exists()) { myFavCache = {}; listEl.innerHTML = `<div class="upv-empty-mini">Belum ada lagu favorit</div>`; return; }
     const val = snap.val();
+    myFavCache = val; // cache dipakai oleh openEditFavNoteModal() untuk prefill textarea
     const arr = Object.entries(val).sort((a,b) => (a[1].order??0) - (b[1].order??0));
     listEl.innerHTML = arr.map(([key, f]) => {
       const clickAction = f.preview ? `previewOwnFavTrack('${esc(f.preview).replace(/'/g,"\\'")}','${esc(f.title).replace(/'/g,"\\'")}')` : "toast('ℹ️ Preview tidak tersedia')";
+      const bubbleHTML = f.note
+        ? `<div class="fav-note-bubble" style="--bubble-color:${esc(f.noteColor || '#3D9DD6')}">
+             <button type="button" class="fav-note-edit-btn" onclick="event.stopPropagation();openEditFavNoteModal('${key}')" title="Edit bubble catatan">✎</button>
+             <div class="fav-note-text">${esc(f.note)}</div>
+             <div class="fav-note-author"><span>– ${esc(myDisplayName || 'me')}</span><span class="fav-note-avatar">${myPhotoURL ? `<img src="${esc(myPhotoURL)}" alt="">` : '👤'}</span></div>
+           </div>`
+        : `<div class="fav-note-add-btn" onclick="event.stopPropagation();openEditFavNoteModal('${key}')">✎ Tambah bubble catatan</div>`;
       return `
       <div class="fav-bubble-wrap">
-        ${f.note ? `<div class="fav-note-bubble" style="--bubble-color:${esc(f.noteColor || '#3D9DD6')}"><div class="fav-note-text">${esc(f.note)}</div><div class="fav-note-author"><span>– ${esc(myDisplayName || 'me')}</span><span class="fav-note-avatar">${myPhotoURL ? `<img src="${esc(myPhotoURL)}" alt="">` : '👤'}</span></div></div>` : ''}
+        ${bubbleHTML}
         <div class="song-tile" onclick="${clickAction}">
           <div class="photo-tile">
             <button type="button" class="photo-tile-del" onclick="event.stopPropagation();removeFavoriteSong('${key}')" title="Hapus">✕</button>
@@ -2012,6 +2064,47 @@ async function loadMyFavorites() {
     }).join('');
   } catch(e) {
     listEl.innerHTML = `<div class="upv-empty-mini">Belum ada lagu favorit</div>`;
+  }
+}
+
+// ── Edit Bubble Catatan (lagu favorit sendiri) ────────────────
+// Membuka modal edit dengan teks & warna bubble saat ini terisi otomatis
+// (diambil dari myFavCache yang di-set setiap kali loadMyFavorites() jalan).
+let editingFavKey = null;
+
+function openEditFavNoteModal(key) {
+  const f = myFavCache[key];
+  if (!f) return;
+  editingFavKey = key;
+  document.getElementById('inp-edit-fav-note').value = f.note || '';
+  document.getElementById('inp-edit-fav-note-color').value = f.noteColor || '#3D9DD6';
+  document.getElementById('modal-edit-fav-note').style.display = 'flex';
+}
+function closeEditFavNoteModal() {
+  document.getElementById('modal-edit-fav-note').style.display = 'none';
+  editingFavKey = null;
+}
+
+// Menyimpan perubahan langsung ke Firebase (users/{uid}/favoriteSongs/{key}).
+// Karena halaman chat (vibexa.html, bagian "Dari Teman Mu") memasang listener
+// REALTIME (.on('value', ...)) ke node favoriteSongs ini, begitu note/noteColor
+// di-update di sini, teks bubble di halaman chat teman-teman otomatis
+// ikut berubah tanpa perlu refresh apapun di sisi mereka.
+async function saveEditFavNote() {
+  if (!currentUser || !editingFavKey) return;
+  const note = document.getElementById('inp-edit-fav-note').value.trim();
+  const noteColor = document.getElementById('inp-edit-fav-note-color').value || '#3D9DD6';
+  const btn = document.getElementById('btn-save-edit-fav-note');
+  btn.disabled = true; btn.textContent = 'Menyimpan...';
+  try {
+    await db.ref('users/' + currentUser.uid + '/favoriteSongs/' + editingFavKey).update({ note, noteColor });
+    toast('✅ Bubble catatan diperbarui!');
+    loadMyFavorites();
+    closeEditFavNoteModal();
+  } catch(e) {
+    toast('❌ Gagal: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Simpan';
   }
 }
 
