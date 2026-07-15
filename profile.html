@@ -135,6 +135,7 @@ body::after {
 }
 .avatar-edit-btn:hover { transform: scale(1.1); }
 .avatar-edit-btn svg { width: 15px; height: 15px; color: #fff; }
+.avatar-edit-btn { color: #fff; font-family: var(--f); font-weight: 800; font-size: 1.15rem; line-height: 1; }
 
 /* ── EDIT PROFILE SECTION ── */
 .section-card {
@@ -440,6 +441,23 @@ textarea.form-input { resize: none; line-height: 1.6; }
   border-radius: var(--rs); margin-bottom: 14px; display: none;
 }
 .sheet-btns { display: flex; gap: 10px; }
+.modal-sheet-scroll { max-height: 86vh; overflow-y: auto; }
+/* ── Tombol "+" untuk mengedit tampilan profil sendiri ── */
+.self-box { position: relative; }
+.self-plus-btn {
+  position: absolute; top: 10px; right: 10px; z-index: 3;
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--blue); border: 2px solid var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all .2s; box-shadow: var(--blue-glow);
+  color: #fff; font-family: var(--f); font-weight: 800; font-size: 1.05rem; line-height: 1;
+}
+.self-plus-btn:hover { transform: scale(1.1); }
+.self-plus-btn.inline {
+  position: static; flex-shrink: 0; margin-left: auto;
+  width: 26px; height: 26px; font-size: .95rem; border: none; box-shadow: none;
+}
+.self-name-row { display: flex; align-items: center; gap: 8px; }
 .btn-s {
   flex: 1; padding: 11px; border-radius: 50px;
   background: var(--card); border: 1px solid var(--border);
@@ -539,12 +557,13 @@ textarea.form-input { resize: none; line-height: 1.6; }
 /* ── Teks Berjalan (running/marquee text, menggantikan Liked Songs) ── */
 .marquee-wrap {
   position: relative;
-  margin: 6px 2px 18px; padding: 11px 0;
+  margin: 6px 2px 18px; height: 42px;
   background: var(--card); border: 1px solid var(--border);
-  border-radius: 50px; overflow: hidden; white-space: nowrap;
+  border-radius: 50px; overflow: hidden;
 }
 .marquee-track {
-  display: inline-block; white-space: nowrap; will-change: transform;
+  position: absolute; left: 100%; top: 0; bottom: 0;
+  display: flex; align-items: center; white-space: nowrap; will-change: transform;
   animation: marquee-scroll 8s linear infinite;
 }
 .marquee-track:hover { animation-play-state: paused; }
@@ -553,7 +572,7 @@ textarea.form-input { resize: none; line-height: 1.6; }
   letter-spacing: .2px; white-space: nowrap; display: inline-flex; align-items: center;
 }
 @keyframes marquee-scroll {
-  from { transform: translateX(var(--mq-start, 100%)); }
+  from { transform: translateX(var(--mq-gap, 32px)); }
   to   { transform: translateX(var(--mq-end, -100%)); }
 }
 
@@ -740,23 +759,18 @@ textarea.form-input { resize: none; line-height: 1.6; }
 <!-- MAIN APP -->
 <div id="app">
 
-  <!-- COVER / AVATAR / STATS (mengikuti tampilan yang dilihat user lain, biar tidak bingung saat edit) -->
+  <!-- COVER / AVATAR / STATS (sama persis seperti tampilan yang dilihat user lain) -->
   <div class="upv-banner-wrap" style="margin-top:14px;">
-    <div class="upv-banner" id="cover-photo-box" onclick="openCoverModal()" style="cursor:pointer;">
+    <div class="upv-banner" id="cover-photo-box">
       <div id="cover-preview-wrap" class="upv-banner-empty">🖼️</div>
     </div>
-    <div onclick="openCoverModal()" style="position:absolute;bottom:8px;right:8px;background:rgba(8,11,18,0.75);border:1px solid var(--border);border-radius:50px;padding:5px 12px;font-size:.68rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:5px;cursor:pointer;z-index:2;">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-      Ubah Sampul
-    </div>
+    <div class="self-plus-btn" onclick="openCoverModal()" title="Ubah Sampul" style="top:10px;right:10px;">+</div>
     <div class="upv-header-row">
       <div class="avatar-wrap" onclick="openPhotoModal()">
         <div class="avatar-ring">
           <div class="avatar-inner" id="avatar-inner">🎵</div>
         </div>
-        <div class="avatar-edit-btn">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-        </div>
+        <div class="avatar-edit-btn">+</div>
       </div>
       <div class="upv-header-stats">
         <div class="upv-header-stat-item">
@@ -775,78 +789,40 @@ textarea.form-input { resize: none; line-height: 1.6; }
     </div>
   </div>
 
-  <!-- Nama User (dibawah foto profil, sama seperti tampilan publik) -->
-  <div class="upv-name-wrap">
-    <div class="upv-h-name" id="display-name">—</div>
-  </div>
-  <div id="user-email" style="font-size:.72rem;color:var(--muted);margin:0 2px 8px;">—</div>
-  <div id="user-bio" style="font-size:.85rem;color:var(--muted);font-style:italic;line-height:1.65;margin:0 2px 6px;">No description yet</div>
+  <!-- Nama, Bio & Teks Berjalan (sama persis seperti tampilan publik + tombol edit) -->
+  <div class="self-box" style="padding-right:38px;">
+    <div class="self-plus-btn" onclick="openEditProfileModal()" title="Edit Nama, Bio & Teks Berjalan">+</div>
+    <div class="upv-name-wrap">
+      <div class="upv-h-name" id="display-name">—</div>
+    </div>
+    <div id="user-bio" style="font-size:.85rem;color:var(--sub);line-height:1.65;margin:0 2px 6px;"></div>
 
-  <!-- Teks Berjalan (menggantikan Liked Songs, sejajar dengan nama & deskripsi) -->
-  <div class="marquee-wrap" id="my-marquee-wrap" style="display:none;">
-    <div class="marquee-track" id="my-marquee-track">
-      <span class="marquee-item"></span>
-    </div>
-  </div>
-
-  <!-- EDIT PROFILE FORM -->
-  <div class="section-card">
-    <div class="section-title">Edit Profile</div>
-    <div class="form-group">
-      <label class="form-label">Display Name</label>
-      <input type="text" class="form-input" id="inp-name" placeholder="Your name..." maxlength="32">
-    </div>
-    <div class="form-group">
-      <label class="form-label">Description / Bio</label>
-      <textarea class="form-input" id="inp-bio" rows="3" placeholder="Tell us a little about yourself or your favorite music..." maxlength="120"></textarea>
-      <div class="char-count"><span id="bio-count">0</span>/120</div>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Tentang (About)</label>
-      <textarea class="form-input" id="inp-about" rows="4" placeholder="Ceritakan lebih banyak tentang dirimu..." maxlength="500"></textarea>
-      <div class="char-count"><span id="about-count">0</span>/500</div>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Teks Berjalan</label>
-      <input type="text" class="form-input" id="inp-marquee" placeholder="Tulis teks yang akan bergerak ke samping..." maxlength="100">
-      <div class="char-count"><span id="marquee-count">0</span>/100</div>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Warna Latar Belakang Profil</label>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <input type="color" id="inp-bg-color" value="#080B12" oninput="previewBgColor(this.value)" style="width:44px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--panel);cursor:pointer;padding:2px;">
-        <span style="font-size:.75rem;color:var(--sub);">Pilih warna latar belakang tampilan profilmu</span>
-        <button type="button" onclick="resetBgColor()" style="margin-left:auto;background:var(--card);border:1px solid var(--border);color:var(--sub);font-size:.7rem;font-weight:600;border-radius:8px;padding:7px 12px;cursor:pointer;">Reset</button>
+    <!-- Teks Berjalan -->
+    <div class="marquee-wrap" id="my-marquee-wrap" style="display:none;">
+      <div class="marquee-track" id="my-marquee-track">
+        <span class="marquee-item"></span>
       </div>
     </div>
-    <button class="btn-save" id="btn-save-profile" onclick="saveProfile()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>
-      Save Changes
-    </button>
   </div>
 
-  <!-- LAGU FAVORIT -->
-  <div class="section-card">
-    <div class="section-title">Lagu Favorit <span style="color:var(--muted);text-transform:none;letter-spacing:0;">(maks. 10)</span></div>
-    <div class="form-group fav-picker-wrap">
-      <label class="form-label">Cari Lagu</label>
-      <input type="text" class="form-input" id="inp-fav-picker" placeholder="Ketik judul lagu..." oninput="onFavPickerInput(this.value)" autocomplete="off">
-      <div class="fav-picker-dropdown" id="fav-picker-results"></div>
+  <!-- About + Favorite Songs (dua kolom, sama persis seperti tampilan publik) -->
+  <div class="upv-columns" style="margin-bottom:20px;">
+    <div class="section-card self-box" style="margin-bottom:0;">
+      <div class="playlists-header" style="margin-bottom:12px;">
+        <div class="section-title" style="margin-bottom:0;">Tentang</div>
+        <div class="self-plus-btn inline" onclick="openEditAboutModal()" title="Edit Tentang">+</div>
+      </div>
+      <div class="upv-about-text" id="my-about">Belum ada deskripsi</div>
     </div>
-    <div id="fav-picker-preview" style="display:none;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin-bottom:14px;"></div>
-    <div class="form-group">
-      <label class="form-label">Catatan untuk lagu ini</label>
-      <textarea class="form-input" id="inp-fav-note" rows="2" placeholder="Kenapa lagu ini spesial buatmu?" maxlength="150"></textarea>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Warna Bubble Catatan</label>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <input type="color" id="inp-fav-note-color" value="#3D9DD6" style="width:44px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--panel);cursor:pointer;padding:2px;">
-        <span style="font-size:.75rem;color:var(--sub);">Pilih warna bubble catatan untuk lagu ini</span>
+    <div class="section-card self-box" style="margin-bottom:0;">
+      <div class="playlists-header" style="margin-bottom:12px;">
+        <div class="section-title" style="margin-bottom:0;">Lagu Favorit</div>
+        <div class="self-plus-btn inline" onclick="openAddFavModal()" title="Tambah Lagu Favorit">+</div>
+      </div>
+      <div class="upv-fav-list" id="my-favorites-list">
+        <div class="upv-empty-mini">Belum ada lagu favorit</div>
       </div>
     </div>
-    <button class="btn-save" id="btn-add-fav" onclick="addFavoriteSong()">+ Tambah ke Lagu Favorit</button>
-    <div id="my-favorites-list" style="margin-top:14px;display:flex;flex-direction:column;gap:8px;"></div>
   </div>
 
   <!-- PLAYLIST PUBLISH -->
@@ -867,6 +843,85 @@ textarea.form-input { resize: none; line-height: 1.6; }
   </div>
 
 </div><!-- /#app -->
+
+<!-- ═══ MODAL: EDIT PROFIL (Nama, Bio, Teks Berjalan, Warna Latar) ═══ -->
+<div id="modal-edit-profile" class="modal-bg" style="display:none" onclick="if(event.target===this) closeEditProfileModal()">
+  <div class="modal-sheet modal-sheet-scroll">
+    <div class="sheet-title">Edit Profil</div>
+    <div class="sheet-sub">Ubah nama, bio, dan teks berjalan di profilmu</div>
+    <div class="form-group">
+      <label class="form-label">Display Name</label>
+      <input type="text" class="form-input" id="inp-name" placeholder="Your name..." maxlength="32">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Description / Bio</label>
+      <textarea class="form-input" id="inp-bio" rows="3" placeholder="Tell us a little about yourself or your favorite music..." maxlength="120"></textarea>
+      <div class="char-count"><span id="bio-count">0</span>/120</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Teks Berjalan</label>
+      <input type="text" class="form-input" id="inp-marquee" placeholder="Tulis teks yang akan bergerak ke samping..." maxlength="100">
+      <div class="char-count"><span id="marquee-count">0</span>/100</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Warna Latar Belakang Profil</label>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <input type="color" id="inp-bg-color" value="#080B12" oninput="previewBgColor(this.value)" style="width:44px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--panel);cursor:pointer;padding:2px;">
+        <span style="font-size:.75rem;color:var(--sub);">Pilih warna latar belakang tampilan profilmu</span>
+        <button type="button" onclick="resetBgColor()" style="margin-left:auto;background:var(--card);border:1px solid var(--border);color:var(--sub);font-size:.7rem;font-weight:600;border-radius:8px;padding:7px 12px;cursor:pointer;">Reset</button>
+      </div>
+    </div>
+    <div class="sheet-btns">
+      <button class="btn-s" onclick="closeEditProfileModal()">Batal</button>
+      <button class="btn-p" id="btn-save-profile" onclick="saveProfile()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: EDIT TENTANG ═══ -->
+<div id="modal-edit-about" class="modal-bg" style="display:none" onclick="if(event.target===this) closeEditAboutModal()">
+  <div class="modal-sheet modal-sheet-scroll">
+    <div class="sheet-title">Edit Tentang</div>
+    <div class="sheet-sub">Ceritakan lebih banyak tentang dirimu</div>
+    <div class="form-group">
+      <textarea class="form-input" id="inp-about" rows="6" placeholder="Ceritakan lebih banyak tentang dirimu..." maxlength="500"></textarea>
+      <div class="char-count"><span id="about-count">0</span>/500</div>
+    </div>
+    <div class="sheet-btns">
+      <button class="btn-s" onclick="closeEditAboutModal()">Batal</button>
+      <button class="btn-p" id="btn-save-about" onclick="saveProfile()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: TAMBAH LAGU FAVORIT ═══ -->
+<div id="modal-add-fav" class="modal-bg" style="display:none" onclick="if(event.target===this) closeAddFavModal()">
+  <div class="modal-sheet modal-sheet-scroll">
+    <div class="sheet-title">Tambah Lagu Favorit <span style="color:var(--muted);font-weight:500;">(maks. 10)</span></div>
+    <div class="sheet-sub">Pilih lagu dan tulis bubble catatan yang akan tampil di atasnya</div>
+    <div class="form-group fav-picker-wrap">
+      <label class="form-label">Cari Lagu</label>
+      <input type="text" class="form-input" id="inp-fav-picker" placeholder="Ketik judul lagu..." oninput="onFavPickerInput(this.value)" autocomplete="off">
+      <div class="fav-picker-dropdown" id="fav-picker-results"></div>
+    </div>
+    <div id="fav-picker-preview" style="display:none;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin-bottom:14px;"></div>
+    <div class="form-group">
+      <label class="form-label">Bubble Catatan (di atas lagu)</label>
+      <textarea class="form-input" id="inp-fav-note" rows="2" placeholder="Kenapa lagu ini spesial buatmu?" maxlength="150"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Warna Bubble Catatan</label>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <input type="color" id="inp-fav-note-color" value="#3D9DD6" style="width:44px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--panel);cursor:pointer;padding:2px;">
+        <span style="font-size:.75rem;color:var(--sub);">Pilih warna bubble catatan untuk lagu ini</span>
+      </div>
+    </div>
+    <div class="sheet-btns">
+      <button class="btn-s" onclick="closeAddFavModal()">Batal</button>
+      <button class="btn-p" id="btn-add-fav" onclick="addFavoriteSong()">+ Tambah</button>
+    </div>
+  </div>
+</div>
 
 <!-- EXPLORE / COMMUNITY VIEW -->
 <div id="explore-view">
@@ -1139,10 +1194,10 @@ async function loadProfile() {
     const marqueeText = data.marqueeText || '';
 
     document.getElementById('display-name').textContent = name;
-    document.getElementById('user-email').textContent   = currentUser.email;
     document.getElementById('user-bio').textContent     = bio || 'No description yet';
     document.getElementById('user-bio').style.fontStyle = bio ? 'normal' : 'italic';
     document.getElementById('user-bio').style.color     = bio ? 'var(--sub)' : 'var(--muted)';
+    document.getElementById('my-about').textContent = about || 'Belum ada deskripsi';
 
     document.getElementById('inp-name').value = name;
     document.getElementById('inp-bio').value  = bio;
@@ -1178,6 +1233,18 @@ function resetBgColor() {
 }
 
 // ── Teks Berjalan (running / marquee text) ──────────────────
+function getMarqueeGapPx(item) {
+  try {
+    const style = getComputedStyle(item);
+    const font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    const canvas = getMarqueeGapPx._canvas || (getMarqueeGapPx._canvas = document.createElement('canvas'));
+    const ctx = canvas.getContext('2d');
+    ctx.font = font;
+    const spaceWidth = ctx.measureText('    ').width; // lebar 4 karakter kosong
+    return spaceWidth && spaceWidth > 8 ? spaceWidth : 32;
+  } catch(e) { return 32; }
+}
+
 function setMarquee(prefix, text) {
   const wrap  = document.getElementById(prefix + '-marquee-wrap');
   const track = document.getElementById(prefix + '-marquee-track');
@@ -1193,11 +1260,12 @@ function setMarquee(prefix, text) {
   const runMarquee = () => {
     const containerWidth = wrap.offsetWidth || 300;
     const textWidth = item.scrollWidth || 100;
-    const distance = containerWidth + textWidth;
+    const gapPx = getMarqueeGapPx(item); // batas jarak muncul dari kanan (± 4 huruf kosong)
+    const distance = gapPx + containerWidth + textWidth;
     const duration = Math.max(3, distance / MQ_SPEED);
 
-    track.style.setProperty('--mq-start', containerWidth + 'px');
-    track.style.setProperty('--mq-end', (-textWidth) + 'px');
+    track.style.setProperty('--mq-gap', gapPx + 'px');
+    track.style.setProperty('--mq-end', (-(containerWidth + textWidth)) + 'px');
 
     // reset animasi supaya perubahan durasi/jarak langsung diterapkan
     track.style.animation = 'none';
@@ -1357,13 +1425,16 @@ async function togglePublish(plId, makePublic, inputEl) {
 // ── Save Profile ──────────────────────────────────────────
 async function saveProfile() {
   if (!currentUser) return;
-  const btn  = document.getElementById('btn-save-profile');
+  const btn  = document.getElementById('modal-edit-about').style.display === 'flex'
+    ? document.getElementById('btn-save-about')
+    : document.getElementById('btn-save-profile');
   const name = document.getElementById('inp-name').value.trim();
   const bio  = document.getElementById('inp-bio').value.trim();
   const about = document.getElementById('inp-about').value.trim();
   const marqueeText = document.getElementById('inp-marquee').value.trim();
   const bgColor = document.getElementById('inp-bg-color').value || '';
   if (!name) { toast('❗ Name cannot be empty'); return; }
+  const originalLabel = btn.innerHTML;
   btn.disabled = true;
   btn.textContent = 'Saving...';
   try {
@@ -1373,6 +1444,7 @@ async function saveProfile() {
     document.getElementById('user-bio').textContent = bio || 'No description yet';
     document.getElementById('user-bio').style.fontStyle = bio ? 'normal' : 'italic';
     document.getElementById('user-bio').style.color = bio ? 'var(--sub)' : 'var(--muted)';
+    document.getElementById('my-about').textContent = about || 'Belum ada deskripsi';
     setMarquee('my', marqueeText);
     applyBgColor(bgColor);
     // Also update owner name in all public playlists
@@ -1381,13 +1453,27 @@ async function saveProfile() {
       db.ref('public_playlists/' + currentUser.uid + '_' + id + '/ownerName').set(name);
     }
     toast('✅ Profile saved!');
+    closeEditProfileModal();
+    closeEditAboutModal();
   } catch(e) {
     toast('❌ Failed: ' + e.message);
   } finally {
     btn.disabled = false;
-    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg> Save Changes`;
+    btn.innerHTML = originalLabel;
   }
 }
+
+// ── Modal: Edit Profil (Nama, Bio, Teks Berjalan, Warna Latar) ──
+function openEditProfileModal() { document.getElementById('modal-edit-profile').style.display = 'flex'; }
+function closeEditProfileModal() { document.getElementById('modal-edit-profile').style.display = 'none'; }
+
+// ── Modal: Edit Tentang ──────────────────────────────────────
+function openEditAboutModal() { document.getElementById('modal-edit-about').style.display = 'flex'; }
+function closeEditAboutModal() { document.getElementById('modal-edit-about').style.display = 'none'; }
+
+// ── Modal: Tambah Lagu Favorit ───────────────────────────────
+function openAddFavModal() { document.getElementById('modal-add-fav').style.display = 'flex'; }
+function closeAddFavModal() { document.getElementById('modal-add-fav').style.display = 'none'; }
 
 // ── Photo Upload ──────────────────────────────────────────
 function openPhotoModal() {
@@ -1659,6 +1745,7 @@ async function addFavoriteSong() {
     selectedFavTrack = null;
     toast('✅ Ditambahkan ke lagu favorit!');
     loadMyFavorites();
+    closeAddFavModal();
   } catch(e) {
     toast('❌ Gagal: ' + e.message);
   }
