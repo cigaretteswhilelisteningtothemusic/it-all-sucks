@@ -110,55 +110,31 @@ body::after {
   padding: 0 16px 100px; position: relative; z-index: 1;
 }
 
-/* ── PROFILE HEADER ── */
-.profile-header {
-  padding: 28px 0 20px;
-  display: flex; flex-direction: column; align-items: center;
-  text-align: center; gap: 16px;
-}
-.avatar-wrap { position: relative; display: inline-block; }
+/* ── PROFILE HEADER (mengikuti tampilan yang dilihat user lain) ── */
+.avatar-wrap { position: relative; display: inline-block; flex-shrink: 0; }
 .avatar-ring {
-  width: 100px; height: 100px; border-radius: 50%;
+  width: 200px; height: 200px; border-radius: 34px;
   background: linear-gradient(135deg, var(--blue), var(--teal));
-  padding: 2.5px; cursor: pointer;
+  padding: 4px; cursor: pointer;
   transition: box-shadow .25s;
 }
 .avatar-ring:hover { box-shadow: 0 0 0 4px var(--blue-dim), var(--blue-glow); }
 .avatar-inner {
-  width: 100%; height: 100%; border-radius: 50%;
+  width: 100%; height: 100%; border-radius: 30px;
   background: var(--card); overflow: hidden;
   display: flex; align-items: center; justify-content: center;
-  font-size: 2.8rem;
+  font-size: 3.6rem;
 }
 .avatar-inner img { width: 100%; height: 100%; object-fit: cover; }
 .avatar-edit-btn {
-  position: absolute; bottom: 2px; right: 2px;
-  width: 30px; height: 30px; border-radius: 50%;
-  background: var(--blue); border: 2px solid var(--bg);
+  position: absolute; bottom: 6px; right: 6px;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--blue); border: 3px solid var(--bg);
   display: flex; align-items: center; justify-content: center;
-  cursor: pointer; transition: all .2s;
+  cursor: pointer; transition: all .2s; z-index: 2;
 }
 .avatar-edit-btn:hover { transform: scale(1.1); }
-.avatar-edit-btn svg { width: 14px; height: 14px; color: #fff; }
-
-.profile-name-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-#display-name {
-  font-size: 1.5rem; font-weight: 800;
-  letter-spacing: -.4px; line-height: 1.2;
-}
-#user-email { font-size: .78rem; color: var(--muted); }
-#user-bio {
-  font-size: .85rem; color: var(--sub);
-  max-width: 320px; line-height: 1.65; text-align: center;
-}
-.profile-stats {
-  display: flex; gap: 32px; justify-content: center;
-  padding: 14px 0; border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border); width: 100%;
-}
-.stat-item { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.stat-num { font-size: 1.3rem; font-weight: 800; color: var(--text); }
-.stat-lbl { font-size: .65rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
+.avatar-edit-btn svg { width: 15px; height: 15px; color: #fff; }
 
 /* ── EDIT PROFILE SECTION ── */
 .section-card {
@@ -543,7 +519,7 @@ textarea.form-input { resize: none; line-height: 1.6; }
 .upv-banner-empty { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 1.8rem; }
 .upv-header-row {
   position: absolute; left: 16px; bottom: -96px;
-  display: flex; align-items: flex-start; gap: 18px;
+  display: flex; align-items: center; gap: 18px;
   right: 16px;
 }
 .upv-avatar-square {
@@ -553,10 +529,10 @@ textarea.form-input { resize: none; line-height: 1.6; }
   font-size: 3.6rem; box-shadow: 0 4px 14px rgba(0,0,0,.35);
 }
 .upv-avatar-square img { width: 100%; height: 100%; object-fit: cover; }
-.upv-header-stats { display: flex; gap: 26px; padding-top: 10px; }
-.upv-header-stat-item { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.upv-header-stat-num { font-size: 1.2rem; font-weight: 800; color: var(--text); }
-.upv-header-stat-lbl { font-size: .6rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
+.upv-header-stats { display: flex; gap: 34px; }
+.upv-header-stat-item { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.upv-header-stat-num { font-size: 1.7rem; font-weight: 900; color: var(--text); line-height: 1; }
+.upv-header-stat-lbl { font-size: .65rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
 .upv-name-wrap { padding: 0 2px; margin-bottom: 4px; }
 .upv-name-wrap .upv-h-name { font-size: 1.35rem; font-weight: 800; letter-spacing: -.3px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .upv-header-liked-block { margin: 4px 2px 0; }
@@ -607,18 +583,19 @@ textarea.form-input { resize: none; line-height: 1.6; }
 /* ── Speech-bubble catatan di atas photo tile (bentuk pill, outline, warna bisa dipilih) ── */
 .fav-bubble-wrap { display: flex; flex-direction: column; }
 .fav-note-bubble {
-  position: relative; background: transparent;
+  position: relative;
+  background: color-mix(in srgb, var(--bubble-color, var(--teal)) 22%, var(--panel));
   border: 2px solid var(--bubble-color, var(--teal));
-  border-radius: 999px; padding: 9px 16px 10px; margin: 0 10px 20px 8px;
+  border-radius: 999px; padding: 9px 16px 10px; margin: 0 8px 22px;
   font-size: .66rem; line-height: 1.4; color: var(--bubble-color, var(--teal));
-  max-height: 58px; overflow: hidden; word-break: break-word;
+  max-height: 58px; overflow: hidden; word-break: break-word; text-align: center;
 }
 .fav-note-bubble::after {
-  content: ''; position: absolute; left: 14px; bottom: -18px;
-  width: 24px; height: 24px;
+  content: ''; position: absolute; left: 50%; bottom: -20px;
+  width: 22px; height: 22px; transform: translateX(-50%);
   background-color: var(--bubble-color, var(--teal));
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60'%3E%3Cpath d='M50 4 C22 8 8 26 9 48 C10 54 15 53 18 48 C26 36 36 18 50 4 Z' fill='none' stroke='black' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / contain;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60'%3E%3Cpath d='M50 4 C22 8 8 26 9 48 C10 54 15 53 18 48 C26 36 36 18 50 4 Z' fill='none' stroke='black' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / contain;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60'%3E%3Cpath d='M20 4 C8 10 4 26 12 42 C16 50 26 50 26 42 C24 30 22 16 20 4 Z' fill='none' stroke='black' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / contain;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60'%3E%3Cpath d='M20 4 C8 10 4 26 12 42 C16 50 26 50 26 42 C24 30 22 16 20 4 Z' fill='none' stroke='black' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / contain;
 }
 
 /* ── Dropdown hasil pencarian lagu (Lagu Favorit) ── */
@@ -697,8 +674,14 @@ textarea.form-input { resize: none; line-height: 1.6; }
 @media (max-width: 600px) {
   #mob-nav { display: flex; }
   #app { padding-bottom: 80px; }
-  .profile-stats { gap: 20px; }
-  .stat-num { font-size: 1.1rem; }
+  .upv-header-stats { gap: 16px; }
+  .upv-header-stat-num { font-size: 1.3rem; }
+  .upv-avatar-square, .avatar-ring { width: 130px; height: 130px; border-radius: 24px; }
+  .avatar-inner { border-radius: 20px; font-size: 2.4rem; }
+  .upv-avatar-square { font-size: 2.6rem; }
+  .upv-header-row { bottom: -64px; gap: 12px; }
+  .upv-banner { height: 180px; }
+  .upv-banner-wrap { margin-bottom: 84px; }
   .cpc-header { padding: 12px 12px 8px; }
   .cpc-body { padding: 0 12px 10px; }
   .cpc-actions { padding: 4px 6px; }
@@ -738,43 +721,53 @@ textarea.form-input { resize: none; line-height: 1.6; }
 <!-- MAIN APP -->
 <div id="app">
 
-  <!-- COVER / BACKGROUND PHOTO -->
-  <div style="position:relative;width:100%;height:140px;border-radius:var(--r);overflow:hidden;background:linear-gradient(135deg,var(--card),var(--panel));border:1px solid var(--border);margin-top:14px;cursor:pointer;" onclick="openCoverModal()">
-    <div id="cover-preview-wrap" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:1.6rem;">🖼️</div>
-    <div style="position:absolute;bottom:8px;right:8px;background:rgba(8,11,18,0.75);border:1px solid var(--border);border-radius:50px;padding:5px 12px;font-size:.68rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:5px;">
+  <!-- COVER / AVATAR / STATS (mengikuti tampilan yang dilihat user lain, biar tidak bingung saat edit) -->
+  <div class="upv-banner-wrap" style="margin-top:14px;">
+    <div class="upv-banner" id="cover-photo-box" onclick="openCoverModal()" style="cursor:pointer;">
+      <div id="cover-preview-wrap" class="upv-banner-empty">🖼️</div>
+    </div>
+    <div onclick="openCoverModal()" style="position:absolute;bottom:8px;right:8px;background:rgba(8,11,18,0.75);border:1px solid var(--border);border-radius:50px;padding:5px 12px;font-size:.68rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:5px;cursor:pointer;z-index:2;">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
       Ubah Sampul
     </div>
+    <div class="upv-header-row">
+      <div class="avatar-wrap" onclick="openPhotoModal()">
+        <div class="avatar-ring">
+          <div class="avatar-inner" id="avatar-inner">🎵</div>
+        </div>
+        <div class="avatar-edit-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </div>
+      </div>
+      <div class="upv-header-stats">
+        <div class="upv-header-stat-item">
+          <div class="upv-header-stat-num" id="stat-playlists">0</div>
+          <div class="upv-header-stat-lbl">Playlist</div>
+        </div>
+        <div class="upv-header-stat-item">
+          <div class="upv-header-stat-num" id="stat-public">0</div>
+          <div class="upv-header-stat-lbl">Public</div>
+        </div>
+        <div class="upv-header-stat-item">
+          <div class="upv-header-stat-num" id="stat-likes">0</div>
+          <div class="upv-header-stat-lbl">Total Likes</div>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <!-- PROFILE HEADER -->
-  <div class="profile-header" style="padding-top:0;margin-top:-40px;">
-    <div class="avatar-wrap" onclick="openPhotoModal()">
-      <div class="avatar-ring">
-        <div class="avatar-inner" id="avatar-inner">🎵</div>
-      </div>
-      <div class="avatar-edit-btn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-      </div>
-    </div>
-    <div class="profile-name-wrap">
-      <div id="display-name">—</div>
-      <div id="user-email">—</div>
-    </div>
-    <div id="user-bio" style="color:var(--muted);font-style:italic">No description yet</div>
-    <div class="profile-stats">
-      <div class="stat-item">
-        <div class="stat-num" id="stat-playlists">0</div>
-        <div class="stat-lbl">Playlist</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-num" id="stat-public">0</div>
-        <div class="stat-lbl">Public</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-num" id="stat-likes">0</div>
-        <div class="stat-lbl">Total Likes</div>
-      </div>
+  <!-- Nama User (dibawah foto profil, sama seperti tampilan publik) -->
+  <div class="upv-name-wrap">
+    <div class="upv-h-name" id="display-name">—</div>
+  </div>
+  <div id="user-email" style="font-size:.72rem;color:var(--muted);margin:0 2px 8px;">—</div>
+  <div id="user-bio" style="font-size:.85rem;color:var(--muted);font-style:italic;line-height:1.65;margin:0 2px 6px;">No description yet</div>
+
+  <!-- Liked Songs (sejajar dengan nama & deskripsi, sama seperti tampilan publik) -->
+  <div class="upv-header-liked-block" style="margin-bottom:18px;">
+    <div class="upv-header-liked-lbl">Liked Songs</div>
+    <div class="upv-hscroll upv-header-liked" id="my-liked-scroll">
+      <div class="upv-empty-mini" style="width:100%;">Loading...</div>
     </div>
   </div>
 
@@ -1146,8 +1139,40 @@ async function loadProfile() {
     setCoverPreview(cover);
     loadMyNotes();
     loadMyFavorites();
+    loadMyLikedSongsPreview();
   } catch(e) {
     console.error(e);
+  }
+}
+
+async function loadMyLikedSongsPreview() {
+  if (!currentUser) return;
+  const el = document.getElementById('my-liked-scroll');
+  try {
+    const snap = await db.ref('music_playlists_v2/' + currentUser.uid + '/liked-songs/tracks').get();
+    const tracks = snap.exists() ? (snap.val() || []) : [];
+    if (!tracks.length) {
+      el.innerHTML = `<div class="upv-empty-mini" style="width:100%;">Belum ada liked songs</div>`;
+      return;
+    }
+    el.innerHTML = tracks.map((t, i) => {
+      const prev = t.preview ? esc(t.preview).replace(/'/g,"\\'") : '';
+      const titleEsc = esc(t.title || '').replace(/'/g,"\\'");
+      const clickAction = prev
+        ? `previewOwnFavTrack('${prev}','${titleEsc}')`
+        : (t._query ? `playQueryUpv('${esc(t._query).replace(/'/g,"\\'")}')` : "toast('ℹ️ Info songs tidak tersedia')");
+      return `
+      <div class="upv-liked-card song-tile" onclick="${clickAction}">
+        <div class="photo-tile">
+          ${t.thumb ? `<img src="${esc(t.thumb)}" alt="">` : `<div class="photo-tile-ph">♪</div>`}
+          <div class="photo-tile-play-ov"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+        </div>
+        <div class="song-tile-title">${esc(t.title || '—')}</div>
+        <div class="song-tile-artist">${esc(t.artist || '—')}</div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = `<div class="upv-empty-mini" style="width:100%;">Belum ada liked songs</div>`;
   }
 }
 
