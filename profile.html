@@ -585,7 +585,7 @@ textarea.form-input { resize: none; line-height: 1.6; }
 .fav-note-bubble {
   position: relative;
   background: var(--bubble-color, var(--teal));
-  border-radius: 20px; margin: 0 8px 24px;
+  border-radius: 20px; margin: 0 8px 16px;
   box-shadow: 0 8px 20px rgba(0,0,0,.35);
   text-align: left;
 }
@@ -595,11 +595,11 @@ textarea.form-input { resize: none; line-height: 1.6; }
   max-height: 64px; overflow: hidden; word-break: break-word; border-radius: inherit;
 }
 .fav-note-bubble::after {
-  content: ''; position: absolute; left: 20px; bottom: -17px;
-  width: 22px; height: 22px;
+  content: ''; position: absolute; left: 22px; bottom: -9px;
+  width: 16px; height: 16px;
   background-color: var(--bubble-color, var(--teal));
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60'%3E%3Cpath d='M20 4 C8 10 4 26 12 42 C16 50 26 50 26 42 C24 30 22 16 20 4 Z' fill='black'/%3E%3C/svg%3E") no-repeat center / contain;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60'%3E%3Cpath d='M20 4 C8 10 4 26 12 42 C16 50 26 50 26 42 C24 30 22 16 20 4 Z' fill='black'/%3E%3C/svg%3E") no-repeat center / contain;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 46'%3E%3Cpath d='M18 0 C10 4 2 14 2 26 C2 36 10 44 18 44 C13 34 12 22 14 12 C15 7 16 3 18 0 Z' fill='black'/%3E%3C/svg%3E") no-repeat center / contain;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 46'%3E%3Cpath d='M18 0 C10 4 2 14 2 26 C2 36 10 44 18 44 C13 34 12 22 14 12 C15 7 16 3 18 0 Z' fill='black'/%3E%3C/svg%3E") no-repeat center / contain;
 }
 
 /* ── Dropdown hasil pencarian lagu (Lagu Favorit) ── */
@@ -980,7 +980,7 @@ textarea.form-input { resize: none; line-height: 1.6; }
     <div id="upv-nav-name" style="font-size:1rem;font-weight:700;flex:1;">User Profile</div>
   </div>
   <!-- Content -->
-  <div style="max-width:700px;margin:0 auto;padding:14px 16px 100px;">
+  <div id="upv-content" style="max-width:700px;margin:0 auto;padding:14px 16px 100px;">
 
     <!-- Banner + Square Avatar (diperbesar) + Stats (kanan atas avatar) -->
     <div class="upv-banner-wrap">
@@ -1168,7 +1168,7 @@ async function loadProfile() {
 
 // ── Profile Background Color ───────────────────────────────
 function applyBgColor(color) {
-  document.body.style.background = color || '';
+  document.getElementById('app').style.background = color || '';
 }
 function previewBgColor(color) {
   applyBgColor(color);
@@ -2147,7 +2147,7 @@ async function openUserProfile(uid) {
     console.warn('Tidak bisa baca users profile, pakai data dari playlist:', e.message);
   }
 
-  document.getElementById('user-profile-view').style.background = bgColor || 'var(--bg)';
+  document.getElementById('upv-content').style.background = bgColor || '';
 
   // ── 3. Render header profil (banner + square avatar + name) ──
   document.getElementById('upv-nav-name').textContent = name;
@@ -2322,7 +2322,7 @@ function playQueryUpv(query) {
 
 function closeUserProfile() {
   document.getElementById('user-profile-view').style.display = 'none';
-  document.getElementById('user-profile-view').style.background = 'var(--bg)';
+  document.getElementById('upv-content').style.background = '';
   currentViewedUid = null;
 }
 
