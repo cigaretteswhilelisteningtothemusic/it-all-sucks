@@ -585,10 +585,14 @@ textarea.form-input { resize: none; line-height: 1.6; }
 .fav-note-bubble {
   position: relative;
   background: var(--bubble-color, var(--teal));
-  border-radius: 20px; padding: 12px 16px 14px; margin: 0 8px 24px;
-  font-size: .68rem; font-weight: 600; line-height: 1.45; color: #fff;
+  border-radius: 20px; margin: 0 8px 24px;
   box-shadow: 0 8px 20px rgba(0,0,0,.35);
-  max-height: 64px; overflow: hidden; word-break: break-word; text-align: left;
+  text-align: left;
+}
+.fav-note-text {
+  padding: 12px 16px 14px;
+  font-size: .68rem; font-weight: 600; line-height: 1.45; color: #fff;
+  max-height: 64px; overflow: hidden; word-break: break-word; border-radius: inherit;
 }
 .fav-note-bubble::after {
   content: ''; position: absolute; left: 20px; bottom: -17px;
@@ -793,6 +797,14 @@ textarea.form-input { resize: none; line-height: 1.6; }
       <label class="form-label">Tentang (About)</label>
       <textarea class="form-input" id="inp-about" rows="4" placeholder="Ceritakan lebih banyak tentang dirimu..." maxlength="500"></textarea>
       <div class="char-count"><span id="about-count">0</span>/500</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Warna Latar Belakang Profil</label>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <input type="color" id="inp-bg-color" value="#080B12" oninput="previewBgColor(this.value)" style="width:44px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--panel);cursor:pointer;padding:2px;">
+        <span style="font-size:.75rem;color:var(--sub);">Pilih warna latar belakang tampilan profilmu</span>
+        <button type="button" onclick="resetBgColor()" style="margin-left:auto;background:var(--card);border:1px solid var(--border);color:var(--sub);font-size:.7rem;font-weight:600;border-radius:8px;padding:7px 12px;cursor:pointer;">Reset</button>
+      </div>
     </div>
     <button class="btn-save" id="btn-save-profile" onclick="saveProfile()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>
@@ -1128,6 +1140,7 @@ async function loadProfile() {
     const about = data.about || '';
     const cover = data.backgroundURL || '';
     const photo = data.photoURL || currentUser.photoURL || '';
+    const bgColor = data.bgColor || '';
 
     document.getElementById('display-name').textContent = name;
     document.getElementById('user-email').textContent   = currentUser.email;
@@ -1140,6 +1153,8 @@ async function loadProfile() {
     document.getElementById('bio-count').textContent = bio.length;
     document.getElementById('inp-about').value = about;
     document.getElementById('about-count').textContent = about.length;
+    document.getElementById('inp-bg-color').value = bgColor || '#080B12';
+    applyBgColor(bgColor);
 
     setAvatar(photo, name);
     setCoverPreview(cover);
@@ -1149,6 +1164,18 @@ async function loadProfile() {
   } catch(e) {
     console.error(e);
   }
+}
+
+// ── Profile Background Color ───────────────────────────────
+function applyBgColor(color) {
+  document.body.style.background = color || '';
+}
+function previewBgColor(color) {
+  applyBgColor(color);
+}
+function resetBgColor() {
+  document.getElementById('inp-bg-color').value = '#080B12';
+  applyBgColor('');
 }
 
 async function loadMyLikedSongsPreview() {
@@ -1328,16 +1355,18 @@ async function saveProfile() {
   const name = document.getElementById('inp-name').value.trim();
   const bio  = document.getElementById('inp-bio').value.trim();
   const about = document.getElementById('inp-about').value.trim();
+  const bgColor = document.getElementById('inp-bg-color').value || '';
   if (!name) { toast('❗ Name cannot be empty'); return; }
   btn.disabled = true;
   btn.textContent = 'Saving...';
   try {
-    await db.ref('users/' + currentUser.uid + '/profile').update({ displayName: name, bio, about });
+    await db.ref('users/' + currentUser.uid + '/profile').update({ displayName: name, bio, about, bgColor });
     await currentUser.updateProfile({ displayName: name });
     document.getElementById('display-name').textContent = name;
     document.getElementById('user-bio').textContent = bio || 'No description yet';
     document.getElementById('user-bio').style.fontStyle = bio ? 'normal' : 'italic';
     document.getElementById('user-bio').style.color = bio ? 'var(--sub)' : 'var(--muted)';
+    applyBgColor(bgColor);
     // Also update owner name in all public playlists
     const ids = Object.keys(myPlaylists).filter(id => myPlaylists[id].public);
     for (const id of ids) {
@@ -1691,7 +1720,7 @@ async function loadMyFavorites() {
       const clickAction = f.preview ? `previewOwnFavTrack('${esc(f.preview).replace(/'/g,"\\'")}','${esc(f.title).replace(/'/g,"\\'")}')` : "toast('ℹ️ Preview tidak tersedia')";
       return `
       <div class="fav-bubble-wrap">
-        ${f.note ? `<div class="fav-note-bubble" style="--bubble-color:${esc(f.noteColor || '#3D9DD6')}">${esc(f.note)}</div>` : ''}
+        ${f.note ? `<div class="fav-note-bubble" style="--bubble-color:${esc(f.noteColor || '#3D9DD6')}"><div class="fav-note-text">${esc(f.note)}</div></div>` : ''}
         <div class="song-tile" onclick="${clickAction}">
           <div class="photo-tile">
             <button type="button" class="photo-tile-del" onclick="event.stopPropagation();removeFavoriteSong('${key}')" title="Hapus">✕</button>
@@ -2100,6 +2129,7 @@ async function openUserProfile(uid) {
   let bio = '';
   let about = '';
   let background = '';
+  let bgColor = '';
 
   try {
     const profSnap = await db.ref('users/' + uid + '/profile').get();
@@ -2110,11 +2140,14 @@ async function openUserProfile(uid) {
       bio = prof.bio || '';
       about = prof.about || '';
       background = prof.backgroundURL || '';
+      bgColor = prof.bgColor || '';
     }
   } catch(e) {
     // Tidak apa-apa, sudah ada data dari playlist
     console.warn('Tidak bisa baca users profile, pakai data dari playlist:', e.message);
   }
+
+  document.getElementById('user-profile-view').style.background = bgColor || 'var(--bg)';
 
   // ── 3. Render header profil (banner + square avatar + name) ──
   document.getElementById('upv-nav-name').textContent = name;
@@ -2174,7 +2207,7 @@ async function openUserProfile(uid) {
           : (q ? `playQueryUpv('${q}')` : "toast('ℹ️ Info songs tidak tersedia')");
         return `
         <div class="fav-bubble-wrap">
-          ${f.note ? `<div class="fav-note-bubble" style="--bubble-color:${esc(f.noteColor || '#3D9DD6')}">${esc(f.note)}</div>` : ''}
+          ${f.note ? `<div class="fav-note-bubble" style="--bubble-color:${esc(f.noteColor || '#3D9DD6')}"><div class="fav-note-text">${esc(f.note)}</div></div>` : ''}
           <div class="song-tile" onclick="${clickAction}">
             <div class="photo-tile">
               ${f.thumb ? `<img src="${esc(f.thumb)}" alt="">` : `<div class="photo-tile-ph">♪</div>`}
@@ -2289,6 +2322,7 @@ function playQueryUpv(query) {
 
 function closeUserProfile() {
   document.getElementById('user-profile-view').style.display = 'none';
+  document.getElementById('user-profile-view').style.background = 'var(--bg)';
   currentViewedUid = null;
 }
 
