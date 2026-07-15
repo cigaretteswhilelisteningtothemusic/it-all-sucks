@@ -554,6 +554,24 @@ textarea.form-input { resize: none; line-height: 1.6; }
 .upv-name-wrap { padding: 0 2px; margin-bottom: 4px; }
 .upv-name-wrap .upv-h-name { font-size: 1.35rem; font-weight: 800; letter-spacing: -.3px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* ── FOLLOW & CHAT BUTTONS (tampilan profil user lain) ── */
+.upv-follow-actions { display: flex; gap: 10px; margin: 16px 2px 4px; }
+.upv-follow-btn, .upv-chat-btn {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  flex: 1; padding: 10px 18px; border-radius: 50px; border: none;
+  font-family: var(--f); font-size: .84rem; font-weight: 700;
+  cursor: pointer; transition: all .2s;
+}
+.upv-follow-btn { background: var(--blue); color: #fff; box-shadow: var(--blue-glow); }
+.upv-follow-btn:hover:not(:disabled) { transform: translateY(-1px); }
+.upv-follow-btn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+.upv-follow-btn.following { background: var(--card); color: var(--text); border: 1px solid var(--border); box-shadow: none; }
+.upv-follow-btn.following:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
+.upv-follow-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+.upv-chat-btn { background: var(--card); border: 1px solid var(--border); color: var(--text); }
+.upv-chat-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--hover); }
+.upv-chat-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+
 /* ── Teks Berjalan (running/marquee text, menggantikan Liked Songs) ── */
 .marquee-wrap {
   position: relative;
@@ -562,18 +580,21 @@ textarea.form-input { resize: none; line-height: 1.6; }
   border-radius: 50px; overflow: hidden;
 }
 .marquee-track {
-  position: absolute; left: 100%; top: 0; bottom: 0;
+  position: absolute; left: 0; top: 0; bottom: 0;
   display: flex; align-items: center; white-space: nowrap; will-change: transform;
-  animation: marquee-scroll 8s linear infinite;
 }
 .marquee-track:hover { animation-play-state: paused; }
 .marquee-item {
-  padding: 0 22px; font-size: .82rem; font-weight: 700; color: var(--text);
-  letter-spacing: .2px; white-space: nowrap; display: inline-flex; align-items: center;
+  font-size: .82rem; font-weight: 700; color: var(--text);
+  letter-spacing: .2px; white-space: pre; display: inline-flex; align-items: center;
 }
-@keyframes marquee-scroll {
-  from { transform: translateX(var(--mq-gap, 32px)); }
-  to   { transform: translateX(var(--mq-end, -100%)); }
+@keyframes marquee-enter {
+  from { transform: translateX(var(--mq-enter-start, 100%)); }
+  to   { transform: translateX(0); }
+}
+@keyframes marquee-loop {
+  from { transform: translateX(0); }
+  to   { transform: translateX(var(--mq-loop-end, -50%)); }
 }
 
 /* ── Full-photo square song tile (dipakai utk Liked Songs & Lagu Favorit) ── */
@@ -714,6 +735,8 @@ textarea.form-input { resize: none; line-height: 1.6; }
   #app { padding-bottom: 80px; }
   .upv-header-stats { gap: 16px; }
   .upv-header-stat-num { font-size: 1.3rem; }
+  .upv-follow-actions { gap: 8px; }
+  .upv-follow-btn, .upv-chat-btn { padding: 9px 12px; font-size: .78rem; }
   .upv-avatar-square, .avatar-ring { width: 130px; height: 130px; border-radius: 24px; }
   .avatar-inner { border-radius: 20px; font-size: 2.4rem; }
   .upv-avatar-square { font-size: 2.6rem; }
@@ -785,6 +808,14 @@ textarea.form-input { resize: none; line-height: 1.6; }
           <div class="upv-header-stat-num" id="stat-likes">0</div>
           <div class="upv-header-stat-lbl">Total Likes</div>
         </div>
+        <div class="upv-header-stat-item">
+          <div class="upv-header-stat-num" id="stat-followers">0</div>
+          <div class="upv-header-stat-lbl">Followers</div>
+        </div>
+        <div class="upv-header-stat-item">
+          <div class="upv-header-stat-num" id="stat-following">0</div>
+          <div class="upv-header-stat-lbl">Following</div>
+        </div>
       </div>
     </div>
   </div>
@@ -800,6 +831,7 @@ textarea.form-input { resize: none; line-height: 1.6; }
     <!-- Teks Berjalan -->
     <div class="marquee-wrap" id="my-marquee-wrap" style="display:none;">
       <div class="marquee-track" id="my-marquee-track">
+        <span class="marquee-item"></span>
         <span class="marquee-item"></span>
       </div>
     </div>
@@ -1055,7 +1087,28 @@ textarea.form-input { resize: none; line-height: 1.6; }
             <div id="upv-stat-likes" class="upv-header-stat-num">0</div>
             <div class="upv-header-stat-lbl">Total Likes</div>
           </div>
+          <div class="upv-header-stat-item">
+            <div id="upv-stat-followers" class="upv-header-stat-num">0</div>
+            <div class="upv-header-stat-lbl">Followers</div>
+          </div>
+          <div class="upv-header-stat-item">
+            <div id="upv-stat-following" class="upv-header-stat-num">0</div>
+            <div class="upv-header-stat-lbl">Following</div>
+          </div>
         </div>
+      </div>
+
+      <!-- Tombol Follow & Chat (hanya tampil saat melihat profil user lain) -->
+      <div class="upv-follow-actions" id="upv-follow-actions" style="display:none;">
+        <button class="upv-follow-btn" id="upv-follow-btn" onclick="toggleFollowUser()">
+          <svg class="upv-follow-icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          <svg class="upv-follow-icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M20 6 9 17l-5-5"/></svg>
+          <span id="upv-follow-btn-label">Follow</span>
+        </button>
+        <button class="upv-chat-btn" onclick="goToChatWithUser()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+          Chat
+        </button>
       </div>
     </div>
 
@@ -1070,6 +1123,7 @@ textarea.form-input { resize: none; line-height: 1.6; }
     <!-- Teks Berjalan (menggantikan Liked Songs) -->
     <div class="marquee-wrap" id="upv-marquee-wrap" style="display:none;">
       <div class="marquee-track" id="upv-marquee-track">
+        <span class="marquee-item"></span>
         <span class="marquee-item"></span>
       </div>
     </div>
@@ -1133,6 +1187,32 @@ textarea.form-input { resize: none; line-height: 1.6; }
 
 <script>
 'use strict';
+
+// ═══════════════════════════════════════════════════════════════════════
+// ── FITUR FOLLOW (Instagram-style) — struktur data Firebase ────────────
+//   follows/{uid}/followers/{otherUid} = true   → daftar yang mengikuti {uid}
+//   follows/{uid}/following/{otherUid} = true   → daftar yang diikuti {uid}
+//
+// CATATAN PENTING (Firebase Security Rules):
+// Tambahkan rules berikut di Firebase Console → Realtime Database → Rules
+// (gabungkan dengan rules yang sudah ada, jangan menimpa seluruhnya):
+//
+// {
+//   "rules": {
+//     "follows": {
+//       "$uid": {
+//         ".read": "auth != null",
+//         "followers": {
+//           "$otherUid": { ".write": "auth != null && auth.uid === $otherUid" }
+//         },
+//         "following": {
+//           "$otherUid": { ".write": "auth != null && auth.uid === $uid" }
+//         }
+//       }
+//     }
+//   }
+// }
+// ═══════════════════════════════════════════════════════════════════════
 
 // ── Firebase ─────────────────────────────────────────────
 const firebaseConfig = {
@@ -1215,9 +1295,97 @@ async function loadProfile() {
     setCoverPreview(cover);
     setMarquee('my', marqueeText);
     loadMyFavorites();
+    loadFollowStats(currentUser.uid, 'stat');
   } catch(e) {
     console.error(e);
   }
+}
+
+// ── FOLLOW SYSTEM (Instagram-style) ──────────────────────────
+// Struktur data di Firebase:
+//   follows/{uid}/followers/{otherUid} = true  → daftar yang mengikuti {uid}
+//   follows/{uid}/following/{otherUid} = true  → daftar yang diikuti {uid}
+async function loadFollowStats(uid, prefix) {
+  try {
+    const [followersSnap, followingSnap] = await Promise.all([
+      db.ref('follows/' + uid + '/followers').get(),
+      db.ref('follows/' + uid + '/following').get()
+    ]);
+    const followersCount = followersSnap.exists() ? Object.keys(followersSnap.val()).length : 0;
+    const followingCount = followingSnap.exists() ? Object.keys(followingSnap.val()).length : 0;
+    const fEl = document.getElementById(prefix + '-followers');
+    const gEl = document.getElementById(prefix + '-following');
+    if (fEl) fEl.textContent = followersCount;
+    if (gEl) gEl.textContent = followingCount;
+    return { followersCount, followingCount };
+  } catch(e) {
+    console.error('Gagal memuat data follow:', e);
+    return { followersCount: 0, followingCount: 0 };
+  }
+}
+
+// Cek apakah currentUser sudah mengikuti uid tertentu, lalu update tampilan tombol
+async function refreshFollowButtonState(uid) {
+  const btn = document.getElementById('upv-follow-btn');
+  if (!btn || !currentUser) return;
+  const label = document.getElementById('upv-follow-btn-label');
+  const iconPlus = btn.querySelector('.upv-follow-icon-plus');
+  const iconCheck = btn.querySelector('.upv-follow-icon-check');
+  try {
+    const snap = await db.ref('follows/' + uid + '/followers/' + currentUser.uid).get();
+    const isFollowing = snap.exists() && snap.val() === true;
+    btn.classList.toggle('following', isFollowing);
+    btn.dataset.following = isFollowing ? '1' : '0';
+    if (label) label.textContent = isFollowing ? 'Following' : 'Follow';
+    if (iconPlus) iconPlus.style.display = isFollowing ? 'none' : '';
+    if (iconCheck) iconCheck.style.display = isFollowing ? '' : 'none';
+  } catch(e) {
+    console.error('Gagal cek status follow:', e);
+  }
+}
+
+// Tekan tombol Follow → otomatis tersimpan sebagai mengikuti & jumlah follow/followers bertambah.
+// Tekan lagi (sudah Following) → berhenti mengikuti (unfollow), jumlah berkurang.
+async function toggleFollowUser() {
+  if (!currentUser) { toast('ℹ️ Silakan login terlebih dahulu'); return; }
+  if (!currentViewedUid || currentViewedUid === currentUser.uid) return;
+
+  const btn = document.getElementById('upv-follow-btn');
+  const alreadyFollowing = btn && btn.dataset.following === '1';
+  const targetUid = currentViewedUid;
+  const myUid = currentUser.uid;
+
+  if (btn) btn.disabled = true;
+  try {
+    if (alreadyFollowing) {
+      await Promise.all([
+        db.ref('follows/' + targetUid + '/followers/' + myUid).remove(),
+        db.ref('follows/' + myUid + '/following/' + targetUid).remove()
+      ]);
+      toast('Berhenti mengikuti user ini');
+    } else {
+      await Promise.all([
+        db.ref('follows/' + targetUid + '/followers/' + myUid).set(true),
+        db.ref('follows/' + myUid + '/following/' + targetUid).set(true)
+      ]);
+      toast('✅ Sekarang Anda mengikuti user ini');
+    }
+    await refreshFollowButtonState(targetUid);
+    await loadFollowStats(targetUid, 'upv-stat');
+  } catch(e) {
+    console.error('Gagal memperbarui status follow:', e);
+    toast('❌ Gagal memperbarui status follow');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// Tombol Chat di profil user lain → arahkan ke halaman chat (vibexa.html) langsung
+// terbuka percakapan dengan user yang sedang dilihat/diikuti.
+function goToChatWithUser() {
+  if (!currentUser) { toast('ℹ️ Silakan login terlebih dahulu'); return; }
+  if (!currentViewedUid || currentViewedUid === currentUser.uid) return;
+  window.location.href = 'vibexa.html?startChatWith=' + encodeURIComponent(currentViewedUid);
 }
 
 // ── Profile Background Color ───────────────────────────────
@@ -1233,16 +1401,18 @@ function resetBgColor() {
 }
 
 // ── Teks Berjalan (running / marquee text) ──────────────────
-function getMarqueeGapPx(item) {
+const MQ_GAP_CHARS = 5; // batas spasi antar salinan teks saat berulang
+
+function getMarqueeSpaceWidth(item) {
   try {
     const style = getComputedStyle(item);
     const font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-    const canvas = getMarqueeGapPx._canvas || (getMarqueeGapPx._canvas = document.createElement('canvas'));
+    const canvas = getMarqueeSpaceWidth._canvas || (getMarqueeSpaceWidth._canvas = document.createElement('canvas'));
     const ctx = canvas.getContext('2d');
     ctx.font = font;
-    const spaceWidth = ctx.measureText('    ').width; // lebar 4 karakter kosong
-    return spaceWidth && spaceWidth > 8 ? spaceWidth : 32;
-  } catch(e) { return 32; }
+    const w = ctx.measureText(' ').width;
+    return w && w > 1 ? w : 6;
+  } catch(e) { return 6; }
 }
 
 function setMarquee(prefix, text) {
@@ -1252,25 +1422,39 @@ function setMarquee(prefix, text) {
   const t = (text || '').trim();
   if (!t) { wrap.style.display = 'none'; return; }
   wrap.style.display = 'block';
-  const item = track.querySelector('.marquee-item');
-  item.textContent = t;
+  const items = track.querySelectorAll('.marquee-item');
+  const gapStr = ' '.repeat(MQ_GAP_CHARS);
+  items.forEach(el => { el.textContent = t + gapStr; });
 
-  const MQ_SPEED = 170; // px per detik (kecepatan ditingkatkan)
+  const MQ_SPEED = 170; // px per detik
 
   const runMarquee = () => {
     const containerWidth = wrap.offsetWidth || 300;
-    const textWidth = item.scrollWidth || 100;
-    const gapPx = getMarqueeGapPx(item); // batas jarak muncul dari kanan (± 4 huruf kosong)
-    const distance = gapPx + containerWidth + textWidth;
-    const duration = Math.max(3, distance / MQ_SPEED);
+    const itemWidth = items[0].scrollWidth || 100; // lebar teks + jarak 5 spasi
+    const entranceGapPx = MQ_GAP_CHARS * getMarqueeSpaceWidth(items[0]);
 
-    track.style.setProperty('--mq-gap', gapPx + 'px');
-    track.style.setProperty('--mq-end', (-(containerWidth + textWidth)) + 'px');
+    // Fase masuk: dari luar kotak (kanan) dengan jarak hanya 5 spasi, lalu masuk ke posisi 0
+    track.style.setProperty('--mq-enter-start', (containerWidth + entranceGapPx) + 'px');
+    // Fase loop: bergeser tepat selebar satu salinan (teks + 5 spasi) agar salinan berikutnya
+    // langsung menyambung tanpa menunggu teks sebelumnya hilang total
+    track.style.setProperty('--mq-loop-end', (-itemWidth) + 'px');
 
-    // reset animasi supaya perubahan durasi/jarak langsung diterapkan
+    const enterDuration = Math.max(0.4, (containerWidth + entranceGapPx) / MQ_SPEED);
+    const loopDuration = Math.max(2, itemWidth / MQ_SPEED);
+
+    if (track._mqEnterHandler) track.removeEventListener('animationend', track._mqEnterHandler);
     track.style.animation = 'none';
     void track.offsetWidth; // force reflow
-    track.style.animation = `marquee-scroll ${duration}s linear infinite`;
+    track.style.transform = `translateX(${containerWidth + entranceGapPx}px)`;
+    void track.offsetWidth;
+    track.style.animation = `marquee-enter ${enterDuration}s linear forwards`;
+
+    const handler = (e) => {
+      if (e.animationName !== 'marquee-enter') return;
+      track.style.animation = `marquee-loop ${loopDuration}s linear infinite`;
+    };
+    track._mqEnterHandler = handler;
+    track.addEventListener('animationend', handler);
   };
 
   // pastikan lebar sudah ter-render (termasuk saat font baru dimuat)
@@ -2136,7 +2320,17 @@ async function openUserProfile(uid) {
   document.getElementById('upv-bio').textContent = '';
   document.getElementById('upv-stat-pl').textContent = '0';
   document.getElementById('upv-stat-likes').textContent = '0';
+  document.getElementById('upv-stat-followers').textContent = '0';
+  document.getElementById('upv-stat-following').textContent = '0';
   document.getElementById('upv-banner').innerHTML = `<div class="upv-banner-empty">🖼️</div>`;
+
+  // Tombol Follow & Chat hanya tampil kalau bukan melihat profil sendiri
+  const followActionsEl = document.getElementById('upv-follow-actions');
+  if (followActionsEl) followActionsEl.style.display = (currentUser && uid !== currentUser.uid) ? 'flex' : 'none';
+  if (currentUser && uid !== currentUser.uid) {
+    loadFollowStats(uid, 'upv-stat');
+    refreshFollowButtonState(uid);
+  }
   document.getElementById('upv-about').textContent = 'Loading...';
   document.getElementById('upv-marquee-wrap').style.display = 'none';
   document.getElementById('upv-favorites').innerHTML = `<div class="upv-empty-mini">Loading...</div>`;

@@ -4804,6 +4804,49 @@ function showApp(user) {
   loadHomeProfileButtonPhoto(user);
   // Inisialisasi sistem Chat (sinkronisasi direktori pengguna + inbox)
   initChatSystem(user);
+  // Jika datang dari tombol "Chat" di halaman profil user lain (?startChatWith=uid),
+  // otomatis buka overlay Chat & mulai percakapan dengan user tersebut.
+  _maybeAutoStartChatFromUrl();
+}
+
+// Cek query param ?startChatWith=<uid> di URL (dikirim dari tombol Chat di profile.html)
+// lalu otomatis membuka overlay Chat dan memulai/melanjutkan percakapan dengan user itu.
+function _maybeAutoStartChatFromUrl() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const targetUid = params.get('startChatWith');
+    if (!targetUid || !currentUser || targetUid === currentUser.uid) return;
+
+    // Bersihkan query param dari URL supaya refresh halaman tidak membuka chat berulang
+    window.history.replaceState({}, document.title, window.location.pathname);
+
+    const tryStart = () => {
+      const entry = _chatDirectory[targetUid];
+      const name = (entry && entry.displayName) || 'Pengguna';
+      const photo = (entry && entry.photoURL) || '';
+      openChatOverlay();
+      startChatWithFriend(targetUid, name, photo);
+    };
+
+    if (_chatDirLoaded) {
+      tryStart();
+    } else {
+      // Tunggu direktori chat selesai dimuat (maks. 5 detik) sebelum mencoba mulai chat
+      let waited = 0;
+      const waitTimer = setInterval(() => {
+        waited += 200;
+        if (_chatDirLoaded) {
+          clearInterval(waitTimer);
+          tryStart();
+        } else if (waited >= 5000) {
+          clearInterval(waitTimer);
+          tryStart(); // tetap coba walau direktori belum lengkap (pakai nama default)
+        }
+      }, 200);
+    }
+  } catch(e) {
+    console.error('Gagal auto-membuka chat dari URL:', e);
+  }
 }
 
 // Isi tombol profil bulat (di samping kotak search) dengan foto profil user;
