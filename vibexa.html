@@ -14027,17 +14027,33 @@ async function acceptFollowRequest(fromUid, notifId, btnEl) {
   const wrap = btnEl ? btnEl.closest('.notif-follow-actions') : null;
   if (wrap) wrap.querySelectorAll('button').forEach(b => b.disabled = true);
   try {
-    const now = Date.now();
-    // Ambil nama/foto saya sendiri utk disimpan di sisi requester (biar chat_perm konsisten, opsional)
-    const updates = {};
-    updates['follows/' + myUid + '/followers/' + fromUid] = true;
-    updates['follows/' + fromUid + '/following/' + myUid] = true;
-    updates['follow_requests/' + myUid + '/' + fromUid + '/status'] = 'accepted';
-    updates['users/' + myUid + '/notifications/' + notifId + '/status'] = 'accepted';
-    updates['users/' + myUid + '/notifications/' + notifId + '/read'] = true;
-    updates['chat_perm/' + fromUid + '/' + myUid] = { type: 'full' };
-    updates['chat_perm/' + myUid + '/' + fromUid] = { type: 'full' };
-    await db.ref().update(updates);
+    // LANGKAH 1: tandai status permintaan follow jadi 'accepted' dulu (+
+    // notifikasi) lewat update TERPISAH, dan tunggu sampai benar-benar
+    // tersimpan di server. Ini penting: rule keamanan di node "follows/"
+    // mensyaratkan follow_requests/.../status === 'accepted' sebelum
+    // mengizinkan penulisan relasi follow. Kalau langkah ini digabung jadi
+    // satu multi-path update() bersama langkah 2, sebagian server Firebase
+    // bisa mengevaluasi rule tersebut memakai data SEBELUM update ini
+    // (masih 'pending') sehingga langkah 2 gagal dengan PERMISSION_DENIED
+    // meski rule-nya sendiri sudah benar. Memisahkan jadi 2 langkah
+    // berurutan menghilangkan ambiguitas ini sama sekali.
+    const step1 = {};
+    step1['follow_requests/' + myUid + '/' + fromUid + '/status'] = 'accepted';
+    step1['users/' + myUid + '/notifications/' + notifId + '/status'] = 'accepted';
+    step1['users/' + myUid + '/notifications/' + notifId + '/read'] = true;
+    await db.ref().update(step1);
+
+    // LANGKAH 2: baru sekarang tulis relasi follow (kedua arah) & buka izin
+    // chat penuh — pada titik ini status 'accepted' di langkah 1 SUDAH
+    // pasti tersimpan di server, jadi rule "follows/" akan membacanya
+    // dengan benar.
+    const step2 = {};
+    step2['follows/' + myUid + '/followers/' + fromUid] = true;
+    step2['follows/' + fromUid + '/following/' + myUid] = true;
+    step2['chat_perm/' + fromUid + '/' + myUid] = { type: 'full' };
+    step2['chat_perm/' + myUid + '/' + fromUid] = { type: 'full' };
+    await db.ref().update(step2);
+
     toast('✅ Permintaan follow diterima');
   } catch(e) {
     console.error('Gagal menerima permintaan follow:', e);
