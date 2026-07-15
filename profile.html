@@ -1329,6 +1329,17 @@ async function loadProfile() {
     myDisplayName = name;
     myPhotoURL = photo;
 
+    // Kalau di database belum ada foto profil (photoURL kosong) tapi akun ini
+    // punya foto dari akun login (mis. Google), simpan sekali ke database.
+    // Sebelumnya foto ini HANYA dipakai untuk tampilan lokal (di halaman profil
+    // sendiri) dan tidak pernah tersimpan, sehingga tempat lain yang membaca
+    // langsung dari database — seperti bubble "Dari Teman Mu" di halaman chat
+    // teman, atau saat profil ini dilihat orang lain — cuma melihat field
+    // kosong dan menampilkan ikon default alih-alih foto asli user.
+    if (!data.photoURL && currentUser.photoURL) {
+      db.ref('users/' + currentUser.uid + '/profile/photoURL').set(currentUser.photoURL).catch(() => {});
+    }
+
     setAvatar(photo, name);
     setCoverPreview(cover);
     setMarquee('my', marqueeText);

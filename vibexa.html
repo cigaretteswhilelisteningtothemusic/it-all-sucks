@@ -2988,13 +2988,19 @@ body.np-is-fullscreen #bar{display:none !important;}
 .friend-fav-sub{font-size:.68rem;color:var(--muted);margin-top:1px;}
 .friend-fav-row{display:flex;gap:16px;overflow-x:auto;padding:2px 2px 10px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
 .friend-fav-item{flex:0 0 132px;width:132px;display:flex;flex-direction:column;}
+/* Slot bubble catatan — tingginya SELALU SAMA (fixed) untuk semua lagu,
+   baik yang catatannya panjang, pendek, maupun tidak ada catatan sama
+   sekali. Bubble (kalau ada) ditempel di dasar slot ini (align-items:
+   flex-end) supaya foto lagu di bawahnya selalu mulai di baris yang sama
+   persis untuk setiap item — tidak ada lagi yang "naik-turun". */
+.friend-fav-bubble-slot{height:100px;display:flex;align-items:flex-end;}
 /* Bubble speech — SAMA PERSIS dengan bentuk di halaman profil (profile.html
    .fav-note-bubble/.fav-note-text/.fav-note-author/.fav-note-avatar), termasuk
    baris nama+foto pemilik lagu di dalam bubble-nya (di sini: nama TEMAN,
    bukan "me", karena ini lagu favorit milik teman tsb). */
-.fav-note-bubble{position:relative;background:var(--bubble-color,var(--green));border-radius:20px;margin:0 8px 8px;box-shadow:0 8px 20px rgba(0,0,0,.35);text-align:left;cursor:pointer;}
-.fav-note-text{padding:12px 16px 10px;font-size:.68rem;font-weight:600;line-height:1.45;color:#fff;max-height:64px;overflow:hidden;word-break:break-word;border-radius:inherit;transition:max-height .22s ease;}
-.fav-note-bubble.expanded .fav-note-text{max-height:400px;}
+.fav-note-bubble{position:relative;background:var(--bubble-color,var(--green));border-radius:20px;margin:0 8px 8px;box-shadow:0 8px 20px rgba(0,0,0,.35);text-align:left;cursor:pointer;width:100%;}
+.fav-note-text{padding:12px 16px 10px;font-size:.68rem;font-weight:600;line-height:1.45;color:#fff;height:64px;max-height:64px;overflow:hidden;word-break:break-word;border-radius:inherit;transition:max-height .22s ease,height .22s ease;display:flex;align-items:center;}
+.fav-note-bubble.expanded .fav-note-text{height:auto;max-height:400px;display:block;}
 .fav-note-author{display:flex;align-items:center;gap:6px;padding:0 16px 11px;font-size:.6rem;font-weight:600;color:rgba(255,255,255,.8);}
 .fav-note-author-name{cursor:pointer;}
 .fav-note-author-name:hover{text-decoration:underline;}
@@ -6993,9 +6999,12 @@ function renderFriendFavorites() {
              </div>
            </div>`
         : '';
+      // Slot dengan tinggi tetap (.friend-fav-bubble-slot) dirender SELALU,
+      // terlepas lagu ini punya catatan atau tidak — supaya foto lagu semua
+      // item mulai di baris yang sama persis (tidak ada yang naik-turun).
       return `
         <div class="friend-fav-item">
-          ${bubble}
+          <div class="friend-fav-bubble-slot">${bubble}</div>
           <div class="friend-fav-thumb-wrap" onclick="playFriendFavSong('${uid}','${s.key}')" title="Putar penuh: ${esc(s.title)}">
             ${s.thumb ? `<img src="${esc(s.thumb)}" alt="" loading="lazy">` : `<div class="friend-fav-thumb-ph">♪</div>`}
             <div class="friend-fav-play-ov"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
