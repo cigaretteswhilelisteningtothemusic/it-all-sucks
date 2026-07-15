@@ -580,19 +580,20 @@ textarea.form-input { resize: none; line-height: 1.6; }
 
 .upv-liked-card { flex: 0 0 auto; width: 130px; }
 
-/* ── Speech-bubble catatan di atas photo tile (bentuk pill, outline, warna bisa dipilih) ── */
+/* ── Speech-bubble catatan di atas photo tile (bentuk pill, solid, warna bisa dipilih) ── */
 .fav-bubble-wrap { display: flex; flex-direction: column; }
 .fav-note-bubble {
   position: relative;
-  background: color-mix(in srgb, var(--bubble-color, var(--teal)) 22%, var(--panel));
-  border: 2px solid var(--bubble-color, var(--teal));
+  background: var(--bubble-color, var(--teal));
+  border: 2px solid color-mix(in srgb, var(--bubble-color, var(--teal)) 70%, black);
   border-radius: 999px; padding: 9px 16px 10px; margin: 0 8px 22px;
-  font-size: .66rem; line-height: 1.4; color: var(--bubble-color, var(--teal));
-  max-height: 58px; overflow: hidden; word-break: break-word; text-align: center;
+  font-size: .66rem; line-height: 1.4; color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,.35);
+  max-height: 58px; overflow: hidden; word-break: break-word; text-align: left;
 }
 .fav-note-bubble::after {
-  content: ''; position: absolute; left: 50%; bottom: -20px;
-  width: 22px; height: 22px; transform: translateX(-50%);
+  content: ''; position: absolute; left: 20px; bottom: -18px;
+  width: 22px; height: 22px;
   background-color: var(--bubble-color, var(--teal));
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60'%3E%3Cpath d='M20 4 C8 10 4 26 12 42 C16 50 26 50 26 42 C24 30 22 16 20 4 Z' fill='none' stroke='black' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / contain;
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60'%3E%3Cpath d='M20 4 C8 10 4 26 12 42 C16 50 26 50 26 42 C24 30 22 16 20 4 Z' fill='none' stroke='black' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / contain;
