@@ -3053,6 +3053,18 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 .chat-item-time{font-size:.66rem;color:var(--muted);}
 .chat-unread-dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 6px rgba(46,125,255,.7);}
 
+/* ── Permintaan Pesan (chat dari orang yang belum di-follow) ── */
+.chat-requests-section{border-bottom:1px solid var(--border);padding-bottom:2px;margin-bottom:2px;}
+.chat-section-title{display:flex;align-items:center;gap:8px;padding:14px 22px 4px;font-size:.72rem;font-weight:800;color:var(--sub);text-transform:uppercase;letter-spacing:.5px;}
+.chat-requests-count{background:var(--green-dim);color:var(--green);border-radius:50px;padding:1px 8px;font-size:.66rem;font-weight:700;text-transform:none;letter-spacing:0;}
+.chat-section-sub{padding:0 22px 8px;font-size:.72rem;color:var(--muted);}
+.chat-request-tag{display:inline-block;font-size:.58rem;font-weight:700;color:var(--green);background:var(--green-dim);border-radius:50px;padding:1px 7px;margin-left:6px;text-transform:uppercase;letter-spacing:.3px;vertical-align:middle;}
+
+/* ── Tombol hapus percakapan per-user di daftar chat ── */
+.chat-item-delete-btn{flex-shrink:0;background:none;border:none;color:var(--muted);cursor:pointer;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:all .15s;margin-left:2px;}
+.chat-item-delete-btn:hover{color:#FF5A5A;background:rgba(255,90,90,.14);}
+.chat-item-delete-btn svg{width:16px;height:16px;}
+
 .chat-conv-peer{display:flex;align-items:center;gap:12px;flex:1;min-width:0;cursor:pointer;}
 .chat-conv-name{font-size:.92rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .chat-conv-namewrap{display:flex;flex-direction:column;min-width:0;}
@@ -3929,6 +3941,15 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
           <i>&#128172;</i>
           <h3>Belum ada percakapan</h3>
           <p>Tekan tombol tambah teman di pojok kanan atas untuk mulai chat dengan pengguna lain</p>
+        </div>
+        <!-- Permintaan Pesan: chat masuk dari orang yang belum kamu follow (atau
+             belum saling follow diterima). Hanya muncul kalau sudah ada pesan
+             asli di percakapannya. Balasan ke sini dibatasi 1x sebelum kamu
+             menerima permintaan follow dari orang tersebut. -->
+        <div id="chat-requests-section" class="chat-requests-section" style="display:none">
+          <div class="chat-section-title">Permintaan Pesan <span class="chat-requests-count" id="chat-requests-count">0</span></div>
+          <div class="chat-section-sub">Dari orang yang belum kamu follow. Kamu hanya bisa membalas 1x sebelum menerima permintaan follow-nya.</div>
+          <div id="chat-requests-items"></div>
         </div>
         <div id="chat-list-items"></div>
       </div>
@@ -5022,6 +5043,7 @@ function initChatSystem(user) {
   subscribeChatDirectory();
   subscribeChatPerm();
   subscribeMyFollowing();
+  subscribeMyFollowers();
   setupPresence(user);
   subscribeChatStatus();
   // Refresh berkala (tiap 5 menit) sbg jaga-jaga kalau ada perubahan status
@@ -5068,17 +5090,38 @@ function subscribeMyFollowing() {
   }, err => console.error('Gagal memuat daftar following:', err));
 }
 
-// Apakah entri chat dengan peerUid boleh tampil di halaman Chat?
-// ATURAN BARU: chat HANYA muncul di halaman Chat kalau saya benar-benar
-// sudah follow orang ini DAN diterima. Selama permintaan follow saya masih
-// pending, ditolak, atau bahkan belum pernah follow sama sekali (misalnya
-// baru sebatas kirim 1 pesan gratis), orang itu TIDAK ditampilkan di
-// halaman Chat — tetap bisa ditemukan & diajak chat lewat halaman
-// "Tambah Teman" → buka profilnya → tombol Chat. Begitu follow diterima,
-// entri ini otomatis muncul lagi di halaman Chat (live, lihat
-// subscribeMyFollowing() di atas).
+// Cache live daftar orang yang MENGIKUTI saya & diterima
+// (follows/{myUid}/followers/{peerUid} === true). Dibutuhkan supaya kalau
+// ORANG LAIN yang mengirim permintaan follow ke saya lalu saya terima
+// (bukan saya yang follow duluan), percakapan dengan orang itu tetap
+// dianggap "sudah terhubung" — bukan cuma kalau saya yang follow dia.
+let _myFollowersCache = {};
+function subscribeMyFollowers() {
+  if (!currentUser) return;
+  db.ref('follows/' + currentUser.uid + '/followers').on('value', snap => {
+    _myFollowersCache = snap.exists() ? (snap.val() || {}) : {};
+    renderChatList();
+  }, err => console.error('Gagal memuat daftar followers:', err));
+}
+
+// Apakah entri chat dengan peerUid termasuk "chat biasa" (sudah terhubung,
+// bebas kirim pesan/foto/GIF tanpa batas)? True kalau ada hubungan follow
+// yang diterima di SALAH SATU arah — saya follow dia, ATAU dia follow saya
+// (mis. dia kirim permintaan follow ke saya dan saya terima). Kalau belum,
+// lihat isChatRequest() di bawah — chat tsb masih bisa tampil di halaman
+// Chat sebagai "Permintaan Pesan" asalkan sudah ada pesan asli.
 function isChatVisibleInList(peerUid) {
-  return !!_myFollowingCache[peerUid];
+  return !!_myFollowingCache[peerUid] || !!_myFollowersCache[peerUid];
+}
+
+// Apakah entri chat ini adalah "Permintaan Pesan" — chat dari/ke orang yang
+// BELUM terhubung follow (lihat isChatVisibleInList), tapi sudah ada pesan
+// asli yang terkirim (bukan sekadar thread kosong hasil tombol "Chat" di
+// profil). Ditampilkan terpisah di halaman Chat supaya user tetap bisa
+// melihat & membalas (maks 1x, lihat getChatSendPermission()) pesan dari
+// orang yang belum mereka follow.
+function isChatRequest(peerUid, chatEntry) {
+  return !isChatVisibleInList(peerUid) && !!(chatEntry && chatEntry.lastMessage);
 }
 
 // Cek apakah saya boleh MEMBUKA percakapan baru dengan peerUid (bukan cek
@@ -5323,54 +5366,116 @@ function subscribeChatInbox() {
 function renderChatList() {
   const wrap = document.getElementById('chat-list-items');
   const empty = document.getElementById('chat-list-empty');
+  const reqSection = document.getElementById('chat-requests-section');
+  const reqWrap = document.getElementById('chat-requests-items');
+  const reqCountEl = document.getElementById('chat-requests-count');
   if (!wrap) return;
-  // Saring chat yang jatah "1x pesan"-nya sudah lewat 24 jam sejak dipakai —
-  // supaya tidak ada yang bisa numpang chat permanen tanpa follow diterima.
-  const entries = Object.entries(_chatInboxData || {}).filter(([, c]) => isChatVisibleInList(c.with));
-  if (entries.length === 0) {
-    wrap.innerHTML = '';
-    if (empty) empty.style.display = 'flex';
+
+  const allEntries = Object.entries(_chatInboxData || {});
+  // Chat biasa: sudah terhubung follow (di salah satu arah, lihat isChatVisibleInList).
+  const regular = allEntries.filter(([, c]) => isChatVisibleInList(c.with));
+  // Permintaan Pesan: BELUM terhubung follow, tapi sudah ada pesan asli
+  // terkirim — supaya chat dari orang yang belum di-follow tetap kelihatan
+  // (bukan hilang begitu saja), dan bisa dibalas maks 1x (lihat
+  // getChatSendPermission()) sampai permintaan follow-nya diterima.
+  const requests = allEntries.filter(([, c]) => isChatRequest(c.with, c));
+
+  regular.sort((a, b) => (b[1].lastMessageAt || 0) - (a[1].lastMessageAt || 0));
+  requests.sort((a, b) => (b[1].lastMessageAt || 0) - (a[1].lastMessageAt || 0));
+
+  wrap.innerHTML = regular.map(([chatId, c]) => renderChatItemHTML(chatId, c, false)).join('');
+
+  if (reqSection && reqWrap) {
+    if (requests.length === 0) {
+      reqWrap.innerHTML = '';
+      reqSection.style.display = 'none';
+    } else {
+      reqSection.style.display = '';
+      if (reqCountEl) reqCountEl.textContent = String(requests.length);
+      reqWrap.innerHTML = requests.map(([chatId, c]) => renderChatItemHTML(chatId, c, true)).join('');
+    }
+  }
+
+  if (empty) empty.style.display = (regular.length === 0 && requests.length === 0) ? 'flex' : 'none';
+}
+
+// Render satu baris di daftar chat (dipakai baik utk chat biasa maupun utk
+// "Permintaan Pesan"). isRequest=true menambahkan label kecil "Permintaan"
+// di sebelah nama. Setiap baris juga punya tombol hapus (🗑) supaya user
+// bisa memilih & menghapus percakapan/profil user tertentu dari daftar
+// chat mereka sendiri (lihat confirmDeleteChat()/deleteChatForMe()).
+function renderChatItemHTML(chatId, c, isRequest) {
+  // Pakai data terbaru dari node "directory" (live) kalau ada, supaya kalau
+  // lawan bicara mengganti nama/foto profil, daftar chat langsung ikut
+  // berubah — bukan memakai snapshot withName/withPhoto yang disimpan
+  // sekali saja saat chat pertama kali dimulai.
+  const live = _chatDirectory[c.with];
+  const photo = (live && live.photoURL) || c.withPhoto || '';
+  const name = (live && live.displayName) || c.withName || 'Pengguna';
+  const avatarHTML = photo
+    ? `<img src="${esc(photo)}" alt="" onerror="this.parentElement.innerHTML='&#128100;'">`
+    : '&#128100;';
+  const preview = c.lastMessage ? esc(c.lastMessage) : 'Mulai percakapan…';
+  const unread = !!c.unread;
+  const dotHTML = getPeerOnlineDotHTML(c.with);
+  return `
+    <div class="chat-item" data-chatid="${esc(chatId)}" data-uid="${esc(c.with)}" data-name="${esc(name)}" data-photo="${esc(photo)}">
+      <div class="chat-avatar-wrap">
+        <div class="chat-avatar">${avatarHTML}</div>
+        ${dotHTML}
+      </div>
+      <div class="chat-item-info">
+        <div class="chat-item-name">${esc(name)}${isRequest ? '<span class="chat-request-tag">Permintaan</span>' : ''}</div>
+        <div class="chat-item-preview${unread ? ' unread' : ''}">${preview}</div>
+      </div>
+      <div class="chat-item-meta">
+        <span class="chat-item-time">${formatChatTime(c.lastMessageAt)}</span>
+        ${unread ? '<span class="chat-unread-dot"></span>' : ''}
+      </div>
+      <button class="chat-item-delete-btn" data-act="delete-chat" data-chatid="${esc(chatId)}" data-name="${esc(name)}" title="Hapus percakapan ini">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
+      </button>
+    </div>`;
+}
+
+// Delegasi klik utk daftar chat (aman terhadap nama yang mengandung tanda
+// kutip/apostrof). Tombol hapus (.chat-item-delete-btn) ditangani lebih
+// dulu & tidak membuka percakapan; klik di baris lainnya membuka percakapan
+// seperti biasa. Berlaku utk kedua daftar: chat biasa & Permintaan Pesan.
+document.addEventListener('click', e => {
+  const delBtn = e.target.closest('.chat-item-delete-btn');
+  if (delBtn) {
+    e.stopPropagation();
+    confirmDeleteChat(delBtn.dataset.chatid, delBtn.dataset.name);
     return;
   }
-  if (empty) empty.style.display = 'none';
-  entries.sort((a, b) => (b[1].lastMessageAt || 0) - (a[1].lastMessageAt || 0));
-  wrap.innerHTML = entries.map(([chatId, c]) => {
-    // Pakai data terbaru dari node "directory" (live) kalau ada, supaya kalau
-    // lawan bicara mengganti nama/foto profil, daftar chat langsung ikut
-    // berubah — bukan memakai snapshot withName/withPhoto yang disimpan
-    // sekali saja saat chat pertama kali dimulai.
-    const live = _chatDirectory[c.with];
-    const photo = (live && live.photoURL) || c.withPhoto || '';
-    const name = (live && live.displayName) || c.withName || 'Pengguna';
-    const avatarHTML = photo
-      ? `<img src="${esc(photo)}" alt="" onerror="this.parentElement.innerHTML='&#128100;'">`
-      : '&#128100;';
-    const preview = c.lastMessage ? esc(c.lastMessage) : 'Mulai percakapan…';
-    const unread = !!c.unread;
-    const dotHTML = getPeerOnlineDotHTML(c.with);
-    return `
-      <div class="chat-item" data-chatid="${esc(chatId)}" data-uid="${esc(c.with)}" data-name="${esc(name)}" data-photo="${esc(photo)}">
-        <div class="chat-avatar-wrap">
-          <div class="chat-avatar">${avatarHTML}</div>
-          ${dotHTML}
-        </div>
-        <div class="chat-item-info">
-          <div class="chat-item-name">${esc(name)}</div>
-          <div class="chat-item-preview${unread ? ' unread' : ''}">${preview}</div>
-        </div>
-        <div class="chat-item-meta">
-          <span class="chat-item-time">${formatChatTime(c.lastMessageAt)}</span>
-          ${unread ? '<span class="chat-unread-dot"></span>' : ''}
-        </div>
-      </div>`;
-  }).join('');
-}
-// Delegasi klik utk daftar chat (aman terhadap nama yang mengandung tanda kutip/apostrof)
-document.addEventListener('click', e => {
-  const row = e.target.closest('#chat-list-items .chat-item');
+  const row = e.target.closest('#chat-list-items .chat-item, #chat-requests-items .chat-item');
   if (!row) return;
   openConversation(row.dataset.chatid, row.dataset.uid, row.dataset.name, row.dataset.photo);
 });
+
+// ── Hapus percakapan/profil user lain dari daftar chat SAYA ────────────
+// Ini adalah "hapus utk saya sendiri": entri di userChats/{myUid}/{chatId}
+// dihapus supaya kartu percakapan/profil user itu hilang dari daftar chat
+// saya. Pesan aslinya (di node "chats/") & daftar chat milik lawan bicara
+// TIDAK ikut terhapus/terpengaruh — kalau nanti salah satu pihak mengirim
+// pesan baru, percakapan akan otomatis muncul lagi di daftar chat saya.
+function confirmDeleteChat(chatId, name) {
+  if (!chatId) return;
+  const label = name || 'pengguna ini';
+  if (!confirm('Hapus percakapan dengan ' + label + ' dari daftar chat kamu? Lawan bicara tidak akan terpengaruh.')) return;
+  deleteChatForMe(chatId);
+}
+function deleteChatForMe(chatId) {
+  if (!currentUser || !chatId) return;
+  // Kalau percakapan yang sedang dibuka adalah yang baru saja dihapus, tutup dulu & kembali ke daftar chat.
+  if (_chatCurrentPeer && _chatCurrentPeer.chatId === chatId) {
+    backToChatList();
+  }
+  db.ref('userChats/' + currentUser.uid + '/' + chatId).remove()
+    .then(() => toast('🗑️ Percakapan dihapus dari daftar chat'))
+    .catch(err => { console.error('Gagal menghapus percakapan:', err); toast('❌ Gagal menghapus percakapan'); });
+}
 
 // Total unread utk badge di tombol sidebar / mobile nav
 function updateChatUnreadBadge() {
