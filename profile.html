@@ -543,20 +543,23 @@ textarea.form-input { resize: none; line-height: 1.6; }
 .upv-banner-empty { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 1.8rem; }
 .upv-header-row {
   position: absolute; left: 16px; bottom: -96px;
-  display: flex; align-items: flex-end; gap: 18px;
+  display: flex; align-items: flex-start; gap: 18px;
   right: 16px;
 }
 .upv-avatar-square {
-  width: 168px; height: 168px; border-radius: 28px; flex-shrink: 0;
+  width: 200px; height: 200px; border-radius: 34px; flex-shrink: 0;
   background: var(--card); border: 4px solid var(--bg);
   overflow: hidden; display: flex; align-items: center; justify-content: center;
-  font-size: 3.2rem; box-shadow: 0 4px 14px rgba(0,0,0,.35);
+  font-size: 3.6rem; box-shadow: 0 4px 14px rgba(0,0,0,.35);
 }
 .upv-avatar-square img { width: 100%; height: 100%; object-fit: cover; }
-.upv-header-side { flex: 1; min-width: 0; display: flex; align-items: flex-end; padding-bottom: 4px; }
-.upv-header-name-wrap { flex-shrink: 0; max-width: 42%; padding-bottom: 0; min-width: 0; }
-.upv-header-name-wrap .upv-h-name { font-size: 1.25rem; font-weight: 800; letter-spacing: -.3px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.upv-header-liked-block { flex: 1; min-width: 0; margin-left: 36px; }
+.upv-header-stats { display: flex; gap: 26px; padding-top: 10px; }
+.upv-header-stat-item { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.upv-header-stat-num { font-size: 1.2rem; font-weight: 800; color: var(--text); }
+.upv-header-stat-lbl { font-size: .6rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
+.upv-name-wrap { padding: 0 2px; margin-bottom: 4px; }
+.upv-name-wrap .upv-h-name { font-size: 1.35rem; font-weight: 800; letter-spacing: -.3px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.upv-header-liked-block { margin: 4px 2px 0; }
 .upv-header-liked-lbl { font-size: .62rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
 .upv-header-liked .upv-liked-card { width: 64px; }
 .upv-header-liked { padding: 2px 2px 4px; }
@@ -601,19 +604,21 @@ textarea.form-input { resize: none; line-height: 1.6; }
 
 .upv-liked-card { flex: 0 0 auto; width: 130px; }
 
-/* ── Speech-bubble catatan di atas photo tile ── */
+/* ── Speech-bubble catatan di atas photo tile (bentuk pill, outline, warna bisa dipilih) ── */
 .fav-bubble-wrap { display: flex; flex-direction: column; }
 .fav-note-bubble {
-  position: relative; background: var(--panel); border: 1.5px solid var(--border);
-  border-radius: 14px; padding: 7px 10px 9px; margin: 0 8px 12px 10px;
-  font-size: .66rem; line-height: 1.4; color: var(--teal);
+  position: relative; background: transparent;
+  border: 2px solid var(--bubble-color, var(--teal));
+  border-radius: 999px; padding: 9px 16px 10px; margin: 0 10px 20px 8px;
+  font-size: .66rem; line-height: 1.4; color: var(--bubble-color, var(--teal));
   max-height: 58px; overflow: hidden; word-break: break-word;
 }
-.fav-note-bubble::before {
-  content: ''; position: absolute; left: 16px; bottom: -6px;
-  width: 13px; height: 13px; background: var(--panel);
-  border-left: 1.5px solid var(--border); border-bottom: 1.5px solid var(--border);
-  border-bottom-left-radius: 7px; transform: rotate(-48deg);
+.fav-note-bubble::after {
+  content: ''; position: absolute; left: 14px; bottom: -18px;
+  width: 24px; height: 24px;
+  background-color: var(--bubble-color, var(--teal));
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60'%3E%3Cpath d='M50 4 C22 8 8 26 9 48 C10 54 15 53 18 48 C26 36 36 18 50 4 Z' fill='none' stroke='black' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / contain;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60'%3E%3Cpath d='M50 4 C22 8 8 26 9 48 C10 54 15 53 18 48 C26 36 36 18 50 4 Z' fill='none' stroke='black' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / contain;
 }
 
 /* ── Dropdown hasil pencarian lagu (Lagu Favorit) ── */
@@ -820,6 +825,13 @@ textarea.form-input { resize: none; line-height: 1.6; }
       <label class="form-label">Catatan untuk lagu ini</label>
       <textarea class="form-input" id="inp-fav-note" rows="2" placeholder="Kenapa lagu ini spesial buatmu?" maxlength="150"></textarea>
     </div>
+    <div class="form-group">
+      <label class="form-label">Warna Bubble Catatan</label>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <input type="color" id="inp-fav-note-color" value="#3D9DD6" style="width:44px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--panel);cursor:pointer;padding:2px;">
+        <span style="font-size:.75rem;color:var(--sub);">Pilih warna bubble catatan untuk lagu ini</span>
+      </div>
+    </div>
     <button class="btn-save" id="btn-add-fav" onclick="addFavoriteSong()">+ Tambah ke Lagu Favorit</button>
     <div id="my-favorites-list" style="margin-top:14px;display:flex;flex-direction:column;gap:8px;"></div>
   </div>
@@ -959,39 +971,39 @@ textarea.form-input { resize: none; line-height: 1.6; }
   <!-- Content -->
   <div style="max-width:700px;margin:0 auto;padding:14px 16px 100px;">
 
-    <!-- Banner + Square Avatar + Liked Songs (di samping avatar) -->
+    <!-- Banner + Square Avatar (diperbesar) + Stats (kanan atas avatar) -->
     <div class="upv-banner-wrap">
       <div class="upv-banner" id="upv-banner">
         <div class="upv-banner-empty">🖼️</div>
       </div>
       <div class="upv-header-row">
         <div class="upv-avatar-square" id="upv-avatar"></div>
-        <div class="upv-header-side">
-          <div class="upv-header-name-wrap">
-            <div class="upv-h-name" id="upv-name">—</div>
+        <div class="upv-header-stats">
+          <div class="upv-header-stat-item">
+            <div id="upv-stat-pl" class="upv-header-stat-num">0</div>
+            <div class="upv-header-stat-lbl">Playlist</div>
           </div>
-          <div class="upv-header-liked-block">
-            <div class="upv-header-liked-lbl">Liked Songs</div>
-            <div class="upv-hscroll upv-header-liked" id="upv-liked-scroll">
-              <div class="upv-empty-mini" style="width:100%;">Loading...</div>
-            </div>
+          <div class="upv-header-stat-item">
+            <div id="upv-stat-likes" class="upv-header-stat-num">0</div>
+            <div class="upv-header-stat-lbl">Total Likes</div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Bio / Description -->
-    <div id="upv-bio" style="font-size:.85rem;color:var(--sub);line-height:1.65;margin-bottom:16px;"></div>
+    <!-- Nama User (dibawah foto profil) -->
+    <div class="upv-name-wrap">
+      <div class="upv-h-name" id="upv-name">—</div>
+    </div>
 
-    <!-- Stats -->
-    <div style="display:flex;gap:28px;padding:12px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-bottom:18px;">
-      <div style="display:flex;flex-direction:column;gap:2px;">
-        <div id="upv-stat-pl" style="font-size:1.15rem;font-weight:800;">0</div>
-        <div style="font-size:.6rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);">Playlist</div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:2px;">
-        <div id="upv-stat-likes" style="font-size:1.15rem;font-weight:800;">0</div>
-        <div style="font-size:.6rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);">Total Likes</div>
+    <!-- Bio / Description -->
+    <div id="upv-bio" style="font-size:.85rem;color:var(--sub);line-height:1.65;margin-bottom:6px;"></div>
+
+    <!-- Liked Songs (sejajar dengan nama & deskripsi) -->
+    <div class="upv-header-liked-block" style="margin-bottom:18px;">
+      <div class="upv-header-liked-lbl">Liked Songs</div>
+      <div class="upv-hscroll upv-header-liked" id="upv-liked-scroll">
+        <div class="upv-empty-mini" style="width:100%;">Loading...</div>
       </div>
     </div>
 
@@ -1605,6 +1617,7 @@ document.addEventListener('click', (e) => {
 async function addFavoriteSong() {
   if (!currentUser) return;
   const note = document.getElementById('inp-fav-note').value.trim();
+  const noteColor = document.getElementById('inp-fav-note-color').value || '#3D9DD6';
   if (!selectedFavTrack) { toast('❗ Pilih lagu dari daftar dulu'); return; }
 
   try {
@@ -1619,10 +1632,11 @@ async function addFavoriteSong() {
       thumb: selectedFavTrack.thumb || selectedFavTrack.photo || '',
       _query: selectedFavTrack._query || '',
       preview: selectedFavTrack.preview || '',
-      note, order, addedAt: Date.now()
+      note, noteColor, order, addedAt: Date.now()
     });
     document.getElementById('inp-fav-picker').value = '';
     document.getElementById('inp-fav-note').value = '';
+    document.getElementById('inp-fav-note-color').value = '#3D9DD6';
     document.getElementById('fav-picker-preview').style.display = 'none';
     document.getElementById('fav-picker-results').style.display = 'none';
     selectedFavTrack = null;
@@ -1646,7 +1660,7 @@ async function loadMyFavorites() {
       const clickAction = f.preview ? `previewOwnFavTrack('${esc(f.preview).replace(/'/g,"\\'")}','${esc(f.title).replace(/'/g,"\\'")}')` : "toast('ℹ️ Preview tidak tersedia')";
       return `
       <div class="fav-bubble-wrap">
-        ${f.note ? `<div class="fav-note-bubble">${esc(f.note)}</div>` : ''}
+        ${f.note ? `<div class="fav-note-bubble" style="--bubble-color:${esc(f.noteColor || '#3D9DD6')}">${esc(f.note)}</div>` : ''}
         <div class="song-tile" onclick="${clickAction}">
           <div class="photo-tile">
             <button type="button" class="photo-tile-del" onclick="event.stopPropagation();removeFavoriteSong('${key}')" title="Hapus">✕</button>
@@ -2129,7 +2143,7 @@ async function openUserProfile(uid) {
           : (q ? `playQueryUpv('${q}')` : "toast('ℹ️ Info songs tidak tersedia')");
         return `
         <div class="fav-bubble-wrap">
-          ${f.note ? `<div class="fav-note-bubble">${esc(f.note)}</div>` : ''}
+          ${f.note ? `<div class="fav-note-bubble" style="--bubble-color:${esc(f.noteColor || '#3D9DD6')}">${esc(f.note)}</div>` : ''}
           <div class="song-tile" onclick="${clickAction}">
             <div class="photo-tile">
               ${f.thumb ? `<img src="${esc(f.thumb)}" alt="">` : `<div class="photo-tile-ph">♪</div>`}
