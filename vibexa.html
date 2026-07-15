@@ -12552,7 +12552,22 @@ async function loadArtistRadioMixes(force) {
     // artis yang sama terpakai berkali-kali (lihat catatan di atas), tiap
     // pemakaian bisa dapat 5 lagu yang berbeda, diambil dari pool ini.
     const perArtistPoolSize = 40;
-    const perArtistPools = await Promise.all(followed.map(a => fetchArtistTopTracks(a.name, perArtistPoolSize)));
+    let perArtistPools = await Promise.all(followed.map(a => fetchArtistTopTracks(a.name, perArtistPoolSize)));
+
+    // Kalau ada artis yang pool-nya kosong (biasanya gara-gara gangguan
+    // jaringan/timeout sesaat ke Deezer, BUKAN karena artisnya memang tidak
+    // punya lagu), coba fetch ULANG khusus untuk artis-artis itu saja
+    // (maks 2x percobaan tambahan). fetchArtistTopTracks sengaja tidak
+    // meng-cache hasil kosong (lihat komentar di fungsi itu) jadi percobaan
+    // ulang ini punya kesempatan nyata untuk berhasil. Tanpa retry ini,
+    // 1 artis yang gagal fetch bisa bikin kombinasi yang memuatnya jadi
+    // kosong lagunya dan playlist itu batal dibuat -> total playlist < 8.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const emptyIdxs = perArtistPools.reduce((arr, p, i) => { if (!p || !p.length) arr.push(i); return arr; }, []);
+      if (!emptyIdxs.length) break;
+      const retried = await Promise.all(emptyIdxs.map(i => fetchArtistTopTracks(followed[i].name, perArtistPoolSize)));
+      emptyIdxs.forEach((i, j) => { perArtistPools[i] = retried[j]; });
+    }
 
     // Pool TIDAK diacak, dan malah diurutkan ULANG secara eksplisit dari
     // rank/popularitas TERTINGGI ke terendah (rank = proxy "like" dari
@@ -12562,6 +12577,13 @@ async function loadArtistRadioMixes(force) {
     // artis dipakai ulang) baru mengambil lagu populer berikutnya di
     // bawahnya — bukan lagu acak dari seluruh pool.
     const shuffledPools = perArtistPools.map(pool => [...(pool || [])].sort((a, b) => (b.rank || 0) - (a.rank || 0)));
+
+    // Hanya artis yang BENAR-BENAR punya pool lagu yang dipakai untuk
+    // menyusun kombinasi. Ini memastikan setiap kombinasi 3-artis yang
+    // dihasilkan buildArtistRadioCombos() selalu berisi artis dengan lagu,
+    // jadi tidak ada playlist yang kosong/gagal dan harus dilewati.
+    const validIdxs = shuffledPools.reduce((arr, p, i) => { if (p && p.length) arr.push(i); return arr; }, []);
+    if (!validIdxs.length) throw new Error('Semua pool artis kosong');
 
     // Hitung berapa kali tiap artis sudah "dipakai" (baik lintas playlist
     // maupun dalam satu playlist yang sama), supaya tiap pemakaian berikutnya
@@ -12579,15 +12601,22 @@ async function loadArtistRadioMixes(force) {
       return chunk;
     }
 
-    // Kombinasi 3-artis per playlist dibuat dinamis dari SELURUH daftar
-    // artis yang diikuti user (lihat buildArtistRadioCombos di atas),
-    // bukan pola indeks tetap lagi — supaya semua artis kebagian tampil,
-    // termasuk kalau user follow lebih dari 7 artis.
-    const artistCombos = buildArtistRadioCombos(followed.length, cacheKey);
+    // Kombinasi 3-artis per playlist dibuat dinamis dari daftar artis yang
+    // TERBUKTI punya lagu (validIdxs), lalu dipetakan balik ke index asli
+    // di `followed` — supaya semua artis kebagian tampil (termasuk kalau
+    // user follow lebih dari 7 artis) TANPA ada kombinasi yang merujuk ke
+    // artis yang pool-nya kosong.
+    const localCombos = buildArtistRadioCombos(validIdxs.length, cacheKey);
+    const artistCombos = localCombos.map(picks => picks.map(localIdx => validIdxs[localIdx]));
 
     let mixes = [];
     for (let m = 0; m < RADIO_MIX_COUNT; m++) {
-      const artistIdxs = artistCombos[m] || [];
+      // Kalau untuk suatu alasan slot ke-m tidak dapat kombinasi (mis. jumlah
+      // artis valid sangat sedikit), jangan lewati slotnya — pakai kombinasi
+      // slot lain (round-robin) sebagai fallback supaya tetap 8 playlist.
+      const artistIdxs = (artistCombos[m] && artistCombos[m].length)
+        ? artistCombos[m]
+        : (artistCombos[m % artistCombos.length] || [validIdxs[0]]);
 
       let tracks = [];
       const seenIds = new Set();
@@ -12610,7 +12639,26 @@ async function loadArtistRadioMixes(force) {
         });
       });
 
-      if (!tracks.length) continue;
+      // Fallback terakhir: kalau tetap kosong (edge case ekstrem), paksa
+      // ambil potongan berikutnya dari artis valid pertama supaya slot
+      // playlist ke-m ini tetap terisi, bukan dilewati/dihilangkan.
+      if (!tracks.length) {
+        const fallbackIdx = validIdxs[0];
+        const artistObj = followed[fallbackIdx];
+        const chunk = getArtistChunk(fallbackIdx);
+        usedArtistNames.push(artistObj.name);
+        chunk.forEach(t => {
+          if (!t || seenIds.has(t.id)) return;
+          seenIds.add(t.id);
+          tracks.push({
+            ...t,
+            artist: t.artist || artistObj.name,
+            _radioArtistName: artistObj.name,
+            _radioArtistPhoto: artistObj.photo || '',
+            _query: `${t.artist}|||${t.title}|||${t.id}`
+          });
+        });
+      }
 
       // Acak urutan 15 lagu. Seed per-mix supaya stabil sepanjang hari, tapi
       // berbeda antar playlist & otomatis berganti besok.
