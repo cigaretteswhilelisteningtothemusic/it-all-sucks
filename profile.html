@@ -538,20 +538,23 @@ textarea.form-input { resize: none; line-height: 1.6; }
 
 /* ── Teks Berjalan (running/marquee text, menggantikan Liked Songs) ── */
 .marquee-wrap {
+  position: relative;
   margin: 6px 2px 18px; padding: 11px 0;
   background: var(--card); border: 1px solid var(--border);
   border-radius: 50px; overflow: hidden; white-space: nowrap;
 }
-.marquee-track { display: inline-flex; width: max-content; animation: marquee-scroll 14s linear infinite; }
+.marquee-track {
+  display: inline-block; white-space: nowrap; will-change: transform;
+  animation: marquee-scroll 8s linear infinite;
+}
 .marquee-track:hover { animation-play-state: paused; }
 .marquee-item {
   padding: 0 22px; font-size: .82rem; font-weight: 700; color: var(--text);
-  letter-spacing: .2px; white-space: nowrap; display: flex; align-items: center; gap: 22px;
+  letter-spacing: .2px; white-space: nowrap; display: inline-flex; align-items: center;
 }
-.marquee-item::after { content: '✦'; color: var(--muted); font-size: .68rem; }
 @keyframes marquee-scroll {
-  from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
+  from { transform: translateX(var(--mq-start, 100%)); }
+  to   { transform: translateX(var(--mq-end, -100%)); }
 }
 
 /* ── Full-photo square song tile (dipakai utk Liked Songs & Lagu Favorit) ── */
@@ -783,7 +786,6 @@ textarea.form-input { resize: none; line-height: 1.6; }
   <div class="marquee-wrap" id="my-marquee-wrap" style="display:none;">
     <div class="marquee-track" id="my-marquee-track">
       <span class="marquee-item"></span>
-      <span class="marquee-item"></span>
     </div>
   </div>
 
@@ -1014,7 +1016,6 @@ textarea.form-input { resize: none; line-height: 1.6; }
     <div class="marquee-wrap" id="upv-marquee-wrap" style="display:none;">
       <div class="marquee-track" id="upv-marquee-track">
         <span class="marquee-item"></span>
-        <span class="marquee-item"></span>
       </div>
     </div>
 
@@ -1184,9 +1185,34 @@ function setMarquee(prefix, text) {
   const t = (text || '').trim();
   if (!t) { wrap.style.display = 'none'; return; }
   wrap.style.display = 'block';
-  const items = track.querySelectorAll('.marquee-item');
-  items.forEach(el => { el.textContent = t; });
-  track.style.animationDuration = Math.max(8, t.length * 0.35) + 's';
+  const item = track.querySelector('.marquee-item');
+  item.textContent = t;
+
+  const MQ_SPEED = 170; // px per detik (kecepatan ditingkatkan)
+
+  const runMarquee = () => {
+    const containerWidth = wrap.offsetWidth || 300;
+    const textWidth = item.scrollWidth || 100;
+    const distance = containerWidth + textWidth;
+    const duration = Math.max(3, distance / MQ_SPEED);
+
+    track.style.setProperty('--mq-start', containerWidth + 'px');
+    track.style.setProperty('--mq-end', (-textWidth) + 'px');
+
+    // reset animasi supaya perubahan durasi/jarak langsung diterapkan
+    track.style.animation = 'none';
+    void track.offsetWidth; // force reflow
+    track.style.animation = `marquee-scroll ${duration}s linear infinite`;
+  };
+
+  // pastikan lebar sudah ter-render (termasuk saat font baru dimuat)
+  requestAnimationFrame(() => requestAnimationFrame(runMarquee));
+  if (!wrap.dataset.mqResizeBound) {
+    wrap.dataset.mqResizeBound = '1';
+    window.addEventListener('resize', () => {
+      if (wrap.style.display !== 'none') runMarquee();
+    });
+  }
 }
 
 function setCoverPreview(coverURL) {
