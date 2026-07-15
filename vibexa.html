@@ -4007,7 +4007,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
       </div>
       <div class="chat-input-bar">
         <input type="file" id="chat-media-input" accept="image/*,video/*" style="display:none" onchange="handleChatMediaSelected(event)">
-        <button class="chat-attach-btn" id="chat-attach-btn" onclick="document.getElementById('chat-media-input').click()" title="Kirim foto/video">
+        <button class="chat-attach-btn" id="chat-attach-btn" onclick="openChatMediaPicker()" title="Kirim foto/video">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
         </button>
         <button class="chat-gif-btn" id="chat-gif-btn" onclick="toggleGifPicker()" title="Kirim GIF">GIF</button>
@@ -4901,19 +4901,27 @@ function loadHomeProfileButtonPhoto(user) {
 // memulai chat duluan.
 //
 // ── SISTEM ANTI CHAT SEMBARANGAN (follow request + izin chat) ──────────
-// Supaya "tidak ada yang bisa sembarangan chat orang lain", chat baru hanya
-// bisa dimulai kalau sudah ada izin, disimpan di:
+// Aturan chat antar-user yang BELUM saling follow (diterima):
+//   - Boleh kirim MAKS 1 pesan TEKS gratis ke siapapun yang belum di-follow.
+//   - Tidak boleh kirim foto/video/GIF sama sekali sebelum follow diterima.
+//   - Kalau jatah 1 pesan gratis itu sudah dipakai dan mau lanjut chat,
+//     wajib follow orang itu dulu (dan permintaannya diterima).
+//   - Kalau permintaan follow saya pernah DITOLAK, saya diblokir total dari
+//     chat ke orang itu (tidak dapat jatah 1 pesan lagi).
+// Disimpan di:
 //   follow_requests/{targetUid}/{requesterUid} → { fromUid, fromName, fromPhoto, ts, status }
 //     status: 'pending' → 'accepted' / 'rejected' (diproses lewat notifikasi,
 //     lihat acceptFollowRequest()/rejectFollowRequest() di atas)
-//   chat_perm/{ownerUid}/{peerUid} → izin ownerUid MEMULAI chat baru ke peerUid
-//     { type:'full' }                        → follow diterima, bebas chat
-//     { type:'onetime', used, usedAt }        → follow ditolak, jatah 1x pesan
-//     { type:'onetime_peer', usedAt }         → milik pihak yg menolak, dipakai
-//                                                utk ikut menyembunyikan chat
-//                                                setelah 24 jam di sisi mereka juga
-// Lihat canInitiateChatWith(), startChatWithFriend(), sendChatMessage(),
-// dan isChatVisibleInList() untuk implementasinya.
+//   chat_perm/{ownerUid}/{peerUid} → batasan ownerUid kirim pesan ke peerUid
+//     { type:'full' }                 → (opsional/legacy) status sebenarnya
+//                                        selalu dicek dari node follows/
+//     { type:'blocked', blockedAt }   → follow ditolak, TIDAK BOLEH chat sama sekali
+//     { type:'free_used', usedAt }    → jatah 1 pesan teks gratis sudah dipakai
+//     (tidak ada entri)               → belum follow, masih ada jatah 1 pesan teks
+//     { type:'onetime', ... } / { type:'onetime_peer', ... } → (legacy)
+// Lihat canInitiateChatWith(), getChatSendPermission(), startChatWithFriend(),
+// sendChatMessage(), sendChatMediaMessage(), sendGifMessage(), dan
+// isChatVisibleInList() untuk implementasinya.
 //
 // CATATAN PENTING (Firebase Security Rules):
 // Supaya fitur ini berfungsi, tambahkan rules berikut (gabungkan dengan
@@ -5013,27 +5021,32 @@ function initChatSystem(user) {
   subscribeChatInbox();
   subscribeChatDirectory();
   subscribeChatPerm();
+  subscribeMyFollowing();
   setupPresence(user);
   subscribeChatStatus();
-  // Cek berkala (tiap 5 menit) supaya chat "jatah 1x pesan" yang sudah lewat
-  // 24 jam otomatis hilang dari daftar chat walau tidak ada perubahan data baru.
+  // Refresh berkala (tiap 5 menit) sbg jaga-jaga kalau ada perubahan status
+  // follow yang tidak sempat ter-refresh live oleh listener di atas.
   setInterval(renderChatList, 5 * 60 * 1000);
 }
 
 // ── IZIN MULAI CHAT (anti chat sembarangan) ─────────────────────────────
 // Mendengarkan node chat_perm/{myUid} secara real-time. Node ini menyimpan,
-// untuk tiap lawan bicara, apakah saya boleh MEMULAI percakapan baru dgn
-// mereka:
-//   { type:'full' }                     → follow sudah diterima, bebas chat
-//   { type:'onetime', used:false }      → permintaan follow saya ditolak,
-//                                          masih ada 1x jatah kirim pesan
-//   { type:'onetime', used:true, usedAt } → jatah sudah dipakai; chat ini
-//                                          hanya tampil di daftar selama 24 jam
-//                                          sejak usedAt (lihat renderChatList)
-//   { type:'onetime_peer', usedAt }     → saya adalah pihak yg MENOLAK follow,
-//                                          lawan bicara barusan memakai jatah
-//                                          1x pesannya ke saya; sama, tampil
-//                                          24 jam sejak usedAt lalu hilang lagi
+// untuk tiap lawan bicara, batasan chat SAYA ke mereka selama belum saling
+// follow (follow diterima = bebas chat + kirim foto/GIF tanpa batas):
+//   { type:'full' }                 → (legacy/opsional) follow diterima —
+//                                      status "diterima" yang sebenarnya
+//                                      selalu dicek langsung dari node
+//                                      follows/, bukan dari sini.
+//   { type:'blocked', blockedAt }   → permintaan follow saya ditolak,
+//                                      TIDAK BOLEH kirim pesan sama sekali
+//   { type:'free_used', usedAt }    → belum follow, dan jatah 1 pesan teks
+//                                      gratis sudah dipakai — harus follow
+//                                      dulu (dan diterima) utk lanjut chat
+//   (tidak ada entri sama sekali)   → belum pernah kirim pesan ke orang ini,
+//                                      masih ada jatah 1 pesan teks gratis
+//                                      (tanpa foto/GIF — itu wajib follow)
+//   { type:'onetime', ... }         → (legacy, tidak dibuat lagi)
+//   { type:'onetime_peer', usedAt } → (legacy)
 function subscribeChatPerm() {
   if (!currentUser) return;
   db.ref('chat_perm/' + currentUser.uid).on('value', snap => {
@@ -5042,28 +5055,58 @@ function subscribeChatPerm() {
   }, err => console.error('Gagal memuat izin chat:', err));
 }
 
-const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-
-// Apakah entri chat dengan peerUid boleh masih tampil di daftar chat saya?
-// (chat lama / follow diterima selalu tampil; chat dari jatah 1x pesan yang
-// ditolak hanya tampil 24 jam sejak jatahnya dipakai, sesuai konsep "tidak
-// ada yang bisa sembarangan chat orang lain")
-function isChatVisibleInList(peerUid) {
-  const perm = _chatPermData[peerUid];
-  if (!perm) return true; // tidak ada data izin (chat lama / grandfathered) → tetap tampil
-  if (perm.type === 'onetime' && perm.used) {
-    return (Date.now() - (perm.usedAt || 0)) <= ONE_DAY_MS;
-  }
-  if (perm.type === 'onetime_peer') {
-    return (Date.now() - (perm.usedAt || 0)) <= ONE_DAY_MS;
-  }
-  return true; // 'full' atau 'onetime' yg belum dipakai → tetap tampil
+// Cache live daftar orang yang SUDAH saya follow & diterima
+// (follows/{myUid}/following/{peerUid} === true). Dipakai supaya
+// isChatVisibleInList() bisa cek status follow secara instan/sinkron
+// tanpa perlu query per-peer setiap render daftar chat.
+let _myFollowingCache = {};
+function subscribeMyFollowing() {
+  if (!currentUser) return;
+  db.ref('follows/' + currentUser.uid + '/following').on('value', snap => {
+    _myFollowingCache = snap.exists() ? (snap.val() || {}) : {};
+    renderChatList();
+  }, err => console.error('Gagal memuat daftar following:', err));
 }
 
-// Cek apakah saya boleh MEMULAI percakapan baru dengan peerUid. Dipanggil
-// sebelum membuat/membuka chat baru dari halaman "Tambah Teman" atau dari
-// tombol Chat di profil user lain.
+// Apakah entri chat dengan peerUid boleh tampil di halaman Chat?
+// ATURAN BARU: chat HANYA muncul di halaman Chat kalau saya benar-benar
+// sudah follow orang ini DAN diterima. Selama permintaan follow saya masih
+// pending, ditolak, atau bahkan belum pernah follow sama sekali (misalnya
+// baru sebatas kirim 1 pesan gratis), orang itu TIDAK ditampilkan di
+// halaman Chat — tetap bisa ditemukan & diajak chat lewat halaman
+// "Tambah Teman" → buka profilnya → tombol Chat. Begitu follow diterima,
+// entri ini otomatis muncul lagi di halaman Chat (live, lihat
+// subscribeMyFollowing() di atas).
+function isChatVisibleInList(peerUid) {
+  return !!_myFollowingCache[peerUid];
+}
+
+// Cek apakah saya boleh MEMBUKA percakapan baru dengan peerUid (bukan cek
+// boleh kirim berapa banyak pesan — itu dicek per-pesan lewat
+// getChatSendPermission()). Dipanggil sebelum membuat/membuka chat baru dari
+// tombol Chat di profil user lain. Sejak sistem "1 pesan gratis", membuka
+// chat SELALU boleh kecuali permintaan follow saya sudah pernah ditolak.
 async function canInitiateChatWith(peerUid) {
+  if (!currentUser) return { ok: false, message: 'ℹ️ Silakan login terlebih dahulu' };
+  try {
+    const permSnap = await db.ref('chat_perm/' + currentUser.uid + '/' + peerUid).get();
+    const perm = permSnap.exists() ? permSnap.val() : null;
+    if (perm && perm.type === 'blocked') {
+      return { ok: false, message: '🔒 Permintaan follow kamu ditolak. Kamu tidak bisa mengirim pesan ke pengguna ini.' };
+    }
+    return { ok: true };
+  } catch(e) {
+    console.error('Gagal memeriksa izin chat:', e);
+    return { ok: false, message: '❌ Gagal memeriksa izin chat, coba lagi.' };
+  }
+}
+
+// Cek apakah saya boleh MENGIRIM pesan ke peerUid sekarang, sesuai jenisnya:
+//   kind: 'text'  → teks biasa (jatah 1x sebelum follow diterima)
+//   kind: 'media' → foto/video/GIF (wajib sudah follow & diterima)
+// Dipanggil tepat sebelum benar-benar mengirim (dan sebelum membuka
+// file-picker/GIF-picker, supaya user langsung tahu tanpa perlu pilih file dulu).
+async function getChatSendPermission(peerUid, kind) {
   if (!currentUser) return { ok: false, message: 'ℹ️ Silakan login terlebih dahulu' };
   try {
     const [followSnap, permSnap] = await Promise.all([
@@ -5074,18 +5117,36 @@ async function canInitiateChatWith(peerUid) {
     if (isFollowingAccepted) return { ok: true };
 
     const perm = permSnap.exists() ? permSnap.val() : null;
-    if (perm && perm.type === 'full') return { ok: true };
-    if (perm && perm.type === 'onetime' && !perm.used) return { ok: true };
-
-    if (perm && perm.type === 'onetime' && perm.used) {
-      return { ok: false, message: '🔒 Kamu sudah memakai jatah 1x pesanmu ke pengguna ini.' };
+    if (perm && perm.type === 'full') return { ok: true }; // legacy safety net
+    if (perm && perm.type === 'blocked') {
+      return { ok: false, message: '🔒 Permintaan follow kamu ditolak. Kamu tidak bisa mengirim pesan ke pengguna ini.' };
     }
-    return { ok: false, message: '🔒 Follow pengguna ini dulu, dan tunggu permintaanmu diterima sebelum bisa chat.' };
+
+    if (kind === 'media') {
+      return { ok: false, message: '📌 Follow pengguna ini dulu (dan tunggu diterima) untuk bisa kirim foto atau GIF.' };
+    }
+
+    // kind === 'text': jatah 1 pesan gratis sebelum follow diterima
+    const freeUsed = perm && (perm.type === 'free_used' || (perm.type === 'onetime' && perm.used));
+    if (freeUsed) {
+      return { ok: false, message: '🔒 Kamu sudah kirim 1 pesan ke pengguna ini. Follow orang ini dulu untuk lanjut chat.', needsFollow: true };
+    }
+    return { ok: true, freeMessage: true };
   } catch(e) {
-    console.error('Gagal memeriksa izin chat:', e);
+    console.error('Gagal memeriksa izin kirim pesan:', e);
     return { ok: false, message: '❌ Gagal memeriksa izin chat, coba lagi.' };
   }
 }
+
+// Tandai jatah 1 pesan gratis sudah dipakai (dipanggil setelah pesan teks
+// PERTAMA berhasil terkirim ke peer yang belum saya follow).
+function markFreeChatMessageUsed(peerUid, now) {
+  if (!currentUser) return;
+  const permUpdates = {};
+  permUpdates['chat_perm/' + currentUser.uid + '/' + peerUid] = { type: 'free_used', usedAt: now };
+  db.ref().update(permUpdates).catch(err => console.error('Gagal mencatat pemakaian jatah chat:', err));
+}
+
 
 // ── Status Online / Terakhir Dilihat (ala Instagram) ────────────────────
 // Menyimpan status "online"/"offline" tiap user di node "status/{uid}",
@@ -5391,16 +5452,18 @@ function renderDirectoryList() {
         </div>
         <div class="chat-item-info">
           <div class="chat-item-name">${esc(name)}</div>
-          <div class="chat-item-preview">Tekan untuk mulai chat</div>
+          <div class="chat-item-preview">Tekan untuk lihat profil</div>
         </div>
       </div>`;
   }).join('');
 }
-// Delegasi klik utk daftar "Tambah Teman"
+// Delegasi klik utk daftar "Tambah Teman" — arahkan ke halaman PROFIL user
+// tsb (bukan langsung buka chat). Dari profil, ada tombol Follow & Chat
+// sendiri kalau user memang mau mulai percakapan.
 document.addEventListener('click', e => {
   const row = e.target.closest('#chat-directory-items .chat-item');
   if (!row) return;
-  startChatWithFriend(row.dataset.uid, row.dataset.name, row.dataset.photo);
+  window.location.href = 'profile.html?uid=' + encodeURIComponent(row.dataset.uid);
 });
 
 function filterDirectoryList() {
@@ -5411,11 +5474,12 @@ function filterDirectoryList() {
 // Memulai / membuka chat dengan pengguna terpilih. Otomatis menambahkan
 // kontak ini ke inbox KEDUA belah pihak, supaya user tujuan juga langsung
 // bisa melihat & membalas chat ini.
-// CATATAN: Ini adalah gerbang utama "tidak ada yang bisa sembarangan chat
-// orang lain" — kalau belum pernah ada percakapan nyata (belum ada pesan
-// terkirim) dgn peer ini, wajib sudah punya izin (follow diterima, atau
-// jatah 1x pesan dari follow yang ditolak) sebelum chat baru bisa dibuka.
-// Percakapan yang SUDAH punya riwayat pesan selalu boleh dilanjutkan seperti biasa.
+// CATATAN: Dipanggil dari tombol "Chat" di halaman profil user lain (bukan
+// lagi dari daftar "Tambah Teman" — di situ klik profil sekarang mengarah
+// ke profile.html, lihat delegasi klik di atas). Membuka chat SELALU boleh
+// kecuali permintaan follow saya sudah pernah ditolak (lihat
+// canInitiateChatWith()); batasan "hanya 1 pesan teks & tanpa foto/GIF
+// sebelum follow diterima" dicek per-pesan lewat getChatSendPermission().
 async function startChatWithFriend(uid, name, photo) {
   if (!currentUser || !uid) return;
   const myUid = currentUser.uid;
@@ -5806,24 +5870,10 @@ function formatChatDateSeparator(ts) {
   return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-// Dipanggil di setiap fungsi kirim pesan (teks/media/GIF). Kalau ini pesan
-// PERTAMA di percakapan dan izin saya cuma jatah 1x (dari follow yang
-// ditolak), langsung "pakai" jatah itu supaya tidak bisa dipakai berkali-kali.
-function maybeConsumeOnetimeChatPerm(peerUid, now) {
-  if (!currentUser) return;
-  const isFirstMessage = !_chatCurrentMessages || Object.keys(_chatCurrentMessages).length === 0;
-  if (!isFirstMessage) return;
-  const perm = _chatPermData[peerUid];
-  if (perm && perm.type === 'onetime' && !perm.used) {
-    const permUpdates = {};
-    permUpdates['chat_perm/' + currentUser.uid + '/' + peerUid + '/used'] = true;
-    permUpdates['chat_perm/' + currentUser.uid + '/' + peerUid + '/usedAt'] = now;
-    permUpdates['chat_perm/' + peerUid + '/' + currentUser.uid] = { type: 'onetime_peer', usedAt: now };
-    db.ref().update(permUpdates).catch(err => console.error('Gagal mencatat pemakaian jatah chat:', err));
-  }
-}
+// (Fungsi lama maybeConsumeOnetimeChatPerm() sudah digantikan oleh
+// markFreeChatMessageUsed() + getChatSendPermission() di atas.)
 
-function sendChatMessage() {
+async function sendChatMessage() {
   if (!currentUser || !_chatCurrentPeer) return;
   // Kalau ada foto/video yang sedang dipilih (menunggu di preview bar),
   // kirim sebagai pesan media — teks di kolom input dipakai sebagai caption.
@@ -5832,15 +5882,20 @@ function sendChatMessage() {
   const input = document.getElementById('chat-input');
   const text = (input.value || '').trim();
   if (!text) return;
+
+  const peer = _chatCurrentPeer;
+  const perm = await getChatSendPermission(peer.uid, 'text');
+  if (!perm.ok) {
+    toast(perm.message);
+    return;
+  }
+
   input.value = '';
 
   const myUid = currentUser.uid;
-  const peer = _chatCurrentPeer;
   const chatId = peer.chatId;
   const now = Date.now();
   const msgKey = db.ref('chats/' + chatId + '/messages').push().key;
-
-  maybeConsumeOnetimeChatPerm(peer.uid, now);
 
   const msgData = { from: myUid, text: text, ts: now };
   if (_chatReplyTarget) {
@@ -5865,13 +5920,29 @@ function sendChatMessage() {
 
   cancelReply();
 
-  db.ref().update(updates).catch(err => {
+  db.ref().update(updates).then(() => {
+    // Pesan teks berhasil terkirim & ini memakai jatah gratis (belum follow) → catat.
+    if (perm.freeMessage) markFreeChatMessageUsed(peer.uid, now);
+  }).catch(err => {
     console.error('Gagal mengirim pesan:', err);
     input.value = text; // kembalikan teks kalau gagal terkirim
   });
 }
 
 // ── Kirim Foto/Video: pilih file → preview → upload Cloudinary → kirim ──
+
+// Dipanggil saat tombol attach ditekan. Cek dulu izin kirim media (wajib
+// sudah follow & diterima) SEBELUM membuka file-picker, supaya user tidak
+// capek pilih file dulu baru ditolak belakangan.
+async function openChatMediaPicker() {
+  if (!currentUser || !_chatCurrentPeer) return;
+  const perm = await getChatSendPermission(_chatCurrentPeer.uid, 'media');
+  if (!perm.ok) {
+    toast(perm.message);
+    return;
+  }
+  document.getElementById('chat-media-input')?.click();
+}
 
 // Dipanggil saat user memilih file dari input[type=file] (tombol lampiran).
 function handleChatMediaSelected(event) {
@@ -5972,12 +6043,18 @@ async function sendChatMediaMessage() {
   if (!currentUser || !_chatCurrentPeer || !_chatPendingMediaFile) return;
   if (_chatMediaUploading) return;
 
+  const peer = _chatCurrentPeer;
+  const permCheck = await getChatSendPermission(peer.uid, 'media');
+  if (!permCheck.ok) {
+    toast(permCheck.message);
+    return;
+  }
+
   const file = _chatPendingMediaFile;
   const mediaType = _chatPendingMediaType;
-  const peer = _chatCurrentPeer;      // tangkap sekarang, sebelum upload async berjalan,
-  const chatId = peer.chatId;         // supaya kalau user pindah percakapan selagi upload
-  const myUid = currentUser.uid;      // masih berjalan, pesan tetap terkirim ke chat yg benar
-  const replyTargetSnapshot = _chatReplyTarget;
+  const chatId = peer.chatId;         // tangkap sekarang, sebelum upload async berjalan,
+  const myUid = currentUser.uid;      // supaya kalau user pindah percakapan selagi upload
+  const replyTargetSnapshot = _chatReplyTarget; // masih berjalan, pesan tetap terkirim ke chat yg benar
   const input = document.getElementById('chat-input');
   const caption = (input.value || '').trim();
   const statusEl = document.getElementById('chat-media-preview-status');
@@ -6003,8 +6080,6 @@ async function sendChatMediaMessage() {
 
     const now = Date.now();
     const msgKey = db.ref('chats/' + chatId + '/messages').push().key;
-
-    maybeConsumeOnetimeChatPerm(peer.uid, now);
 
     const msgData = {
       from: myUid,
@@ -6053,11 +6128,17 @@ async function sendChatMediaMessage() {
 
 // ── GIF Picker (Giphy) ──────────────────────────────────────────────────
 
-function toggleGifPicker() {
+async function toggleGifPicker() {
   const panel = document.getElementById('chat-gif-picker');
   if (!panel) return;
-  if (panel.classList.contains('show')) closeGifPicker();
-  else openGifPicker();
+  if (panel.classList.contains('show')) { closeGifPicker(); return; }
+  if (!currentUser || !_chatCurrentPeer) return;
+  const perm = await getChatSendPermission(_chatCurrentPeer.uid, 'media');
+  if (!perm.ok) {
+    toast(perm.message);
+    return;
+  }
+  openGifPicker();
 }
 
 function openGifPicker() {
@@ -6152,20 +6233,25 @@ document.addEventListener('click', e => {
 // Kirim GIF langsung begitu dipilih — sama seperti WhatsApp/Instagram,
 // tanpa perlu tombol kirim terpisah. Teks di kolom input (kalau ada)
 // dikirim sebagai caption.
-function sendGifMessage(gifUrl, width, height) {
+async function sendGifMessage(gifUrl, width, height) {
   if (!currentUser || !_chatCurrentPeer) return;
+  const peer = _chatCurrentPeer;
+  const perm = await getChatSendPermission(peer.uid, 'media');
+  if (!perm.ok) {
+    toast(perm.message);
+    closeGifPicker();
+    return;
+  }
+
   const input = document.getElementById('chat-input');
   const caption = (input.value || '').trim();
   input.value = '';
   closeGifPicker();
 
   const myUid = currentUser.uid;
-  const peer = _chatCurrentPeer;
   const chatId = peer.chatId;
   const now = Date.now();
   const msgKey = db.ref('chats/' + chatId + '/messages').push().key;
-
-  maybeConsumeOnetimeChatPerm(peer.uid, now);
 
   const msgData = {
     from: myUid,
@@ -13826,7 +13912,7 @@ document.addEventListener('click', e => {
 //   follows/{uid}/followers|following   → hubungan follow yang sudah aktif
 //   chat_perm/{ownerUid}/{peerUid}      → izin ownerUid MEMULAI chat baru dgn peerUid
 //     { type:'full' }              → boleh chat kapan saja (follow diterima)
-//     { type:'onetime', used:bool } → jatah SATU pesan (follow ditolak)
+//     { type:'blocked' }           → TIDAK BOLEH chat sama sekali (follow ditolak)
 // Ini yang membuat "tidak ada orang yang bisa sembarangan chat orang lain":
 // startChatWithFriend() di bagian Chat System akan cek node ini dulu
 // sebelum mengizinkan percakapan baru dimulai.
@@ -13861,13 +13947,17 @@ async function rejectFollowRequest(fromUid, notifId, btnEl) {
   const wrap = btnEl ? btnEl.closest('.notif-follow-actions') : null;
   if (wrap) wrap.querySelectorAll('button').forEach(b => b.disabled = true);
   try {
+    const now = Date.now();
     const updates = {};
     updates['follow_requests/' + myUid + '/' + fromUid + '/status'] = 'rejected';
     updates['users/' + myUid + '/notifications/' + notifId + '/status'] = 'rejected';
     updates['users/' + myUid + '/notifications/' + notifId + '/read'] = true;
-    // Requester tetap dapat SATU jatah pesan meski ditolak — tidak dipakai sampai
-    // mereka benar-benar mengirim pesan pertamanya (lihat sendChatMessage()).
-    updates['chat_perm/' + fromUid + '/' + myUid] = { type: 'onetime', used: false };
+    // Ditolak = requester TIDAK BOLEH kirim pesan sama sekali ke saya.
+    // (Dulu ada "jatah 1x pesan" lewat type:'onetime', sekarang dihapus —
+    // ditolak berarti diblokir total dari chat baru. Ini juga menimpa
+    // kemungkinan chat_perm lama, mis. dari follow sebelumnya yang lalu
+    // di-unfollow lalu request lagi, supaya status blokir ini selalu final.)
+    updates['chat_perm/' + fromUid + '/' + myUid] = { type: 'blocked', blockedAt: now };
     await db.ref().update(updates);
     toast('Permintaan follow ditolak');
   } catch(e) {
