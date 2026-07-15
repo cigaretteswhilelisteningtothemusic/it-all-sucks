@@ -2999,8 +2999,25 @@ body.np-is-fullscreen #bar{display:none !important;}
    baris nama+foto pemilik lagu di dalam bubble-nya (di sini: nama TEMAN,
    bukan "me", karena ini lagu favorit milik teman tsb). */
 .fav-note-bubble{position:relative;background:var(--bubble-color,var(--green));border-radius:20px;margin:0 8px 8px;box-shadow:0 8px 20px rgba(0,0,0,.35);text-align:left;cursor:pointer;width:100%;}
-.fav-note-text{padding:12px 16px 10px;font-size:.68rem;font-weight:600;line-height:1.45;color:#fff;height:64px;max-height:64px;overflow:hidden;word-break:break-word;border-radius:inherit;transition:max-height .22s ease,height .22s ease;display:flex;align-items:center;}
-.fav-note-bubble.expanded .fav-note-text{height:auto;max-height:400px;display:block;}
+.fav-note-text{padding:12px 16px 10px;font-size:.68rem;font-weight:600;line-height:1.45;color:#fff;height:64px;max-height:64px;overflow:hidden;word-break:break-word;border-radius:inherit;display:flex;align-items:center;}
+/* Teks penuh (kalau terpotong) ditampilkan lewat POPUP mengambang terpisah
+   (.fav-note-popover, position:fixed, ditempel ke <body>) — BUKAN dengan
+   melebarkan bubble di tempat. Ini sengaja, karena .friend-fav-row punya
+   overflow-x:auto untuk scroll horizontal, dan browser otomatis memaksa
+   overflow-y ikut jadi "auto" begitu salah satu axis di-set non-visible —
+   jadi kalau bubble melebar ke atas di dalam row itu, bagian atasnya akan
+   selalu terpotong oleh area scroll-nya sendiri. Popup posisinya independen
+   dari container manapun jadi tidak akan pernah terpotong. */
+.fav-note-popover{
+  position:fixed; z-index:500; max-width:260px; min-width:120px;
+  background:var(--bubble-color,var(--green)); color:#fff;
+  padding:12px 16px; border-radius:16px; font-size:.74rem; font-weight:600;
+  line-height:1.55; word-break:break-word; white-space:pre-wrap;
+  box-shadow:0 14px 36px rgba(0,0,0,.5);
+  opacity:0; transform:translateY(6px); transition:opacity .16s ease,transform .16s ease;
+  pointer-events:none;
+}
+.fav-note-popover.show{opacity:1; transform:translateY(0); pointer-events:auto;}
 .fav-note-author{display:flex;align-items:center;gap:6px;padding:0 16px 11px;font-size:.6rem;font-weight:600;color:rgba(255,255,255,.8);}
 .fav-note-author-name{cursor:pointer;}
 .fav-note-author-name:hover{text-decoration:underline;}
@@ -6991,7 +7008,7 @@ function renderFriendFavorites() {
       // dan nama teman di dalam bubble bisa ditekan untuk membuka profilnya
       // (pakai stopPropagation supaya tidak ikut memicu toggle expand).
       const bubble = s.note
-        ? `<div class="fav-note-bubble" style="--bubble-color:${esc(s.noteColor || '#2E7DFF')}" onclick="this.classList.toggle('expanded')">
+        ? `<div class="fav-note-bubble" style="--bubble-color:${esc(s.noteColor || '#2E7DFF')}" onclick="showFavNotePopover(this,event)">
              <div class="fav-note-text">${esc(s.note)}</div>
              <div class="fav-note-author">
                <span class="fav-note-author-name" onclick="event.stopPropagation();window.location.href='profile.html?uid=${encodeURIComponent(uid)}'">– ${esc(f.name)}</span>
@@ -7019,6 +7036,62 @@ function renderFriendFavorites() {
       </div>`;
   }).join('');
 }
+
+// ─── Popup teks penuh bubble catatan (lagu favorit teman) ───────────────
+// Dipanggil saat bubble catatan (.fav-note-bubble) ditekan. Menampilkan teks
+// LENGKAP (diambil langsung dari isi .fav-note-text yang sudah ada di DOM,
+// jadi tidak perlu simpan ulang di atribut HTML) lewat elemen position:fixed
+// yang ditempel ke <body> — supaya tidak pernah kepotong oleh area scroll
+// manapun (lihat catatan di CSS .fav-note-popover).
+let _favNotePopoverEl = null;
+
+function showFavNotePopover(bubbleEl, event) {
+  if (event) event.stopPropagation();
+  const isSameBubble = _favNotePopoverEl && _favNotePopoverEl._sourceBubble === bubbleEl;
+  closeFavNotePopover();
+  if (isSameBubble) return; // tekan bubble yang sama lagi → cukup ditutup
+
+  const textEl = bubbleEl.querySelector('.fav-note-text');
+  const text = textEl ? textEl.textContent : '';
+  const color = bubbleEl.style.getPropertyValue('--bubble-color') || '#2E7DFF';
+
+  const pop = document.createElement('div');
+  pop.className = 'fav-note-popover';
+  pop.style.setProperty('--bubble-color', color);
+  pop.textContent = text;
+  document.body.appendChild(pop);
+
+  const rect = bubbleEl.getBoundingClientRect();
+  const popRect = pop.getBoundingClientRect();
+
+  // Coba taruh di atas bubble dulu; kalau mepet tepi atas layar, taruh di bawah bubble
+  let top = rect.top - popRect.height - 10;
+  if (top < 8) top = rect.bottom + 10;
+  let left = rect.left;
+  if (left + popRect.width > window.innerWidth - 8) left = window.innerWidth - popRect.width - 8;
+  if (left < 8) left = 8;
+
+  pop.style.top = top + 'px';
+  pop.style.left = left + 'px';
+  pop._sourceBubble = bubbleEl;
+  _favNotePopoverEl = pop;
+
+  requestAnimationFrame(() => pop.classList.add('show'));
+}
+
+function closeFavNotePopover() {
+  if (_favNotePopoverEl) {
+    _favNotePopoverEl.remove();
+    _favNotePopoverEl = null;
+  }
+}
+
+// Tutup popup kalau klik di luar area popup, atau saat scroll/resize
+document.addEventListener('click', (e) => {
+  if (_favNotePopoverEl && !_favNotePopoverEl.contains(e.target)) closeFavNotePopover();
+});
+window.addEventListener('scroll', () => closeFavNotePopover(), true);
+window.addEventListener('resize', () => closeFavNotePopover());
 
 // Klik lagu favorit teman → putar PENUH lewat player utama (sama seperti
 // klik lagu di Rekomendasi/Top Songs/dll), bukan cuma preview 30 detik.
