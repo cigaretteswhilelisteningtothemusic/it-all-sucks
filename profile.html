@@ -533,28 +533,32 @@ textarea.form-input { resize: none; line-height: 1.6; }
 .upv-pl-play svg { width: 15px; height: 15px; color: #fff; }
 
 /* ── UPV: Banner + Square Avatar (facebook-style header) ── */
-.upv-banner-wrap { position: relative; width: 100%; margin-bottom: 56px; }
+.upv-banner-wrap { position: relative; width: 100%; margin-bottom: 92px; }
 .upv-banner {
-  width: 100%; height: 160px; border-radius: var(--r);
+  width: 100%; height: 220px; border-radius: var(--r);
   overflow: hidden; background: linear-gradient(135deg, var(--card), var(--panel));
   border: 1px solid var(--border);
 }
 .upv-banner img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .upv-banner-empty { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 1.8rem; }
 .upv-header-row {
-  position: absolute; left: 16px; bottom: -46px;
-  display: flex; align-items: flex-end; gap: 14px;
+  position: absolute; left: 16px; bottom: -76px;
+  display: flex; align-items: flex-end; gap: 16px;
   right: 16px;
 }
 .upv-avatar-square {
-  width: 92px; height: 92px; border-radius: 18px; flex-shrink: 0;
+  width: 136px; height: 136px; border-radius: 24px; flex-shrink: 0;
   background: var(--card); border: 4px solid var(--bg);
   overflow: hidden; display: flex; align-items: center; justify-content: center;
-  font-size: 2.1rem; box-shadow: 0 4px 14px rgba(0,0,0,.35);
+  font-size: 2.8rem; box-shadow: 0 4px 14px rgba(0,0,0,.35);
 }
 .upv-avatar-square img { width: 100%; height: 100%; object-fit: cover; }
-.upv-header-name-wrap { padding-bottom: 8px; min-width: 0; }
+.upv-header-side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; padding-bottom: 2px; }
+.upv-header-name-wrap { padding-bottom: 0; min-width: 0; }
 .upv-header-name-wrap .upv-h-name { font-size: 1.25rem; font-weight: 800; letter-spacing: -.3px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.upv-header-liked-lbl { font-size: .62rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+.upv-header-liked .upv-liked-card { width: 64px; }
+.upv-header-liked { padding: 2px 2px 4px; }
 
 /* ── UPV: horizontal scroll strips (liked songs / catatan) ── */
 .upv-hscroll {
@@ -573,12 +577,6 @@ textarea.form-input { resize: none; line-height: 1.6; }
 .photo-tile:hover { transform: translateY(-2px); border-color: rgba(29,107,219,.4); }
 .photo-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .photo-tile-ph { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; color: var(--muted); }
-.photo-tile-overlay {
-  position: absolute; left: 0; right: 0; bottom: 0; padding: 22px 9px 8px;
-  background: linear-gradient(to top, rgba(0,0,0,.88) 8%, rgba(0,0,0,.4) 55%, transparent 100%);
-}
-.photo-tile-title { font-size: .74rem; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.photo-tile-artist { font-size: .64rem; color: rgba(255,255,255,.75); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .photo-tile-play-ov {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   opacity: 0; background: rgba(0,0,0,0); transition: all .2s;
@@ -592,6 +590,13 @@ textarea.form-input { resize: none; line-height: 1.6; }
   cursor: pointer; z-index: 2; transition: all .18s;
 }
 .photo-tile-del:hover { background: var(--danger); border-color: var(--danger); }
+
+/* ── Judul & artis dipisah, DI BAWAH foto (tidak menyatu dengan gambar) ── */
+.song-tile { display: flex; flex-direction: column; gap: 4px; min-width: 0; cursor: pointer; }
+.song-tile-title { font-size: .78rem; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.song-tile-artist { font-size: .68rem; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.upv-header-liked .song-tile-title { font-size: .66rem; }
+.upv-header-liked .song-tile-artist { font-size: .58rem; }
 
 .upv-liked-card { flex: 0 0 auto; width: 130px; }
 
@@ -953,15 +958,23 @@ textarea.form-input { resize: none; line-height: 1.6; }
   <!-- Content -->
   <div style="max-width:700px;margin:0 auto;padding:14px 16px 100px;">
 
-    <!-- Banner + Square Avatar -->
+    <!-- Banner + Square Avatar + Liked Songs (di samping avatar) -->
     <div class="upv-banner-wrap">
       <div class="upv-banner" id="upv-banner">
         <div class="upv-banner-empty">🖼️</div>
       </div>
       <div class="upv-header-row">
         <div class="upv-avatar-square" id="upv-avatar"></div>
-        <div class="upv-header-name-wrap">
-          <div class="upv-h-name" id="upv-name">—</div>
+        <div class="upv-header-side">
+          <div class="upv-header-name-wrap">
+            <div class="upv-h-name" id="upv-name">—</div>
+          </div>
+          <div>
+            <div class="upv-header-liked-lbl">Liked Songs</div>
+            <div class="upv-hscroll upv-header-liked" id="upv-liked-scroll">
+              <div class="upv-empty-mini" style="width:100%;">Loading...</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -978,14 +991,6 @@ textarea.form-input { resize: none; line-height: 1.6; }
       <div style="display:flex;flex-direction:column;gap:2px;">
         <div id="upv-stat-likes" style="font-size:1.15rem;font-weight:800;">0</div>
         <div style="font-size:.6rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);">Total Likes</div>
-      </div>
-    </div>
-
-    <!-- Liked Songs (horizontal scroll) -->
-    <div style="margin-bottom:20px;">
-      <div style="font-size:.68rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Liked Songs</div>
-      <div class="upv-hscroll" id="upv-liked-scroll">
-        <div class="upv-empty-mini" style="width:100%;">Loading...</div>
       </div>
     </div>
 
@@ -1636,19 +1641,22 @@ async function loadMyFavorites() {
     if (!snap.exists()) { listEl.innerHTML = `<div class="upv-empty-mini" style="grid-column:1/-1;">Belum ada lagu favorit</div>`; return; }
     const val = snap.val();
     const arr = Object.entries(val).sort((a,b) => (a[1].order??0) - (b[1].order??0));
-    listEl.innerHTML = arr.map(([key, f]) => `
+    listEl.innerHTML = arr.map(([key, f]) => {
+      const clickAction = f.preview ? `previewOwnFavTrack('${esc(f.preview).replace(/'/g,"\\'")}','${esc(f.title).replace(/'/g,"\\'")}')` : "toast('ℹ️ Preview tidak tersedia')";
+      return `
       <div class="fav-bubble-wrap">
         ${f.note ? `<div class="fav-note-bubble">${esc(f.note)}</div>` : ''}
-        <div class="photo-tile" onclick="${f.preview ? `previewOwnFavTrack('${esc(f.preview).replace(/'/g,"\\'")}','${esc(f.title).replace(/'/g,"\\'")}')` : "toast('ℹ️ Preview tidak tersedia')"}">
-          <button type="button" class="photo-tile-del" onclick="event.stopPropagation();removeFavoriteSong('${key}')" title="Hapus">✕</button>
-          ${f.thumb ? `<img src="${esc(f.thumb)}" alt="">` : `<div class="photo-tile-ph">♪</div>`}
-          <div class="photo-tile-play-ov"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
-          <div class="photo-tile-overlay">
-            <div class="photo-tile-title">${esc(f.title || '—')}</div>
-            <div class="photo-tile-artist">${esc(f.artist || '—')}</div>
+        <div class="song-tile" onclick="${clickAction}">
+          <div class="photo-tile">
+            <button type="button" class="photo-tile-del" onclick="event.stopPropagation();removeFavoriteSong('${key}')" title="Hapus">✕</button>
+            ${f.thumb ? `<img src="${esc(f.thumb)}" alt="">` : `<div class="photo-tile-ph">♪</div>`}
+            <div class="photo-tile-play-ov"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
           </div>
+          <div class="song-tile-title">${esc(f.title || '—')}</div>
+          <div class="song-tile-artist">${esc(f.artist || '—')}</div>
         </div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   } catch(e) {
     listEl.innerHTML = `<div class="upv-empty-mini" style="grid-column:1/-1;">Belum ada lagu favorit</div>`;
   }
@@ -2121,13 +2129,13 @@ async function openUserProfile(uid) {
         return `
         <div class="fav-bubble-wrap">
           ${f.note ? `<div class="fav-note-bubble">${esc(f.note)}</div>` : ''}
-          <div class="photo-tile" onclick="${clickAction}">
-            ${f.thumb ? `<img src="${esc(f.thumb)}" alt="">` : `<div class="photo-tile-ph">♪</div>`}
-            <div class="photo-tile-play-ov"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
-            <div class="photo-tile-overlay">
-              <div class="photo-tile-title">${esc(f.title || '—')}</div>
-              <div class="photo-tile-artist">${esc(f.artist || '—')}</div>
+          <div class="song-tile" onclick="${clickAction}">
+            <div class="photo-tile">
+              ${f.thumb ? `<img src="${esc(f.thumb)}" alt="">` : `<div class="photo-tile-ph">♪</div>`}
+              <div class="photo-tile-play-ov"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
             </div>
+            <div class="song-tile-title">${esc(f.title || '—')}</div>
+            <div class="song-tile-artist">${esc(f.artist || '—')}</div>
           </div>
         </div>`;
       }).join('');
@@ -2160,13 +2168,13 @@ async function openUserProfile(uid) {
         ? `previewUpvTrack('${prev}','${titleEsc}')`
         : `playLikedTrackUpv2(${i}, '${uid}')`;
       return `
-      <div class="upv-liked-card photo-tile" onclick="${clickAction}">
-        ${t.thumb ? `<img src="${esc(t.thumb)}" alt="">` : `<div class="photo-tile-ph">♪</div>`}
-        <div class="photo-tile-play-ov"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
-        <div class="photo-tile-overlay">
-          <div class="photo-tile-title">${esc(t.title || '—')}</div>
-          <div class="photo-tile-artist">${esc(t.artist || '—')}</div>
+      <div class="upv-liked-card song-tile" onclick="${clickAction}">
+        <div class="photo-tile">
+          ${t.thumb ? `<img src="${esc(t.thumb)}" alt="">` : `<div class="photo-tile-ph">♪</div>`}
+          <div class="photo-tile-play-ov"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
         </div>
+        <div class="song-tile-title">${esc(t.title || '—')}</div>
+        <div class="song-tile-artist">${esc(t.artist || '—')}</div>
       </div>`;
     }).join('');
   } else {
