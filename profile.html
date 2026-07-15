@@ -564,22 +564,81 @@ textarea.form-input { resize: none; line-height: 1.6; }
 .upv-hscroll::-webkit-scrollbar { height: 6px; }
 .upv-hscroll::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 10px; }
 
-.upv-liked-card {
-  flex: 0 0 auto; width: 128px; cursor: pointer;
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: 12px; padding: 8px; transition: all .2s;
+/* ── Full-photo square song tile (dipakai utk Liked Songs & Lagu Favorit) ── */
+.photo-tile {
+  position: relative; width: 100%; aspect-ratio: 1/1; border-radius: 12px;
+  overflow: hidden; cursor: pointer; background: var(--panel);
+  border: 1px solid var(--border); transition: transform .2s, border-color .2s;
 }
-.upv-liked-card:hover { border-color: rgba(29,107,219,.4); background: var(--hover); }
-.upv-liked-thumb { position: relative; width: 100%; aspect-ratio: 1/1; border-radius: 8px; overflow: hidden; background: var(--panel); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; margin-bottom: 6px; }
-.upv-liked-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.upv-liked-play-ov {
-  position: absolute; inset: 0; background: rgba(8,11,18,0); display: flex; align-items: center; justify-content: center;
-  opacity: 0; transition: all .2s;
+.photo-tile:hover { transform: translateY(-2px); border-color: rgba(29,107,219,.4); }
+.photo-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-tile-ph { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; color: var(--muted); }
+.photo-tile-overlay {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 22px 9px 8px;
+  background: linear-gradient(to top, rgba(0,0,0,.88) 8%, rgba(0,0,0,.4) 55%, transparent 100%);
 }
-.upv-liked-card:hover .upv-liked-play-ov { opacity: 1; background: rgba(8,11,18,0.35); }
-.upv-liked-play-ov svg { width: 24px; height: 24px; color: #fff; filter: drop-shadow(0 2px 6px rgba(0,0,0,.5)); }
-.upv-liked-title { font-size: .74rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.upv-liked-artist { font-size: .66rem; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.photo-tile-title { font-size: .74rem; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.photo-tile-artist { font-size: .64rem; color: rgba(255,255,255,.75); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.photo-tile-play-ov {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  opacity: 0; background: rgba(0,0,0,0); transition: all .2s;
+}
+.photo-tile:hover .photo-tile-play-ov { opacity: 1; background: rgba(0,0,0,.3); }
+.photo-tile-play-ov svg { width: 30px; height: 30px; color: #fff; filter: drop-shadow(0 2px 6px rgba(0,0,0,.6)); }
+.photo-tile-del {
+  position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 50%;
+  background: rgba(8,11,18,.75); border: 1px solid rgba(255,255,255,.15);
+  color: #fff; display: flex; align-items: center; justify-content: center; font-size: .8rem;
+  cursor: pointer; z-index: 2; transition: all .18s;
+}
+.photo-tile-del:hover { background: var(--danger); border-color: var(--danger); }
+
+.upv-liked-card { flex: 0 0 auto; width: 130px; }
+
+/* ── Speech-bubble catatan di atas photo tile ── */
+.fav-bubble-wrap { display: flex; flex-direction: column; }
+.fav-note-bubble {
+  position: relative; background: var(--panel); border: 1.5px solid var(--border);
+  border-radius: 14px; padding: 7px 10px 9px; margin: 0 8px 12px 10px;
+  font-size: .66rem; line-height: 1.4; color: var(--teal);
+  max-height: 58px; overflow: hidden; word-break: break-word;
+}
+.fav-note-bubble::before {
+  content: ''; position: absolute; left: 16px; bottom: -6px;
+  width: 13px; height: 13px; background: var(--panel);
+  border-left: 1.5px solid var(--border); border-bottom: 1.5px solid var(--border);
+  border-bottom-left-radius: 7px; transform: rotate(-48deg);
+}
+
+/* ── Dropdown hasil pencarian lagu (Lagu Favorit) ── */
+.fav-picker-wrap { position: relative; }
+.fav-picker-dropdown {
+  display: none; position: absolute; left: 0; right: 0; top: calc(100% + 4px);
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  max-height: 280px; overflow-y: auto; z-index: 40;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+}
+.fav-picker-dropdown::-webkit-scrollbar { width: 6px; }
+.fav-picker-dropdown::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 10px; }
+.fav-picker-loading { padding: 14px; text-align: center; font-size: .78rem; color: var(--muted); }
+.fav-picker-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+  cursor: pointer; transition: background .15s;
+}
+.fav-picker-row:hover { background: var(--hover); }
+.fav-picker-thumb { width: 34px; height: 34px; border-radius: 7px; overflow: hidden; flex-shrink: 0; background: var(--card); display: flex; align-items: center; justify-content: center; font-size: .9rem; }
+.fav-picker-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.fav-picker-info { flex: 1; min-width: 0; }
+.fav-picker-title { font-size: .78rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fav-picker-artist { font-size: .68rem; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fav-picker-play-btn {
+  flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%;
+  background: var(--blue-dim); border: 1px solid rgba(29,107,219,.3);
+  color: var(--blue); display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all .18s;
+}
+.fav-picker-play-btn:hover { background: var(--blue); color: #fff; }
+.fav-picker-play-btn svg { width: 12px; height: 12px; }
 
 .upv-note-card {
   flex: 0 0 auto; width: 200px; background: var(--card);
@@ -592,23 +651,9 @@ textarea.form-input { resize: none; line-height: 1.6; }
 .upv-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 @media (max-width: 560px) { .upv-columns { grid-template-columns: 1fr; } }
 .upv-about-text { font-size: .84rem; line-height: 1.7; color: var(--sub); white-space: pre-wrap; word-break: break-word; }
-.upv-fav-list { max-height: 460px; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding-right: 2px; }
+.upv-fav-list { max-height: 520px; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; padding-right: 2px; align-content: start; }
 .upv-fav-list::-webkit-scrollbar { width: 6px; }
 .upv-fav-list::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 10px; }
-.upv-fav-item { display: flex; flex-direction: column; gap: 6px; padding: 9px; border-radius: 12px; background: var(--panel); border: 1px solid var(--border); cursor: pointer; transition: all .2s; }
-.upv-fav-item:hover { border-color: rgba(29,107,219,.4); background: var(--hover); }
-.upv-fav-note { font-size: .68rem; color: var(--teal); line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
-.upv-fav-thumb-wrap { position: relative; width: 100%; aspect-ratio: 1/1; border-radius: 9px; overflow: hidden; background: var(--card); display: flex; align-items: center; justify-content: center; font-size: 1.6rem; }
-.upv-fav-thumb-wrap img { width: 100%; height: 100%; object-fit: cover; }
-.upv-fav-play-ov {
-  position: absolute; inset: 0; background: rgba(8,11,18,0); display: flex; align-items: center; justify-content: center;
-  opacity: 0; transition: all .2s;
-}
-.upv-fav-item:hover .upv-fav-play-ov { opacity: 1; background: rgba(8,11,18,0.35); }
-.upv-fav-play-ov svg { width: 26px; height: 26px; color: #fff; filter: drop-shadow(0 2px 6px rgba(0,0,0,.5)); }
-.upv-fav-info { min-width: 0; }
-.upv-fav-title { font-size: .78rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.upv-fav-artist { font-size: .68rem; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .upv-empty-mini { text-align: center; padding: 20px 8px; color: var(--muted); font-size: .74rem; }
 
 /* Track row in detail view */
@@ -759,10 +804,10 @@ textarea.form-input { resize: none; line-height: 1.6; }
   <!-- LAGU FAVORIT -->
   <div class="section-card">
     <div class="section-title">Lagu Favorit <span style="color:var(--muted);text-transform:none;letter-spacing:0;">(maks. 10)</span></div>
-    <div class="form-group">
-      <label class="form-label">Cari Lagu (dari playlist kamu)</label>
-      <input type="text" class="form-input" id="inp-fav-picker" list="fav-track-list" placeholder="Ketik judul lagu..." oninput="onFavPickerInput(this.value)" autocomplete="off">
-      <datalist id="fav-track-list"></datalist>
+    <div class="form-group fav-picker-wrap">
+      <label class="form-label">Cari Lagu</label>
+      <input type="text" class="form-input" id="inp-fav-picker" placeholder="Ketik judul lagu..." oninput="onFavPickerInput(this.value)" autocomplete="off">
+      <div class="fav-picker-dropdown" id="fav-picker-results"></div>
     </div>
     <div id="fav-picker-preview" style="display:none;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin-bottom:14px;"></div>
     <div class="form-group">
@@ -1119,7 +1164,6 @@ async function loadMyPlaylists() {
     }
     renderMyPlaylists();
     updateStats();
-    populateFavTrackPicker();
   } catch(e) {
     console.error(e);
   }
@@ -1457,49 +1501,100 @@ async function deleteNote(key) {
 }
 
 // ── Lagu Favorit ────────────────────────────────────────────
-let favTrackMap = {};
 let selectedFavTrack = null;
-
-function getAllMyTracksFlat() {
-  const seen = new Map();
-  Object.values(myPlaylists).forEach(pl => {
-    (pl.tracks || []).forEach(t => {
-      if (!t.title) return;
-      const key = t.title + '|' + (t.artist || '');
-      if (!seen.has(key)) seen.set(key, t);
-    });
-  });
-  return Array.from(seen.values());
-}
-
-function populateFavTrackPicker() {
-  favTrackMap = {};
-  const dl = document.getElementById('fav-track-list');
-  const tracks = getAllMyTracksFlat();
-  dl.innerHTML = tracks.map(t => {
-    const label = `${t.title} — ${t.artist || 'Unknown'}`;
-    favTrackMap[label] = t;
-    return `<option value="${esc(label)}"></option>`;
-  }).join('');
-}
+let favSearchResults = [];
+let favSearchTimer = null;
+let favSearchAudio = null;
+let favSearchSeq = 0;
 
 function onFavPickerInput(val) {
-  const t = favTrackMap[val];
-  const preview = document.getElementById('fav-picker-preview');
-  if (t) {
-    selectedFavTrack = t;
-    preview.style.display = 'flex';
-    preview.innerHTML = `
-      <div style="width:36px;height:36px;border-radius:7px;overflow:hidden;flex-shrink:0;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:1rem;">${t.thumb ? `<img src="${esc(t.thumb)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : '♪'}</div>
-      <div style="min-width:0;">
-        <div style="font-size:.78rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(t.title)}</div>
-        <div style="font-size:.68rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(t.artist || '')}</div>
-      </div>`;
-  } else {
-    selectedFavTrack = null;
-    preview.style.display = 'none';
+  selectedFavTrack = null;
+  document.getElementById('fav-picker-preview').style.display = 'none';
+  clearTimeout(favSearchTimer);
+  const dropdown = document.getElementById('fav-picker-results');
+  const q = (val || '').trim();
+  if (q.length < 2) {
+    dropdown.style.display = 'none';
+    dropdown.innerHTML = '';
+    return;
+  }
+  dropdown.style.display = 'block';
+  dropdown.innerHTML = `<div class="fav-picker-loading">Mencari...</div>`;
+  favSearchTimer = setTimeout(() => doFavSearch(q), 400);
+}
+
+async function doFavSearch(q) {
+  const mySeq = ++favSearchSeq;
+  const dropdown = document.getElementById('fav-picker-results');
+  try {
+    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=8&country=ID`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) throw new Error('Pencarian gagal (' + res.status + ')');
+    const data = await res.json();
+    if (mySeq !== favSearchSeq) return; // hasil pencarian lama, abaikan
+    favSearchResults = (data.results || []).map(it => ({
+      title: it.trackName || 'Unknown',
+      artist: it.artistName || 'Unknown',
+      thumb: (it.artworkUrl100 || '').replace('100x100bb', '600x600bb'),
+      preview: it.previewUrl || null,
+      _query: `${it.artistName || ''}|||${it.trackName || ''}|||${it.trackId || Math.random()}`
+    }));
+    if (!favSearchResults.length) {
+      dropdown.innerHTML = `<div class="fav-picker-loading">Tidak ada hasil untuk "${esc(q)}"</div>`;
+      return;
+    }
+    dropdown.innerHTML = favSearchResults.map((t, i) => `
+      <div class="fav-picker-row" onclick="selectFavSearchResult(${i})">
+        <div class="fav-picker-thumb">${t.thumb ? `<img src="${esc(t.thumb)}" alt="">` : '♪'}</div>
+        <div class="fav-picker-info">
+          <div class="fav-picker-title">${esc(t.title)}</div>
+          <div class="fav-picker-artist">${esc(t.artist)}</div>
+        </div>
+        ${t.preview ? `<button type="button" class="fav-picker-play-btn" onclick="event.stopPropagation();previewFavTrack(${i})" title="Putar preview 30 detik"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>` : ''}
+      </div>`).join('');
+  } catch(e) {
+    if (mySeq !== favSearchSeq) return;
+    dropdown.innerHTML = `<div class="fav-picker-loading">❌ ${esc(e.message)}</div>`;
   }
 }
+
+function previewFavTrack(i) {
+  const t = favSearchResults[i];
+  if (!t || !t.preview) { toast('ℹ️ Preview tidak tersedia untuk lagu ini'); return; }
+  if (favSearchAudio) { favSearchAudio.pause(); favSearchAudio = null; }
+  favSearchAudio = new Audio(t.preview);
+  favSearchAudio.play().catch(() => toast('❌ Gagal memutar preview'));
+  toast('▶️ Memutar preview 30 detik: ' + t.title);
+}
+
+function selectFavSearchResult(i) {
+  const t = favSearchResults[i];
+  if (!t) return;
+  selectedFavTrack = t;
+  document.getElementById('inp-fav-picker').value = `${t.title} — ${t.artist}`;
+  const dropdown = document.getElementById('fav-picker-results');
+  dropdown.style.display = 'none';
+  dropdown.innerHTML = '';
+  const preview = document.getElementById('fav-picker-preview');
+  preview.style.display = 'flex';
+  preview.innerHTML = `
+    <div style="width:36px;height:36px;border-radius:7px;overflow:hidden;flex-shrink:0;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:1rem;">${t.thumb ? `<img src="${esc(t.thumb)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : '♪'}</div>
+    <div style="min-width:0;flex:1;">
+      <div style="font-size:.78rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(t.title)}</div>
+      <div style="font-size:.68rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(t.artist)}</div>
+    </div>
+    ${t.preview ? `<button type="button" onclick="previewFavTrack(favSearchResults.indexOf(selectedFavTrack))" style="flex-shrink:0;width:30px;height:30px;border-radius:50%;background:var(--blue-dim);border:1px solid rgba(29,107,219,.3);color:var(--blue);display:flex;align-items:center;justify-content:center;cursor:pointer;" title="Putar preview"><svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M8 5v14l11-7z"/></svg></button>` : ''}
+  `;
+}
+
+// Tutup dropdown pencarian saat klik di luar area
+document.addEventListener('click', (e) => {
+  const wrap = document.querySelector('.fav-picker-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    const dropdown = document.getElementById('fav-picker-results');
+    if (dropdown) dropdown.style.display = 'none';
+  }
+});
 
 async function addFavoriteSong() {
   if (!currentUser) return;
@@ -1517,11 +1612,13 @@ async function addFavoriteSong() {
       artist: selectedFavTrack.artist || '',
       thumb: selectedFavTrack.thumb || selectedFavTrack.photo || '',
       _query: selectedFavTrack._query || '',
+      preview: selectedFavTrack.preview || '',
       note, order, addedAt: Date.now()
     });
     document.getElementById('inp-fav-picker').value = '';
     document.getElementById('inp-fav-note').value = '';
     document.getElementById('fav-picker-preview').style.display = 'none';
+    document.getElementById('fav-picker-results').style.display = 'none';
     selectedFavTrack = null;
     toast('✅ Ditambahkan ke lagu favorit!');
     loadMyFavorites();
@@ -1533,24 +1630,36 @@ async function addFavoriteSong() {
 async function loadMyFavorites() {
   if (!currentUser) return;
   const listEl = document.getElementById('my-favorites-list');
+  listEl.className = 'upv-fav-list';
   try {
     const snap = await db.ref('users/' + currentUser.uid + '/favoriteSongs').get();
-    if (!snap.exists()) { listEl.innerHTML = `<div style="text-align:center;padding:14px 0;color:var(--muted);font-size:.78rem;">Belum ada lagu favorit</div>`; return; }
+    if (!snap.exists()) { listEl.innerHTML = `<div class="upv-empty-mini" style="grid-column:1/-1;">Belum ada lagu favorit</div>`; return; }
     const val = snap.val();
     const arr = Object.entries(val).sort((a,b) => (a[1].order??0) - (b[1].order??0));
     listEl.innerHTML = arr.map(([key, f]) => `
-      <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:8px 10px;display:flex;gap:10px;align-items:center;">
-        <div style="width:38px;height:38px;border-radius:7px;overflow:hidden;flex-shrink:0;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:1rem;">${f.thumb ? `<img src="${esc(f.thumb)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : '♪'}</div>
-        <div style="min-width:0;flex:1;">
-          <div style="font-size:.8rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(f.title||'—')}</div>
-          <div style="font-size:.7rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(f.artist||'—')}</div>
-          ${f.note ? `<div style="font-size:.7rem;color:var(--teal);white-space:pre-wrap;word-break:break-word;margin-top:2px;">"${esc(f.note)}"</div>` : ''}
+      <div class="fav-bubble-wrap">
+        ${f.note ? `<div class="fav-note-bubble">${esc(f.note)}</div>` : ''}
+        <div class="photo-tile" onclick="${f.preview ? `previewOwnFavTrack('${esc(f.preview).replace(/'/g,"\\'")}','${esc(f.title).replace(/'/g,"\\'")}')` : "toast('ℹ️ Preview tidak tersedia')"}">
+          <button type="button" class="photo-tile-del" onclick="event.stopPropagation();removeFavoriteSong('${key}')" title="Hapus">✕</button>
+          ${f.thumb ? `<img src="${esc(f.thumb)}" alt="">` : `<div class="photo-tile-ph">♪</div>`}
+          <div class="photo-tile-play-ov"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+          <div class="photo-tile-overlay">
+            <div class="photo-tile-title">${esc(f.title || '—')}</div>
+            <div class="photo-tile-artist">${esc(f.artist || '—')}</div>
+          </div>
         </div>
-        <button onclick="removeFavoriteSong('${key}')" style="flex-shrink:0;background:none;border:none;color:var(--muted);cursor:pointer;font-size:.9rem;" title="Hapus">✕</button>
       </div>`).join('');
   } catch(e) {
-    listEl.innerHTML = `<div style="text-align:center;padding:14px 0;color:var(--muted);font-size:.78rem;">Belum ada lagu favorit</div>`;
+    listEl.innerHTML = `<div class="upv-empty-mini" style="grid-column:1/-1;">Belum ada lagu favorit</div>`;
   }
+}
+
+function previewOwnFavTrack(previewUrl, title) {
+  if (!previewUrl) { toast('ℹ️ Preview tidak tersedia'); return; }
+  if (favSearchAudio) { favSearchAudio.pause(); favSearchAudio = null; }
+  favSearchAudio = new Audio(previewUrl);
+  favSearchAudio.play().catch(() => toast('❌ Gagal memutar preview'));
+  toast('▶️ Memutar preview: ' + title);
 }
 
 async function removeFavoriteSong(key) {
@@ -2004,16 +2113,21 @@ async function openUserProfile(uid) {
         .slice(0, 10);
       favEl.innerHTML = favArr.map(f => {
         const q = f._query ? esc(f._query).replace(/'/g,"\\'") : '';
+        const prev = f.preview ? esc(f.preview).replace(/'/g,"\\'") : '';
+        const titleEsc = esc(f.title || '').replace(/'/g,"\\'");
+        const clickAction = prev
+          ? `previewUpvTrack('${prev}','${titleEsc}')`
+          : (q ? `playQueryUpv('${q}')` : "toast('ℹ️ Info songs tidak tersedia')");
         return `
-        <div class="upv-fav-item" onclick="${q ? `playQueryUpv('${q}')` : "toast('ℹ️ Info songs tidak tersedia')"}">
-          ${f.note ? `<div class="upv-fav-note">"${esc(f.note)}"</div>` : ''}
-          <div class="upv-fav-thumb-wrap">
-            ${f.thumb ? `<img src="${esc(f.thumb)}" alt="">` : '♪'}
-            <div class="upv-fav-play-ov"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
-          </div>
-          <div class="upv-fav-info">
-            <div class="upv-fav-title">${esc(f.title || '—')}</div>
-            <div class="upv-fav-artist">${esc(f.artist || '—')}</div>
+        <div class="fav-bubble-wrap">
+          ${f.note ? `<div class="fav-note-bubble">${esc(f.note)}</div>` : ''}
+          <div class="photo-tile" onclick="${clickAction}">
+            ${f.thumb ? `<img src="${esc(f.thumb)}" alt="">` : `<div class="photo-tile-ph">♪</div>`}
+            <div class="photo-tile-play-ov"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+            <div class="photo-tile-overlay">
+              <div class="photo-tile-title">${esc(f.title || '—')}</div>
+              <div class="photo-tile-artist">${esc(f.artist || '—')}</div>
+            </div>
           </div>
         </div>`;
       }).join('');
@@ -2039,15 +2153,22 @@ async function openUserProfile(uid) {
     likedTracks = userPls[likedKey].tracks || [];
   }
   if (likedTracks.length) {
-    likedScrollEl.innerHTML = likedTracks.map((t, i) => `
-      <div class="upv-liked-card" onclick="playLikedTrackUpv2(${i}, '${uid}')">
-        <div class="upv-liked-thumb">
-          ${t.thumb ? `<img src="${esc(t.thumb)}" alt="">` : '♪'}
-          <div class="upv-liked-play-ov"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+    likedScrollEl.innerHTML = likedTracks.map((t, i) => {
+      const prev = t.preview ? esc(t.preview).replace(/'/g,"\\'") : '';
+      const titleEsc = esc(t.title || '').replace(/'/g,"\\'");
+      const clickAction = prev
+        ? `previewUpvTrack('${prev}','${titleEsc}')`
+        : `playLikedTrackUpv2(${i}, '${uid}')`;
+      return `
+      <div class="upv-liked-card photo-tile" onclick="${clickAction}">
+        ${t.thumb ? `<img src="${esc(t.thumb)}" alt="">` : `<div class="photo-tile-ph">♪</div>`}
+        <div class="photo-tile-play-ov"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+        <div class="photo-tile-overlay">
+          <div class="photo-tile-title">${esc(t.title || '—')}</div>
+          <div class="photo-tile-artist">${esc(t.artist || '—')}</div>
         </div>
-        <div class="upv-liked-title">${esc(t.title || '—')}</div>
-        <div class="upv-liked-artist">${esc(t.artist || '—')}</div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   } else {
     likedScrollEl.innerHTML = `<div class="upv-empty-mini" style="width:100%;">Belum ada liked songs</div>`;
   }
@@ -2090,6 +2211,15 @@ async function openUserProfile(uid) {
       </button>
     </div>`;
   }).join('');
+}
+
+let upvPreviewAudio = null;
+function previewUpvTrack(previewUrl, title) {
+  if (!previewUrl) { toast('ℹ️ Preview tidak tersedia'); return; }
+  if (upvPreviewAudio) { upvPreviewAudio.pause(); upvPreviewAudio = null; }
+  upvPreviewAudio = new Audio(previewUrl);
+  upvPreviewAudio.play().catch(() => toast('❌ Gagal memutar preview'));
+  toast('▶️ Memutar preview: ' + title);
 }
 
 function playLikedTrackUpv2(idx, uid) {
