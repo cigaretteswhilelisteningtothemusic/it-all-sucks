@@ -3183,6 +3183,11 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 .chat-bubble{padding:9px 14px;border-radius:16px;font-size:.86rem;line-height:1.42;word-wrap:break-word;white-space:pre-wrap;}
 .chat-bubble-row.me .chat-bubble{background:var(--green);color:#fff;border-bottom-right-radius:4px;}
 .chat-bubble-row.them .chat-bubble{background:var(--card);color:var(--text);border-bottom-left-radius:4px;}
+/* Pesan yang isinya cuma emoji (emoji apa saja, tidak dibatasi jenisnya) —
+   tampil besar & tanpa warna latar bubble, ala WhatsApp/Telegram. */
+.chat-bubble.chat-bubble-emoji-only,
+.chat-bubble-row.me .chat-bubble.chat-bubble-emoji-only,
+.chat-bubble-row.them .chat-bubble.chat-bubble-emoji-only{background:transparent!important;box-shadow:none;padding:2px 0;border-radius:0!important;font-size:2.7rem;line-height:1.2;word-break:break-word;}
 .chat-bubble-time{font-size:.62rem;color:var(--muted);margin-top:3px;padding:0 4px;}
 .chat-read-status{font-size:.62rem;color:var(--muted);margin-top:2px;padding:0 4px;display:flex;align-items:center;gap:3px;}
 .chat-read-status.seen{color:var(--teal);}
@@ -3243,6 +3248,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   .chat-item{padding:11px 16px;}
   .chat-messages{padding:16px;}
   .chat-input-bar{padding:12px 16px;}
+  .chat-bubble.chat-bubble-emoji-only{font-size:2.35rem;}
 }
 
 /* ── Kirim Foto/Video di Chat (Cloudinary) ─────────────────── */
@@ -3266,15 +3272,27 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 .chat-media-preview-close:hover{color:var(--text);background:var(--hover);}
 .chat-media-preview-close svg{width:15px;height:15px;}
 
-/* Bubble berisi foto/video di dalam percakapan */
-.chat-bubble-media{padding:4px;border-radius:16px;overflow:hidden;max-width:260px;cursor:pointer;line-height:0;position:relative;}
-.chat-bubble-media img,.chat-bubble-media video{width:100%;max-height:320px;border-radius:13px;display:block;object-fit:cover;background:#000;}
+/* Bubble berisi foto/video/GIF di dalam percakapan — pakai object-fit:contain
+   (bukan cover) supaya seluruh isi GIF/foto terlihat utuh, tidak terpotong.
+   Kalau rasio GIF-nya tinggi/panjang, bubble tetap dibatasi tingginya lewat
+   max-height + overflow-y:auto supaya layout chat tidak jebol, dan sisa
+   bagian GIF-nya bisa di-scroll oleh user. */
+.chat-bubble-media{padding:4px;border-radius:16px;overflow:hidden;overflow-y:auto;max-width:260px;max-height:420px;cursor:pointer;line-height:0;position:relative;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
+.chat-bubble-media img,.chat-bubble-media video{width:100%;height:auto;max-height:none;border-radius:13px;display:block;object-fit:contain;background:#000;}
 .chat-bubble-media video{cursor:pointer;}
 .chat-bubble-caption{padding:8px 14px 2px;font-size:.86rem;line-height:1.42;word-wrap:break-word;white-space:pre-wrap;}
 .chat-bubble-gif-badge{position:absolute;top:9px;left:9px;background:rgba(0,0,0,.65);color:#fff;font-size:.62rem;font-weight:800;letter-spacing:.5px;padding:2px 7px;border-radius:5px;pointer-events:none;}
 
 @media(max-width:1050px){
   .chat-media-preview{padding:10px 16px;}
+}
+
+@media(max-width:640px){
+  /* Di layar HP, lebarkan bubble GIF/foto/video mengikuti lebar layar supaya
+     GIF tampil utuh dan nyaman dilihat, dengan tinggi maksimal yang masih
+     bisa di-scroll kalau GIF-nya panjang. */
+  .chat-bubble-media{max-width:min(78vw,320px);max-height:min(60vh,460px);}
+  .chat-bubble-row:has(.chat-bubble-media){max-width:82vw;}
 }
 
 /* ── Kirim GIF di Chat (Giphy) ──────────────────────────────── */
@@ -6018,7 +6036,13 @@ function renderChatMessages(msgsObj) {
            <img src="${esc(m.mediaUrl)}" alt="GIF" loading="lazy">
          </div>${m.text ? `<div class="chat-bubble-caption">${esc(m.text)}</div>` : ''}`;
     } else {
-      bubbleHTML = `<div class="chat-bubble">${esc(m.text || '')}</div>`;
+      // Kalau pesannya cuma emoji (dan bukan balasan pesan lain, karena
+      // kutipan balasan butuh latar bubble supaya tetap terbaca), tampilkan
+      // besar & tanpa background — mirip WhatsApp/Telegram. Emoji apa pun
+      // yang dipilih user lewat keyboard tetap didukung, tidak dibatasi.
+      const msgText = m.text || '';
+      const emojiOnly = !quoteHTML && isChatEmojiOnlyMessage(msgText);
+      bubbleHTML = `<div class="chat-bubble${emojiOnly ? ' chat-bubble-emoji-only' : ''}">${esc(msgText)}</div>`;
     }
 
     let readHTML = '';
@@ -6175,6 +6199,32 @@ function deleteMessageForEveryone(chatId, key) {
     deletedForEveryone: true,
     deletedBy: currentUser.uid
   }).catch(err => console.error('Gagal menghapus pesan:', err));
+}
+
+// ── Deteksi pesan "cuma emoji" (utk tampilan bubble besar tanpa background,
+//    ala WhatsApp/Telegram) ───────────────────────────────────────────────
+// Sengaja TIDAK memakai daftar emoji tertentu / whitelist — semua emoji Unicode
+// (termasuk emoji gabungan/ZWJ, bendera, dan varian warna kulit) dianggap valid,
+// jadi user bebas pilih emoji apa saja lewat keyboard emoji bawaan HP-nya.
+// Batas hanya pada JUMLAH karakter emoji dalam satu pesan (maks 10), semata-mata
+// supaya tampilan besar tetap rapi, bukan membatasi jenis emojinya.
+const CHAT_EMOJI_ONLY_MAX_COUNT = 10;
+function isChatEmojiOnlyMessage(text) {
+  if (!text) return false;
+  const trimmed = String(text).trim();
+  if (!trimmed) return false;
+  try {
+    if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+      const seg = new Intl.Segmenter('en', { granularity: 'grapheme' });
+      const graphemes = Array.from(seg.segment(trimmed), s => s.segment).filter(g => g.trim() !== '');
+      if (!graphemes.length || graphemes.length > CHAT_EMOJI_ONLY_MAX_COUNT) return false;
+      const EMOJI_CHAR_RE = /\p{Extended_Pictographic}|[\u{1F1E6}-\u{1F1FF}]|[\u{1F3FB}-\u{1F3FF}]|\u200D|\uFE0F|\u20E3/u;
+      return graphemes.every(g => EMOJI_CHAR_RE.test(g));
+    }
+  } catch (e) { /* lanjut ke fallback di bawah kalau Intl.Segmenter bermasalah */ }
+  // Fallback (browser tanpa Intl.Segmenter) — tetap tidak membatasi jenis emoji.
+  const EMOJI_ONLY_FALLBACK_RE = /^(?:\p{Extended_Pictographic}\uFE0F?(?:\u200D\p{Extended_Pictographic}\uFE0F?)*|[\u{1F1E6}-\u{1F1FF}]{2}|[0-9#\*]\uFE0F?\u20E3|[\u{1F3FB}-\u{1F3FF}]\s*)+$/u;
+  return trimmed.length <= 40 && EMOJI_ONLY_FALLBACK_RE.test(trimmed);
 }
 
 // Label pemisah tanggal ala WhatsApp: "Hari Ini", "Kemarin", atau tanggal
