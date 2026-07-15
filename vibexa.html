@@ -3043,7 +3043,7 @@ body.np-is-fullscreen #bar{display:none !important;}
 /* Emoji yang ditempel teman di pojok kiri atas bubble catatan (mirip Instagram) —
    diambil dari field `emoji` di node favoriteSongs/{key}, sama seperti note/noteColor,
    jadi otomatis realtime ikut listener favoriteSongs yang sudah ada di startFriendFavListeners(). */
-.fav-note-emoji-badge{position:absolute;top:-8px;left:-8px;width:21px;height:21px;border-radius:50%;background:var(--panel);border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:.7rem;line-height:1;box-shadow:0 2px 6px rgba(0,0,0,.35);z-index:3;}
+.fav-note-emoji-badge{position:absolute;top:-14px;left:-10px;width:auto;height:auto;border-radius:0;background:none;border:none;box-shadow:none;display:flex;align-items:center;justify-content:center;font-size:1.55rem;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.45));z-index:3;}
 .friend-fav-thumb-wrap{position:relative;width:100%;aspect-ratio:1/1;border-radius:10px;overflow:hidden;cursor:pointer;background:var(--card);border:1px solid var(--border);transition:transform .18s,border-color .18s;}
 .friend-fav-thumb-wrap:hover{transform:translateY(-2px);border-color:var(--green);}
 .friend-fav-thumb-wrap img{width:100%;height:100%;object-fit:cover;display:block;}
@@ -3309,10 +3309,15 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 .chat-gif-picker-close{background:none;border:none;color:var(--sub);cursor:pointer;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;}
 .chat-gif-picker-close:hover{color:var(--text);background:var(--hover);}
 .chat-gif-picker-close svg{width:15px;height:15px;}
-.chat-gif-grid{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;padding:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px;align-content:start;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
-.chat-gif-grid-item{border-radius:8px;overflow:hidden;cursor:pointer;background:var(--card);aspect-ratio:1/1;border:1px solid transparent;transition:border-color .15s,transform .1s;}
+.chat-gif-grid{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;padding:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));grid-auto-rows:min-content;gap:6px;align-content:start;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
+/* Pakai teknik padding-top (bukan aspect-ratio) supaya tinggi sel benar-benar
+   terkunci persegi di semua browser/WebView, termasuk WebView Android lama
+   yang penanganan aspect-ratio-nya tidak konsisten di dalam CSS Grid — ini
+   yang tadinya menyebabkan sel GIF tidak punya tinggi pasti dan akhirnya
+   saling tumpang-tindih/menutupi GIF lain di tampilan mobile. */
+.chat-gif-grid-item{position:relative;width:100%;padding-top:100%;height:0;border-radius:8px;overflow:hidden;cursor:pointer;background:var(--card);border:1px solid transparent;transition:border-color .15s,transform .1s;}
 .chat-gif-grid-item:hover{border-color:var(--green);transform:scale(1.02);}
-.chat-gif-grid-item img{width:100%;height:100%;object-fit:contain;display:block;}
+.chat-gif-grid-item img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block;}
 .chat-gif-empty,.chat-gif-loading{grid-column:1/-1;text-align:center;color:var(--sub);font-size:.8rem;padding:40px 10px;}
 .chat-gif-attribution{flex-shrink:0;text-align:center;padding:6px;font-size:.62rem;color:var(--muted);border-top:1px solid var(--border);}
 
