@@ -533,29 +533,30 @@ textarea.form-input { resize: none; line-height: 1.6; }
 .upv-pl-play svg { width: 15px; height: 15px; color: #fff; }
 
 /* ── UPV: Banner + Square Avatar (facebook-style header) ── */
-.upv-banner-wrap { position: relative; width: 100%; margin-bottom: 92px; }
+.upv-banner-wrap { position: relative; width: 100%; margin-bottom: 112px; }
 .upv-banner {
-  width: 100%; height: 220px; border-radius: var(--r);
+  width: 100%; height: 240px; border-radius: var(--r);
   overflow: hidden; background: linear-gradient(135deg, var(--card), var(--panel));
   border: 1px solid var(--border);
 }
 .upv-banner img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .upv-banner-empty { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 1.8rem; }
 .upv-header-row {
-  position: absolute; left: 16px; bottom: -76px;
-  display: flex; align-items: flex-end; gap: 16px;
+  position: absolute; left: 16px; bottom: -96px;
+  display: flex; align-items: flex-end; gap: 18px;
   right: 16px;
 }
 .upv-avatar-square {
-  width: 136px; height: 136px; border-radius: 24px; flex-shrink: 0;
+  width: 168px; height: 168px; border-radius: 28px; flex-shrink: 0;
   background: var(--card); border: 4px solid var(--bg);
   overflow: hidden; display: flex; align-items: center; justify-content: center;
-  font-size: 2.8rem; box-shadow: 0 4px 14px rgba(0,0,0,.35);
+  font-size: 3.2rem; box-shadow: 0 4px 14px rgba(0,0,0,.35);
 }
 .upv-avatar-square img { width: 100%; height: 100%; object-fit: cover; }
-.upv-header-side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; padding-bottom: 2px; }
-.upv-header-name-wrap { padding-bottom: 0; min-width: 0; }
+.upv-header-side { flex: 1; min-width: 0; display: flex; align-items: flex-end; padding-bottom: 4px; }
+.upv-header-name-wrap { flex-shrink: 0; max-width: 42%; padding-bottom: 0; min-width: 0; }
 .upv-header-name-wrap .upv-h-name { font-size: 1.25rem; font-weight: 800; letter-spacing: -.3px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.upv-header-liked-block { flex: 1; min-width: 0; margin-left: 36px; }
 .upv-header-liked-lbl { font-size: .62rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
 .upv-header-liked .upv-liked-card { width: 64px; }
 .upv-header-liked { padding: 2px 2px 4px; }
@@ -969,7 +970,7 @@ textarea.form-input { resize: none; line-height: 1.6; }
           <div class="upv-header-name-wrap">
             <div class="upv-h-name" id="upv-name">—</div>
           </div>
-          <div>
+          <div class="upv-header-liked-block">
             <div class="upv-header-liked-lbl">Liked Songs</div>
             <div class="upv-hscroll upv-header-liked" id="upv-liked-scroll">
               <div class="upv-empty-mini" style="width:100%;">Loading...</div>
