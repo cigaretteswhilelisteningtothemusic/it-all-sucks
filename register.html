@@ -46,7 +46,8 @@ body {
   justify-content: center;
   min-height: 100vh;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .bg-glow {
@@ -136,19 +137,33 @@ body {
 }
 .logo-mark {
   width: 38px; height: 38px;
-  background: linear-gradient(135deg, var(--green), var(--teal));
   border-radius: 12px;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 0 20px rgba(29,107,219,0.5);
+  overflow: hidden;
   flex-shrink: 0;
 }
-.logo-mark svg { width: 20px; height: 20px; color: #fff; }
+.logo-mark img { width: 100%; height: 100%; object-fit: cover; }
 .logo-name {
   font-size: 1.5rem; font-weight: 800;
   letter-spacing: -0.5px;
   background: linear-gradient(130deg, #fff 30%, var(--sub));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+/* Brand GIF */
+.brand-gif {
+  display: flex;
+  justify-content: center;
+  margin: -14px 0 20px;
+}
+.brand-gif img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  box-shadow: 0 0 16px rgba(29,107,219,0.25);
 }
 
 .heading { margin-bottom: 24px; }
@@ -382,9 +397,13 @@ label {
   <div class="card">
     <div class="logo">
       <div class="logo-mark">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+        <img src="logo-icon.png" alt="Vibexa">
       </div>
       <span class="logo-name">Vibexa</span>
+    </div>
+
+    <div class="brand-gif">
+      <img src="https://media.giphy.com/media/jfKiMjWolBzuWkdbw0/giphy.gif" alt="Vibexa gif" loading="lazy">
     </div>
 
     <div class="heading">
