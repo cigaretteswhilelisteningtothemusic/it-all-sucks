@@ -16,18 +16,18 @@
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #080B12;
-  --panel: #0E1220;
-  --card: #141928;
-  --hover: #1A2035;
-  --border: rgba(255,255,255,0.07);
-  --blue: #1D6BDB;
-  --blue-dim: rgba(29,107,219,0.12);
-  --blue-glow: 0 0 30px rgba(29,107,219,0.25);
-  --teal: #3D9DD6;
-  --text: #EEF2FF;
-  --sub: #7B8DB0;
-  --muted: #3A4560;
+  --bg: #000000;
+  --panel: #0A0A0A;
+  --card: #181818;
+  --hover: #282828;
+  --border: rgba(255,255,255,0.1);
+  --blue: #2E7DFF;
+  --blue-dim: rgba(46,125,255,0.12);
+  --blue-glow: 0 0 30px rgba(46,125,255,0.25);
+  --teal: #4FA8FF;
+  --text: #FFFFFF;
+  --sub: #B3B3B3;
+  --muted: #6A6A6A;
   --r: 14px;
   --rs: 9px;
   --f: 'Outfit', sans-serif;
@@ -48,7 +48,7 @@ body::after {
   content: '';
   position: fixed; inset: 0;
   background:
-    radial-gradient(ellipse 500px 350px at 15% 85%, rgba(29,107,219,0.07) 0%, transparent 65%),
+    radial-gradient(ellipse 500px 350px at 15% 85%, rgba(46,125,255,0.07) 0%, transparent 65%),
     radial-gradient(ellipse 350px 500px at 85% 15%, rgba(61,157,214,0.04) 0%, transparent 65%);
   pointer-events: none; z-index: 0;
 }
@@ -92,7 +92,7 @@ body::after {
 .nav-logo-mark img { width: 100%; height: 100%; object-fit: cover; }
 .nav-logo-name {
   font-size: 1.1rem; font-weight: 800;
-  background: linear-gradient(130deg, #fff 30%, #7B8DB0);
+  background: linear-gradient(130deg, #fff 30%, #B3B3B3);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
 }
 .nav-search-btn {
@@ -177,7 +177,7 @@ textarea.form-input { resize: none; line-height: 1.6; }
 }
 .section-h2 { font-size: 1rem; font-weight: 700; }
 .explore-btn {
-  background: var(--blue-dim); border: 1px solid rgba(29,107,219,.3);
+  background: var(--blue-dim); border: 1px solid rgba(46,125,255,.3);
   border-radius: 50px; padding: 6px 14px; color: var(--blue);
   font-family: var(--f); font-size: .73rem; font-weight: 700;
   cursor: pointer; transition: all .2s; display: flex; align-items: center; gap: 5px;
@@ -226,8 +226,8 @@ textarea.form-input { resize: none; line-height: 1.6; }
   background: var(--sub); bottom: 2px; left: 2px;
   transition: all .25s;
 }
-.toggle input:checked + .toggle-slider { background: rgba(29,107,219,0.3); border-color: var(--blue); }
-.toggle input:checked + .toggle-slider::before { transform: translateX(18px); background: var(--blue); box-shadow: 0 0 10px rgba(29,107,219,0.5); }
+.toggle input:checked + .toggle-slider { background: rgba(46,125,255,0.3); border-color: var(--blue); }
+.toggle input:checked + .toggle-slider::before { transform: translateX(18px); background: var(--blue); box-shadow: 0 0 10px rgba(46,125,255,0.5); }
 
 /* ── EXPLORE / COMMUNITY VIEW ── */
 #explore-view {
@@ -261,7 +261,7 @@ textarea.form-input { resize: none; line-height: 1.6; }
   border-radius: var(--r); overflow: hidden; margin-bottom: 14px;
   transition: border-color .2s;
 }
-.cpcard:hover { border-color: rgba(29,107,219,0.3); }
+.cpcard:hover { border-color: rgba(46,125,255,0.3); }
 .cpc-header { display: flex; align-items: center; gap: 12px; padding: 14px 14px 10px; }
 .cpc-user-av {
   width: 36px; height: 36px; border-radius: 50%;
@@ -405,7 +405,7 @@ textarea.form-input { resize: none; line-height: 1.6; }
 }
 .mob-nav-btn svg { width: 20px; height: 20px; transition: all .18s; }
 .mob-nav-btn.on { color: var(--blue); }
-.mob-nav-btn.on svg { filter: drop-shadow(0 0 6px rgba(29,107,219,.5)); }
+.mob-nav-btn.on svg { filter: drop-shadow(0 0 6px rgba(46,125,255,.5)); }
 
 /* ── SKELETON ── */
 .sk { background: linear-gradient(90deg, var(--card) 25%, var(--hover) 50%, var(--card) 75%); background-size: 200% 100%; animation: sk 1.4s infinite; border-radius: 8px; }
@@ -506,7 +506,7 @@ textarea.form-input { resize: none; line-height: 1.6; }
   display: flex; align-items: center; gap: 13px;
   cursor: pointer; transition: all .18s;
 }
-.upv-pl-card:hover { border-color: rgba(29,107,219,.4); background: var(--hover); }
+.upv-pl-card:hover { border-color: rgba(46,125,255,.4); background: var(--hover); }
 .upv-pl-cover {
   width: 54px; height: 54px; border-radius: 10px;
   background: var(--hover); display: flex; align-items: center;
@@ -605,7 +605,7 @@ textarea.form-input { resize: none; line-height: 1.6; }
   overflow: hidden; cursor: pointer; background: var(--panel);
   border: 1px solid var(--border); transition: transform .2s, border-color .2s;
 }
-.photo-tile:hover { transform: translateY(-2px); border-color: rgba(29,107,219,.4); }
+.photo-tile:hover { transform: translateY(-2px); border-color: rgba(46,125,255,.4); }
 .photo-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .photo-tile-ph { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; color: var(--muted); }
 .photo-tile-play-ov {
@@ -722,7 +722,7 @@ textarea.form-input { resize: none; line-height: 1.6; }
 .fav-picker-artist { font-size: .68rem; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fav-picker-play-btn {
   flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%;
-  background: var(--blue-dim); border: 1px solid rgba(29,107,219,.3);
+  background: var(--blue-dim); border: 1px solid rgba(46,125,255,.3);
   color: var(--blue); display: flex; align-items: center; justify-content: center;
   cursor: pointer; transition: all .18s;
 }
@@ -765,7 +765,7 @@ textarea.form-input { resize: none; line-height: 1.6; }
 .pld-tr-artist { font-size: .72rem; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pld-tr-play {
   width: 30px; height: 30px; border-radius: 50%;
-  background: var(--blue-dim); border: 1px solid rgba(29,107,219,.3);
+  background: var(--blue-dim); border: 1px solid rgba(46,125,255,.3);
   display: flex; align-items: center; justify-content: center;
   cursor: pointer; transition: all .18s; flex-shrink: 0; color: var(--blue);
 }
@@ -803,8 +803,8 @@ textarea.form-input { resize: none; line-height: 1.6; }
 <!-- AUTH OVERLAY -->
 <div id="auth-overlay">
   <div style="display:flex;flex-direction:column;align-items:center;gap:14px;">
-    <img src="bird.gif" alt="Loading" style="width:160px;height:122px;object-fit:contain;filter:drop-shadow(0 0 18px rgba(29,107,219,0.5));animation:birdFloat 2.4s ease-in-out infinite;">
-    <span style="font-size:.78rem;color:#3A4560;letter-spacing:1.5px;text-transform:uppercase;font-weight:600;animation:birdPulse 1.6s ease-in-out infinite;">Loading...</span>
+    <img src="bird.gif" alt="Loading" style="width:160px;height:122px;object-fit:contain;filter:drop-shadow(0 0 18px rgba(46,125,255,0.5));animation:birdFloat 2.4s ease-in-out infinite;">
+    <span style="font-size:.78rem;color:#6A6A6A;letter-spacing:1.5px;text-transform:uppercase;font-weight:600;animation:birdPulse 1.6s ease-in-out infinite;">Loading...</span>
   </div>
 </div>
 <style>
@@ -944,7 +944,7 @@ textarea.form-input { resize: none; line-height: 1.6; }
     <div class="form-group">
       <label class="form-label">Warna Latar Belakang Profil</label>
       <div style="display:flex;align-items:center;gap:10px;">
-        <input type="color" id="inp-bg-color" value="#080B12" oninput="previewBgColor(this.value)" style="width:44px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--panel);cursor:pointer;padding:2px;">
+        <input type="color" id="inp-bg-color" value="#000000" oninput="previewBgColor(this.value)" style="width:44px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--panel);cursor:pointer;padding:2px;">
         <span style="font-size:.75rem;color:var(--sub);">Pilih warna latar belakang tampilan profilmu</span>
         <button type="button" onclick="resetBgColor()" style="margin-left:auto;background:var(--card);border:1px solid var(--border);color:var(--sub);font-size:.7rem;font-weight:600;border-radius:8px;padding:7px 12px;cursor:pointer;">Reset</button>
       </div>
@@ -990,7 +990,7 @@ textarea.form-input { resize: none; line-height: 1.6; }
     <div class="form-group">
       <label class="form-label">Warna Bubble Catatan</label>
       <div style="display:flex;align-items:center;gap:10px;">
-        <input type="color" id="inp-fav-note-color" value="#3D9DD6" style="width:44px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--panel);cursor:pointer;padding:2px;">
+        <input type="color" id="inp-fav-note-color" value="#4FA8FF" style="width:44px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--panel);cursor:pointer;padding:2px;">
         <span style="font-size:.75rem;color:var(--sub);">Pilih warna bubble catatan untuk lagu ini</span>
       </div>
     </div>
@@ -1021,7 +1021,7 @@ textarea.form-input { resize: none; line-height: 1.6; }
     <div class="form-group">
       <label class="form-label">Warna Bubble Catatan</label>
       <div style="display:flex;align-items:center;gap:10px;">
-        <input type="color" id="inp-edit-fav-note-color" value="#3D9DD6" style="width:44px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--panel);cursor:pointer;padding:2px;">
+        <input type="color" id="inp-edit-fav-note-color" value="#4FA8FF" style="width:44px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--panel);cursor:pointer;padding:2px;">
         <span style="font-size:.75rem;color:var(--sub);">Pilih warna bubble catatan untuk lagu ini</span>
       </div>
     </div>
@@ -1372,7 +1372,7 @@ async function loadProfile() {
     document.getElementById('about-count').textContent = about.length;
     document.getElementById('inp-marquee').value = marqueeText;
     document.getElementById('marquee-count').textContent = marqueeText.length;
-    document.getElementById('inp-bg-color').value = bgColor || '#080B12';
+    document.getElementById('inp-bg-color').value = bgColor || '#000000';
     applyBgColor(bgColor);
     myDisplayName = name;
     myPhotoURL = photo;
@@ -1540,7 +1540,7 @@ function previewBgColor(color) {
   applyBgColor(color);
 }
 function resetBgColor() {
-  document.getElementById('inp-bg-color').value = '#080B12';
+  document.getElementById('inp-bg-color').value = '#000000';
   applyBgColor('');
 }
 
@@ -2077,7 +2077,7 @@ function selectFavSearchResult(i) {
       <div style="font-size:.78rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(t.title)}</div>
       <div style="font-size:.68rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(t.artist)}</div>
     </div>
-    ${t.preview ? `<button type="button" onclick="previewFavTrack(favSearchResults.indexOf(selectedFavTrack))" style="flex-shrink:0;width:30px;height:30px;border-radius:50%;background:var(--blue-dim);border:1px solid rgba(29,107,219,.3);color:var(--blue);display:flex;align-items:center;justify-content:center;cursor:pointer;" title="Putar preview"><svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M8 5v14l11-7z"/></svg></button>` : ''}
+    ${t.preview ? `<button type="button" onclick="previewFavTrack(favSearchResults.indexOf(selectedFavTrack))" style="flex-shrink:0;width:30px;height:30px;border-radius:50%;background:var(--blue-dim);border:1px solid rgba(46,125,255,.3);color:var(--blue);display:flex;align-items:center;justify-content:center;cursor:pointer;" title="Putar preview"><svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M8 5v14l11-7z"/></svg></button>` : ''}
   `;
 }
 
@@ -2093,7 +2093,7 @@ document.addEventListener('click', (e) => {
 async function addFavoriteSong() {
   if (!currentUser) return;
   const note = document.getElementById('inp-fav-note').value.trim();
-  const noteColor = document.getElementById('inp-fav-note-color').value || '#3D9DD6';
+  const noteColor = document.getElementById('inp-fav-note-color').value || '#4FA8FF';
   const emoji = document.getElementById('inp-fav-emoji').value.trim();
   if (!selectedFavTrack) { toast('❗ Pilih lagu dari daftar dulu'); return; }
 
@@ -2113,7 +2113,7 @@ async function addFavoriteSong() {
     });
     document.getElementById('inp-fav-picker').value = '';
     document.getElementById('inp-fav-note').value = '';
-    document.getElementById('inp-fav-note-color').value = '#3D9DD6';
+    document.getElementById('inp-fav-note-color').value = '#4FA8FF';
     document.getElementById('inp-fav-emoji').value = '';
     document.getElementById('fav-picker-preview').style.display = 'none';
     document.getElementById('fav-picker-results').style.display = 'none';
@@ -2139,7 +2139,7 @@ async function loadMyFavorites() {
     listEl.innerHTML = arr.map(([key, f]) => {
       const clickAction = f.preview ? `previewOwnFavTrack('${esc(f.preview).replace(/'/g,"\\'")}','${esc(f.title).replace(/'/g,"\\'")}')` : "toast('ℹ️ Preview tidak tersedia')";
       const bubbleHTML = f.note
-        ? `<div class="fav-note-bubble" style="--bubble-color:${esc(f.noteColor || '#3D9DD6')}">
+        ? `<div class="fav-note-bubble" style="--bubble-color:${esc(f.noteColor || '#4FA8FF')}">
              ${f.emoji ? `<span class="fav-note-emoji-badge">${esc(f.emoji)}</span>` : ''}
              <button type="button" class="fav-note-edit-btn" onclick="event.stopPropagation();openEditFavNoteModal('${key}')" title="Edit bubble catatan">✎</button>
              <div class="fav-note-text">${esc(f.note)}</div>
@@ -2175,7 +2175,7 @@ function openEditFavNoteModal(key) {
   if (!f) return;
   editingFavKey = key;
   document.getElementById('inp-edit-fav-note').value = f.note || '';
-  document.getElementById('inp-edit-fav-note-color').value = f.noteColor || '#3D9DD6';
+  document.getElementById('inp-edit-fav-note-color').value = f.noteColor || '#4FA8FF';
   document.getElementById('inp-edit-fav-emoji').value = f.emoji || '';
   renderFavEmojiQuickpick('fav-edit-emoji-quickpick', 'inp-edit-fav-emoji');
   document.getElementById('modal-edit-fav-note').style.display = 'flex';
@@ -2193,7 +2193,7 @@ function closeEditFavNoteModal() {
 async function saveEditFavNote() {
   if (!currentUser || !editingFavKey) return;
   const note = document.getElementById('inp-edit-fav-note').value.trim();
-  const noteColor = document.getElementById('inp-edit-fav-note-color').value || '#3D9DD6';
+  const noteColor = document.getElementById('inp-edit-fav-note-color').value || '#4FA8FF';
   const emoji = document.getElementById('inp-edit-fav-emoji').value.trim();
   const btn = document.getElementById('btn-save-edit-fav-note');
   btn.disabled = true; btn.textContent = 'Menyimpan...';
@@ -2671,7 +2671,7 @@ async function openUserProfile(uid) {
           : (q ? `playQueryUpv('${q}')` : "toast('ℹ️ Info songs tidak tersedia')");
         return `
         <div class="fav-bubble-wrap">
-          ${f.note ? `<div class="fav-note-bubble" style="--bubble-color:${esc(f.noteColor || '#3D9DD6')}">${f.emoji ? `<span class="fav-note-emoji-badge">${esc(f.emoji)}</span>` : ''}<div class="fav-note-text">${esc(f.note)}</div><div class="fav-note-author"><span>– ${esc(name)}</span><span class="fav-note-avatar">${photo ? `<img src="${esc(photo)}" alt="">` : '👤'}</span></div></div>` : ''}
+          ${f.note ? `<div class="fav-note-bubble" style="--bubble-color:${esc(f.noteColor || '#4FA8FF')}">${f.emoji ? `<span class="fav-note-emoji-badge">${esc(f.emoji)}</span>` : ''}<div class="fav-note-text">${esc(f.note)}</div><div class="fav-note-author"><span>– ${esc(name)}</span><span class="fav-note-avatar">${photo ? `<img src="${esc(photo)}" alt="">` : '👤'}</span></div></div>` : ''}
           <div class="song-tile" onclick="${clickAction}">
             <div class="photo-tile">
               ${f.thumb ? `<img src="${esc(f.thumb)}" alt="">` : `<div class="photo-tile-ph">♪</div>`}
