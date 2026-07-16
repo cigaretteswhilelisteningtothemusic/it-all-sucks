@@ -5458,7 +5458,7 @@ async function canInitiateChatWith(peerUid) {
     const permSnap = await db.ref('chat_perm/' + currentUser.uid + '/' + peerUid).get();
     const perm = permSnap.exists() ? permSnap.val() : null;
     if (perm && perm.type === 'blocked') {
-      return { ok: false, message: '🔒 Your follow request was declined. You can't send messages to this user.' };
+      return { ok: false, message: "🔒 Your follow request was declined. You can't send messages to this user." };
     }
     return { ok: true };
   } catch(e) {
@@ -5485,7 +5485,7 @@ async function getChatSendPermission(peerUid, kind) {
     const perm = permSnap.exists() ? permSnap.val() : null;
     if (perm && perm.type === 'full') return { ok: true }; // legacy safety net
     if (perm && perm.type === 'blocked') {
-      return { ok: false, message: '🔒 Your follow request was declined. You can't send messages to this user.' };
+      return { ok: false, message: "🔒 Your follow request was declined. You can't send messages to this user." };
     }
 
     if (kind === 'media') {
@@ -5495,7 +5495,7 @@ async function getChatSendPermission(peerUid, kind) {
     // kind === 'text': jatah 1 pesan gratis sebelum follow diterima
     const freeUsed = perm && (perm.type === 'free_used' || (perm.type === 'onetime' && perm.used));
     if (freeUsed) {
-      return { ok: false, message: '🔒 You've already sent 1 message to this user. Follow them first to continue chatting.', needsFollow: true };
+      return { ok: false, message: "🔒 You've already sent 1 message to this user. Follow them first to continue chatting.", needsFollow: true };
     }
     return { ok: true, freeMessage: true };
   } catch(e) {
@@ -11491,7 +11491,7 @@ function buildAlbumTrackRow(t, i) {
 
 // Tombol Play besar di header album: putar dari songs pertama
 function playAlbumFromStart() {
-  if (!_currentAlbumTracks.length) { toast(' Album hasn't finished loading'); return; }
+  if (!_currentAlbumTracks.length) { toast(" Album hasn't finished loading"); return; }
   curQueue = [..._currentAlbumTracks];
   loadPlay(_currentAlbumTracks[0], null);
 }
@@ -14043,7 +14043,7 @@ async function loadWeekdayPlaylists(force) {
     }
   }
 
-  if (grid) grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;"><i></i><h3>Preparing today's playlist...</h3></div>';
+  if (grid) grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;"><i></i><h3>Preparing today&#39;s playlist...</h3></div>';
 
   try {
     // 1) Ambil chart top/trending Deezer SAAT INI (gabungan semua genre),
