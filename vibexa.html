@@ -2998,24 +2998,25 @@ body.np-is-fullscreen #bar{display:none !important;}
    baru ditambahkan di paling kiri — lihat startFriendSuggestionsListener(). */
 .friend-fav-grid{display:flex;flex-direction:row;gap:16px;overflow-x:auto;padding:18px 2px 14px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
 .friend-fav-item{flex:0 0 132px;width:132px;display:flex;flex-direction:column;position:relative;}
-/* Baris kecil "ditambahkan oleh" di bawah tiap kartu lagu — selalu tampil
-   supaya jelas siapa yang menyarankan lagu itu, terlepas dia menulis bubble
-   catatan atau tidak. Klik untuk buka profil orang tsb. */
-.friend-fav-suggester{display:flex;align-items:center;gap:5px;margin-top:6px;cursor:pointer;width:fit-content;max-width:100%;}
-.friend-fav-suggester:hover .friend-fav-suggester-name{color:var(--green);text-decoration:underline;}
-.friend-fav-suggester-avatar{width:15px;height:15px;border-radius:50%;object-fit:cover;background:var(--card);border:1px solid var(--border);flex-shrink:0;}
-.friend-fav-suggester-avatar-ph{width:15px;height:15px;border-radius:50%;background:var(--card);border:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.5rem;color:var(--muted);}
-.friend-fav-suggester-name{font-size:.62rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .15s;}
+/* Tombol Like — menggantikan baris "disarankan oleh" (avatar+nama) yang
+   sebelumnya tampil di luar bubble di bawah lagu. Lagu diurutkan berdasarkan
+   jumlah like ini, lihat startFriendSuggestionsListener(). */
+.friend-fav-like-btn{display:flex;align-items:center;gap:4px;margin-top:6px;background:var(--bg);border:1px solid var(--border);color:var(--sub);font-family:var(--f);font-size:.66rem;font-weight:700;cursor:pointer;padding:3px 8px;border-radius:50px;transition:all .18s;width:fit-content;}
+.friend-fav-like-btn:hover{color:#ff7eb3;border-color:rgba(255,77,148,.35);background:rgba(255,77,148,.06);}
+.friend-fav-like-btn.liked{color:#ff4d94;border-color:rgba(255,77,148,.45);background:rgba(255,77,148,.1);}
+.friend-fav-like-btn svg{width:11px;height:11px;flex-shrink:0;}
 /* Tombol hapus — hanya dirender kalau saran lagu itu milik currentUser sendiri */
 .friend-fav-del-btn{position:absolute;top:5px;right:5px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.55);border:none;color:#fff;font-size:.68rem;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:all .15s;z-index:2;}
 .friend-fav-thumb-wrap:hover .friend-fav-del-btn{opacity:1;}
 .friend-fav-del-btn:hover{background:#ff5555;}
-/* Slot bubble catatan — tinggi minimal kecil (sekadar pembatas/jarak) untuk
-   lagu yang TIDAK punya catatan, supaya tidak ada ruang kosong besar di atas
-   foto lagu. Kalau ada catatan, slot ikut membesar mengikuti tinggi bubble
-   (bubble ditempel di dasar slot lewat align-items:flex-end) supaya foto
-   lagu tetap mulai sejajar antar item dalam satu baris. */
-.friend-fav-bubble-slot{min-height:10px;display:flex;align-items:flex-end;}
+/* Slot bubble catatan — tinggi TETAP (bukan lagi otomatis mengikuti isi),
+   cukup besar untuk menampung bubble terpanjang (maks 2 baris teks, dibatasi
+   -webkit-line-clamp di .fav-note-text, + baris nama penyaran di dalam
+   bubble). Bubble ditempel ke dasar slot lewat align-items:flex-end, jadi
+   entah bubble-nya panjang, pendek, atau tidak ada sama sekali, tinggi slot
+   selalu SAMA — sehingga foto lagu (.friend-fav-thumb-wrap) di semua item
+   selalu mulai persis sejajar dalam satu baris. */
+.friend-fav-bubble-slot{height:66px;display:flex;align-items:flex-end;overflow:visible;}
 /* Bubble speech — SAMA PERSIS dengan bentuk di halaman profil (profile.html
    .fav-note-bubble/.fav-note-text/.fav-note-author/.fav-note-avatar), termasuk
    baris nama+foto pemilik lagu di dalam bubble-nya (di sini: nama TEMAN,
@@ -3516,16 +3517,17 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
       <div class="fav-artist-grid" id="fav-artist-grid"></div>
     </div>
 
-    <!-- DARI TEMAN MU (bersifat PUBLIC — lihat startFriendSuggestionsListener()).
+    <!-- SARAN PUBLIC (bersifat PUBLIC — lihat startFriendSuggestionsListener()).
          Siapa pun bisa menekan tombol "+ Saran Lagu" untuk menambahkan lagu ke
          sini, lengkap dengan bubble catatan (sama seperti Lagu Favorit di
          halaman profil). Tampil untuk SEMUA user, tidak peduli sudah follow
-         atau belum. Satu baris scroll horizontal, diurutkan dari yang paling
-         baru ditambahkan di paling kiri. -->
+         atau belum. Satu baris scroll horizontal, diurutkan dari jumlah like
+         terbanyak di paling kiri (kalau sama, yang paling baru diupload di
+         paling kiri). -->
     <div class="pub-section" id="friend-fav-section">
       <div class="pub-section-header">
         <div class="pub-section-title">
-           Dari Teman Mu
+           Saran Public
         </div>
         <button class="home-new-pl-btn" onclick="openAddSuggestionModal()" title="Tambahkan saran lagu">
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -4443,12 +4445,12 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   </div>
 </div>
 
-<!-- Modal: Tambah Saran Lagu (bagian "Dari Teman Mu" di Home — public,
+<!-- Modal: Tambah Saran Lagu (bagian "Saran Public" di Home — public,
      tampil untuk semua user, lihat startFriendSuggestionsListener()) -->
 <div id="add-suggestion-modal" class="modal-bg" style="display:none">
   <div class="modal" style="width:380px;">
     <h3>Tambah Saran Lagu</h3>
-    <p>Lagu ini akan tampil di "Dari Teman Mu" untuk semua orang, lengkap dengan bubble catatanmu</p>
+    <p>Lagu ini akan tampil di "Saran Public" untuk semua orang, lengkap dengan bubble catatanmu</p>
     <div class="sugg-form-group sugg-picker-wrap">
       <label class="sugg-form-label">Cari Lagu</label>
       <input type="text" class="sugg-form-input" id="inp-sugg-picker" placeholder="Ketik judul lagu..." oninput="onSuggPickerInput(this.value)" autocomplete="off">
@@ -7064,16 +7066,18 @@ function renderFavoriteArtists() {
   });
 }
 
-// ─── DARI TEMAN MU (Home) ────────────────────────────────────────────────
+// ─── SARAN PUBLIC (Home) ─────────────────────────────────────────────────
 // Sekarang PUBLIC: bukan lagi menarik data dari lagu favorit user yang kita
 // follow, tapi dari node global "friendSuggestions/{key}" yang bisa diisi
 // SIAPA SAJA lewat tombol "+ Saran Lagu" (openAddSuggestionModal()). Karena
 // public, section ini tampil sama untuk semua user, meskipun kita belum
 // follow pemilik lagunya. Satu baris flat yang discroll ke samping, dan
-// selalu diurutkan dari yang PALING BARU ditambahkan di PALING KIRI.
+// selalu diurutkan dari jumlah LIKE TERBANYAK di PALING KIRI (kalau sama,
+// yang paling baru ditambahkan di paling kiri).
 //
 // friendSuggestions: [ {key, uid, name, photo, title, artist, thumb, note,
-//                        noteColor, emoji, preview, _query, addedAt}, ... ]
+//                        noteColor, emoji, preview, _query, addedAt, likes}, ... ]
+//                     likes: { [uid]: true, ... } — dipakai untuk urutan & tombol like
 let friendSuggestions = [];
 let _friendSuggestionsOff = null; // fungsi untuk stop listener
 
@@ -7091,20 +7095,27 @@ function startFriendSuggestionsListener() {
     const val = snap.exists() ? snap.val() : {};
     friendSuggestions = Object.entries(val)
       .map(([key, s]) => ({ key, ...s }))
-      // Terbaru ditambahkan → paling kiri
-      .sort((a, b) => (b.addedAt ?? 0) - (a.addedAt ?? 0));
+      // Like terbanyak → paling kiri. Kalau jumlah like sama, yang paling
+      // baru ditambahkan → paling kiri.
+      .sort((a, b) => {
+        const likeA = a.likes ? Object.keys(a.likes).length : 0;
+        const likeB = b.likes ? Object.keys(b.likes).length : 0;
+        if (likeB !== likeA) return likeB - likeA;
+        return (b.addedAt ?? 0) - (a.addedAt ?? 0);
+      });
     renderFriendFavorites();
   };
   ref.on('value', onChange);
   _friendSuggestionsOff = () => ref.off('value', onChange);
 }
 
-// Render bagian "Dari Teman Mu" di Home: satu baris flat (bukan dikelompokkan
+// Render bagian "Saran Public" di Home: satu baris flat (bukan dikelompokkan
 // per teman lagi) yang bisa discroll ke samping. Tiap lagu tampil dengan
 // bubble catatan (kalau diisi si penyaran) persis seperti Lagu Favorit di
-// halaman profil, ditambah baris kecil "ditambahkan oleh" di bawah kartu
-// supaya selalu jelas siapa yang menyarankan lagu itu, dan bisa diklik untuk
-// diputar penuh (bukan cuma preview 30 detik).
+// halaman profil, ditambah tombol Like + jumlah like di bawah kartu (lihat
+// toggleFriendSongLike()), dan bisa diklik untuk diputar penuh (bukan cuma
+// preview 30 detik). Urutan lagu mengikuti jumlah like (lihat sort di
+// startFriendSuggestionsListener()), bukan lagi berdasar siapa yang menyarankan.
 function renderFriendFavorites() {
   const section = document.getElementById('friend-fav-section');
   const grid = document.getElementById('friend-fav-grid');
@@ -7117,6 +7128,8 @@ function renderFriendFavorites() {
 
   grid.innerHTML = friendSuggestions.map(s => {
     const isMine = currentUser && s.uid === currentUser.uid;
+    const likeCount = s.likes ? Object.keys(s.likes).length : 0;
+    const iLiked = !!(currentUser && s.likes && s.likes[currentUser.uid]);
     // Bubble catatan dibuat SAMA PERSIS dengan struktur di halaman profil
     // (fav-note-bubble > fav-note-text + fav-note-author), baris "author" di
     // sini memakai nama & foto user yang MENYARANKAN lagu itu. Bubble bisa
@@ -7133,9 +7146,10 @@ function renderFriendFavorites() {
            </div>
          </div>`
       : '';
-    // Slot dengan tinggi tetap (.friend-fav-bubble-slot) dirender SELALU,
-    // terlepas lagu ini punya catatan atau tidak — supaya foto lagu semua
-    // item mulai di baris yang sama persis (tidak ada yang naik-turun).
+    // Slot dengan tinggi TETAP (.friend-fav-bubble-slot, lihat CSS) dirender
+    // SELALU, terlepas lagu ini punya catatan atau tidak — supaya foto lagu
+    // semua item mulai di baris yang sama persis (tidak ada yang naik-turun),
+    // baik saat bubble panjang, pendek, maupun tidak ada bubble sama sekali.
     return `
       <div class="friend-fav-item">
         <div class="friend-fav-bubble-slot">${bubble}</div>
@@ -7146,10 +7160,10 @@ function renderFriendFavorites() {
         </div>
         <div class="friend-fav-title" onclick="playFriendSuggestedSong('${s.key}')">${esc(s.title || '—')}</div>
         <div class="friend-fav-artist">${esc(s.artist || '—')}</div>
-        <div class="friend-fav-suggester" onclick="window.location.href='profile.html?uid=${encodeURIComponent(s.uid)}'" title="Disarankan oleh ${esc(s.name || 'User')}">
-          ${s.photo ? `<img class="friend-fav-suggester-avatar" src="${esc(s.photo)}" alt="">` : `<span class="friend-fav-suggester-avatar-ph">👤</span>`}
-          <span class="friend-fav-suggester-name">${esc(s.name || 'User')}</span>
-        </div>
+        <button type="button" class="friend-fav-like-btn${iLiked ? ' liked' : ''}" onclick="event.stopPropagation();toggleFriendSongLike(event,'${s.key}',${iLiked})" title="${iLiked ? 'Batal suka lagu ini' : 'Suka lagu ini'}">
+          <svg viewBox="0 0 24 24" fill="${iLiked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <span>${likeCount}</span>
+        </button>
       </div>`;
   }).join('');
 }
@@ -7210,7 +7224,7 @@ document.addEventListener('click', (e) => {
 window.addEventListener('scroll', () => closeFavNotePopover(), true);
 window.addEventListener('resize', () => closeFavNotePopover());
 
-// Klik lagu di "Dari Teman Mu" → putar PENUH lewat player utama (sama
+// Klik lagu di "Saran Public" → putar PENUH lewat player utama (sama
 // seperti klik lagu di Rekomendasi/Top Songs/dll), bukan cuma preview 30 detik.
 function playFriendSuggestedSong(key) {
   const s = friendSuggestions.find(x => x.key === key);
@@ -7242,7 +7256,59 @@ async function deleteSongSuggestion(key) {
   }
 }
 
-// ─── Modal: Tambah Saran Lagu ("Dari Teman Mu") ─────────────────────────
+// Like/unlike lagu di "Saran Public" — disimpan realtime di
+// friendSuggestions/{key}/likes/{uid}. Section ini sudah dipasangi listener
+// 'value' (lihat startFriendSuggestionsListener()) yang otomatis me-render
+// ulang & mengurutkan ulang grid begitu jumlah like berubah, jadi di sini
+// cukup tulis/hapus like-nya saja tanpa perlu utak-atik DOM manual. Saat lagu
+// di-like (bukan unlike), kirim notifikasi ke pengguna yang menyarankan lagu
+// itu, sama seperti notifikasi like di playlist publik (lihat toggleLike()).
+async function toggleFriendSongLike(e, key, currentlyLiked) {
+  if (e) e.stopPropagation();
+  if (!currentUser) { toast('Login dulu untuk nge-like lagu ini'); return; }
+  const likeRef = db.ref('friendSuggestions/' + key + '/likes/' + currentUser.uid);
+  try {
+    if (currentlyLiked) {
+      await likeRef.remove();
+    } else {
+      await likeRef.set(true);
+
+      // ── Kirim notifikasi ke pengguna yang menyarankan lagu ini ──
+      try {
+        const suggSnap = await db.ref('friendSuggestions/' + key).get();
+        if (suggSnap.exists()) {
+          const suggData = suggSnap.val();
+          const ownerUid = suggData.uid;
+          // Jangan kirim notif ke diri sendiri
+          if (ownerUid && ownerUid !== currentUser.uid) {
+            const profileSnap = await db.ref('users/' + currentUser.uid + '/profile').get().catch(() => null);
+            const profile = profileSnap?.val() || {};
+            const fromName = profile.displayName || currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'User');
+            const fromPhoto = profile.photoURL || profile.photoBase64 || currentUser.photoURL || '';
+            const notif = {
+              type: 'song_like',
+              fromUid: currentUser.uid,
+              fromName,
+              fromPhoto,
+              songKey: key,
+              songTitle: suggData.title || 'lagu',
+              songArtist: suggData.artist || '',
+              ts: Date.now(),
+              read: false
+            };
+            db.ref('users/' + ownerUid + '/notifications').push(notif).catch(() => {});
+          }
+        }
+      } catch (notifErr) {
+        console.warn('Notif song_like gagal:', notifErr);
+      }
+    }
+  } catch (err) {
+    toast('❌ Gagal like: ' + err.message);
+  }
+}
+
+// ─── Modal: Tambah Saran Lagu ("Saran Public") ─────────────────────────
 let selectedSuggTrack = null;
 let suggSearchResults = [];
 let suggSearchTimer = null;
@@ -7380,7 +7446,7 @@ document.addEventListener('click', (e) => {
 
 // Simpan saran lagu ke node PUBLIC "friendSuggestions" (bukan lagi ke
 // users/{uid}/favoriteSongs milik sendiri) — supaya langsung tampil di
-// "Dari Teman Mu" untuk SEMUA user via listener realtime di
+// "Saran Public" untuk SEMUA user via listener realtime di
 // startFriendSuggestionsListener(), tidak peduli status follow.
 async function addSongSuggestion() {
   if (!currentUser) return;
@@ -7408,7 +7474,7 @@ async function addSongSuggestion() {
       preview: selectedSuggTrack.preview || '',
       note, noteColor, emoji, addedAt: Date.now()
     });
-    toast('✅ Saran lagu ditambahkan ke "Dari Teman Mu"!');
+    toast('✅ Saran lagu ditambahkan ke "Saran Public"!');
     closeAddSuggestionModal();
   } catch (e) {
     toast('❌ Gagal: ' + e.message);
@@ -14580,12 +14646,14 @@ function openNotifZoom(id) {
 
   const isAsk = n.type === 'ask_message';
   const isLike = n.type === 'like';
+  const isSongLike = n.type === 'song_like';
   const isCommentLike = n.type === 'comment_like';
   const isReply = n.type === 'comment_reply';
 
   let actionText;
   if (isAsk) actionText = 'mengirim pesan anonim ke vibeprofile-mu';
   else if (isLike) actionText = `menyukai playlist "${n.playlistName || 'playlist'}"mu`;
+  else if (isSongLike) actionText = `menyukai lagu yang kamu sarankan: "${n.songTitle || 'lagu'}"`;
   else if (isCommentLike) actionText = `menyukai komentarmu di "${n.playlistName || 'playlist'}"`;
   else if (isReply) actionText = `membalas komentarmu di "${n.playlistName || 'playlist'}"`;
   else actionText = `mengomentari playlist "${n.playlistName || 'playlist'}"mu`;
@@ -14597,7 +14665,7 @@ function openNotifZoom(id) {
     avatarWrap.innerHTML = `<div class="notif-avatar"><img src="${esc(n.fromPhoto)}" alt=""></div>`;
   } else if (isAsk) {
     avatarWrap.innerHTML = `<div class="notif-icon-wrap notif-icon-ask">💬</div>`;
-  } else if (isLike) {
+  } else if (isLike || isSongLike) {
     avatarWrap.innerHTML = `<div class="notif-icon-wrap notif-icon-like"></div>`;
   } else {
     avatarWrap.innerHTML = `<div class="notif-icon-wrap notif-icon-comment"></div>`;
@@ -14649,6 +14717,7 @@ function renderNotifications(notifs) {
     item.dataset.id = n._id;
 
     const isLike = n.type === 'like';
+    const isSongLike = n.type === 'song_like';
     const isCommentLike = n.type === 'comment_like';
     const isReply = n.type === 'comment_reply';
     const isAsk = n.type === 'ask_message';
@@ -14664,6 +14733,9 @@ function renderNotifications(notifs) {
     } else if (isLike) {
       icon = `<div class="notif-icon-wrap notif-icon-like"></div>`;
       actionText = `menyukai playlist <span class="notif-pl">${esc(n.playlistName || 'playlist')}</span>mu`;
+    } else if (isSongLike) {
+      icon = `<div class="notif-icon-wrap notif-icon-like"></div>`;
+      actionText = `menyukai lagu yang kamu sarankan: <span class="notif-pl">${esc(n.songTitle || 'lagu')}</span>`;
     } else if (isCommentLike) {
       icon = `<div class="notif-icon-wrap notif-icon-comment-like"></div>`;
       actionText = `menyukai komentarmu di <span class="notif-pl">${esc(n.playlistName || 'playlist')}</span>`;
@@ -14679,7 +14751,7 @@ function renderNotifications(notifs) {
       ? `<div class="notif-avatar"><img src="${esc(n.fromPhoto)}" alt="" onerror="this.parentElement.textContent=''"></div>`
       : `<div class="notif-avatar"></div>`;
 
-    const commentPrev = (!isLike && !isAsk && n.comment)
+    const commentPrev = (!isLike && !isSongLike && !isAsk && n.comment)
       ? `<div class="notif-comment-preview">"${esc(n.comment.slice(0, 80))}${n.comment.length > 80 ? '…' : ''}"</div>`
       : '';
 
