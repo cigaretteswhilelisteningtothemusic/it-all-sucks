@@ -3417,7 +3417,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 <div class="home-topbar">
   <!-- Left cluster: menu + shortcut arrows, like Spotify's ⋯ ‹ › -->
   <div class="topbar-left">
-    <button class="topbar-icon-btn" id="nav-genre" onclick="showGenreMenuView()" title="Genre Musik">
+    <button class="topbar-icon-btn" id="nav-genre" onclick="showGenreMenuView()" title="Music Genre">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
     </button>
     <button class="topbar-icon-btn" id="nav-finder" onclick="showFinderView()" title="Find Song Title">
@@ -3434,7 +3434,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   <!-- Search pill: search icon + input, kept compact -->
   <div class="home-search-wrap">
     <div class="topbar-search-pill">
-      <button id="home-btn-search" onclick="homeSearchGo()" title="Cari">
+      <button id="home-btn-search" onclick="homeSearchGo()" title="Search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
       </button>
       <input type="text" id="home-q" placeholder="Search songs, artists, or playlists..." autocomplete="off" spellcheck="false">
@@ -3557,7 +3557,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
     <div class="pub-section" id="friend-fav-section">
       <div class="pub-section-header">
         <div class="pub-section-title">
-           Saran Public
+           Picked by Listeners
         </div>
         <button class="home-new-pl-btn" onclick="openAddSuggestionModal()" title="Add song suggestion">
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -3648,7 +3648,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
     <div class="pub-section" id="year-mix-section" style="display:none;">
       <div class="pub-section-header">
         <div class="pub-section-title">
-           Mix Tahunan
+           Time Machine
         </div>
       </div>
       <div class="dm-grid" id="year-mix-grid"></div>
@@ -3682,7 +3682,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
     <div class="pub-section" id="sad-playlist-section" style="display:none;">
       <div class="pub-section-header">
         <div class="pub-section-title">
-           no I'm okayy, I just need to be alone
+           Fresh Picks
         </div>
       </div>
       <div class="dm-grid" id="sad-playlist-grid"></div>
@@ -3736,7 +3736,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
       <div class="hero-card">
         <div class="hero-ph" id="h-thumb"></div>
         <div class="hero-info">
-          <div class="hero-label"> Sedang Diputar</div>
+          <div class="hero-label"> Now Playing</div>
           <div class="hero-title" id="h-title">—</div>
           <div class="hero-artist" id="h-artist" onclick="openArtistView(curTrack && curTrack.artist)" style="cursor:pointer;">—</div>
           <div class="hero-btns">
@@ -3765,7 +3765,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
     <div class="pv-header">
       <button class="pv-back" onclick="backFromPlaylist()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-        Kembali
+        Back
       </button>
       <div class="pv-top">
         <div class="pv-cover-wrap">
@@ -3843,7 +3843,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   <div id="top-songs-full-view" style="display:none;">
     <button class="pv-back" onclick="backFromTopSongsFullView()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-      Kembali
+      Back
     </button>
     <div class="pub-section-header" style="margin-bottom:14px;">
       <div class="pub-section-title">
@@ -3862,7 +3862,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   <div id="recommend-full-view" style="display:none;">
     <button class="pv-back" onclick="backFromRecommendFullView()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-      Kembali
+      Back
     </button>
     <div class="pub-section-header" style="margin-bottom:14px;">
       <div class="pub-section-title">
@@ -3880,7 +3880,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   <div id="recently-played-full-view" style="display:none;">
     <button class="pv-back" onclick="backFromRecentlyPlayedFullView()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-      Kembali
+      Back
     </button>
     <div class="pub-section-header" style="margin-bottom:14px;">
       <div class="pub-section-title">
@@ -3903,7 +3903,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
     </div>
     <button class="pv-back" onclick="backFromArtistView()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-      Kembali
+      Back
     </button>
     <div class="artist-banner">
       <img class="artist-banner-bg" id="artist-banner-bg" src="" alt="" onerror="this.style.display='none'">
@@ -3914,7 +3914,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
           Verified Artist
         </div>
         <div class="artist-banner-name" id="artist-banner-name">—</div>
-        <div class="artist-banner-sub" id="artist-banner-sub">Memuat...</div>
+        <div class="artist-banner-sub" id="artist-banner-sub">Loading...</div>
         <div class="artist-banner-desc-row">
           <div class="artist-banner-desc" id="artist-banner-desc"></div>
           <div class="artist-social-row" id="artist-social-row">
@@ -3935,11 +3935,11 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
       <button class="artist-play-btn" onclick="playArtistTopTracks()" title="Play all">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
       </button>
-      <button class="artist-follow-btn" id="artist-follow-btn" onclick="toggleArtistViewFollow()">Ikuti</button>
+      <button class="artist-follow-btn" id="artist-follow-btn" onclick="toggleArtistViewFollow()">Follow</button>
     </div>
     <div class="artist-section-title">Populer</div>
     <div class="rank-grid" id="artist-songs-grid">
-      <div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat lagu...</h3></div>
+      <div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Loading songs...</h3></div>
     </div>
     <div class="artist-section-header">
       <div class="artist-section-title">Album</div>
@@ -3957,7 +3957,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
     <div class="aall-header">
       <button class="pv-back" onclick="closeArtistAllAlbumsView()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-        Kembali
+        Back
       </button>
       <div class="aall-title-wrap">
         <div class="aall-title" id="aall-title">All Albums</div>
@@ -3973,7 +3973,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   <div id="album-view" style="display:none;">
     <button class="pv-back" onclick="backFromAlbumView()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-      Kembali
+      Back
     </button>
     <div class="pv-header">
       <div class="pv-top">
@@ -3993,7 +3993,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
       </button>
     </div>
     <div class="rank-grid" id="album-tracks">
-      <div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat lagu album...</h3></div>
+      <div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Loading album songs...</h3></div>
     </div>
   </div>
 
@@ -4097,11 +4097,11 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   <div id="genre-menu-view" style="display:none;">
     <button class="pv-back" onclick="backFromGenreMenuView()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-      Kembali
+      Back
     </button>
     <div class="pub-section-header" style="margin-bottom:14px;">
       <div class="pub-section-title">
-         Genre Musik
+         Music Genre
         <span class="pub-badge">Select Genre</span>
       </div>
     </div>
@@ -4112,7 +4112,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   <div id="genre-songs-view" style="display:none;">
     <button class="pv-back" onclick="backFromGenreSongsView()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-      Kembali
+      Back
     </button>
     <div class="pub-section-header" style="margin-bottom:6px;">
       <div class="pub-section-title">
@@ -4128,7 +4128,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   <!-- SONG PREVIEW (feed vertikal ala TikTok, preview 30 detik dari iTunes) -->
   <div id="song-preview-view">
     <div class="sp-topbar">
-      <button class="sp-back-btn" onclick="closeSongPreviewView()" title="Kembali">
+      <button class="sp-back-btn" onclick="closeSongPreviewView()" title="Back">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       </button>
       <div class="sp-topbar-title" id="sp-topbar-title">Song Preview</div>
@@ -4149,7 +4149,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
       </div>
     </div>
     <div class="sp-feed" id="sp-feed">
-      <div class="sp-loading">Memuat preview populer...</div>
+      <div class="sp-loading">Loading popular previews...</div>
     </div>
   </div>
 
@@ -4175,7 +4175,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
         </button>
       </div>
       <div class="chat-bulk-bar" id="chat-bulk-bar">
-        <span class="chat-bulk-count" id="chat-bulk-count">0 dipilih</span>
+        <span class="chat-bulk-count" id="chat-bulk-count">0 selected</span>
         <div class="chat-bulk-actions">
           <button class="chat-bulk-selectall" id="chat-bulk-selectall-btn" onclick="toggleChatSelectAll()">Select all</button>
           <button class="chat-bulk-delete" id="chat-bulk-delete-btn" onclick="deleteSelectedChatContacts()" disabled>Delete Contact</button>
@@ -4203,7 +4203,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
     <!-- 2) TAMBAH TEMAN — daftar semua pengguna yang pernah daftar/login -->
     <div id="chat-addfriend-view" class="chat-subview">
       <div class="chat-header">
-        <button class="chat-back-btn" onclick="closeAddFriendView()" title="Kembali">
+        <button class="chat-back-btn" onclick="closeAddFriendView()" title="Back">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
         </button>
         <span class="chat-header-title">Add Friend</span>
@@ -4225,7 +4225,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
     <!-- 3) PERCAKAPAN -->
     <div id="chat-conv-view" class="chat-subview">
       <div class="chat-header">
-        <button class="chat-back-btn" onclick="backToChatList()" title="Kembali">
+        <button class="chat-back-btn" onclick="backToChatList()" title="Back">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
         </button>
         <div class="chat-conv-peer" id="chat-conv-peer" onclick="goToPeerProfile()" title="View profile">
@@ -4246,7 +4246,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
           <div class="chat-reply-preview-name" id="chat-reply-preview-name"></div>
           <div class="chat-reply-preview-text" id="chat-reply-preview-text"></div>
         </div>
-        <button class="chat-reply-preview-close" onclick="cancelReply()" title="Batal">
+        <button class="chat-reply-preview-close" onclick="cancelReply()" title="Cancel">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </button>
       </div>
@@ -4264,10 +4264,10 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
         <img class="chat-media-preview-thumb" id="chat-media-preview-thumb" alt="">
         <div class="chat-media-preview-body">
           <div class="chat-media-preview-name" id="chat-media-preview-name">—</div>
-          <div class="chat-media-preview-status" id="chat-media-preview-status">Siap dikirim</div>
+          <div class="chat-media-preview-status" id="chat-media-preview-status">Ready to send</div>
           <div class="chat-media-preview-bar" id="chat-media-preview-bar"><div class="chat-media-preview-bar-fill" id="chat-media-preview-bar-fill"></div></div>
         </div>
-        <button class="chat-media-preview-close" id="chat-media-preview-close" onclick="cancelChatMediaPreview()" title="Batal">
+        <button class="chat-media-preview-close" id="chat-media-preview-close" onclick="cancelChatMediaPreview()" title="Cancel">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </button>
       </div>
@@ -4278,7 +4278,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
         </button>
         <button class="chat-gif-btn" id="chat-gif-btn" onclick="toggleGifPicker()" title="Send GIF">GIF</button>
         <input type="text" id="chat-input" placeholder="Write a message..." autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();sendChatMessage();}">
-        <button class="chat-send-btn" onclick="sendChatMessage()" title="Kirim">
+        <button class="chat-send-btn" onclick="sendChatMessage()" title="Send">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
         </button>
       </div>
@@ -4385,9 +4385,9 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
           <div class="lyr-artist-card-fans-row">
             <div class="lyr-artist-card-fans">
               <span class="lyr-artist-card-fans-num" id="lyr-artist-card-fans-num">—</span>
-              <span class="lyr-artist-card-fans-lbl">pendengar bulanan</span>
+              <span class="lyr-artist-card-fans-lbl">monthly listeners</span>
             </div>
-            <button class="lyr-artist-follow-btn" id="lyr-artist-follow-btn" onclick="event.stopPropagation();toggleLyrArtistFollow()">Ikuti</button>
+            <button class="lyr-artist-follow-btn" id="lyr-artist-follow-btn" onclick="event.stopPropagation();toggleLyrArtistFollow()">Follow</button>
           </div>
         </div>
       </div>
@@ -4508,14 +4508,14 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
       <textarea class="sugg-form-input" id="inp-sugg-note" rows="2" placeholder="Why are you suggesting this song?" maxlength="150"></textarea>
     </div>
     <div class="sugg-form-group">
-      <label class="sugg-form-label">Warna Bubble Catatan</label>
+      <label class="sugg-form-label">Note Bubble Color</label>
       <div style="display:flex;align-items:center;gap:10px;">
         <input type="color" id="inp-sugg-note-color" value="#2E7DFF" style="width:44px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--panel);cursor:pointer;padding:2px;">
         <span style="font-size:.75rem;color:var(--sub);">Choose a note bubble color for this song</span>
       </div>
     </div>
     <div class="sugg-form-group">
-      <label class="sugg-form-label">Emoji Bubble <span style="color:var(--muted);font-weight:500;">(opsional)</span></label>
+      <label class="sugg-form-label">Emoji Bubble <span style="color:var(--muted);font-weight:500;">(optional)</span></label>
       <div class="sugg-emoji-quickpick" id="sugg-emoji-quickpick"></div>
       <div class="sugg-emoji-input-row">
         <input type="text" class="sugg-form-input" id="inp-sugg-emoji" placeholder="😊" maxlength="24" oninput="renderSuggEmojiQuickpick()">
@@ -4538,7 +4538,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 <!-- NOW PLAYING VIEW -->
 <div id="np-view">
   <div id="np-bg"></div>
-  <button id="np-fs-back" class="np-icon-btn np-fs-only" onclick="toggleNPFullscreen(false)" title="Kembali">
+  <button id="np-fs-back" class="np-icon-btn np-fs-only" onclick="toggleNPFullscreen(false)" title="Back">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
   </button>
   <div id="np-topbar">
@@ -4574,7 +4574,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
         <div class="np-about-overlay">
           <div class="np-about-name" id="np-about-name" onclick="npGoArtist()">—</div>
           <div class="np-about-fans" id="np-about-fans">—</div>
-          <button class="np-about-follow" id="np-about-follow" onclick="toggleNPArtistFollow()">Ikuti</button>
+          <button class="np-about-follow" id="np-about-follow" onclick="toggleNPArtistFollow()">Follow</button>
           <p class="np-about-bio" id="np-about-bio"></p>
         </div>
       </div>
@@ -4600,7 +4600,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
     </button>
     <div id="fs-track-info">
-      <div id="fs-track-name">SEDANG DIPUTAR</div>
+      <div id="fs-track-name">NOW PLAYING</div>
       <div id="fs-artist-name">—</div>
     </div>
     <!-- Change lyrics background button -->
@@ -4610,7 +4610,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
         <path d="m21 15-5-5L5 21"/>
       </svg>
     </button>
-    <button id="fs-pure-btn" title="Mode lirik penuh">
+    <button id="fs-pure-btn" title="Full Lyrics Mode">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
         <path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/>
         <path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
@@ -4635,7 +4635,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
     <div id="k-progress-dots"></div>
   </div>
   <div id="fs-lyr-scroll">
-    <div class="lyr-empty" style="color:rgba(255,255,255,0.4)"><i></i>Memuat lirik...</div>
+    <div class="lyr-empty" style="color:rgba(255,255,255,0.4)"><i></i>Loading lyrics...</div>
   </div>
   <!-- Hint keluar pure mode -->
   <div id="pure-exit-hint" onclick="togglePureMode()"> &nbsp;Exit fullscreen mode</div>
@@ -4656,7 +4656,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   </button>
   <button class="mob-nav-btn" id="mob-btn-finder" onclick="mobNav('finder')" style="position:relative;">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9 9c.55-1.34 2.25-2 3.5-1.3a2.5 2.5 0 0 1 .5 4c-.83.67-1.5 1-1.5 2"/><circle cx="12" cy="17" r=".5" fill="currentColor"/></svg>
-    Temukan
+    Find
   </button>
   <button class="mob-nav-btn mob-nav-preview-center" id="mob-btn-songpreview" onclick="mobNav('songpreview')" title="Song Preview">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M10 9.2v5.6l4.8-2.8z" fill="currentColor" stroke="none"/></svg>
@@ -4712,13 +4712,13 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 <!-- Style Picker Modal -->
 <div id="style-picker-modal" class="modal-bg" style="display:none">
   <div class="modal">
-    <h3> Gaya Teks Lirik</h3>
+    <h3> Lyrics Text Style</h3>
     <p>Choose the lyrics display style you like</p>
     <div class="style-picker-grid">
       <div class="style-picker-item selected" id="style-classic" onclick="selectLyrStyle('classic')">
         <div class="style-picker-icon"></div>
-        <div class="style-picker-name">Klasik</div>
-        <div class="style-picker-desc">Tampilan standar, baris per baris</div>
+        <div class="style-picker-name">Classic</div>
+        <div class="style-picker-desc">Standard view, line by line</div>
       </div>
       <div class="style-picker-item" id="style-kinetic" onclick="selectLyrStyle('kinetic')">
         <div class="style-picker-icon"></div>
@@ -4751,7 +4751,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
     </div>
   </div>
   <div class="notif-bulk-bar" id="notif-bulk-bar">
-    <span class="notif-bulk-count" id="notif-bulk-count">0 dipilih</span>
+    <span class="notif-bulk-count" id="notif-bulk-count">0 selected</span>
     <div class="notif-bulk-actions">
       <button class="notif-bulk-selectall" id="notif-bulk-selectall-btn" onclick="toggleNotifSelectAll()">Select all</button>
       <button class="notif-bulk-delete" id="notif-bulk-delete-btn" onclick="deleteSelectedNotifications()" disabled>Delete</button>
@@ -4924,7 +4924,7 @@ function addTrackToLiked(track) {
   renderHomeGrid();
   scheduleSave();
   if (curTrack && curTrack.artist === track.artist && curTrack.title === track.title) updateBarLikeBtn(curTrack);
-  toast(' "' + track.title + '" ditambahkan ke Liked Songs');
+  toast(' "' + track.title + '" added to Liked Songs');
   return true;
 }
 
@@ -5190,7 +5190,7 @@ function loadHomeProfileButtonPhoto(user) {
     const profile = snap.exists() ? (snap.val() || {}) : {};
     const photo = profile.photoURL || profile.photoBase64 || user.photoURL || '';
     if (photo) {
-      btn.innerHTML = `<img src="${esc(photo)}" alt="Profil" onerror="this.parentElement.innerHTML='<svg viewBox=&quot;0 0 24 24&quot; fill=&quot;currentColor&quot;><path d=&quot;M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v2h20v-2c0-3.3-6.7-5-10-5z&quot;/></svg>'">`;
+      btn.innerHTML = `<img src="${esc(photo)}" alt="Profile" onerror="this.parentElement.innerHTML='<svg viewBox=&quot;0 0 24 24&quot; fill=&quot;currentColor&quot;><path d=&quot;M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v2h20v-2c0-3.3-6.7-5-10-5z&quot;/></svg>'">`;
     }
   }).catch(() => {});
 }
@@ -5543,17 +5543,17 @@ function getPeerOnlineDotHTML(uid) {
   return online ? '<span class="chat-online-dot"></span>' : '';
 }
 
-// Label ala Instagram: "Online" kalau sedang online, atau
-// "Terakhir dilihat X yang lalu" berdasarkan last_changed.
+// Instagram-style label: "Online" when currently online, or
+// "Last seen X ago" based on last_changed.
 function formatPeerStatusLabel(uid) {
   const s = _chatStatusCache[uid];
   if (!s) return '';
   if (s.state === 'online') return 'Online';
   if (!s.last_changed) return '';
-  return 'Terakhir dilihat ' + formatLastSeen(s.last_changed);
+  return 'Last seen ' + formatLastSeen(s.last_changed);
 }
 
-// "Baru saja" / "5 minutes ago" / "3 hours ago" / "Kemarin" / tanggal
+// "just now" / "5 minutes ago" / "3 hours ago" / "Yesterday" / date
 function formatLastSeen(ts) {
   const diffMs = Date.now() - ts;
   const diffMin = Math.floor(diffMs / 60000);
@@ -5565,9 +5565,9 @@ function formatLastSeen(ts) {
   const now = new Date();
   const yest = new Date(now); yest.setDate(now.getDate() - 1);
   if (d.toDateString() === yest.toDateString()) {
-    return 'kemarin, ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    return 'yesterday, ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   }
-  return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+  return d.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 // Dengarkan node "directory" secara REAL-TIME (bukan sekali ambil saja),
@@ -5712,7 +5712,7 @@ function renderChatItemHTML(chatId, c, isRequest) {
   const avatarHTML = photo
     ? `<img src="${esc(photo)}" alt="" onerror="this.parentElement.innerHTML='&#128100;'">`
     : '&#128100;';
-  const preview = c.lastMessage ? esc(c.lastMessage) : 'Mulai percakapan…';
+  const preview = c.lastMessage ? esc(c.lastMessage) : 'Start a conversation…';
   // Jumlah pesan belum dibaca dari pengirim ini (angka, bukan titik biru).
   const unreadCount = Number(c.unreadCount || 0);
   const dotHTML = getPeerOnlineDotHTML(c.with);
@@ -5810,7 +5810,7 @@ function updateChatBulkBar() {
   const countEl = document.getElementById('chat-bulk-count');
   const delBtn = document.getElementById('chat-bulk-delete-btn');
   const selAllBtn = document.getElementById('chat-bulk-selectall-btn');
-  if (countEl) countEl.textContent = count + ' dipilih';
+  if (countEl) countEl.textContent = count + ' selected';
   if (delBtn) delBtn.disabled = count === 0;
   if (selAllBtn) {
     const allIds = Object.keys(_chatInboxData || {});
@@ -6164,7 +6164,7 @@ function renderChatMessages(msgsObj) {
          </div>`;
     } else if (m.type === 'image' && m.mediaUrl) {
       bubbleHTML = `<div class="chat-bubble-media" onclick="event.stopPropagation();openImgViewer('${esc(m.mediaUrl)}')">
-           <img src="${esc(m.mediaUrl)}" alt="Foto" loading="lazy">
+           <img src="${esc(m.mediaUrl)}" alt="Photo" loading="lazy">
          </div>${m.text ? `<div class="chat-bubble-caption">${esc(m.text)}</div>` : ''}`;
     } else if (m.type === 'video' && m.mediaUrl) {
       bubbleHTML = `<div class="chat-bubble-media" onclick="event.stopPropagation();">
@@ -6190,7 +6190,7 @@ function renderChatMessages(msgsObj) {
       const seen = _chatPeerSeenAt && _chatPeerSeenAt >= (m.ts || 0);
       readHTML = seen
         ? `<div class="chat-read-status seen">Read · ${formatChatTime(_chatPeerSeenAt)}</div>`
-        : `<div class="chat-read-status">Terkirim</div>`;
+        : `<div class="chat-read-status">Sent</div>`;
     }
 
     let actionsHTML = '';
@@ -6334,11 +6334,34 @@ function deleteMessageForEveryone(chatId, key) {
   if (!currentUser) return;
   const m = _chatCurrentMessages[key];
   if (!m || m.from !== currentUser.uid) return; // jaga-jaga: hanya pesan sendiri
-  db.ref('chats/' + chatId + '/messages/' + key).update({
-    text: '',
-    deletedForEveryone: true,
-    deletedBy: currentUser.uid
-  }).catch(err => console.error('Gagal menghapus pesan:', err));
+
+  const updates = {};
+  updates['chats/' + chatId + '/messages/' + key + '/text'] = '';
+  updates['chats/' + chatId + '/messages/' + key + '/deletedForEveryone'] = true;
+  updates['chats/' + chatId + '/messages/' + key + '/deletedBy'] = currentUser.uid;
+
+  // Kalau pesan yg dihapus ini adalah pesan TERAKHIR di chat (dilihat dari ts-nya),
+  // preview "lastMessage" di halaman Chat juga perlu ikut diperbarui. Sebelumnya
+  // preview tsb tidak pernah disentuh saat delete-for-everyone, jadi teks lama
+  // tetap nongol di halaman Chat walau bubble-nya sendiri sudah jadi placeholder.
+  const allMsgs = _chatCurrentMessages || {};
+  const myTs = m.ts || 0;
+  let isLatest = true;
+  for (const k in allMsgs) {
+    if (k === key) continue;
+    const other = allMsgs[k];
+    if (other && (other.ts || 0) > myTs) { isLatest = false; break; }
+  }
+
+  if (isLatest && _chatCurrentPeer) {
+    const myUid = currentUser.uid;
+    const peerUid = _chatCurrentPeer.uid;
+    const placeholder = 'This message has been deleted';
+    updates['userChats/' + myUid + '/' + chatId + '/lastMessage'] = placeholder;
+    updates['userChats/' + peerUid + '/' + chatId + '/lastMessage'] = placeholder;
+  }
+
+  db.ref().update(updates).catch(err => console.error('Gagal menghapus pesan:', err));
 }
 
 // ── Deteksi pesan "cuma emoji" (utk tampilan bubble besar tanpa background,
@@ -6367,15 +6390,15 @@ function isChatEmojiOnlyMessage(text) {
   return trimmed.length <= 40 && EMOJI_ONLY_FALLBACK_RE.test(trimmed);
 }
 
-// Label pemisah tanggal ala WhatsApp: "Today", "Kemarin", atau tanggal
-// lengkap (mis. "14 Juli 2026") utk hari-hari sebelumnya.
+// WhatsApp-style date separator label: "Today", "Yesterday", or the
+// full date (e.g. "July 14, 2026") for earlier days.
 function formatChatDateSeparator(ts) {
   const d = new Date(ts);
   const now = new Date();
   if (d.toDateString() === now.toDateString()) return 'Today';
   const yest = new Date(now); yest.setDate(now.getDate() - 1);
-  if (d.toDateString() === yest.toDateString()) return 'Kemarin';
-  return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+  if (d.toDateString() === yest.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString('en-US', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
 // (Fungsi lama maybeConsumeOnetimeChatPerm() sudah digantikan oleh
@@ -6701,7 +6724,7 @@ function fetchGiphySearch(query) {
 
 function renderGifGridLoading() {
   const grid = document.getElementById('chat-gif-grid');
-  if (grid) grid.innerHTML = '<div class="chat-gif-loading">Memuat GIF...</div>';
+  if (grid) grid.innerHTML = '<div class="chat-gif-loading">Loading GIF...</div>';
 }
 
 function renderGifGridError() {
@@ -6805,9 +6828,9 @@ function formatChatTime(ts) {
   const isToday = d.toDateString() === now.toDateString();
   const yest = new Date(now); yest.setDate(now.getDate() - 1);
   const isYesterday = d.toDateString() === yest.toDateString();
-  if (isToday) return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+  if (isToday) return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   if (isYesterday) return 'Kmr';
-  return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+  return d.toLocaleDateString('en-US', { day: '2-digit', month: 'short' });
 }
 
 function showAuthWall() {
@@ -6974,7 +6997,7 @@ async function syncPublicPlaylists() {
 
 async function loadAllPlaylistsFromCloud() {
   if (!currentUser) return;
-  setCloudStatus('saving', 'Memuat playlist...');
+  setCloudStatus('saving', 'Loading playlist...');
   try {
     const snap = await getPlRef().get();
     if (snap.exists()) {
@@ -7092,7 +7115,7 @@ function toggleFollowArtist(name, photo) {
   if (!name) return false;
   const nowFollowing = !isArtistFavorited(name);
   setArtistFavorited(name, photo, nowFollowing);
-  toast(nowFollowing ? ` Mengikuti ${name}` : ` Berhenti mengikuti ${name}`);
+  toast(nowFollowing ? ` Following ${name}` : ` Unfollowed ${name}`);
   return nowFollowing;
 }
 
@@ -7473,7 +7496,7 @@ function onSuggPickerInput(val) {
     return;
   }
   dropdown.style.display = 'block';
-  dropdown.innerHTML = `<div class="sugg-picker-loading">Mencari...</div>`;
+  dropdown.innerHTML = `<div class="sugg-picker-loading">Searching...</div>`;
   suggSearchTimer = setTimeout(() => doSuggSearch(q), 400);
 }
 
@@ -7586,7 +7609,7 @@ async function addSongSuggestion() {
   if (!selectedSuggTrack) { toast('❗ Select a song from the list first'); return; }
 
   const btn = document.getElementById('btn-add-suggestion');
-  btn.disabled = true; btn.textContent = 'Menambahkan...';
+  btn.disabled = true; btn.textContent = 'Adding...';
   try {
     const pSnap = await db.ref('users/' + currentUser.uid + '/profile').get();
     const myProfile = pSnap.exists() ? (pSnap.val() || {}) : {};
@@ -7619,19 +7642,19 @@ function syncAllFollowButtons() {
   const artistBtn = document.getElementById('artist-follow-btn');
   if (artistBtn && _currentArtistData && _currentArtistData.name) {
     const f = isArtistFavorited(_currentArtistData.name);
-    artistBtn.textContent = f ? 'Mengikuti' : 'Ikuti';
+    artistBtn.textContent = f ? 'Following' : 'Follow';
     artistBtn.classList.toggle('following', f);
   }
   const lyrBtn = document.getElementById('lyr-artist-follow-btn');
   if (lyrBtn && curTrack && curTrack.artist) {
     const f = isArtistFavorited(curTrack.artist);
-    lyrBtn.textContent = f ? 'Mengikuti' : 'Ikuti';
+    lyrBtn.textContent = f ? 'Following' : 'Follow';
     lyrBtn.classList.toggle('following', f);
   }
   const npBtn = document.getElementById('np-about-follow');
   if (npBtn && curTrack && curTrack.artist) {
     const f = isArtistFavorited(curTrack.artist);
-    npBtn.textContent = f ? 'Mengikuti' : 'Ikuti';
+    npBtn.textContent = f ? 'Following' : 'Follow';
     npBtn.classList.toggle('following', f);
   }
   // Tombol "Ikuti" di feed Song Preview: semua slide dibangun sekaligus di
@@ -7642,7 +7665,7 @@ function syncAllFollowButtons() {
     const artist = btn.dataset.artist;
     if (!artist) return;
     const f = isArtistFavorited(artist);
-    btn.textContent = f ? 'Mengikuti' : 'Ikuti';
+    btn.textContent = f ? 'Following' : 'Follow';
     btn.classList.toggle('following', f);
   });
 }
@@ -7843,7 +7866,7 @@ function deleteCurrentPlaylist() {
   if (wasPublic && currentUser) {
     db.ref('public_playlists/' + currentUser.uid + '_' + deletedId).remove().catch(() => {});
   }
-  toast(' Playlist dihapus');
+  toast(' Playlist deleted');
   showHomeView();
 }
 
@@ -7963,7 +7986,7 @@ function renderAddSongPLList() {
     d.onclick = () => {
       const ok = addTrackToPlaylist(id, pendingTrackToAdd);
       if (ok) {
-        toast(' Ditambahkan ke "' + pl.name + '"');
+        toast(' Added to "' + pl.name + '"');
         closeAddSongModal();
       }
     };
@@ -8037,7 +8060,7 @@ function renderPlaylistView(plId) {
       <div class="tl-h">#</div>
       <div class="tl-h">Title</div>
       <div class="tl-h">Artist</div>
-      <div class="tl-h r">${_reorderMode ? '<span style="color:var(--green);font-size:.65rem">DRAG TO REORDER</span>' : 'Hapus'}</div>
+      <div class="tl-h r">${_reorderMode ? '<span style="color:var(--green);font-size:.65rem">DRAG TO REORDER</span>' : 'Remove'}</div>
     </div>
     <div class="reorder-hint"> Hold &amp; drag rows to reorder</div>`;
 
@@ -8259,7 +8282,7 @@ function renderSidebarPlaylists() {
         delete playlists[id];
         if (currentPlaylistId === id) { currentPlaylistId = null; showHomeView(); }
         renderSidebarPlaylists(); renderHomeGrid(); scheduleSave();
-        toast(' Playlist dihapus');
+        toast(' Playlist deleted');
         return;
       }
       showPlaylistView(id);
@@ -9183,11 +9206,11 @@ async function loadPlay(track, fromPlId){
   setFSNowPlayingInfo(track);
 
   // Lyrics panel reset
-  document.getElementById('lyr-lines').innerHTML='<div class="lyr-empty"><i></i>Mencari & memuat songs...</div>';
+  document.getElementById('lyr-lines').innerHTML='<div class="lyr-empty"><i></i>Searching & loading songs...</div>';
   setPB(false); updProg();
   pickFSColor();
   document.getElementById('fs-artist-name').textContent=track.title;
-  document.getElementById('fs-lyr-scroll').innerHTML='<div class="lyr-empty" style="color:rgba(255,255,255,0.4);padding-top:80px"><i></i>Memuat lirik...</div>';
+  document.getElementById('fs-lyr-scroll').innerHTML='<div class="lyr-empty" style="color:rgba(255,255,255,0.4);padding-top:80px"><i></i>Loading lyrics...</div>';
 
   // Buka halaman Now Playing (foto album + info artis + playlist) — bukan langsung ke lirik.
   // Lirik fullscreen tetap bisa dibuka lewat tombol "Show Lyrics" di halaman Now Playing.
@@ -9623,7 +9646,7 @@ function initSearchSuggestions(inputId, boxId, onQuerySelect){
       }
       const lbl2 = document.createElement('div');
       lbl2.className = 'sugg-section-label';
-      lbl2.innerHTML = `${iconSVG('trending')} Trending Sekarang`;
+      lbl2.innerHTML = `${iconSVG('trending')} Trending Now`;
       box.appendChild(lbl2);
       TRENDING.slice(0,6).forEach(tr => {
         const el = mkItem({iconClass:'trending', iconHTML:iconSVG('trending'), mainText:esc(tr.q), subText:tr.sub, q:tr.q});
@@ -9684,7 +9707,7 @@ function initSearchSuggestions(inputId, boxId, onQuerySelect){
       // Skeleton loaders
       const lbl2 = document.createElement('div');
       lbl2.className = 'sugg-section-label';
-      lbl2.innerHTML = `Mencari...`;
+      lbl2.innerHTML = `Searching...`;
       box.appendChild(lbl2);
       for(let i=0;i<3;i++){
         const sk = document.createElement('div');
@@ -10217,7 +10240,7 @@ async function _updateNPArtistCard(track){
   _loadArtistPhotoInto(bgEl, track.artist).then(pic=>{ if(pic && nameEl.textContent===track.artist){ bgEl.style.display='block'; bgPhEl.style.display='none'; } });
   if(followBtn){
     const following=isArtistFavorited(track.artist);
-    followBtn.textContent=following ? 'Mengikuti' : 'Ikuti';
+    followBtn.textContent=following ? 'Following' : 'Follow';
     followBtn.classList.toggle('following', following);
   }
   const key=track.artist.toLowerCase();
@@ -10427,7 +10450,7 @@ function togglePureMode() {
       <path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/>
       <path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
     </svg>`;
-    btn.title = 'Mode lirik penuh';
+    btn.title = 'Full Lyrics Mode';
     document.getElementById('fs-back').style.opacity = '';
     document.getElementById('fs-back').style.pointerEvents = '';
   }
@@ -10859,7 +10882,7 @@ async function _updateLyrArtistBox(track) {
   _loadArtistPhotoInto(bannerImg, track.artist);
   if (followBtn) {
     const following = isArtistFavorited(track.artist);
-    followBtn.textContent = following ? 'Mengikuti' : 'Ikuti';
+    followBtn.textContent = following ? 'Following' : 'Follow';
     followBtn.classList.toggle('following', following);
   }
 
@@ -11008,7 +11031,7 @@ function _queueArtistPhotoFetch(artistName, key) {
 
 function formatFanCount(n) {
   n = n || 0;
-  try { return n.toLocaleString('id-ID'); } catch (e) { return String(n); }
+  try { return n.toLocaleString('en-US'); } catch (e) { return String(n); }
 }
 
 // ─── HALAMAN PROFIL ARTIS (cara kerja seperti Spotify) ─────
@@ -11039,19 +11062,19 @@ function openArtistView(artistName) {
   const mainEl = document.getElementById('main'); if (mainEl) mainEl.scrollTop = 0;
 
   document.getElementById('artist-banner-name').textContent = artistName;
-  document.getElementById('artist-banner-sub').textContent = 'Memuat...';
+  document.getElementById('artist-banner-sub').textContent = 'Loading...';
   const bg = document.getElementById('artist-banner-bg'); bg.style.display = 'none'; bg.src = '';
   document.getElementById('artist-banner-desc').textContent = '';
   ['artist-social-ig', 'artist-social-yt', 'artist-social-x'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.href = '#';
   });
-  document.getElementById('artist-songs-grid').innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat lagu...</h3></div>';
+  document.getElementById('artist-songs-grid').innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Loading songs...</h3></div>';
   document.getElementById('artist-albums-grid').innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Loading albums...</h3></div>';
   const followBtn = document.getElementById('artist-follow-btn');
   if (followBtn) {
     const f = isArtistFavorited(artistName);
-    followBtn.textContent = f ? 'Mengikuti' : 'Ikuti';
+    followBtn.textContent = f ? 'Following' : 'Follow';
     followBtn.classList.toggle('following', f);
   }
 
@@ -11126,7 +11149,7 @@ async function loadArtistProfile(artistName) {
     syncAllFollowButtons();
 
     document.getElementById('artist-banner-name').textContent = artist.name;
-    document.getElementById('artist-banner-sub').textContent = formatFanCount(artist.nb_fan) + ' pendengar';
+    document.getElementById('artist-banner-sub').textContent = formatFanCount(artist.nb_fan) + ' listeners';
     const bgEl = document.getElementById('artist-banner-bg');
     if (photo) { bgEl.src = photo; bgEl.style.display = 'block'; }
     document.getElementById('artist-sticky-name').textContent = artist.name;
@@ -11315,7 +11338,7 @@ function openAlbumView(albumId, albumTitle) {
   document.getElementById('album-title').textContent = albumTitle || 'Album';
   document.getElementById('album-sub').textContent = 'Loading...';
   document.getElementById('album-cover').src = '';
-  document.getElementById('album-tracks').innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Memuat lagu album...</h3></div>';
+  document.getElementById('album-tracks').innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Loading album songs...</h3></div>';
 
   loadAlbumView(albumId, albumTitle);
 }
@@ -12227,7 +12250,7 @@ async function loadDailyMixes(force) {
     }
   }
 
-  if (grid) grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;"><i></i><h3>Menyiapkan Daily Mix...</h3></div>';
+  if (grid) grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;"><i></i><h3>Preparing Daily Mix...</h3></div>';
 
   try {
     // 1) Ambil chart top/trending Deezer saat ini (gabungan semua genre),
@@ -12477,7 +12500,7 @@ function addMixToLibrary(mix, btnEl) {
     btnEl.title = 'Already in library';
     btnEl.innerHTML = _mixLibSvg(true);
   }
-  toast(' "' + (mix.title || 'Playlist') + '" ditambahkan ke Library');
+  toast(' "' + (mix.title || 'Playlist') + '" added to Library');
 }
 
 function buildDailyMixCardEl(mix, i) {
@@ -12814,7 +12837,7 @@ async function loadYearMixes(force) {
   if (section) section.style.display = 'block';
   const grid = document.getElementById('year-mix-grid');
   if (grid && !grid.childElementCount) {
-    grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;"><i></i><h3>Menyiapkan Mix Tahunan...</h3></div>';
+    grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;"><i></i><h3>Preparing Time Machine...</h3></div>';
   }
 
   const mixes = [];
@@ -15116,7 +15139,7 @@ function timeAgo(ts) {
   if (h < 24) return h + ' hours ago';
   const d = Math.floor(h / 24);
   if (d < 7) return d + ' days ago';
-  return new Date(ts).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: '2-digit' });
+  return new Date(ts).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: '2-digit' });
 }
 
 function toggleNotifPanel() {
@@ -15213,7 +15236,7 @@ function updateNotifBulkBar() {
   const countEl = document.getElementById('notif-bulk-count');
   const delBtn = document.getElementById('notif-bulk-delete-btn');
   const selAllBtn = document.getElementById('notif-bulk-selectall-btn');
-  if (countEl) countEl.textContent = count + ' dipilih';
+  if (countEl) countEl.textContent = count + ' selected';
   if (delBtn) delBtn.disabled = count === 0;
   if (selAllBtn) {
     const allIds = _notifCache.map(n => n._id);
@@ -15383,8 +15406,8 @@ function renderNotifications(notifs) {
           : n.status === 'rejected'
             ? `<div class="notif-follow-status rejected"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="11" height="11"><path d="M18 6 6 18M6 6l12 12"/></svg> You declined this request</div>`
             : `<div class="notif-follow-actions">
-                 <button class="notif-follow-btn accept" type="button" data-act="accept-follow" data-uid="${esc(n.fromUid || '')}" data-notif="${esc(n._id)}">Terima</button>
-                 <button class="notif-follow-btn reject" type="button" data-act="reject-follow" data-uid="${esc(n.fromUid || '')}" data-notif="${esc(n._id)}">Tolak</button>
+                 <button class="notif-follow-btn accept" type="button" data-act="accept-follow" data-uid="${esc(n.fromUid || '')}" data-notif="${esc(n._id)}">Accept</button>
+                 <button class="notif-follow-btn reject" type="button" data-act="reject-follow" data-uid="${esc(n.fromUid || '')}" data-notif="${esc(n._id)}">Decline</button>
                </div>`)
       : '';
 
@@ -15904,7 +15927,7 @@ async function submitReply(playlistKey, commentId, commentOwnerUid, textareaEl, 
     // Remove reply form
     const form = document.getElementById('reply-form-' + commentId);
     if (form) form.remove();
-    toast('↩ Balasan terkirim!');
+    toast('↩ Reply sent!');
     await sendReplyNotif(playlistKey, commentOwnerUid, text);
   } catch(e) {
     toast(' Failed to send: ' + e.message);
@@ -16035,7 +16058,7 @@ async function submitComment(playlistKey, textareaEl, sendBtn, photoDataRef) {
     textareaEl.style.height = 'auto';
     sendBtn.disabled = true;
     if (text) await sendCommentNotif(playlistKey, text);
-    toast(' Comments terkirim!');
+    toast(' Comment sent!');
   } catch(e) {
     toast(' Failed to send: ' + e.message);
     sendBtn.disabled = false;
@@ -16047,7 +16070,7 @@ async function deleteComment(playlistKey, commentId, source) {
   if (!confirm('Delete this comment?')) return;
   try {
     await db.ref('public_playlists/' + playlistKey + '/comments/' + commentId).remove();
-    toast(' Comments dihapus');
+    toast(' Comment deleted');
   } catch(e) { toast(' Delete failed: ' + e.message); }
 }
 
@@ -16056,7 +16079,7 @@ async function deleteReply(playlistKey, commentId, replyId) {
   if (!confirm('Delete this reply?')) return;
   try {
     await db.ref('public_playlists/' + playlistKey + '/comments/' + commentId + '/replies/' + replyId).remove();
-    toast(' Balasan dihapus');
+    toast(' Reply deleted');
   } catch(e) { toast(' Delete failed: ' + e.message); }
 }
 
@@ -16837,7 +16860,7 @@ async function loadSpPopular() {
   _currentSpGenreKey = null;
   document.getElementById('sp-genre-btn')?.classList.remove('active');
   _syncSpGenreChipsActive();
-  feed.innerHTML = '<div class="sp-loading">Memuat preview populer...</div>';
+  feed.innerHTML = '<div class="sp-loading">Loading popular previews...</div>';
   try {
     const rssRes = await fetch('https://itunes.apple.com/us/rss/topsongs/limit=100/json', { signal: AbortSignal.timeout(9000) });
     if (!rssRes.ok) throw new Error('RSS failed (' + rssRes.status + ')');
@@ -16880,7 +16903,7 @@ async function searchSongPreview(q) {
   _syncSpGenreChipsActive();
   const feed = document.getElementById('sp-feed');
   document.getElementById('sp-topbar-title').textContent = '"' + q + '"';
-  feed.innerHTML = '<div class="sp-loading">Mencari "' + esc(q) + '"...</div>';
+  feed.innerHTML = '<div class="sp-loading">Searching "' + esc(q) + '"...</div>';
   try {
     const results = await fetchItunesResults(q, 'US', 'song');
     const tracks = (results || []).filter(r => r.previewUrl);
@@ -16938,14 +16961,14 @@ function buildSpSlideEl(t, i) {
           <div class="sp-artist-name">${esc(t.artistName || 'Unknown')}</div>
           <div class="sp-artist-sub">${esc(t.collectionName || '')}</div>
         </div>
-        <button class="sp-follow-btn${isArtistFavorited(t.artistName || '') ? ' following' : ''}" id="sp-follow-btn-${i}" data-artist="${esc(t.artistName || '')}" data-photo="" onclick="event.stopPropagation();toggleSpFollow(this)">${isArtistFavorited(t.artistName || '') ? 'Mengikuti' : 'Ikuti'}</button>
+        <button class="sp-follow-btn${isArtistFavorited(t.artistName || '') ? ' following' : ''}" id="sp-follow-btn-${i}" data-artist="${esc(t.artistName || '')}" data-photo="" onclick="event.stopPropagation();toggleSpFollow(this)">${isArtistFavorited(t.artistName || '') ? 'Following' : 'Follow'}</button>
         <button class="sp-dots-btn${_spLiked ? ' liked' : ''}" id="sp-like-btn-${i}" onclick="event.stopPropagation();likeSpTrack(${i})" title="Save to Liked Songs">
           <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
         </button>
       </div>
       <div class="sp-genre-tags">
         <span class="sp-tag">#${esc(genre.replace(/\s+/g, ''))}</span>
-        <span class="sp-tag">#previewlagu</span>
+        <span class="sp-tag">#songpreview</span>
         <span class="sp-tag">#30detik</span>
       </div>
       <div class="sp-bottom-card">
@@ -17010,7 +17033,7 @@ function toggleSpFollow(btn) {
   if (!artistName) return;
   const nowFollowing = toggleFollowArtist(artistName, btn.dataset.photo || '');
   btn.classList.toggle('following', nowFollowing);
-  btn.textContent = nowFollowing ? 'Mengikuti' : 'Ikuti';
+  btn.textContent = nowFollowing ? 'Following' : 'Follow';
 }
 
 // ── Prefetch audio preview: siapkan buffer beberapa slide di depan agar
