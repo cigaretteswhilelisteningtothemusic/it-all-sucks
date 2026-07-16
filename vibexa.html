@@ -144,6 +144,23 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .topbar-profile-menu-item svg{width:15px;height:15px;flex-shrink:0;}
 .topbar-profile-menu-item.danger:hover{color:#ff5555;background:rgba(255,85,85,.1);}
 
+/* ── LANGUAGE MODAL (dipicu dari menu profil) ── */
+#lang-overlay{position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.8);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:20px;}
+#lang-overlay.show{display:flex;}
+.lang-box{background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:28px 24px;max-width:420px;width:100%;position:relative;}
+.lang-box h2{font-size:1.15rem;font-weight:800;margin-bottom:6px;color:var(--text);}
+.lang-box p{font-size:.82rem;color:var(--sub);margin-bottom:20px;line-height:1.6;}
+.lang-close{position:absolute;top:16px;right:16px;width:30px;height:30px;border-radius:50%;background:var(--card);border:1px solid var(--border);color:var(--sub);display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.lang-close svg{width:14px;height:14px;}
+.lang-list{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.lang-item{display:flex;align-items:center;gap:10px;background:var(--card);border:1.5px solid var(--border);border-radius:var(--rs);padding:12px 14px;cursor:pointer;transition:all .15s;}
+.lang-item:hover{border-color:var(--green);background:var(--hover);}
+.lang-item.active{border-color:var(--green);box-shadow:0 0 0 3px var(--green-dim);}
+.lang-item .flag{font-size:1.3rem;}
+.lang-item .name{font-size:.85rem;font-weight:700;color:var(--text);}
+.lang-item .native{font-size:.68rem;color:var(--sub);}
+@media (max-width:420px){.lang-list{grid-template-columns:1fr;}}
+
 /* ── COLLAPSED SIDEBAR (Spotify-style icon rail) ───────────── */
 body.side-collapsed .logo-name,
 body.side-collapsed .lib-header-text,
@@ -3400,6 +3417,18 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 </style>
 <body>
 
+<!-- LANGUAGE MODAL -->
+<div id="lang-overlay" data-no-translate="true">
+  <div class="lang-box">
+    <div class="lang-close" id="lang-close" onclick="closeLangModal()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </div>
+    <h2>Pilih Bahasa</h2>
+    <p>Semua teks di halaman Home &amp; Profil akan otomatis diterjemahkan ke bahasa yang kamu pilih.</p>
+    <div class="lang-list" id="lang-list"></div>
+  </div>
+</div>
+
 <!-- AUTH OVERLAY -->
 <div id="auth-overlay">
   <div style="display:flex;flex-direction:column;align-items:center;gap:14px;">
@@ -3461,6 +3490,10 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
         <button class="topbar-profile-menu-item" onclick="closeTopProfileMenu();window.location.href='profile.html'">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
           <span>Profil Saya</span>
+        </button>
+        <button class="topbar-profile-menu-item" onclick="closeTopProfileMenu();openLangModal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z"/></svg>
+          <span>Pilih Bahasa</span>
         </button>
         <button class="topbar-profile-menu-item danger" onclick="closeTopProfileMenu();doLogout()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
@@ -6910,6 +6943,56 @@ function doLogout() {
     });
   }
 }
+
+// ─── Pilih Bahasa (dari menu profil) ───────────────────────
+// Sama seperti di follow-artists.html: bahasa disimpan di
+// localStorage 'vbx_lang' dan langsung dibaca ulang oleh i18n.js
+// (yang mengatur reload supaya translate diterapkan sesuai bahasa baru).
+const LANG_KEY = 'vbx_lang';
+const LANGUAGES = [
+  { code: 'en', flag: '🇬🇧', name: 'English',  native: 'English' },
+  { code: 'es', flag: '🇪🇸', name: 'Spanyol',   native: 'Español' },
+  { code: 'pl', flag: '🇵🇱', name: 'Polandia',  native: 'Polski' },
+  { code: 'de', flag: '🇩🇪', name: 'Jerman',    native: 'Deutsch' },
+  { code: 'ru', flag: '🇷🇺', name: 'Rusia',     native: 'Русский' },
+  { code: 'id', flag: '🇮🇩', name: 'Indonesia', native: 'Bahasa Indonesia' },
+];
+function getLang() { return localStorage.getItem(LANG_KEY) || 'id'; }
+function renderLangList() {
+  const current = getLang();
+  const list = document.getElementById('lang-list');
+  if (!list) return;
+  list.innerHTML = LANGUAGES.map(l => `
+    <div class="lang-item${l.code === current ? ' active' : ''}" onclick="selectLang('${l.code}')">
+      <span class="flag">${l.flag}</span>
+      <div>
+        <div class="name">${l.native}</div>
+        <div class="native">${l.name}</div>
+      </div>
+    </div>`).join('');
+}
+function openLangModal() {
+  renderLangList();
+  const ov = document.getElementById('lang-overlay');
+  if (ov) ov.classList.add('show');
+}
+function closeLangModal() {
+  const ov = document.getElementById('lang-overlay');
+  if (ov) ov.classList.remove('show');
+}
+function selectLang(code) {
+  const prev = getLang();
+  localStorage.setItem(LANG_KEY, code);
+  const l = LANGUAGES.find(x => x.code === code);
+  if (typeof toast === 'function') toast(`✓ Bahasa diatur ke ${l ? l.native : code}`);
+  closeLangModal();
+  // Reload supaya i18n.js jalan ulang dari awal dengan bahasa baru
+  // (translate sebelumnya, kalau ada, di-skip/diganti sesuai cache bahasa baru)
+  if (prev !== code) setTimeout(() => window.location.reload(), 300);
+}
+window.openLangModal = openLangModal;
+window.closeLangModal = closeLangModal;
+window.selectLang = selectLang;
 
 // ─── Menu popup tombol profil (avatar bulat kanan atas) — Profil Saya / Logout ───
 function toggleTopProfileMenu(e) {
