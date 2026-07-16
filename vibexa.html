@@ -7500,6 +7500,28 @@ function onSuggPickerInput(val) {
   suggSearchTimer = setTimeout(() => doSuggSearch(q), 400);
 }
 
+// Menilai relevansi tiap hasil pencarian supaya rilisan ASLI naik ke atas,
+// dan cover/tribute/karaoke/remix yg judulnya kebetulan menyebut nama artis
+// aslinya (mis. "The Less I Know the Better (Tame Impala Cover)") tidak lagi
+// ngalahin posisi lagu aslinya di daftar — walau menurut algoritma relevansi
+// iTunes sendiri cover itu kadang skor-nya lebih tinggi krn nama artis asli
+// ikut nyantol di teks judul.
+function _suggBaseTitle(title) {
+  // buang embel2 dlm kurung di akhir judul, mis "(Cover)", "(Tame Impala Cover)", "(Live)"
+  return (title || '').replace(/\s*[\(\[][^\)\]]*[\)\]]\s*$/g, '').trim().toLowerCase();
+}
+function _suggScoreResult(t, q) {
+  const base = _suggBaseTitle(t.title);
+  const query = (q || '').trim().toLowerCase();
+  let score = 0;
+  if (base === query) score -= 100;               // judul (tanpa embel2 kurung) sama persis
+  else if (base.startsWith(query) || query.startsWith(base)) score -= 40;
+  else if (base.includes(query)) score -= 10;
+  // dorong ke bawah kalau kelihatan bukan rilisan asli
+  if (/\b(cover|tribute|karaoke|instrumental|made famous by|in the style of|originally performed by|remix)\b/i.test(t.title)) score += 60;
+  return score;
+}
+
 // Search song lewat iTunes Search API. Sebelumnya dibatasi limit=8 dan HANYA
 // storefront Indonesia (country=ID) — ini yang bikin banyak lagu (terutama
 // rilisan artis luar yang belum masuk katalog Apple Music Indonesia, mis.
@@ -7539,6 +7561,11 @@ async function doSuggSearch(q) {
         });
       });
     });
+
+    // Susun ulang: lagu yg judulnya paling cocok (rilisan asli) naik ke atas,
+    // cover/tribute/karaoke/remix didorong ke bawah. sort() JS stabil, jadi
+    // urutan relevansi asli dari iTunes tetap dipakai sbg tie-breaker.
+    suggSearchResults.sort((a, b) => _suggScoreResult(a, q) - _suggScoreResult(b, q));
 
     if (!suggSearchResults.length) {
       dropdown.innerHTML = `<div class="sugg-picker-loading">No results for "${esc(q)}"</div>`;
