@@ -104,6 +104,57 @@ body::after {
 #nav-counter.done { color: var(--success); border-color: rgba(61,218,110,.3); background: rgba(61,218,110,.08); }
 #nav-counter.done b { color: var(--success); }
 
+/* ── LANGUAGE BUTTON (nav) ── */
+.btn-lang {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 50px; padding: 6px 12px 6px 10px; cursor: pointer;
+  color: var(--text); font-family: var(--f); font-size: .76rem; font-weight: 600;
+  transition: border-color .2s, background .2s;
+}
+.btn-lang:hover { border-color: var(--green); }
+.btn-lang svg { width: 14px; height: 14px; color: var(--sub); flex-shrink: 0; }
+.btn-lang .flag { font-size: .9rem; line-height: 1; }
+.btn-lang.unset { border-color: rgba(255,94,94,.4); background: rgba(255,94,94,.08); color: var(--danger); }
+.btn-lang.unset svg { color: var(--danger); }
+#nav-right { display: flex; align-items: center; gap: 8px; }
+
+/* ── LANGUAGE MODAL ── */
+#lang-overlay {
+  position: fixed; inset: 0; z-index: 9998;
+  background: rgba(8,11,18,0.85); backdrop-filter: blur(6px);
+  display: none; align-items: center; justify-content: center;
+  padding: 20px;
+}
+#lang-overlay.show { display: flex; }
+.lang-box {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 20px; padding: 28px 24px; max-width: 420px; width: 100%;
+  position: relative;
+}
+.lang-box h2 { font-size: 1.15rem; font-weight: 800; margin-bottom: 6px; }
+.lang-box p { font-size: .82rem; color: var(--sub); margin-bottom: 20px; line-height: 1.6; }
+.lang-close {
+  position: absolute; top: 16px; right: 16px; width: 30px; height: 30px;
+  border-radius: 50%; background: var(--card); border: 1px solid var(--border);
+  color: var(--sub); display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.lang-close svg { width: 14px; height: 14px; }
+.lang-close.hidden { display: none; }
+.lang-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.lang-item {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--card); border: 1.5px solid var(--border); border-radius: var(--rs);
+  padding: 12px 14px; cursor: pointer; transition: all .15s;
+}
+.lang-item:hover { border-color: var(--green); background: var(--hover); }
+.lang-item.active { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-dim); }
+.lang-item .flag { font-size: 1.3rem; }
+.lang-item .name { font-size: .85rem; font-weight: 700; }
+.lang-item .native { font-size: .68rem; color: var(--sub); }
+@media (max-width: 420px) { .lang-list { grid-template-columns: 1fr; } }
+
 /* ── MAIN CONTAINER ── */
 #app {
   max-width: 900px; margin: 0 auto;
@@ -258,8 +309,26 @@ body::after {
     </div>
     <span class="logo-name">Vibexa</span>
   </div>
-  <div id="nav-counter"><b id="nav-count-num">0</b>/7 diikuti</div>
+  <div id="nav-right">
+    <button class="btn-lang unset" id="btn-lang" onclick="openLangModal()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z"/></svg>
+      <span class="flag" id="lang-btn-flag">🌐</span>
+      <span id="lang-btn-label">Pilih Bahasa</span>
+    </button>
+    <div id="nav-counter"><b id="nav-count-num">0</b>/7 diikuti</div>
+  </div>
 </nav>
+
+<div id="lang-overlay">
+  <div class="lang-box">
+    <div class="lang-close hidden" id="lang-close" onclick="closeLangModal()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </div>
+    <h2>Pilih Bahasa</h2>
+    <p>Wajib pilih salah satu bahasa dulu sebelum bisa lanjut ke Home. Semua teks di halaman Home &amp; Profil akan otomatis diterjemahkan ke bahasa pilihanmu.</p>
+    <div class="lang-list" id="lang-list"></div>
+  </div>
+</div>
 
 <div id="app">
   <div class="intro">
@@ -312,6 +381,76 @@ const REQUIRED_FOLLOWS = 7;
 let currentUser = null;
 let followedArtists = {};   // { 'nama artis lowercase': {name, photo, artistId, followedAt} } — key SAMA dengan skema Home (vibexa.html)
 
+// ── Bahasa ───────────────────────────────────────────────
+// Disimpan di localStorage supaya i18n.js di vibexa.html & profile.html
+// bisa langsung membaca preferensi ini dan menerjemahkan halaman otomatis
+// via Cloudflare Workers AI.
+const LANG_KEY = 'vbx_lang';
+const LANGUAGES = [
+  { code: 'en', flag: '🇬🇧', name: 'English',           native: 'English' },
+  { code: 'es', flag: '🇪🇸', name: 'Spanyol',            native: 'Español' },
+  { code: 'pl', flag: '🇵🇱', name: 'Polandia',           native: 'Polski' },
+  { code: 'de', flag: '🇩🇪', name: 'Jerman',             native: 'Deutsch' },
+  { code: 'ru', flag: '🇷🇺', name: 'Rusia',              native: 'Русский' },
+  { code: 'id', flag: '🇮🇩', name: 'Indonesia',          native: 'Bahasa Indonesia' },
+];
+
+function getLang() { return localStorage.getItem(LANG_KEY) || ''; }
+function hasLang() { return !!getLang(); }
+
+function renderLangList() {
+  const current = getLang();
+  const list = document.getElementById('lang-list');
+  list.innerHTML = LANGUAGES.map(l => `
+    <div class="lang-item${l.code === current ? ' active' : ''}" onclick="selectLang('${l.code}')">
+      <span class="flag">${l.flag}</span>
+      <div>
+        <div class="name">${l.native}</div>
+        <div class="native">${l.name}</div>
+      </div>
+    </div>`).join('');
+}
+
+function updateLangButton() {
+  const current = getLang();
+  const l = LANGUAGES.find(x => x.code === current);
+  const btn = document.getElementById('btn-lang');
+  if (l) {
+    document.getElementById('lang-btn-flag').textContent = l.flag;
+    document.getElementById('lang-btn-label').textContent = l.native;
+    btn.classList.remove('unset');
+  } else {
+    document.getElementById('lang-btn-flag').textContent = '🌐';
+    document.getElementById('lang-btn-label').textContent = 'Pilih Bahasa';
+    btn.classList.add('unset');
+  }
+}
+
+function openLangModal() {
+  renderLangList();
+  document.getElementById('lang-close').classList.toggle('hidden', !hasLang());
+  document.getElementById('lang-overlay').classList.add('show');
+}
+function closeLangModal() {
+  if (!hasLang()) { toast('⚠️ Pilih bahasa dulu sebelum menutup ini'); return; }
+  document.getElementById('lang-overlay').classList.remove('show');
+}
+function selectLang(code) {
+  localStorage.setItem(LANG_KEY, code);
+  updateLangButton();
+  renderLangList();
+  const l = LANGUAGES.find(x => x.code === code);
+  toast(`✓ Bahasa diatur ke ${l ? l.native : code}`);
+  document.getElementById('lang-close').classList.remove('hidden');
+  setTimeout(() => {
+    document.getElementById('lang-overlay').classList.remove('show');
+    updateProgress();
+  }, 500);
+}
+window.openLangModal = openLangModal;
+window.closeLangModal = closeLangModal;
+window.selectLang = selectLang;
+
 // Status follow dicek berdasarkan key nama (name.toLowerCase()), PERSIS seperti
 // skema yang dipakai vibexa.html (Home), supaya artis yang diikuti di sini
 // otomatis terbaca sebagai "Mengikuti" saat pindah ke Home.
@@ -360,14 +499,20 @@ auth.onAuthStateChanged(async user => {
     setTimeout(() => overlay.style.display = 'none', 400);
 
     await loadFollowedArtists();
+    updateLangButton();
 
-    // Kalau user sudah pernah follow >= 7 artis, langsung lempar ke Home
-    if (Object.keys(followedArtists).length >= REQUIRED_FOLLOWS) {
+    // Kalau user sudah pernah follow >= 7 artis DAN sudah pilih bahasa,
+    // langsung lempar ke Home. Kalau follow sudah cukup tapi bahasa
+    // belum dipilih, JANGAN diarahkan ke Home — paksa pilih bahasa dulu.
+    if (Object.keys(followedArtists).length >= REQUIRED_FOLLOWS && hasLang()) {
       window.location.href = 'vibexa.html';
       return;
     }
     updateProgress();
     loadRecommended();
+    if (Object.keys(followedArtists).length >= REQUIRED_FOLLOWS && !hasLang()) {
+      openLangModal();
+    }
   } else {
     // Belum login (atau cuma sesi anonim) → langsung tendang ke halaman login
     if (user && user.isAnonymous) {
@@ -400,11 +545,17 @@ function updateProgress() {
   const navCounter = document.getElementById('nav-counter');
   const btn = document.getElementById('btn-continue');
   const msg = document.getElementById('progress-msg');
+  const followDone = count >= REQUIRED_FOLLOWS;
 
-  if (count >= REQUIRED_FOLLOWS) {
+  if (followDone) {
     navCounter.classList.add('done');
-    btn.disabled = false;
-    msg.textContent = 'siap lanjut! 🎉';
+    if (hasLang()) {
+      btn.disabled = false;
+      msg.textContent = 'siap lanjut! 🎉';
+    } else {
+      btn.disabled = false; // tetap aktif, tapi goToHome() akan membuka modal bahasa, bukan redirect
+      msg.textContent = 'pilih bahasa dulu untuk lanjut →';
+    }
   } else {
     navCounter.classList.remove('done');
     btn.disabled = true;
@@ -414,6 +565,11 @@ function updateProgress() {
 
 function goToHome() {
   if (Object.keys(followedArtists).length < REQUIRED_FOLLOWS) return;
+  if (!hasLang()) {
+    toast('🌐 Pilih bahasa dulu sebelum lanjut ke Home');
+    openLangModal();
+    return;
+  }
   window.location.href = 'vibexa.html';
 }
 
