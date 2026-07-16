@@ -2990,20 +2990,26 @@ body.np-is-fullscreen #bar{display:none !important;}
   .fav-artist-card{flex:0 0 92px;width:92px;}
   .fav-artist-photo{width:84px;height:84px;}
 }
-/* LAGU FAVORIT TEMAN (Home) — lagu favorit dari user yang kita follow
-   (dan permintaan follow-nya sudah diterima). Dikelompokkan per teman:
-   avatar+nama teman di atas, lalu daftar lagu favoritnya (dengan bubble
-   catatan kalau ada) yang bisa discroll horizontal & diputar penuh. */
-.friend-fav-grid{display:flex;flex-direction:column;gap:22px;padding:4px 2px 4px;}
-.friend-fav-group{min-width:0;}
-.friend-fav-group-header{display:flex;align-items:center;gap:10px;margin-bottom:10px;cursor:pointer;width:fit-content;}
-.friend-fav-avatar{width:34px;height:34px;border-radius:50%;object-fit:cover;background:var(--card);border:1px solid var(--border);flex-shrink:0;}
-.friend-fav-avatar-ph{width:34px;height:34px;border-radius:50%;background:var(--card);border:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.85rem;color:var(--muted);}
-.friend-fav-group-header:hover .friend-fav-name{color:var(--green);text-decoration:underline;}
-.friend-fav-name{font-size:.86rem;font-weight:700;color:var(--text);transition:color .15s;}
-.friend-fav-sub{font-size:.68rem;color:var(--muted);margin-top:1px;}
-.friend-fav-row{display:flex;gap:16px;overflow-x:auto;padding:18px 2px 10px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
-.friend-fav-item{flex:0 0 132px;width:132px;display:flex;flex-direction:column;}
+/* DARI TEMAN MU (Home) — sekarang bersifat PUBLIC: siapa pun bisa menambahkan
+   saran lagu lewat tombol "+ Saran Lagu" di header section ini (lihat
+   openAddSuggestionModal()), dan lagunya langsung tampil di sini untuk SEMUA
+   user meskipun belum saling follow. Satu baris flat yang bisa discroll ke
+   samping (bukan dikelompokkan per teman lagi), diurutkan dari yang paling
+   baru ditambahkan di paling kiri — lihat startFriendSuggestionsListener(). */
+.friend-fav-grid{display:flex;flex-direction:row;gap:16px;overflow-x:auto;padding:18px 2px 14px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
+.friend-fav-item{flex:0 0 132px;width:132px;display:flex;flex-direction:column;position:relative;}
+/* Baris kecil "ditambahkan oleh" di bawah tiap kartu lagu — selalu tampil
+   supaya jelas siapa yang menyarankan lagu itu, terlepas dia menulis bubble
+   catatan atau tidak. Klik untuk buka profil orang tsb. */
+.friend-fav-suggester{display:flex;align-items:center;gap:5px;margin-top:6px;cursor:pointer;width:fit-content;max-width:100%;}
+.friend-fav-suggester:hover .friend-fav-suggester-name{color:var(--green);text-decoration:underline;}
+.friend-fav-suggester-avatar{width:15px;height:15px;border-radius:50%;object-fit:cover;background:var(--card);border:1px solid var(--border);flex-shrink:0;}
+.friend-fav-suggester-avatar-ph{width:15px;height:15px;border-radius:50%;background:var(--card);border:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.5rem;color:var(--muted);}
+.friend-fav-suggester-name{font-size:.62rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .15s;}
+/* Tombol hapus — hanya dirender kalau saran lagu itu milik currentUser sendiri */
+.friend-fav-del-btn{position:absolute;top:5px;right:5px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.55);border:none;color:#fff;font-size:.68rem;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:all .15s;z-index:2;}
+.friend-fav-thumb-wrap:hover .friend-fav-del-btn{opacity:1;}
+.friend-fav-del-btn:hover{background:#ff5555;}
 /* Slot bubble catatan — tinggi minimal kecil (sekadar pembatas/jarak) untuk
    lagu yang TIDAK punya catatan, supaya tidak ada ruang kosong besar di atas
    foto lagu. Kalau ada catatan, slot ikut membesar mengikuti tinggi bubble
@@ -3042,7 +3048,7 @@ body.np-is-fullscreen #bar{display:none !important;}
 .fav-note-bubble::after{content:'';position:absolute;right:20px;bottom:-5px;width:12px;height:12px;background:var(--bubble-color,var(--green));border-radius:65% 0 0 0;transform:rotate(45deg);}
 /* Emoji yang ditempel teman di pojok kiri atas bubble catatan (mirip Instagram) —
    diambil dari field `emoji` di node favoriteSongs/{key}, sama seperti note/noteColor,
-   jadi otomatis realtime ikut listener favoriteSongs yang sudah ada di startFriendFavListeners(). */
+   jadi otomatis realtime ikut listener friendSuggestions yang sudah ada di startFriendSuggestionsListener(). */
 .fav-note-emoji-badge{position:absolute;top:-14px;left:-10px;width:auto;height:auto;border-radius:0;background:none;border:none;box-shadow:none;display:flex;align-items:center;justify-content:center;font-size:1.55rem;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.45));z-index:3;}
 .friend-fav-thumb-wrap{position:relative;width:100%;aspect-ratio:1/1;border-radius:10px;overflow:hidden;cursor:pointer;background:var(--card);border:1px solid var(--border);transition:transform .18s,border-color .18s;}
 .friend-fav-thumb-wrap:hover{transform:translateY(-2px);border-color:var(--green);}
@@ -3056,6 +3062,37 @@ body.np-is-fullscreen #bar{display:none !important;}
 @media (max-width:900px){
   .friend-fav-item{flex:0 0 112px;width:112px;}
 }
+
+/* ── Modal "Tambah Saran Lagu" — pencarian lagu (mirip Lagu Favorit di
+   profile.html) + picker emoji bubble ── */
+.sugg-form-group{margin-bottom:14px;}
+.sugg-form-label{display:block;font-size:.72rem;font-weight:700;color:var(--sub);margin-bottom:6px;}
+.sugg-form-input{width:100%;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-family:var(--f);font-size:.85rem;outline:none;transition:border-color .2s;box-sizing:border-box;}
+.sugg-form-input:focus{border-color:var(--green);}
+textarea.sugg-form-input{resize:vertical;}
+.sugg-picker-wrap{position:relative;}
+.sugg-picker-dropdown{display:none;position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--panel);border:1px solid var(--border);border-radius:12px;max-height:240px;overflow-y:auto;z-index:1200;box-shadow:0 12px 30px rgba(0,0,0,.4);}
+.sugg-picker-dropdown::-webkit-scrollbar{width:6px;}
+.sugg-picker-dropdown::-webkit-scrollbar-thumb{background:var(--muted);border-radius:10px;}
+.sugg-picker-loading{padding:14px;text-align:center;font-size:.78rem;color:var(--muted);}
+.sugg-picker-row{display:flex;align-items:center;gap:10px;padding:8px 10px;cursor:pointer;transition:background .15s;}
+.sugg-picker-row:hover{background:var(--hover);}
+.sugg-picker-thumb{width:34px;height:34px;border-radius:7px;overflow:hidden;flex-shrink:0;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:.9rem;}
+.sugg-picker-thumb img{width:100%;height:100%;object-fit:cover;}
+.sugg-picker-info{flex:1;min-width:0;}
+.sugg-picker-title{font-size:.78rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sugg-picker-artist{font-size:.68rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sugg-picker-play-btn{flex-shrink:0;width:28px;height:28px;border-radius:50%;background:var(--green-dim);border:1px solid rgba(46,125,255,.3);color:var(--green);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .18s;}
+.sugg-picker-play-btn:hover{background:var(--green);color:#fff;}
+.sugg-picker-play-btn svg{width:12px;height:12px;}
+.sugg-emoji-quickpick{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+.sugg-emoji-quickpick button{width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--panel);font-size:.95rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;padding:0;}
+.sugg-emoji-quickpick button:hover{border-color:var(--green);}
+.sugg-emoji-quickpick button.active{border-color:var(--green);background:var(--green-dim);}
+.sugg-emoji-input-row{display:flex;align-items:center;gap:8px;}
+.sugg-emoji-input-row .sugg-form-input{width:70px;text-align:center;font-size:1.05rem;}
+.sugg-emoji-clear-btn{font-size:.72rem;color:var(--muted);cursor:pointer;background:none;border:none;padding:4px 6px;}
+.sugg-emoji-clear-btn:hover{color:#ff5555;text-decoration:underline;}
 
 .artist-albums-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;}
 .artist-album-card{background:var(--card);border-radius:var(--r);padding:13px;cursor:pointer;transition:all .22s;border:1px solid transparent;}
@@ -3479,16 +3516,21 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
       <div class="fav-artist-grid" id="fav-artist-grid"></div>
     </div>
 
-    <!-- LAGU FAVORIT TEMAN (lagu favorit dari user yang kita follow DAN
-         permintaan follow-nya sudah diterima — lihat startFriendFavListeners).
-         Realtime: langsung menyesuaikan begitu teman ganti lagu favorit atau
-         ubah teks bubble catatannya, dan langsung hilang kalau kita unfollow
-         atau permintaan follow kita ditolak/dihapus. -->
-    <div class="pub-section" id="friend-fav-section" style="display:none;">
+    <!-- DARI TEMAN MU (bersifat PUBLIC — lihat startFriendSuggestionsListener()).
+         Siapa pun bisa menekan tombol "+ Saran Lagu" untuk menambahkan lagu ke
+         sini, lengkap dengan bubble catatan (sama seperti Lagu Favorit di
+         halaman profil). Tampil untuk SEMUA user, tidak peduli sudah follow
+         atau belum. Satu baris scroll horizontal, diurutkan dari yang paling
+         baru ditambahkan di paling kiri. -->
+    <div class="pub-section" id="friend-fav-section">
       <div class="pub-section-header">
         <div class="pub-section-title">
            Dari Teman Mu
         </div>
+        <button class="home-new-pl-btn" onclick="openAddSuggestionModal()" title="Tambahkan saran lagu">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          Saran Lagu
+        </button>
       </div>
       <div class="friend-fav-grid" id="friend-fav-grid"></div>
     </div>
@@ -4401,6 +4443,44 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   </div>
 </div>
 
+<!-- Modal: Tambah Saran Lagu (bagian "Dari Teman Mu" di Home — public,
+     tampil untuk semua user, lihat startFriendSuggestionsListener()) -->
+<div id="add-suggestion-modal" class="modal-bg" style="display:none">
+  <div class="modal" style="width:380px;">
+    <h3>Tambah Saran Lagu</h3>
+    <p>Lagu ini akan tampil di "Dari Teman Mu" untuk semua orang, lengkap dengan bubble catatanmu</p>
+    <div class="sugg-form-group sugg-picker-wrap">
+      <label class="sugg-form-label">Cari Lagu</label>
+      <input type="text" class="sugg-form-input" id="inp-sugg-picker" placeholder="Ketik judul lagu..." oninput="onSuggPickerInput(this.value)" autocomplete="off">
+      <div class="sugg-picker-dropdown" id="sugg-picker-results"></div>
+    </div>
+    <div id="sugg-picker-preview" style="display:none;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin-bottom:14px;"></div>
+    <div class="sugg-form-group">
+      <label class="sugg-form-label">Bubble Catatan (di atas lagu)</label>
+      <textarea class="sugg-form-input" id="inp-sugg-note" rows="2" placeholder="Kenapa kamu menyarankan lagu ini?" maxlength="150"></textarea>
+    </div>
+    <div class="sugg-form-group">
+      <label class="sugg-form-label">Warna Bubble Catatan</label>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <input type="color" id="inp-sugg-note-color" value="#2E7DFF" style="width:44px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--panel);cursor:pointer;padding:2px;">
+        <span style="font-size:.75rem;color:var(--sub);">Pilih warna bubble catatan untuk lagu ini</span>
+      </div>
+    </div>
+    <div class="sugg-form-group">
+      <label class="sugg-form-label">Emoji Bubble <span style="color:var(--muted);font-weight:500;">(opsional)</span></label>
+      <div class="sugg-emoji-quickpick" id="sugg-emoji-quickpick"></div>
+      <div class="sugg-emoji-input-row">
+        <input type="text" class="sugg-form-input" id="inp-sugg-emoji" placeholder="😊" maxlength="24" oninput="renderSuggEmojiQuickpick()">
+        <button type="button" class="sugg-emoji-clear-btn" onclick="clearSuggEmoji()">Hapus emoji</button>
+      </div>
+    </div>
+    <div class="mbtns">
+      <button class="btn-s" onclick="closeAddSuggestionModal()">Batal</button>
+      <button class="btn-p" id="btn-add-suggestion" onclick="addSongSuggestion()">+ Tambah</button>
+    </div>
+  </div>
+</div>
+
 <!-- NOW PLAYING VIEW -->
 <div id="np-view">
   <div id="np-bg"></div>
@@ -4873,7 +4953,7 @@ auth.onAuthStateChanged(user => {
     _cleanupStaleLocalCache();
     loadAllPlaylistsFromCloud();
     loadFavoriteArtistsFromCloud();
-    startFriendFavListeners();
+    startFriendSuggestionsListener();
     loadPublicFeed();
     loadTrendingSongs();
     loadRecentlyPlayedFromCloud();
@@ -6984,139 +7064,92 @@ function renderFavoriteArtists() {
   });
 }
 
-// ─── LAGU FAVORIT TEMAN (Home) ──────────────────────────────────────────
-// Menampilkan lagu favorit (lihat profile.html: users/{uid}/favoriteSongs,
-// tiap lagu bisa punya bubble catatan) milik user-user yang KITA follow —
-// tapi HANYA yang permintaan follow-nya sudah diterima. Ini otomatis benar
-// karena node "follows/{myUid}/following/{otherUid}" cuma pernah ditulis di
-// acceptFollowRequest() (lihat langkah 2 di atas) saat pemilik akun lain
-// menekan "Terima". Kalau ditolak/belum diterima, uid itu TIDAK PERNAH
-// muncul di "follows/{myUid}/following", jadi lagu favoritnya otomatis
-// tidak pernah ditarik/ditampilkan di sini. Kalau di-unfollow, uid tsb
-// dihapus dari node itu dan section ini otomatis menyesuaikan (realtime).
+// ─── DARI TEMAN MU (Home) ────────────────────────────────────────────────
+// Sekarang PUBLIC: bukan lagi menarik data dari lagu favorit user yang kita
+// follow, tapi dari node global "friendSuggestions/{key}" yang bisa diisi
+// SIAPA SAJA lewat tombol "+ Saran Lagu" (openAddSuggestionModal()). Karena
+// public, section ini tampil sama untuk semua user, meskipun kita belum
+// follow pemilik lagunya. Satu baris flat yang discroll ke samping, dan
+// selalu diurutkan dari yang PALING BARU ditambahkan di PALING KIRI.
 //
-// friendFavFriends: { [uid]: { name, photo } }               — profil teman
-// friendFavSongs:   { [uid]: [ {key, uid, title, artist, thumb, note,
-//                     noteColor, emoji, preview, _query, order, addedAt}, ... ] }
-let friendFavFriends = {};
-let friendFavSongs = {};
-let _friendFavSongOffs = {};   // uid -> fungsi untuk stop listener favoriteSongs
-let _friendFavFollowingOff = null; // fungsi untuk stop listener follows/.../following
+// friendSuggestions: [ {key, uid, name, photo, title, artist, thumb, note,
+//                        noteColor, emoji, preview, _query, addedAt}, ... ]
+let friendSuggestions = [];
+let _friendSuggestionsOff = null; // fungsi untuk stop listener
 
 // Dipanggil sekali setelah login (lihat auth.onAuthStateChanged di atas).
-// Memasang listener REALTIME (bukan sekali ambil) supaya section ini
-// otomatis ter-update begitu:
-//   - kita follow teman baru & diterima → lagu favoritnya langsung muncul
-//   - kita unfollow / diblokir → lagu favoritnya langsung hilang
-//   - teman menambah/menghapus/ubah bubble catatan lagu favoritnya → section
-//     ini langsung menyesuaikan tanpa perlu refresh halaman
-function startFriendFavListeners() {
+// Memasang listener REALTIME (bukan sekali ambil) ke node public
+// "friendSuggestions" (dibatasi 60 lagu terbaru) supaya section ini
+// otomatis ter-update begitu ADA SAJA user yang menambah/menghapus saran
+// lagu, tanpa perlu refresh halaman dan tanpa syarat follow-mengikuti.
+function startFriendSuggestionsListener() {
   if (!currentUser) return;
-  const myUid = currentUser.uid;
+  if (_friendSuggestionsOff) { _friendSuggestionsOff(); _friendSuggestionsOff = null; }
 
-  if (_friendFavFollowingOff) { _friendFavFollowingOff(); _friendFavFollowingOff = null; }
-  Object.values(_friendFavSongOffs).forEach(off => off());
-  _friendFavSongOffs = {};
-  friendFavFriends = {};
-  friendFavSongs = {};
-
-  const followingRef = db.ref('follows/' + myUid + '/following');
-  const onFollowingChange = (snap) => {
-    const ids = snap.exists() ? Object.keys(snap.val()).filter(uid => snap.val()[uid] === true) : [];
-    const idSet = new Set(ids);
-
-    // Lepas listener + buang data teman yang sudah tidak diikuti lagi
-    for (const uid in _friendFavSongOffs) {
-      if (!idSet.has(uid)) {
-        _friendFavSongOffs[uid]();
-        delete _friendFavSongOffs[uid];
-        delete friendFavFriends[uid];
-        delete friendFavSongs[uid];
-      }
-    }
-
-    // Pasang listener untuk teman baru yang belum dipantau
-    ids.forEach(uid => {
-      if (_friendFavSongOffs[uid]) return; // sudah dipantau
-      // Ambil profil teman (nama + foto) sekali, untuk header grup
-      db.ref('users/' + uid + '/profile').get().then(pSnap => {
-        const p = pSnap.exists() ? pSnap.val() : {};
-        friendFavFriends[uid] = { name: p.displayName || 'User', photo: p.photoURL || '' };
-        renderFriendFavorites();
-      }).catch(() => {});
-
-      const songsRef = db.ref('users/' + uid + '/favoriteSongs');
-      const onSongsChange = (sSnap) => {
-        const val = sSnap.exists() ? sSnap.val() : {};
-        friendFavSongs[uid] = Object.entries(val)
-          .map(([key, f]) => ({ key, uid, ...f }))
-          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-        renderFriendFavorites();
-      };
-      songsRef.on('value', onSongsChange);
-      _friendFavSongOffs[uid] = () => songsRef.off('value', onSongsChange);
-    });
-
+  const ref = db.ref('friendSuggestions').orderByChild('addedAt').limitToLast(60);
+  const onChange = (snap) => {
+    const val = snap.exists() ? snap.val() : {};
+    friendSuggestions = Object.entries(val)
+      .map(([key, s]) => ({ key, ...s }))
+      // Terbaru ditambahkan → paling kiri
+      .sort((a, b) => (b.addedAt ?? 0) - (a.addedAt ?? 0));
     renderFriendFavorites();
   };
-  followingRef.on('value', onFollowingChange);
-  _friendFavFollowingOff = () => followingRef.off('value', onFollowingChange);
+  ref.on('value', onChange);
+  _friendSuggestionsOff = () => ref.off('value', onChange);
 }
 
-// Render bagian "Lagu Favorit Teman" di Home: dikelompokkan per teman
-// (avatar + nama di atas, klik untuk buka profilnya), lalu daftar lagu
-// favoritnya secara horizontal — tiap lagu tampil dengan bubble catatan
-// (kalau diisi teman itu) persis seperti di halaman profil, dan bisa
-// diklik untuk diputar penuh (bukan cuma preview 30 detik).
+// Render bagian "Dari Teman Mu" di Home: satu baris flat (bukan dikelompokkan
+// per teman lagi) yang bisa discroll ke samping. Tiap lagu tampil dengan
+// bubble catatan (kalau diisi si penyaran) persis seperti Lagu Favorit di
+// halaman profil, ditambah baris kecil "ditambahkan oleh" di bawah kartu
+// supaya selalu jelas siapa yang menyarankan lagu itu, dan bisa diklik untuk
+// diputar penuh (bukan cuma preview 30 detik).
 function renderFriendFavorites() {
   const section = document.getElementById('friend-fav-section');
   const grid = document.getElementById('friend-fav-grid');
   if (!section || !grid) return;
 
-  // Hanya teman yang profilnya sudah termuat DAN punya minimal 1 lagu favorit
-  const uids = Object.keys(friendFavFriends).filter(uid => (friendFavSongs[uid] || []).length > 0);
-  if (!uids.length) { section.style.display = 'none'; grid.innerHTML = ''; return; }
+  if (!friendSuggestions.length) {
+    grid.innerHTML = `<div style="padding:14px 4px;color:var(--muted);font-size:.8rem;">Belum ada saran lagu. Jadilah yang pertama menekan "+ Saran Lagu" di atas!</div>`;
+    return;
+  }
 
-  section.style.display = 'block';
-  grid.innerHTML = uids.map(uid => {
-    const f = friendFavFriends[uid];
-    const songs = friendFavSongs[uid] || [];
-    const songsHTML = songs.map(s => {
-      // Bubble catatan dibuat SAMA PERSIS dengan struktur di halaman profil
-      // (fav-note-bubble > fav-note-text + fav-note-author), tapi baris
-      // "author" di sini selalu memakai nama & foto TEMAN pemilik lagu
-      // (bukan "me"), supaya jelas bubble itu punya siapa. Avatar di dalam
-      // bubble = foto profil teman tsb (fallback ikon kalau tidak ada foto).
-      // Bubble bisa ditekan untuk membuka/menutup teks yang terlalu panjang,
-      // dan nama teman di dalam bubble bisa ditekan untuk membuka profilnya
-      // (pakai stopPropagation supaya tidak ikut memicu toggle expand).
-      const bubble = s.note
-        ? `<div class="fav-note-bubble" style="--bubble-color:${esc(s.noteColor || '#2E7DFF')}" onclick="showFavNotePopover(this,event)">
-             ${s.emoji ? `<span class="fav-note-emoji-badge">${esc(s.emoji)}</span>` : ''}
-             <div class="fav-note-text">${esc(s.note)}</div>
-             <div class="fav-note-author">
-               <span class="fav-note-author-name" onclick="event.stopPropagation();window.location.href='profile.html?uid=${encodeURIComponent(uid)}'">– ${esc(f.name)}</span>
-               <span class="fav-note-avatar" onclick="event.stopPropagation();window.location.href='profile.html?uid=${encodeURIComponent(uid)}'">${f.photo ? `<img src="${esc(f.photo)}" alt="">` : '👤'}</span>
-             </div>
-           </div>`
-        : '';
-      // Slot dengan tinggi tetap (.friend-fav-bubble-slot) dirender SELALU,
-      // terlepas lagu ini punya catatan atau tidak — supaya foto lagu semua
-      // item mulai di baris yang sama persis (tidak ada yang naik-turun).
-      return `
-        <div class="friend-fav-item">
-          <div class="friend-fav-bubble-slot">${bubble}</div>
-          <div class="friend-fav-thumb-wrap" onclick="playFriendFavSong('${uid}','${s.key}')" title="Putar penuh: ${esc(s.title)}">
-            ${s.thumb ? `<img src="${esc(s.thumb)}" alt="" loading="lazy">` : `<div class="friend-fav-thumb-ph">♪</div>`}
-            <div class="friend-fav-play-ov"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
-          </div>
-          <div class="friend-fav-title" onclick="playFriendFavSong('${uid}','${s.key}')">${esc(s.title || '—')}</div>
-          <div class="friend-fav-artist">${esc(s.artist || '—')}</div>
-        </div>`;
-    }).join('');
+  grid.innerHTML = friendSuggestions.map(s => {
+    const isMine = currentUser && s.uid === currentUser.uid;
+    // Bubble catatan dibuat SAMA PERSIS dengan struktur di halaman profil
+    // (fav-note-bubble > fav-note-text + fav-note-author), baris "author" di
+    // sini memakai nama & foto user yang MENYARANKAN lagu itu. Bubble bisa
+    // ditekan untuk membuka teks yang terlalu panjang, dan nama/foto di
+    // dalam bubble bisa ditekan untuk membuka profilnya (stopPropagation
+    // supaya tidak ikut memicu toggle expand / putar lagu).
+    const bubble = s.note
+      ? `<div class="fav-note-bubble" style="--bubble-color:${esc(s.noteColor || '#2E7DFF')}" onclick="showFavNotePopover(this,event)">
+           ${s.emoji ? `<span class="fav-note-emoji-badge">${esc(s.emoji)}</span>` : ''}
+           <div class="fav-note-text">${esc(s.note)}</div>
+           <div class="fav-note-author">
+             <span class="fav-note-author-name" onclick="event.stopPropagation();window.location.href='profile.html?uid=${encodeURIComponent(s.uid)}'">– ${esc(s.name || 'User')}</span>
+             <span class="fav-note-avatar" onclick="event.stopPropagation();window.location.href='profile.html?uid=${encodeURIComponent(s.uid)}'">${s.photo ? `<img src="${esc(s.photo)}" alt="">` : '👤'}</span>
+           </div>
+         </div>`
+      : '';
+    // Slot dengan tinggi tetap (.friend-fav-bubble-slot) dirender SELALU,
+    // terlepas lagu ini punya catatan atau tidak — supaya foto lagu semua
+    // item mulai di baris yang sama persis (tidak ada yang naik-turun).
     return `
-      <div class="friend-fav-group">
-        <div class="friend-fav-row">${songsHTML}</div>
+      <div class="friend-fav-item">
+        <div class="friend-fav-bubble-slot">${bubble}</div>
+        <div class="friend-fav-thumb-wrap" onclick="playFriendSuggestedSong('${s.key}')" title="Putar penuh: ${esc(s.title)}">
+          ${isMine ? `<button type="button" class="friend-fav-del-btn" onclick="event.stopPropagation();deleteSongSuggestion('${s.key}')" title="Hapus saran lagu ini">✕</button>` : ''}
+          ${s.thumb ? `<img src="${esc(s.thumb)}" alt="" loading="lazy">` : `<div class="friend-fav-thumb-ph">♪</div>`}
+          <div class="friend-fav-play-ov"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+        </div>
+        <div class="friend-fav-title" onclick="playFriendSuggestedSong('${s.key}')">${esc(s.title || '—')}</div>
+        <div class="friend-fav-artist">${esc(s.artist || '—')}</div>
+        <div class="friend-fav-suggester" onclick="window.location.href='profile.html?uid=${encodeURIComponent(s.uid)}'" title="Disarankan oleh ${esc(s.name || 'User')}">
+          ${s.photo ? `<img class="friend-fav-suggester-avatar" src="${esc(s.photo)}" alt="">` : `<span class="friend-fav-suggester-avatar-ph">👤</span>`}
+          <span class="friend-fav-suggester-name">${esc(s.name || 'User')}</span>
+        </div>
       </div>`;
   }).join('');
 }
@@ -7177,11 +7210,10 @@ document.addEventListener('click', (e) => {
 window.addEventListener('scroll', () => closeFavNotePopover(), true);
 window.addEventListener('resize', () => closeFavNotePopover());
 
-// Klik lagu favorit teman → putar PENUH lewat player utama (sama seperti
-// klik lagu di Rekomendasi/Top Songs/dll), bukan cuma preview 30 detik.
-function playFriendFavSong(uid, key) {
-  const songs = friendFavSongs[uid] || [];
-  const s = songs.find(x => x.key === key);
+// Klik lagu di "Dari Teman Mu" → putar PENUH lewat player utama (sama
+// seperti klik lagu di Rekomendasi/Top Songs/dll), bukan cuma preview 30 detik.
+function playFriendSuggestedSong(key) {
+  const s = friendSuggestions.find(x => x.key === key);
   if (!s) return;
   const track = {
     title: s.title || 'Unknown',
@@ -7194,6 +7226,195 @@ function playFriendFavSong(uid, key) {
     _query: s._query || `${s.artist || ''}|||${s.title || ''}|||${key}`
   };
   loadPlay(track, null);
+}
+
+// Hapus saran lagu — hanya bisa dilakukan oleh yang menambahkannya sendiri
+// (tombol ✕ hanya dirender untuk item milik currentUser, lihat renderFriendFavorites()).
+async function deleteSongSuggestion(key) {
+  if (!currentUser) return;
+  const s = friendSuggestions.find(x => x.key === key);
+  if (!s || s.uid !== currentUser.uid) return;
+  try {
+    await db.ref('friendSuggestions/' + key).remove();
+    toast('🗑️ Saran lagu dihapus');
+  } catch (e) {
+    toast('❌ Gagal: ' + e.message);
+  }
+}
+
+// ─── Modal: Tambah Saran Lagu ("Dari Teman Mu") ─────────────────────────
+let selectedSuggTrack = null;
+let suggSearchResults = [];
+let suggSearchTimer = null;
+let suggSearchAudio = null;
+let suggSearchSeq = 0;
+
+function openAddSuggestionModal() {
+  if (!currentUser) { toast('❗ Login dulu untuk menambahkan saran lagu'); return; }
+  selectedSuggTrack = null;
+  document.getElementById('inp-sugg-picker').value = '';
+  document.getElementById('inp-sugg-note').value = '';
+  document.getElementById('inp-sugg-note-color').value = '#2E7DFF';
+  document.getElementById('inp-sugg-emoji').value = '';
+  document.getElementById('sugg-picker-preview').style.display = 'none';
+  document.getElementById('sugg-picker-results').style.display = 'none';
+  document.getElementById('sugg-picker-results').innerHTML = '';
+  renderSuggEmojiQuickpick();
+  document.getElementById('add-suggestion-modal').style.display = 'flex';
+}
+function closeAddSuggestionModal() {
+  document.getElementById('add-suggestion-modal').style.display = 'none';
+  if (suggSearchAudio) { suggSearchAudio.pause(); suggSearchAudio = null; }
+}
+document.getElementById('add-suggestion-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('add-suggestion-modal')) closeAddSuggestionModal();
+});
+
+const SUGG_EMOJI_QUICKPICK = ['❤️','🔥','😍','😂','🥹','⭐','👍','🎧'];
+function renderSuggEmojiQuickpick() {
+  const el = document.getElementById('sugg-emoji-quickpick');
+  const input = document.getElementById('inp-sugg-emoji');
+  if (!el || !input) return;
+  const current = input.value;
+  el.innerHTML = SUGG_EMOJI_QUICKPICK.map(e =>
+    `<button type="button" class="${e === current ? 'active' : ''}" onclick="pickSuggEmoji('${e}')">${e}</button>`
+  ).join('');
+}
+function pickSuggEmoji(emoji) {
+  document.getElementById('inp-sugg-emoji').value = emoji;
+  renderSuggEmojiQuickpick();
+}
+function clearSuggEmoji() {
+  document.getElementById('inp-sugg-emoji').value = '';
+  renderSuggEmojiQuickpick();
+}
+
+function onSuggPickerInput(val) {
+  selectedSuggTrack = null;
+  document.getElementById('sugg-picker-preview').style.display = 'none';
+  clearTimeout(suggSearchTimer);
+  const dropdown = document.getElementById('sugg-picker-results');
+  const q = (val || '').trim();
+  if (q.length < 2) {
+    dropdown.style.display = 'none';
+    dropdown.innerHTML = '';
+    return;
+  }
+  dropdown.style.display = 'block';
+  dropdown.innerHTML = `<div class="sugg-picker-loading">Mencari...</div>`;
+  suggSearchTimer = setTimeout(() => doSuggSearch(q), 400);
+}
+
+async function doSuggSearch(q) {
+  const mySeq = ++suggSearchSeq;
+  const dropdown = document.getElementById('sugg-picker-results');
+  try {
+    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=8&country=ID`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) throw new Error('Pencarian gagal (' + res.status + ')');
+    const data = await res.json();
+    if (mySeq !== suggSearchSeq) return; // hasil pencarian lama, abaikan
+    suggSearchResults = (data.results || []).map(it => ({
+      title: it.trackName || 'Unknown',
+      artist: it.artistName || 'Unknown',
+      thumb: (it.artworkUrl100 || '').replace('100x100bb', '600x600bb'),
+      preview: it.previewUrl || null,
+      _query: `${it.artistName || ''}|||${it.trackName || ''}|||${it.trackId || Math.random()}`
+    }));
+    if (!suggSearchResults.length) {
+      dropdown.innerHTML = `<div class="sugg-picker-loading">Tidak ada hasil untuk "${esc(q)}"</div>`;
+      return;
+    }
+    dropdown.innerHTML = suggSearchResults.map((t, i) => `
+      <div class="sugg-picker-row" onclick="selectSuggSearchResult(${i})">
+        <div class="sugg-picker-thumb">${t.thumb ? `<img src="${esc(t.thumb)}" alt="">` : '♪'}</div>
+        <div class="sugg-picker-info">
+          <div class="sugg-picker-title">${esc(t.title)}</div>
+          <div class="sugg-picker-artist">${esc(t.artist)}</div>
+        </div>
+        ${t.preview ? `<button type="button" class="sugg-picker-play-btn" onclick="event.stopPropagation();previewSuggTrack(${i})" title="Putar preview 30 detik"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>` : ''}
+      </div>`).join('');
+  } catch (e) {
+    if (mySeq !== suggSearchSeq) return;
+    dropdown.innerHTML = `<div class="sugg-picker-loading">❌ ${esc(e.message)}</div>`;
+  }
+}
+
+function previewSuggTrack(i) {
+  const t = suggSearchResults[i];
+  if (!t || !t.preview) { toast('ℹ️ Preview tidak tersedia untuk lagu ini'); return; }
+  if (suggSearchAudio) { suggSearchAudio.pause(); suggSearchAudio = null; }
+  suggSearchAudio = new Audio(t.preview);
+  suggSearchAudio.play().catch(() => toast('❌ Gagal memutar preview'));
+  toast('▶️ Memutar preview 30 detik: ' + t.title);
+}
+
+function selectSuggSearchResult(i) {
+  const t = suggSearchResults[i];
+  if (!t) return;
+  selectedSuggTrack = t;
+  document.getElementById('inp-sugg-picker').value = `${t.title} — ${t.artist}`;
+  const dropdown = document.getElementById('sugg-picker-results');
+  dropdown.style.display = 'none';
+  dropdown.innerHTML = '';
+  const preview = document.getElementById('sugg-picker-preview');
+  preview.style.display = 'flex';
+  preview.innerHTML = `
+    <div style="width:36px;height:36px;border-radius:7px;overflow:hidden;flex-shrink:0;background:var(--panel);display:flex;align-items:center;justify-content:center;font-size:1rem;">${t.thumb ? `<img src="${esc(t.thumb)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : '♪'}</div>
+    <div style="min-width:0;flex:1;">
+      <div style="font-size:.78rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(t.title)}</div>
+      <div style="font-size:.68rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(t.artist)}</div>
+    </div>
+    ${t.preview ? `<button type="button" onclick="previewSuggTrack(suggSearchResults.indexOf(selectedSuggTrack))" style="flex-shrink:0;width:30px;height:30px;border-radius:50%;background:var(--green-dim);border:1px solid rgba(46,125,255,.3);color:var(--green);display:flex;align-items:center;justify-content:center;cursor:pointer;" title="Putar preview"><svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M8 5v14l11-7z"/></svg></button>` : ''}
+  `;
+}
+
+// Tutup dropdown pencarian saat klik di luar area
+document.addEventListener('click', (e) => {
+  const wrap = document.querySelector('#add-suggestion-modal .sugg-picker-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    const dropdown = document.getElementById('sugg-picker-results');
+    if (dropdown) dropdown.style.display = 'none';
+  }
+});
+
+// Simpan saran lagu ke node PUBLIC "friendSuggestions" (bukan lagi ke
+// users/{uid}/favoriteSongs milik sendiri) — supaya langsung tampil di
+// "Dari Teman Mu" untuk SEMUA user via listener realtime di
+// startFriendSuggestionsListener(), tidak peduli status follow.
+async function addSongSuggestion() {
+  if (!currentUser) return;
+  const note = document.getElementById('inp-sugg-note').value.trim();
+  const noteColor = document.getElementById('inp-sugg-note-color').value || '#2E7DFF';
+  const emoji = document.getElementById('inp-sugg-emoji').value.trim();
+  if (!selectedSuggTrack) { toast('❗ Pilih lagu dari daftar dulu'); return; }
+
+  const btn = document.getElementById('btn-add-suggestion');
+  btn.disabled = true; btn.textContent = 'Menambahkan...';
+  try {
+    const pSnap = await db.ref('users/' + currentUser.uid + '/profile').get();
+    const myProfile = pSnap.exists() ? (pSnap.val() || {}) : {};
+    const myName = myProfile.displayName || currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'User');
+    const myPhoto = myProfile.photoURL || myProfile.photoBase64 || currentUser.photoURL || '';
+
+    await db.ref('friendSuggestions').push({
+      uid: currentUser.uid,
+      name: myName,
+      photo: myPhoto,
+      title: selectedSuggTrack.title || '',
+      artist: selectedSuggTrack.artist || '',
+      thumb: selectedSuggTrack.thumb || '',
+      _query: selectedSuggTrack._query || '',
+      preview: selectedSuggTrack.preview || '',
+      note, noteColor, emoji, addedAt: Date.now()
+    });
+    toast('✅ Saran lagu ditambahkan ke "Dari Teman Mu"!');
+    closeAddSuggestionModal();
+  } catch (e) {
+    toast('❌ Gagal: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '+ Tambah';
+  }
 }
 
 // Sinkronkan label semua tombol "Ikuti" yang mungkin sedang tampil
