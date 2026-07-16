@@ -7549,11 +7549,20 @@ async function doSuggSearch(q) {
   try {
     const countries = ['ID', 'US'];
     const reqs = [];
+    // cache-buster: iTunes Search API endpoint ada bug dikenal di CDN Apple —
+    // utk term yg sangat sering dicari dari BANYAK situs berbeda (spt lagu
+    // hits ini), respons yg ke-cache di edge kadang membawa header
+    // Access-Control-Allow-Origin milik origin situs LAIN, bikin browser
+    // diam2 nge-block fetch() krn dianggap pelanggaran CORS (tanpa error yg
+    // kelihatan di UI kita krn di-catch jadi array kosong). Nambahin
+    // parameter acak + cache:'no-store' motong request lewat cache yg
+    // "diracuni" itu, jadi kita selalu dapet respons fresh dari Apple.
+    const bust = () => `_=${Date.now()}_${Math.random().toString(36).slice(2)}`;
     countries.forEach(c => {
-      reqs.push(fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=200&country=${c}`, { signal: AbortSignal.timeout(8000) })
+      reqs.push(fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=200&country=${c}&${bust()}`, { signal: AbortSignal.timeout(8000), cache: 'no-store' })
         .then(res => res.ok ? res.json() : { results: [] })
         .catch(() => ({ results: [] })));
-      reqs.push(fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&attribute=songTerm&limit=200&country=${c}`, { signal: AbortSignal.timeout(8000) })
+      reqs.push(fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&attribute=songTerm&limit=200&country=${c}&${bust()}`, { signal: AbortSignal.timeout(8000), cache: 'no-store' })
         .then(res => res.ok ? res.json() : { results: [] })
         .catch(() => ({ results: [] })));
     });
