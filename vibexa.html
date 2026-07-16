@@ -7566,7 +7566,18 @@ async function doSuggSearch(q) {
         .then(res => res.ok ? res.json() : { results: [] })
         .catch(() => ({ results: [] })));
     });
+    // Sumber KEDUA yg independen dari iTunes: Deezer. Deezer ngasih skor
+    // popularitas resmi per lagu ("rank" — makin tinggi makin sering
+    // diputar/disukai), jadi kalau iTunes gagal balikin rilisan aslinya utk
+    // term tertentu (spt yg kejadian di kasus ini), Deezer bisa jadi
+    // jaring pengaman: lagu aslinya yg populer hampir pasti menang rank-nya
+    // lawan cover2 yg jarang didengar. Pakai JSONP (bukan fetch) krn Deezer
+    // memang tidak kasih header CORS utk request browser biasa.
+    const deezerPromise = _deezerJsonp('https://api.deezer.com/search?q=' + encodeURIComponent(q) + '&order=RANKING&limit=25')
+      .catch(() => null);
+
     const responses = await Promise.all(reqs);
+    const deezerData = await deezerPromise;
     if (mySeq !== suggSearchSeq) return; // hasil pencarian lama, abaikan
 
     const seen = new Set();
@@ -7582,18 +7593,41 @@ async function doSuggSearch(q) {
           thumb: (it.artworkUrl100 || '').replace('100x100bb', '600x600bb'),
           preview: it.previewUrl || null,
           releaseTs: it.releaseDate ? Date.parse(it.releaseDate) : Infinity,
+          rank: 0,
           _query: `${it.artistName || ''}|||${it.trackName || ''}|||${it.trackId || Math.random()}`
         });
       });
     });
 
+    // Gabungkan hasil Deezer, hindari duplikat berdasar judul(base)+artis yg
+    // sudah ada dari iTunes.
+    const seenNames = new Set(suggSearchResults.map(t => _suggBaseTitle(t.title) + '|||' + (t.artist || '').trim().toLowerCase()));
+    ((deezerData && deezerData.data) || []).forEach(t => {
+      const dt = _normalizeDeezerTrack(t);
+      const nameKey = _suggBaseTitle(dt.title) + '|||' + (dt.artist || '').trim().toLowerCase();
+      if (seenNames.has(nameKey)) return;
+      seenNames.add(nameKey);
+      suggSearchResults.push({
+        title: dt.title,
+        artist: dt.artist,
+        thumb: dt.thumb,
+        preview: dt.preview,
+        releaseTs: Infinity,
+        rank: dt.rank || 0,
+        _query: `${dt.artist}|||${dt.title}|||dz${dt.id}`
+      });
+    });
+
     // Susun ulang: lagu yg judulnya paling cocok (rilisan asli) naik ke atas,
     // cover/tribute/karaoke/remix didorong ke bawah. Kalau skornya sama,
-    // menangkan rilisan yg tanggal rilisnya PALING LAWAS — cover/tribute
-    // hampir selalu dirilis belakangan drpd lagu aslinya.
+    // menangkan yg skor popularitas Deezer-nya lebih tinggi, baru kalau itu
+    // masih seri juga menangkan rilisan yg tanggal rilis iTunes-nya PALING
+    // LAWAS — cover/tribute hampir selalu dirilis belakangan drpd aslinya.
     suggSearchResults.sort((a, b) => {
       const diff = _suggScoreResult(a, q) - _suggScoreResult(b, q);
       if (diff !== 0) return diff;
+      const rankDiff = (b.rank || 0) - (a.rank || 0);
+      if (rankDiff !== 0) return rankDiff;
       return (a.releaseTs || Infinity) - (b.releaseTs || Infinity);
     });
 
