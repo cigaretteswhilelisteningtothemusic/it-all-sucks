@@ -7533,16 +7533,31 @@ function _suggScoreResult(t, q) {
 // limit buatan pada jumlah hasil yang ditampilkan — semua hasil yang
 // dikembalikan iTunes (maksimum teknis API itu sendiri, 200/request) akan
 // tampil, tinggal discroll di dropdown-nya.
+//
+// TAMBAHAN: utk judul yg sangat umum (mis. "the less i know the better")
+// ada RATUSAN cover/tribute/karaoke/lofi version yg beredar, jadi rilisan
+// asli bisa saja tidak masuk 200 hasil teratas versi default iTunes (yg
+// mencocokkan term ke SEMUA field: judul, artis, album sekaligus) — kalau
+// track itu sendiri tidak pernah ke-fetch sama sekali, sortir ulang di
+// atas tidak akan membantu. Makanya sekarang query dijalankan 2x per
+// storefront: sekali default, sekali lagi dgn attribute=songTerm (cari
+// KHUSUS di kolom judul lagu saja, tanpa terganggu match di field artis/
+// album) — kombinasi ini jauh lebih mungkin menjaring rilisan aslinya.
 async function doSuggSearch(q) {
   const mySeq = ++suggSearchSeq;
   const dropdown = document.getElementById('sugg-picker-results');
   try {
     const countries = ['ID', 'US'];
-    const responses = await Promise.all(countries.map(c =>
-      fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=200&country=${c}`, { signal: AbortSignal.timeout(8000) })
+    const reqs = [];
+    countries.forEach(c => {
+      reqs.push(fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=200&country=${c}`, { signal: AbortSignal.timeout(8000) })
         .then(res => res.ok ? res.json() : { results: [] })
-        .catch(() => ({ results: [] }))
-    ));
+        .catch(() => ({ results: [] })));
+      reqs.push(fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&attribute=songTerm&limit=200&country=${c}`, { signal: AbortSignal.timeout(8000) })
+        .then(res => res.ok ? res.json() : { results: [] })
+        .catch(() => ({ results: [] })));
+    });
+    const responses = await Promise.all(reqs);
     if (mySeq !== suggSearchSeq) return; // hasil pencarian lama, abaikan
 
     const seen = new Set();
@@ -7550,22 +7565,28 @@ async function doSuggSearch(q) {
     responses.forEach(data => {
       (data.results || []).forEach(it => {
         const id = it.trackId || `${it.artistName}|||${it.trackName}`;
-        if (seen.has(id)) return; // sudah ada dari storefront lain, skip duplikat
+        if (seen.has(id)) return; // sudah ada dari storefront/mode lain, skip duplikat
         seen.add(id);
         suggSearchResults.push({
           title: it.trackName || 'Unknown',
           artist: it.artistName || 'Unknown',
           thumb: (it.artworkUrl100 || '').replace('100x100bb', '600x600bb'),
           preview: it.previewUrl || null,
+          releaseTs: it.releaseDate ? Date.parse(it.releaseDate) : Infinity,
           _query: `${it.artistName || ''}|||${it.trackName || ''}|||${it.trackId || Math.random()}`
         });
       });
     });
 
     // Susun ulang: lagu yg judulnya paling cocok (rilisan asli) naik ke atas,
-    // cover/tribute/karaoke/remix didorong ke bawah. sort() JS stabil, jadi
-    // urutan relevansi asli dari iTunes tetap dipakai sbg tie-breaker.
-    suggSearchResults.sort((a, b) => _suggScoreResult(a, q) - _suggScoreResult(b, q));
+    // cover/tribute/karaoke/remix didorong ke bawah. Kalau skornya sama,
+    // menangkan rilisan yg tanggal rilisnya PALING LAWAS — cover/tribute
+    // hampir selalu dirilis belakangan drpd lagu aslinya.
+    suggSearchResults.sort((a, b) => {
+      const diff = _suggScoreResult(a, q) - _suggScoreResult(b, q);
+      if (diff !== 0) return diff;
+      return (a.releaseTs || Infinity) - (b.releaseTs || Infinity);
+    });
 
     if (!suggSearchResults.length) {
       dropdown.innerHTML = `<div class="sugg-picker-loading">No results for "${esc(q)}"</div>`;
