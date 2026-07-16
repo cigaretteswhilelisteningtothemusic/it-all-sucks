@@ -3094,6 +3094,23 @@ textarea.sugg-form-input{resize:vertical;}
 .sugg-emoji-input-row .sugg-form-input{width:70px;text-align:center;font-size:1.05rem;}
 .sugg-emoji-clear-btn{font-size:.72rem;color:var(--muted);cursor:pointer;background:none;border:none;padding:4px 6px;}
 .sugg-emoji-clear-btn:hover{color:#ff5555;text-decoration:underline;}
+/* Tombol pembuka panel "Semua Emoji" — dipakai supaya user tidak terpaku
+   pada 8 quickpick di atas dan bisa memilih emoji apa saja yang mereka mau. */
+.sugg-emoji-more-btn{font-size:.68rem;font-weight:600;color:var(--green);background:none;border:1px solid var(--border);border-radius:8px;padding:6px 9px;cursor:pointer;white-space:nowrap;transition:all .15s;}
+.sugg-emoji-more-btn:hover{border-color:var(--green);background:var(--green-dim);}
+/* Panel emoji lengkap: dikelompokkan per kategori (Wajah, Cinta, Tangan,
+   Hewan, Makanan, dll), discroll di dalam kotak sendiri supaya modal tidak
+   jadi kepanjangan. Emoji apa pun yang tidak ada di sini tetap bisa
+   diketik/paste langsung ke #inp-sugg-emoji di atasnya. */
+.sugg-emoji-full-picker{margin-top:8px;max-height:190px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:9px 10px;background:var(--card);scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
+.sugg-emoji-full-picker::-webkit-scrollbar{width:6px;}
+.sugg-emoji-full-picker::-webkit-scrollbar-thumb{background:var(--muted);border-radius:10px;}
+.sugg-emoji-cat-label{font-size:.62rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:10px 0 5px;}
+.sugg-emoji-cat-label:first-child{margin-top:0;}
+.sugg-emoji-cat-grid{display:flex;flex-wrap:wrap;gap:3px;}
+.sugg-emoji-cat-grid button{width:28px;height:28px;border-radius:7px;border:1px solid transparent;background:none;font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .12s;padding:0;}
+.sugg-emoji-cat-grid button:hover{background:var(--hover);}
+.sugg-emoji-cat-grid button.active{border-color:var(--green);background:var(--green-dim);}
 
 .artist-albums-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;}
 .artist-album-card{background:var(--card);border-radius:var(--r);padding:13px;cursor:pointer;transition:all .22s;border:1px solid transparent;}
@@ -4473,8 +4490,14 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
       <div class="sugg-emoji-quickpick" id="sugg-emoji-quickpick"></div>
       <div class="sugg-emoji-input-row">
         <input type="text" class="sugg-form-input" id="inp-sugg-emoji" placeholder="😊" maxlength="24" oninput="renderSuggEmojiQuickpick()">
-        <button type="button" class="sugg-emoji-clear-btn" onclick="clearSuggEmoji()">Hapus emoji</button>
+        <button type="button" class="sugg-emoji-more-btn" id="btn-sugg-emoji-more" onclick="toggleSuggEmojiFullPicker()">😀 Semua Emoji</button>
+        <button type="button" class="sugg-emoji-clear-btn" onclick="clearSuggEmoji()">Hapus</button>
       </div>
+      <!-- Panel emoji lengkap (banyak kategori) — user tidak lagi terbatas
+           pada 8 quickpick di atas, bisa buka ini untuk pilih emoji apa saja.
+           Kolom input di atas juga tetap bisa diketik/paste emoji apa pun
+           secara bebas (lihat renderSuggEmojiFullPicker() / pickSuggEmoji()). -->
+      <div class="sugg-emoji-full-picker" id="sugg-emoji-full-picker" style="display:none;"></div>
     </div>
     <div class="mbtns">
       <button class="btn-s" onclick="closeAddSuggestionModal()">Batal</button>
@@ -7325,6 +7348,9 @@ function openAddSuggestionModal() {
   document.getElementById('sugg-picker-preview').style.display = 'none';
   document.getElementById('sugg-picker-results').style.display = 'none';
   document.getElementById('sugg-picker-results').innerHTML = '';
+  document.getElementById('sugg-emoji-full-picker').style.display = 'none';
+  document.getElementById('btn-sugg-emoji-more').textContent = '😀 Semua Emoji';
+  _suggEmojiFullPickerOpen = false;
   renderSuggEmojiQuickpick();
   document.getElementById('add-suggestion-modal').style.display = 'flex';
 }
@@ -7349,10 +7375,60 @@ function renderSuggEmojiQuickpick() {
 function pickSuggEmoji(emoji) {
   document.getElementById('inp-sugg-emoji').value = emoji;
   renderSuggEmojiQuickpick();
+  if (_suggEmojiFullPickerOpen) renderSuggEmojiFullPicker();
 }
 function clearSuggEmoji() {
   document.getElementById('inp-sugg-emoji').value = '';
   renderSuggEmojiQuickpick();
+  if (_suggEmojiFullPickerOpen) renderSuggEmojiFullPicker();
+}
+
+// ─── Panel "Semua Emoji" ─────────────────────────────────────────────────
+// SUGG_EMOJI_QUICKPICK di atas cuma 8 emoji favorit untuk akses cepat.
+// Supaya user TIDAK dibatasi hanya ke 8 itu, tombol "😀 Semua Emoji" membuka
+// panel ini yang isinya ratusan emoji terkelompok per kategori. Kalaupun ada
+// emoji yang masih tidak ditemukan di sini, kolom #inp-sugg-emoji tetap
+// menerima emoji apa saja yang diketik/paste langsung (lihat oninput di
+// HTML-nya) — jadi pemilihan emoji benar-benar tidak dibatasi.
+const SUGG_EMOJI_CATEGORIES = {
+  'Wajah & Emosi': ['😀','😃','😄','😁','😆','😅','😂','🤣','😊','😇','🙂','🙃','😉','😌','😍','🥰','😘','😗','😙','😚','😋','😛','😝','😜','🤪','🤨','🧐','🤓','😎','🥸','🤩','🥳','😏','😒','😞','😔','😟','😕','🙁','☹️','😣','😖','😫','😩','🥺','😢','😭','😤','😠','😡','🤯','😳','🥵','🥶','😱','😨','😰','😥','😓','🤗','🤔','🤭','🫢','🫣','🤫','🤥','😶','🫥','😐','🫤','😑','😬','🙄','😯','😦','😧','😮','😲','🥱','😴','🤤','😪','😵','🤐','🥴','🤢','🤮','🤧','😷','🤒','🤕','🤑','🤠','😈','👿','💀','☠️','👻','👽','🤖','💩'],
+  'Cinta': ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❤️‍🔥','❤️‍🩹','💕','💞','💓','💗','💖','💘','💝','💟','😻','🥰','😍','💑','💏'],
+  'Tangan & Gestur': ['👍','👎','👏','🙌','🙏','🤝','👋','🤙','💪','✌️','🤞','🫰','🤟','🫶','👊','✊','🤛','🤜','👌','🤌','☝️','👆','👇','👈','👉','🖐️','✋','🖖'],
+  'Hewan': ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🐔','🐧','🐦','🐤','🦆','🦉','🦇','🐺','🐗','🐴','🦄','🐝','🐛','🦋','🐌','🐞','🐜','🐢','🐍','🦎','🦖','🦕','🐙','🦑','🦀','🐡','🐠','🐟','🐬','🐳','🐋','🦈','🐊','🐆','🐅','🐘','🦒','🐫','🐪','🐃','🐂','🐄','🐎','🐖','🐑','🦙','🐐','🦌','🐕','🐩','🐈','🕊️','🐇','🦔'],
+  'Makanan & Minuman': ['🍏','🍎','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🫐','🍈','🍒','🍑','🥭','🍍','🥥','🥝','🍅','🍆','🥑','🥦','🥬','🥒','🌶️','🫑','🌽','🥕','🧄','🧅','🥔','🍠','🥐','🍞','🥖','🥨','🧀','🥚','🍳','🧈','🥞','🧇','🥓','🥩','🍗','🍖','🌭','🍔','🍟','🍕','🥪','🌮','🌯','🥙','🍝','🍜','🍲','🍛','🍣','🍱','🥟','🍤','🍙','🍚','🍘','🍥','🥠','🍢','🍡','🍧','🍨','🍦','🥧','🧁','🍰','🎂','🍮','🍭','🍬','🍫','🍿','🍩','🍪','🌰','🥜','🍯','🥛','☕','🍵','🧃','🥤','🧋','🍶','🍺','🍻','🥂','🍷','🥃','🍸','🍹','🍾'],
+  'Musik & Aktivitas': ['🎵','🎶','🎤','🎧','🎸','🎹','🥁','🎺','🎻','🪕','🎷','🕹️','🎮','🎲','🧩','🎨','🎬','🎭','🎪','🏆','🥇','🥈','🥉','🏅','🎖️','⚽','🏀','🏈','⚾','🎾','🏐','🏓','🏸','🎣','🏹','🎽','⛷️','🏂','🏋️','🤸','🏄','🏊','🚴'],
+  'Alam & Cuaca': ['🌸','🌼','🌻','🌺','🌹','🥀','🌷','🌱','🌲','🌳','🌴','🌵','🌾','🍀','🍁','🍂','🍃','🌍','🌎','🌏','🌙','⭐','🌟','✨','⚡','🔥','💧','🌊','☀️','⛅','🌦️','🌧️','⛈️','❄️','☃️','⛄','🌈','☔'],
+  'Objek & Simbol': ['💎','🔔','🎁','🎈','🎉','🎊','🎀','🪄','🔮','💰','💵','💸','📱','💻','📷','🎥','📺','⏰','💡','📚','✏️','📝','🔒','🔑','🚀','✈️','🚗','🚲','🏠','🏢','🗽','🌉','🎡','✔️','❌','➕','➖','‼️','❗','💯','🚫','⚠️']
+};
+
+let _suggEmojiFullPickerOpen = false;
+
+function toggleSuggEmojiFullPicker() {
+  _suggEmojiFullPickerOpen = !_suggEmojiFullPickerOpen;
+  const wrap = document.getElementById('sugg-emoji-full-picker');
+  const btn = document.getElementById('btn-sugg-emoji-more');
+  if (!wrap) return;
+  if (_suggEmojiFullPickerOpen) {
+    renderSuggEmojiFullPicker();
+    wrap.style.display = 'block';
+    if (btn) btn.textContent = '✕ Tutup';
+  } else {
+    wrap.style.display = 'none';
+    if (btn) btn.textContent = '😀 Semua Emoji';
+  }
+}
+
+function renderSuggEmojiFullPicker() {
+  const wrap = document.getElementById('sugg-emoji-full-picker');
+  const input = document.getElementById('inp-sugg-emoji');
+  if (!wrap || !input) return;
+  const current = input.value;
+  wrap.innerHTML = Object.entries(SUGG_EMOJI_CATEGORIES).map(([label, list]) => `
+    <div class="sugg-emoji-cat-label">${esc(label)}</div>
+    <div class="sugg-emoji-cat-grid">
+      ${list.map(e => `<button type="button" class="${e === current ? 'active' : ''}" onclick="pickSuggEmoji('${e}')" title="${esc(e)}">${e}</button>`).join('')}
+    </div>
+  `).join('');
 }
 
 function onSuggPickerInput(val) {
@@ -7371,22 +7447,46 @@ function onSuggPickerInput(val) {
   suggSearchTimer = setTimeout(() => doSuggSearch(q), 400);
 }
 
+// Cari lagu lewat iTunes Search API. Sebelumnya dibatasi limit=8 dan HANYA
+// storefront Indonesia (country=ID) — ini yang bikin banyak lagu (terutama
+// rilisan artis luar yang belum masuk katalog Apple Music Indonesia, mis.
+// "Sweet Boy" - Malcolm Todd) tidak pernah muncul sama sekali, karena
+// storefront ID memang tidak selalu punya track itu di database-nya,
+// terlepas seberapa tepat kata kuncinya. Sekarang: query DUA storefront
+// sekaligus (ID + US, storefront dengan katalog musik terluas) secara
+// paralel, gabungkan hasilnya (dedupe berdasar trackId), dan TIDAK ada lagi
+// limit buatan pada jumlah hasil yang ditampilkan — semua hasil yang
+// dikembalikan iTunes (maksimum teknis API itu sendiri, 200/request) akan
+// tampil, tinggal discroll di dropdown-nya.
 async function doSuggSearch(q) {
   const mySeq = ++suggSearchSeq;
   const dropdown = document.getElementById('sugg-picker-results');
   try {
-    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=8&country=ID`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    if (!res.ok) throw new Error('Pencarian gagal (' + res.status + ')');
-    const data = await res.json();
+    const countries = ['ID', 'US'];
+    const responses = await Promise.all(countries.map(c =>
+      fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=200&country=${c}`, { signal: AbortSignal.timeout(8000) })
+        .then(res => res.ok ? res.json() : { results: [] })
+        .catch(() => ({ results: [] }))
+    ));
     if (mySeq !== suggSearchSeq) return; // hasil pencarian lama, abaikan
-    suggSearchResults = (data.results || []).map(it => ({
-      title: it.trackName || 'Unknown',
-      artist: it.artistName || 'Unknown',
-      thumb: (it.artworkUrl100 || '').replace('100x100bb', '600x600bb'),
-      preview: it.previewUrl || null,
-      _query: `${it.artistName || ''}|||${it.trackName || ''}|||${it.trackId || Math.random()}`
-    }));
+
+    const seen = new Set();
+    suggSearchResults = [];
+    responses.forEach(data => {
+      (data.results || []).forEach(it => {
+        const id = it.trackId || `${it.artistName}|||${it.trackName}`;
+        if (seen.has(id)) return; // sudah ada dari storefront lain, skip duplikat
+        seen.add(id);
+        suggSearchResults.push({
+          title: it.trackName || 'Unknown',
+          artist: it.artistName || 'Unknown',
+          thumb: (it.artworkUrl100 || '').replace('100x100bb', '600x600bb'),
+          preview: it.previewUrl || null,
+          _query: `${it.artistName || ''}|||${it.trackName || ''}|||${it.trackId || Math.random()}`
+        });
+      });
+    });
+
     if (!suggSearchResults.length) {
       dropdown.innerHTML = `<div class="sugg-picker-loading">Tidak ada hasil untuk "${esc(q)}"</div>`;
       return;
