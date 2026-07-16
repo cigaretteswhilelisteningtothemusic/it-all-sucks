@@ -794,6 +794,14 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .dm-card:hover .dm-cover-ov{opacity:1;}
 .dm-cover-ov svg{width:36px;height:36px;background:var(--green);border-radius:50%;padding:9px;color:#fff;box-shadow:0 3px 16px rgba(46,125,255,.5);}
 .dm-badge-mix{position:absolute;left:8px;bottom:8px;background:rgba(8,11,18,.78);backdrop-filter:blur(4px);color:#fff;font-size:.62rem;font-weight:800;letter-spacing:.4px;padding:4px 9px;border-radius:6px;}
+/* ── Tombol "Tambahkan ke Library" di kartu playlist otomatis (Daily Mix,
+   Mix Tahunan, Untuk Kamu, Radio Artis, Weekday Vibes, Playlist Pop, dll).
+   Selalu terlihat (bukan cuma saat hover) supaya bisa dipakai di mobile. ── */
+.mix-lib-btn{position:absolute;top:8px;right:8px;z-index:5;width:28px;height:28px;background:rgba(8,11,18,.55);backdrop-filter:blur(4px);border:1.5px solid rgba(255,255,255,.35);border-radius:50%;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;}
+.mix-lib-btn svg{width:15px;height:15px;pointer-events:none;}
+.mix-lib-btn:hover{transform:scale(1.14);border-color:var(--green);color:var(--green);background:rgba(8,11,18,.75);}
+.mix-lib-btn.added{background:var(--green);border-color:var(--green);color:#fff;box-shadow:0 0 10px rgba(46,125,255,.5);}
+.mix-lib-btn.added:hover{transform:scale(1.08);background:var(--green);color:#fff;}
 .dm-badge-num{position:absolute;right:8px;bottom:-2px;font-size:2.5rem;font-weight:800;font-family:var(--fm);line-height:1;text-shadow:0 2px 12px rgba(0,0,0,.55);}
 .dm-title{font-size:.82rem;font-weight:700;color:var(--text);line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
 /* YEAR MIX — kartu "Hits that defined <tahun>": label judul ditaruh sebagai
@@ -12397,6 +12405,69 @@ function renderDailyMixes(mixes) {
   mixes.forEach((mix, i) => c.appendChild(buildDailyMixCardEl(mix, i)));
 }
 
+// ─── "Tambahkan ke Library" untuk playlist otomatis (Daily Mix, Mix Tahunan,
+// Untuk Kamu, Radio Artis, Weekday Vibes, Playlist Pop, Mungkin Kamu Suka,
+// Dibuat Untuk Kamu, dll). Menyimpan salinan playlist tsb ke `playlists`
+// (object yang sama dipakai untuk playlist buatan user sendiri), sehingga:
+// - otomatis muncul berjejer di sidebar kiri (renderSidebarPlaylists)
+// - otomatis muncul di "All Playlists" (renderHomeGrid, tampil di mobile)
+// - otomatis ikut ter-sync ke Firebase (scheduleSave -> cloud), jadi TETAP
+//   ADA meskipun user logout lalu login kembali.
+function _mixLibSvg(added) {
+  return added
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 4v16M4 12h16"/></svg>';
+}
+function isMixInLibrary(mix) {
+  if (!mix || !mix.id) return false;
+  return Object.keys(playlists).some(id => playlists[id].sourceMixId === mix.id);
+}
+function mixLibBtnHtml(mix) {
+  const added = isMixInLibrary(mix);
+  return `<button type="button" class="mix-lib-btn${added ? ' added' : ''}" title="${added ? 'Sudah ada di library' : 'Tambahkan ke Library'}" aria-label="Tambahkan ke Library">${_mixLibSvg(added)}</button>`;
+}
+function attachMixLibBtn(div, mix) {
+  const btn = div.querySelector('.mix-lib-btn');
+  if (!btn) return;
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    addMixToLibrary(mix, btn);
+  });
+}
+function addMixToLibrary(mix, btnEl) {
+  if (!mix) return;
+  if (mix.id && isMixInLibrary(mix)) {
+    toast(' Playlist ini sudah ada di library kamu');
+    return;
+  }
+  const tracks = Array.isArray(mix.tracks) ? mix.tracks.map(t => ({
+    title: t.title,
+    artist: t.artist,
+    thumb: t.thumb || '',
+    _query: t._query || (t.artist + '|||' + t.title + '|||0')
+  })) : [];
+  if (!tracks.length) { toast(' Playlist ini masih kosong'); return; }
+  const cover = mix.cover || mix.artistPhoto || (Array.isArray(mix.photos) && mix.photos[0]) || tracks[0].thumb || '';
+  const id = genId();
+  playlists[id] = {
+    id,
+    name: mix.title || mix.name || 'Playlist',
+    cover,
+    coverThumb: cover,
+    tracks,
+    sourceMixId: mix.id || null
+  };
+  renderSidebarPlaylists();
+  renderHomeGrid();
+  scheduleSave();
+  if (btnEl) {
+    btnEl.classList.add('added');
+    btnEl.title = 'Sudah ada di library';
+    btnEl.innerHTML = _mixLibSvg(true);
+  }
+  toast(' "' + (mix.title || 'Playlist') + '" ditambahkan ke Library');
+}
+
 function buildDailyMixCardEl(mix, i) {
   const color = DM_COLORS[i % DM_COLORS.length];
   const num = String(i + 1).padStart(2, '0');
@@ -12410,10 +12481,12 @@ function buildDailyMixCardEl(mix, i) {
       </div>
       <div class="dm-badge-mix">Daily Mix</div>
       <div class="dm-badge-num" style="color:${color}">${num}</div>
+      ${mixLibBtnHtml(mix)}
     </div>
     <div class="dm-title">${esc(mix.title)}</div>
   `;
   div.querySelector('.dm-cover-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
+  attachMixLibBtn(div, mix);
   div.addEventListener('click', () => openDailyMix(mix));
   return div;
 }
@@ -12812,10 +12885,12 @@ function buildYearMixCardEl(mix) {
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
       </div>
       <div class="ym-badge" style="background:${mix.color}">${esc(mix.title)}</div>
+      ${mixLibBtnHtml(mix)}
     </div>
     <div class="ym-caption">${esc(mix.caption || '')}</div>
   `;
   div.querySelector('.dm-cover-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
+  attachMixLibBtn(div, mix);
   div.addEventListener('click', () => openDailyMix(mix));
   return div;
 }
@@ -12946,10 +13021,12 @@ function buildMadeForYouCardEl(mix, i) {
       </div>
       <div class="dm-badge-mix">Untuk Kamu</div>
       <div class="dm-badge-num" style="color:${color}">${num}</div>
+      ${mixLibBtnHtml(mix)}
     </div>
     <div class="dm-title">${esc(mix.title)}</div>
   `;
   div.querySelector('.dm-cover-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
+  attachMixLibBtn(div, mix);
   div.addEventListener('click', () => openDailyMix(mix));
   return div;
 }
@@ -13101,10 +13178,12 @@ function buildForYouCardEl(mix, i) {
         </div>
         <div class="fy-name-below">${esc(mix.title)}</div>
       </div>
+      ${mixLibBtnHtml(mix)}
     </div>
     <div class="fy-title">This Is ${esc(mix.title)}</div>
   `;
   div.querySelector('.fy-photo-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
+  attachMixLibBtn(div, mix);
   div.addEventListener('click', () => openDailyMix(mix));
   return div;
 }
@@ -13244,10 +13323,12 @@ function buildMaybeLikeCardEl(mix, i) {
       </div>
       <div class="dm-badge-mix">Untuk Kamu</div>
       <div class="dm-badge-num" style="color:${color}">${num}</div>
+      ${mixLibBtnHtml(mix)}
     </div>
     <div class="dm-title">${esc(mix.title)}</div>
   `;
   div.querySelector('.dm-cover-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
+  attachMixLibBtn(div, mix);
   div.addEventListener('click', () => openDailyMix(mix));
   return div;
 }
@@ -13558,10 +13639,12 @@ function buildArtistRadioCardEl(mix, i) {
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
       </div>
       <div class="radio-name" style="color:${palette.text};">${esc(mix.title)}</div>
+      ${mixLibBtnHtml(mix)}
     </div>
     ${mix.subtitle ? `<div class="radio-sub">${esc(mix.subtitle)}</div>` : ''}
   `;
   div.querySelector('.radio-cover-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
+  attachMixLibBtn(div, mix);
   div.addEventListener('click', () => openDailyMix(mix));
   return div;
 }
@@ -13774,10 +13857,12 @@ function buildSadPlaylistCardEl(mix, i) {
       </div>
       <div class="dm-badge-mix">Pop</div>
       <div class="dm-badge-num" style="color:${color}">${num}</div>
+      ${mixLibBtnHtml(mix)}
     </div>
     <div class="dm-title">${esc(mix.title)}</div>
   `;
   div.querySelector('.dm-cover-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
+  attachMixLibBtn(div, mix);
   div.addEventListener('click', () => openDailyMix(mix));
   return div;
 }
@@ -14040,10 +14125,12 @@ function buildWeekdayPlaylistCardEl(mix, i) {
       </div>
       <div class="dm-badge-mix">Vibes</div>
       <div class="dm-badge-num" style="color:${color}">${num}</div>
+      ${mixLibBtnHtml(mix)}
     </div>
     <div class="dm-title">${esc(mix.title)}</div>
   `;
   div.querySelector('.dm-cover-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
+  attachMixLibBtn(div, mix);
   div.addEventListener('click', () => openDailyMix(mix));
   return div;
 }
