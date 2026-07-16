@@ -49,6 +49,37 @@
   const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEXTAREA', 'CODE', 'PRE']);
   const doneTextNodes = new WeakSet();
 
+  // ── Konten "entitas" yang TIDAK BOLEH diterjemahkan ─────────
+  // Nama artis, judul lagu, nama playlist, pesan chat, nama user, dll
+  // bukan teks UI — ini data asli yang harus tetap apa adanya.
+  // Kalau ada elemen lain yang ikut ketranslate padahal seharusnya
+  // tidak, tambahkan atribut data-no-translate="true" langsung di HTML-nya.
+  const NO_TRANSLATE_CLASS_HINTS = [
+    'artist', 'track-title', 'track-name', 'song-title', 'song-name',
+    'playlist-title', 'pl-name', 'chat-bubble', 'tr-title', 'tr-artist',
+    'sugg-picker', 'friend-fav', 'fav-note-author', 'peer-name',
+    'display-name', 'username', 'sender-name', 'conv-name', 'np-track',
+    'weekday-playlist-title', 'lyr-artist',
+  ];
+  const NO_TRANSLATE_IDS = [
+    'h-artist', 'lyr-album-artist', 'bar-artist', 'np-track-title',
+    'finder-song-title', 'add-song-track-name', 'weekday-playlist-title',
+  ];
+
+  function isNoTranslateEl(el) {
+    if (!el || el.nodeType !== 1) return false;
+    let cur = el, depth = 0;
+    while (cur && depth < 5) {
+      if (cur.hasAttribute && cur.hasAttribute('data-no-translate')) return true;
+      if (NO_TRANSLATE_IDS.includes(cur.id)) return true;
+      const cls = typeof cur.className === 'string' ? cur.className : '';
+      if (cls && NO_TRANSLATE_CLASS_HINTS.some((k) => cls.includes(k))) return true;
+      cur = cur.parentElement;
+      depth++;
+    }
+    return false;
+  }
+
   function isTranslatable(raw) {
     const t = (raw || '').trim();
     if (!t || t.length > 400) return false;
@@ -76,12 +107,12 @@
     if (root.nodeType === 3) {
       handleTextNode(root);
     } else if (root.nodeType === 1) {
-      if (SKIP_TAGS.has(root.tagName) || root.closest('[data-no-translate]')) return;
+      if (SKIP_TAGS.has(root.tagName) || isNoTranslateEl(root)) return;
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
         acceptNode(node) {
           if (doneTextNodes.has(node)) return NodeFilter.FILTER_REJECT;
           const p = node.parentElement;
-          if (!p || SKIP_TAGS.has(p.tagName) || p.closest('[data-no-translate]')) return NodeFilter.FILTER_REJECT;
+          if (!p || SKIP_TAGS.has(p.tagName) || isNoTranslateEl(p)) return NodeFilter.FILTER_REJECT;
           return isTranslatable(node.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
         },
       });
@@ -97,6 +128,8 @@
 
   function handleTextNode(node) {
     if (doneTextNodes.has(node)) return;
+    const p = node.parentElement;
+    if (p && isNoTranslateEl(p)) return;
     const key = (node.nodeValue || '').trim();
     if (!isTranslatable(key)) return;
     pending.push({ type: 'text', node, key });
@@ -104,7 +137,7 @@
   }
 
   function handleAttrEl(el) {
-    if (el.closest('[data-no-translate]')) return;
+    if (isNoTranslateEl(el)) return;
     ['placeholder', 'title', 'aria-label'].forEach((attr) => {
       if (!el.hasAttribute(attr)) return;
       if (el.dataset['i18nDone_' + attr]) return;
@@ -167,8 +200,11 @@
       mutations.forEach((m) => {
         m.addedNodes && m.addedNodes.forEach((node) => collect(node));
         if (m.type === 'characterData' && !doneTextNodes.has(m.target)) {
-          handleTextNode(m.target);
-          scheduleFlush();
+          const p = m.target.parentElement;
+          if (!p || !isNoTranslateEl(p)) {
+            handleTextNode(m.target);
+            scheduleFlush();
+          }
         }
       });
     });
