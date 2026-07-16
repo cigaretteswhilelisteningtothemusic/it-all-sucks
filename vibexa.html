@@ -2035,10 +2035,51 @@ body.np-is-fullscreen #bar{display:none !important;}
   align-items:center;
   gap:16px;
   padding:0 18px;
-  background:var(--panel);
   z-index:60;
   min-width:0;
+  position:relative;
+  isolation:isolate;
+  /* Pixel-sky background (gradient dasar di belakang layer awan animasi) */
+  background:linear-gradient(180deg,#122844 0%,#204d80 45%,#3d7ab8 78%,#6ea8d6 100%);
+  overflow:visible; /* jangan clip, supaya dropdown search tetap muncul di luar topbar */
 }
+/* ══════════════════════════════════════════════════════════
+   PIXEL SKY ANIMATION — dua layer awan pixel-art yang bergerak
+   terus-menerus ke kanan (parallax: layer belakang lebih pelan
+   & samar, layer depan lebih cepat & lebih jelas).
+══════════════════════════════════════════════════════════ */
+.home-topbar::before,
+.home-topbar::after{
+  content:'';
+  position:absolute;
+  inset:0;
+  border-radius:inherit;
+  pointer-events:none;
+  background-repeat:repeat-x;
+  image-rendering:pixelated;
+  image-rendering:crisp-edges;
+  z-index:0;
+}
+.home-topbar::before{
+  /* Layer awan jauh: kecil, samar, pelan */
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='64'><g fill='%23eaf3fb' fill-opacity='0.38'><g transform='translate(30,6) scale(0.55)'><rect x='16' y='0' width='32' height='8'/><rect x='8' y='8' width='48' height='8'/><rect x='0' y='16' width='64' height='8'/><rect x='0' y='24' width='64' height='8'/></g><g transform='translate(190,16) scale(0.6)'><rect x='16' y='0' width='32' height='8'/><rect x='8' y='8' width='48' height='8'/><rect x='0' y='16' width='64' height='8'/><rect x='0' y='24' width='64' height='8'/></g></g></svg>");
+  background-size:300px 100%;
+  animation:pxSkyBack 26s linear infinite;
+}
+.home-topbar::after{
+  /* Layer awan depan: lebih besar, lebih jelas, lebih cepat */
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='64'><g fill='%23ffffff' fill-opacity='0.6'><g transform='translate(12,26)'><rect x='16' y='0' width='32' height='8'/><rect x='8' y='8' width='48' height='8'/><rect x='0' y='16' width='64' height='8'/><rect x='0' y='24' width='64' height='8'/></g><g transform='translate(140,6) scale(0.7)'><rect x='16' y='0' width='32' height='8'/><rect x='8' y='8' width='48' height='8'/><rect x='0' y='16' width='64' height='8'/><rect x='0' y='24' width='64' height='8'/></g></g></svg>");
+  background-size:220px 100%;
+  animation:pxSkyFront 14s linear infinite;
+}
+@keyframes pxSkyBack{ from{background-position:0 0;} to{background-position:300px 0;} }
+@keyframes pxSkyFront{ from{background-position:0 0;} to{background-position:220px 0;} }
+@media(prefers-reduced-motion:reduce){
+  .home-topbar::before,.home-topbar::after{animation:none;}
+}
+/* Pastikan semua isi topbar (search box, tombol, avatar, dll) tetap
+   berada di atas layer animasi awan */
+.home-topbar>*{position:relative;z-index:1;}
 
 /* Left cluster: menu (…) + back/forward-style shortcuts, tightly grouped like Spotify */
 .topbar-left{display:flex;align-items:center;gap:2px;flex-shrink:0;}
