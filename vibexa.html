@@ -796,6 +796,12 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .dm-badge-mix{position:absolute;left:8px;bottom:8px;background:rgba(8,11,18,.78);backdrop-filter:blur(4px);color:#fff;font-size:.62rem;font-weight:800;letter-spacing:.4px;padding:4px 9px;border-radius:6px;}
 .dm-badge-num{position:absolute;right:8px;bottom:-2px;font-size:2.5rem;font-weight:800;font-family:var(--fm);line-height:1;text-shadow:0 2px 12px rgba(0,0,0,.55);}
 .dm-title{font-size:.82rem;font-weight:700;color:var(--text);line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+/* YEAR MIX — kartu "Hits that defined <tahun>": label judul ditaruh sebagai
+   pita berwarna yang menempel di bagian bawah cover (setengah menutupi foto
+   artis), meniru gaya kartu genre Spotify. Warna pita berbeda-beda per kartu. */
+.ym-badge{position:absolute;left:10px;right:10px;bottom:-11px;padding:7px 10px;border-radius:6px;font-size:.86rem;font-weight:800;color:#000;line-height:1.15;box-shadow:0 6px 16px rgba(0,0,0,.35);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.ym-card .dm-cover-wrap{margin-bottom:18px;}
+.ym-caption{font-size:.72rem;color:var(--sub);line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
 
 /* UNTUK KAMU — SATU ARTIS SATU PLAYLIST (kartu gaya "This Is ..." ala
    Spotify: background warna solid/flat yang bervariasi tiap kartu, foto
@@ -3625,6 +3631,22 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
       <div class="dm-grid" id="daily-mix-grid"></div>
     </div>
 
+    <!-- MIX TAHUNAN (6 playlist tetap: Hits that defined 1980/1990/2000/2010/2020/2026,
+         masing-masing 30 lagu yang populer di tahun tsb. Isinya DIKURASI MANUAL (statis),
+         BUKAN hasil generate ulang tiap hari, dan SAMA untuk semua user — sekali di-resolve
+         (cover + info lagu dari Deezer) lalu disimpan permanen di Firebase (tanpa stempel
+         tanggal) supaya tidak perlu di-generate ulang lagi kapan pun. Foto sampul tiap kartu
+         = foto ARTIS dari lagu pertama di playlist tsb (bukan cover album), dengan label warna
+         yang berbeda-beda di tiap kartu. -->
+    <div class="pub-section" id="year-mix-section" style="display:none;">
+      <div class="pub-section-header">
+        <div class="pub-section-title">
+           Mix Tahunan
+        </div>
+      </div>
+      <div class="dm-grid" id="year-mix-grid"></div>
+    </div>
+
     <!-- DIBUAT UNTUK KAMU (8 playlist x 15 lagu, isinya dari artis-artis yang diikuti user) -->
     <div class="pub-section" id="made-for-you-section" style="display:none;">
       <div class="pub-section-header">
@@ -4983,6 +5005,7 @@ auth.onAuthStateChanged(user => {
     loadTrendingSongs();
     loadRecentlyPlayedFromCloud();
     loadDailyMixes();
+    loadYearMixes();
     loadMadeForYouMixes();
     loadForYouPlaylists();
     loadMaybeLikeMixes();
@@ -12403,6 +12426,400 @@ function toggleDailyMixShowAll() {
   if (label) label.textContent = expanded ? 'Tampilkan Sedikit' : 'Tampilkan Semua';
 }
 
+// ─── MIX TAHUNAN (Hits that defined <tahun>) ──────────────────────────────
+// 6 playlist TETAP (bukan hasil generate acak/harian): 1980, 1990, 2000, 2010,
+// 2020, dan 2026. Daftar lagunya DIKURASI MANUAL di bawah ini — setiap lagu
+// benar-benar rilis/populer pada tahun tersebut — supaya isinya akurat dan
+// TIDAK BERUBAH setiap hari seperti Daily Mix. Karena isinya tetap, playlist
+// ini hanya perlu di-"resolve" SEKALI (cari cover + info lagu di Deezer),
+// lalu hasilnya disimpan permanen (tanpa stempel tanggal, beda dengan Daily
+// Mix) di Firebase supaya SEMUA user, kapan pun mereka buka aplikasi ini,
+// melihat playlist yang benar-benar sama persis.
+const YEAR_MIX_COLORS = {
+  '1980': 'linear-gradient(135deg,#ffb238,#c97c00)',
+  '1990': 'linear-gradient(135deg,#eaff2e,#a7b800)',
+  '2000': 'linear-gradient(135deg,#5ce87c,#1c8a3d)',
+  '2010': 'linear-gradient(135deg,#26e0ff,#0e7c96)',
+  '2020': 'linear-gradient(135deg,#ff6fc9,#a52a72)',
+  '2026': 'linear-gradient(135deg,#ff5a4d,#a8281d)'
+};
+const YEAR_MIX_DEFS = [
+  {
+    key: '1980', label: 'Hits that defined 1980', color: YEAR_MIX_COLORS['1980'],
+    songs: [
+      { artist: 'Queen', title: 'Another One Bites the Dust' },
+      { artist: 'Blondie', title: 'Call Me' },
+      { artist: 'Michael Jackson', title: 'Rock with You' },
+      { artist: 'Pink Floyd', title: 'Another Brick in the Wall, Pt. 2' },
+      { artist: 'Diana Ross', title: 'Upside Down' },
+      { artist: 'Kenny Rogers', title: 'Lady' },
+      { artist: 'Billy Joel', title: "It's Still Rock and Roll to Me" },
+      { artist: 'Christopher Cross', title: 'Sailing' },
+      { artist: 'Air Supply', title: 'All Out of Love' },
+      { artist: 'Barbra Streisand', title: 'No More Tears (Enough Is Enough)' },
+      { artist: 'Captain & Tennille', title: 'Do That to Me One More Time' },
+      { artist: 'Commodores', title: 'Still' },
+      { artist: 'Bette Midler', title: 'The Rose' },
+      { artist: 'Rupert Holmes', title: 'Escape (The Pina Colada Song)' },
+      { artist: 'Spinners', title: 'Working My Way Back to You / Forgive Me Girl' },
+      { artist: 'Styx', title: 'Babe' },
+      { artist: 'Eagles', title: 'Heartache Tonight' },
+      { artist: 'Fleetwood Mac', title: 'Sara' },
+      { artist: 'Paul McCartney', title: 'Coming Up' },
+      { artist: 'Olivia Newton-John', title: 'Xanadu' },
+      { artist: 'Blondie', title: 'Atomic' },
+      { artist: 'AC/DC', title: 'Back in Black' },
+      { artist: 'The Pretenders', title: 'Brass in Pocket' },
+      { artist: 'Gary Numan', title: 'Cars' },
+      { artist: 'Devo', title: 'Whip It' },
+      { artist: 'Irene Cara', title: 'Fame' },
+      { artist: 'Dan Fogelberg', title: 'Longer' },
+      { artist: 'ABBA', title: 'The Winner Takes It All' },
+      { artist: 'Michael Jackson', title: "She's Out of My Life" },
+      { artist: 'The Police', title: "Don't Stand So Close to Me" }
+    ]
+  },
+  {
+    key: '1990', label: 'Hits that defined 1990', color: YEAR_MIX_COLORS['1990'],
+    songs: [
+      { artist: 'Wilson Phillips', title: 'Hold On' },
+      { artist: "Sinéad O'Connor", title: 'Nothing Compares 2 U' },
+      { artist: 'Mariah Carey', title: 'Vision of Love' },
+      { artist: 'Madonna', title: 'Vogue' },
+      { artist: 'MC Hammer', title: "U Can't Touch This" },
+      { artist: 'Janet Jackson', title: 'Escapade' },
+      { artist: 'Roxette', title: 'It Must Have Been Love' },
+      { artist: 'Bell Biv DeVoe', title: 'Poison' },
+      { artist: 'Whitney Houston', title: "I'm Your Baby Tonight" },
+      { artist: 'Paula Abdul', title: 'Opposites Attract' },
+      { artist: 'Phil Collins', title: 'Another Day in Paradise' },
+      { artist: 'Roxette', title: 'Listen to Your Heart' },
+      { artist: 'Taylor Dayne', title: 'Love Will Lead You Back' },
+      { artist: 'Alannah Myles', title: 'Black Velvet' },
+      { artist: 'Bon Jovi', title: 'Blaze of Glory' },
+      { artist: 'Michael Bolton', title: 'How Am I Supposed to Live Without You' },
+      { artist: 'Vanilla Ice', title: 'Ice Ice Baby' },
+      { artist: 'New Kids on the Block', title: 'Step by Step' },
+      { artist: 'Depeche Mode', title: 'Enjoy the Silence' },
+      { artist: 'Janet Jackson', title: 'Black Cat' },
+      { artist: 'En Vogue', title: 'Hold On' },
+      { artist: 'Stevie B', title: 'Because I Love You (The Postman Song)' },
+      { artist: 'Tommy Page', title: "I'll Be Your Everything" },
+      { artist: 'Mariah Carey', title: 'Love Takes Time' },
+      { artist: 'George Michael', title: 'Praying for Time' },
+      { artist: 'The Righteous Brothers', title: 'Unchained Melody' },
+      { artist: 'Elton John', title: 'Sacrifice' },
+      { artist: 'Wilson Phillips', title: 'Release Me' },
+      { artist: 'Snap!', title: 'The Power' },
+      { artist: 'Cathy Dennis', title: 'Touch Me (All Night Long)' }
+    ]
+  },
+  {
+    key: '2000', label: 'Hits that defined 2000', color: YEAR_MIX_COLORS['2000'],
+    songs: [
+      { artist: 'Faith Hill', title: 'Breathe' },
+      { artist: 'Santana', title: 'Smooth' },
+      { artist: 'Vertical Horizon', title: 'Everything You Want' },
+      { artist: 'Savage Garden', title: 'I Knew I Loved You' },
+      { artist: 'Matchbox Twenty', title: 'Bent' },
+      { artist: "Destiny's Child", title: 'Say My Name' },
+      { artist: 'Sisqó', title: 'Thong Song' },
+      { artist: '3 Doors Down', title: 'Kryptonite' },
+      { artist: 'Creed', title: 'Higher' },
+      { artist: 'Nine Days', title: 'Absolutely (Story of a Girl)' },
+      { artist: 'Eminem', title: 'The Real Slim Shady' },
+      { artist: 'Eminem', title: 'Stan' },
+      { artist: 'NSYNC', title: "It's Gonna Be Me" },
+      { artist: 'NSYNC', title: 'Bye Bye Bye' },
+      { artist: 'Christina Aguilera', title: 'Come On Over Baby' },
+      { artist: 'Madonna', title: 'Music' },
+      { artist: 'Aaliyah', title: 'Try Again' },
+      { artist: 'Toni Braxton', title: "He Wasn't Man Enough" },
+      { artist: 'Mya', title: 'Case of the Ex' },
+      { artist: 'Joe', title: 'I Wanna Know' },
+      { artist: 'Backstreet Boys', title: 'Shape of My Heart' },
+      { artist: 'Britney Spears', title: "Oops!... I Did It Again" },
+      { artist: 'Whitney Houston', title: 'Could I Have This Kiss Forever' },
+      { artist: 'Santana', title: 'Maria Maria' },
+      { artist: 'Mandy Moore', title: 'Candy' },
+      { artist: 'Jennifer Lopez', title: 'Waiting for Tonight' },
+      { artist: 'Ricky Martin', title: 'She Bangs' },
+      { artist: 'DMX', title: 'Party Up (Up in Here)' },
+      { artist: 'Vitamin C', title: 'Graduation (Friends Forever)' },
+      { artist: 'Lonestar', title: 'Amazed' }
+    ]
+  },
+  {
+    key: '2010', label: 'Hits that defined 2010', color: YEAR_MIX_COLORS['2010'],
+    songs: [
+      { artist: "Ke$ha", title: 'Tik Tok' },
+      { artist: 'B.o.B', title: 'Airplanes' },
+      { artist: 'Katy Perry', title: 'California Gurls' },
+      { artist: 'Bruno Mars', title: 'Just the Way You Are' },
+      { artist: 'Usher', title: 'OMG' },
+      { artist: 'Eminem', title: 'Love the Way You Lie' },
+      { artist: 'Train', title: 'Hey, Soul Sister' },
+      { artist: 'Justin Bieber', title: 'Baby' },
+      { artist: 'Katy Perry', title: 'Teenage Dream' },
+      { artist: 'Katy Perry', title: 'Firework' },
+      { artist: 'Far East Movement', title: 'Like a G6' },
+      { artist: 'Usher', title: "DJ Got Us Fallin' in Love" },
+      { artist: 'Rihanna', title: 'Only Girl (In the World)' },
+      { artist: 'Bruno Mars', title: 'Grenade' },
+      { artist: 'Mike Posner', title: 'Cooler Than Me' },
+      { artist: 'Lady Gaga', title: 'Telephone' },
+      { artist: 'Jay Sean', title: 'Down' },
+      { artist: 'Eminem', title: 'Not Afraid' },
+      { artist: 'Taio Cruz', title: 'Dynamite' },
+      { artist: 'Rihanna', title: "What's My Name?" },
+      { artist: 'Enrique Iglesias', title: 'I Like It' },
+      { artist: "Ke$ha", title: 'Your Love Is My Drug' },
+      { artist: 'Nelly', title: 'Just a Dream' },
+      { artist: 'Flo Rida', title: "Club Can't Handle Me" },
+      { artist: 'Taylor Swift', title: 'Mine' },
+      { artist: 'Jason Derulo', title: 'In My Head' },
+      { artist: 'Ludacris', title: "What's Your Name" },
+      { artist: "Ke$ha", title: 'Blah Blah Blah' },
+      { artist: 'Miley Cyrus', title: 'Party in the U.S.A.' },
+      { artist: 'B.o.B', title: "Nothin' on You" }
+    ]
+  },
+  {
+    key: '2020', label: 'Hits that defined 2020', color: YEAR_MIX_COLORS['2020'],
+    songs: [
+      { artist: 'The Weeknd', title: 'Blinding Lights' },
+      { artist: 'Roddy Ricch', title: 'The Box' },
+      { artist: 'Dua Lipa', title: "Don't Start Now" },
+      { artist: 'Tones and I', title: 'Dance Monkey' },
+      { artist: 'Post Malone', title: 'Circles' },
+      { artist: 'Harry Styles', title: 'Watermelon Sugar' },
+      { artist: 'Jawsh 685', title: 'Savage Love' },
+      { artist: 'DaBaby', title: 'Rockstar' },
+      { artist: 'Doja Cat', title: 'Say So' },
+      { artist: 'Harry Styles', title: 'Adore You' },
+      { artist: 'BTS', title: 'Dynamite' },
+      { artist: 'SAINt JHN', title: 'Roses' },
+      { artist: 'Dua Lipa', title: 'Break My Heart' },
+      { artist: 'Drake', title: 'Toosie Slide' },
+      { artist: '24kGoldn', title: 'Mood' },
+      { artist: 'Ariana Grande', title: 'Positions' },
+      { artist: 'Selena Gomez', title: 'Lose You to Love Me' },
+      { artist: 'Trevor Daniel', title: 'Falling' },
+      { artist: 'Dua Lipa', title: 'Physical' },
+      { artist: 'Cardi B', title: 'WAP' },
+      { artist: 'Dua Lipa', title: 'Levitating' },
+      { artist: 'Lewis Capaldi', title: 'Before You Go' },
+      { artist: 'Justin Bieber', title: 'Intentions' },
+      { artist: 'Regard', title: 'Ride It' },
+      { artist: 'Eminem', title: 'Godzilla' },
+      { artist: 'BENEE', title: 'Supalonely' },
+      { artist: 'Joel Corry', title: 'Head & Heart' },
+      { artist: 'Surfaces', title: 'Sunday Best' },
+      { artist: 'Lil Mosey', title: 'Blueberry Faygo' },
+      { artist: 'Megan Thee Stallion', title: 'Savage' }
+    ]
+  },
+  {
+    key: '2026', label: 'Hits that defined 2026', color: YEAR_MIX_COLORS['2026'],
+    songs: [
+      { artist: 'Ella Langley', title: "Choosin' Texas" },
+      { artist: 'Taylor Swift', title: 'The Fate of Ophelia' },
+      { artist: 'Taylor Swift', title: 'Opalite' },
+      { artist: 'Taylor Swift', title: 'I Knew It, I Knew You' },
+      { artist: 'Bruno Mars', title: 'I Just Might' },
+      { artist: 'Harry Styles', title: 'Aperture' },
+      { artist: 'Olivia Rodrigo', title: 'Drop Dead' },
+      { artist: 'Olivia Rodrigo', title: 'The Cure' },
+      { artist: 'Drake', title: 'Janice STFU' },
+      { artist: 'Ariana Grande', title: 'Hate That I Made You Love Me' },
+      { artist: 'Don Toliver', title: 'E85' },
+      { artist: 'BLACKPINK', title: 'GO' },
+      { artist: 'Sombr', title: 'Back to Friends' },
+      { artist: 'Bad Bunny', title: 'DtMF' },
+      { artist: 'Bad Bunny', title: 'Baile Inolvidable' },
+      { artist: 'Bad Bunny', title: 'Nuevayol' },
+      { artist: 'Ella Langley', title: 'Be Her' },
+      { artist: 'Juvenile', title: 'B.B.B.' },
+      { artist: 'T.I.', title: "Let 'Em Know" },
+      { artist: 'HUNTR/X', title: 'Golden' },
+      { artist: 'RAYE', title: 'Where Is My Husband!' },
+      { artist: 'Olivia Dean', title: 'Man I Need' },
+      { artist: 'Kehlani', title: 'Folded' },
+      { artist: 'Alex Warren', title: 'Ordinary' },
+      { artist: 'Chappell Roan', title: 'The Subway' },
+      { artist: 'Benson Boone', title: 'Mystical Magical' },
+      { artist: 'Rosé', title: 'APT.' },
+      { artist: 'Shaboozey', title: 'A Bar Song (Tipsy)' },
+      { artist: 'Teddy Swims', title: 'Lose Control' },
+      { artist: 'Djo', title: 'End of Beginning' }
+    ]
+  }
+];
+const YEAR_MIX_CACHE_VERSION = 'v1';
+
+// Cari satu lagu spesifik (artist+judul) di Deezer. Pakai sintaks pencarian
+// lanjutan artist:"" track:"" dulu (paling akurat), kalau tidak ketemu baru
+// jatuh ke pencarian bebas "artis judul" sebagai cadangan.
+async function _ymResolveTrack(artistName, trackTitle) {
+  const cleanArtist = String(artistName).replace(/"/g, '');
+  const cleanTitle = String(trackTitle).replace(/"/g, '');
+  try {
+    const q1 = 'artist:"' + cleanArtist + '" track:"' + cleanTitle + '"';
+    let data = await _deezerJsonp('https://api.deezer.com/search?q=' + encodeURIComponent(q1) + '&limit=1');
+    let hit = data && data.data && data.data[0];
+    if (!hit) {
+      data = await _deezerJsonp('https://api.deezer.com/search?q=' + encodeURIComponent(cleanArtist + ' ' + cleanTitle) + '&order=RANKING&limit=1');
+      hit = data && data.data && data.data[0];
+    }
+    if (!hit) return null;
+    const t = _normalizeDeezerTrack(hit);
+    t._query = `${t.artist}|||${t.title}|||${t.id}`;
+    return t;
+  } catch (e) { return null; }
+}
+
+// Ambil foto ARTIS (bukan cover album) untuk dijadikan sampul kartu Mix
+// Tahunan — sesuai permintaan: foto dari artis lagu pertama di playlist.
+async function _ymGetArtistPhoto(artistName) {
+  try {
+    const searchData = await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(artistName) + '&limit=1');
+    const a = searchData && searchData.data && searchData.data[0];
+    return a ? (a.picture_xl || a.picture_big || a.picture_medium || '') : '';
+  } catch (e) { return ''; }
+}
+
+// Resolve satu definisi Mix Tahunan (30 lagu terkurasi) jadi objek mix siap
+// tampil & diputar. Dijalankan dalam batch kecil supaya tidak membanjiri API.
+async function _ymBuildMix(def) {
+  const tracks = [];
+  const CONCURRENCY = 6;
+  let i = 0;
+  while (i < def.songs.length) {
+    const batch = def.songs.slice(i, i + CONCURRENCY);
+    i += CONCURRENCY;
+    const results = await Promise.all(batch.map(s => _ymResolveTrack(s.artist, s.title)));
+    results.forEach(t => { if (t) tracks.push(t); });
+  }
+  if (!tracks.length) return null;
+  const cover = await _ymGetArtistPhoto(tracks[0].artist);
+  const uniqueArtists = [];
+  for (const t of tracks) {
+    if (!uniqueArtists.includes(t.artist)) uniqueArtists.push(t.artist);
+    if (uniqueArtists.length >= 3) break;
+  }
+  return {
+    id: 'ym_' + def.key,
+    key: def.key,
+    title: def.label,
+    label: def.label,
+    color: def.color,
+    caption: uniqueArtists.join(', '),
+    subtitle: `${def.label} · ${tracks.length} lagu`,
+    cover: cover || tracks[0].thumb,
+    tracks
+  };
+}
+
+// Muat 6 Mix Tahunan. Urutan sumber: cache lokal (permanen, tanpa tanggal) ->
+// data BERSAMA di Firebase (supaya semua user dapat hasil yang identik &
+// tidak perlu tiap orang resolve ulang ke Deezer) -> baru kalau benar-benar
+// belum ada, resolve dari nol lalu simpan sebagai data bersama.
+async function loadYearMixes(force) {
+  const section = document.getElementById('year-mix-section');
+  if (section) section.style.display = 'block';
+  const grid = document.getElementById('year-mix-grid');
+  if (grid && !grid.childElementCount) {
+    grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;"><i></i><h3>Menyiapkan Mix Tahunan...</h3></div>';
+  }
+
+  const mixes = [];
+  for (const def of YEAR_MIX_DEFS) {
+    const localKey = 'vibexa_yearmix_' + YEAR_MIX_CACHE_VERSION + '_' + def.key;
+    let mix = null;
+
+    if (!force) {
+      try {
+        const cached = localStorage.getItem(localKey);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && parsed.tracks && parsed.tracks.length) mix = parsed;
+        }
+      } catch (e) {}
+    }
+
+    if (!mix) {
+      try {
+        const snap = await db.ref('year_mix_shared_' + YEAR_MIX_CACHE_VERSION + '/' + def.key).get();
+        if (snap.exists()) {
+          const shared = snap.val();
+          if (shared && shared.tracks && shared.tracks.length) {
+            mix = shared;
+            try { localStorage.setItem(localKey, JSON.stringify(mix)); } catch (e) {}
+          }
+        }
+      } catch (e) {
+        // PENTING: kalau ini muncul sebagai "PERMISSION_DENIED", Firebase Rules
+        // belum mengizinkan baca path year_mix_shared_v1 -> Mix Tahunan tidak
+        // akan pernah sama antar user sampai rule-nya dibenarkan.
+        console.error('[YearMix] gagal baca year_mix_shared dari Firebase (cek Firebase Rules):', e);
+      }
+    }
+
+    if (!mix) {
+      mix = await _ymBuildMix(def);
+      if (mix) {
+        try {
+          const txResult = await db.ref('year_mix_shared_' + YEAR_MIX_CACHE_VERSION + '/' + def.key).transaction(current => {
+            if (current && current.tracks && current.tracks.length) return; // sudah ada -> jangan timpa
+            return mix;
+          });
+          if (txResult && txResult.snapshot && txResult.snapshot.exists()) {
+            const finalMix = txResult.snapshot.val();
+            if (finalMix && finalMix.tracks && finalMix.tracks.length) mix = finalMix;
+          }
+        } catch (e) {
+          console.error('[YearMix] gagal tulis year_mix_shared ke Firebase (cek Firebase Rules):', e);
+        }
+        try { localStorage.setItem(localKey, JSON.stringify(mix)); } catch (e) {}
+      }
+    }
+
+    if (mix) mixes.push(mix);
+    // Render progresif per-mix supaya kartu yang sudah siap langsung tampil,
+    // tidak perlu menunggu ke-6 mix selesai semua baru muncul.
+    renderYearMixes(mixes);
+  }
+
+  if (!mixes.length && grid) {
+    grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;color:var(--sub)"> Gagal memuat Mix Tahunan, coba refresh.</div>';
+  }
+}
+
+function renderYearMixes(mixes) {
+  const c = document.getElementById('year-mix-grid');
+  if (!c) return;
+  c.innerHTML = '';
+  mixes.forEach(mix => c.appendChild(buildYearMixCardEl(mix)));
+}
+
+function buildYearMixCardEl(mix) {
+  const div = document.createElement('div');
+  div.className = 'dm-card ym-card';
+  div.innerHTML = `
+    <div class="dm-cover-wrap">
+      ${mix.cover ? `<img class="dm-cover-img" src="${esc(mix.cover)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
+      <div class="dm-cover-ov">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </div>
+      <div class="ym-badge" style="background:${mix.color}">${esc(mix.title)}</div>
+    </div>
+    <div class="ym-caption">${esc(mix.caption || '')}</div>
+  `;
+  div.querySelector('.dm-cover-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
+  div.addEventListener('click', () => openDailyMix(mix));
+  return div;
+}
+
 // ─── DIBUAT UNTUK KAMU (Made For You) ────────────────────────
 // 8 playlist otomatis, isi 15 lagu tiap playlist, disusun dari lagu-lagu
 // milik artis yang diikuti user (favoriteArtists) — bukan chart umum seperti
@@ -13681,7 +14098,7 @@ function openDailyMix(mix) {
   const coverElAfter = document.getElementById('pv-cover');
   if (coverElAfter) coverElAfter.classList.toggle('pv-cover-round', !!mix.isArtistRadio);
   document.getElementById('pv-title').textContent = mix.title;
-  document.getElementById('pv-sub').textContent = `${mix.label || 'Daily Mix'} · ${mix.tracks.length} lagu · diperbarui hari ini`;
+  document.getElementById('pv-sub').textContent = mix.subtitle || `${mix.label || 'Daily Mix'} · ${mix.tracks.length} lagu · diperbarui hari ini`;
 
   document.querySelectorAll('.pv-action-btn').forEach(b => b.style.display = 'none');
   const pubBtn = document.getElementById('pv-publish-btn');
