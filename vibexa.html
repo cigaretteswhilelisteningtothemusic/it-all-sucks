@@ -495,6 +495,34 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .pv-owner-arrow{color:var(--muted);display:flex;align-items:center;flex-shrink:0;}
 .pv-owner-arrow svg{width:16px;height:16px;}
 
+/* ── LYRIC BANNER — kotak persegi panjang memanjang ke samping,
+   menampilkan kutipan lirik/kata-kata yang dikirim user, berganti tiap
+   beberapa detik dengan animasi naik dari bawah lalu menghilang ke atas.
+   Lihat startLyricBannerListener() / openLyricBannerModal() di JS. ── */
+.lyric-banner{position:relative;display:flex;align-items:stretch;gap:10px;margin-bottom:22px;}
+.lyric-banner-box{flex:1;min-width:0;position:relative;background:linear-gradient(180deg,rgba(46,125,255,.07),rgba(46,125,255,.02));border-top:2px solid var(--green);border-bottom:2px solid var(--green);border-radius:6px;height:64px;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0 22px;}
+.lyric-banner-box::before,.lyric-banner-box::after{content:'';position:absolute;left:0;right:0;height:2px;background:repeating-linear-gradient(90deg,var(--green) 0 10px,transparent 10px 16px);opacity:.55;}
+.lyric-banner-box::before{top:-2px;}
+.lyric-banner-box::after{bottom:-2px;}
+.lyric-banner-text{font-family:var(--fm);font-size:.92rem;font-weight:500;color:var(--text);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;letter-spacing:.2px;animation:lyricBannerCycle 2.6s ease-in-out;}
+.lyric-banner-by{display:block;font-size:.62rem;font-weight:600;color:var(--muted);margin-top:3px;letter-spacing:.5px;}
+@keyframes lyricBannerCycle{
+  0%{opacity:0;transform:translateY(18px);}
+  14%{opacity:1;transform:translateY(0);}
+  82%{opacity:1;transform:translateY(0);}
+  100%{opacity:0;transform:translateY(-18px);}
+}
+.lyric-banner-add{flex:0 0 auto;width:44px;height:64px;border-radius:6px;border:1px dashed var(--border);background:var(--card);color:var(--sub);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .18s;}
+.lyric-banner-add:hover{border-color:var(--green);color:var(--green);background:var(--green-dim);}
+.lyric-banner-add svg{width:18px;height:18px;}
+#lyric-banner-modal .modal-input{resize:none;min-height:74px;font-family:var(--fm);}
+.lyric-banner-count{font-size:.68rem;color:var(--muted);text-align:right;margin-top:-8px;margin-bottom:12px;}
+@media (max-width:640px){
+  .lyric-banner-box{height:56px;padding:0 14px;}
+  .lyric-banner-text{font-size:.8rem;}
+  .lyric-banner-add{width:38px;height:56px;}
+}
+
 /* ── HOME / PLAYLISTS GRID ────────────────────────────────── */
 #home-view{padding:24px;display:none;}
 #home-view.active{display:block;}
@@ -3597,6 +3625,22 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 
   <!-- HOME VIEW -->
   <div id="home-view" class="active">
+
+    <!-- LYRIC BANNER — semua user bisa mengirim lirik/kata-kata sendiri,
+         tampil bergiliran untuk SEMUA orang dengan animasi naik-hilang.
+         Data publik di db.ref('lyricBanner'). Lihat startLyricBannerListener(). -->
+    <div class="lyric-banner" id="lyric-banner">
+      <div class="lyric-banner-box">
+        <div>
+          <span class="lyric-banner-text" id="lyric-banner-text">Music speaks when words can't</span>
+          <span class="lyric-banner-by" id="lyric-banner-by"></span>
+        </div>
+      </div>
+      <button class="lyric-banner-add" onclick="openLyricBannerModal()" title="Tulis lirik / kata-katamu sendiri">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>
+
     <div class="home-greeting" id="home-greeting">Welcome </div>
     <div class="home-sub">Your playlists are automatically saved to this account.</div>
     <div class="home-section-title" style="display:none;">
@@ -4556,6 +4600,21 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   </div>
 </div>
 
+<!-- Lyric Banner Modal — user menulis lirik/kata-kata sendiri untuk
+     ditampilkan bergiliran di banner Home untuk SEMUA orang -->
+<div id="lyric-banner-modal" class="modal-bg" style="display:none">
+  <div class="modal">
+    <h3>Share Lyrics / Words</h3>
+    <p>Kalimat ini akan tampil bergiliran di banner Home untuk semua orang</p>
+    <textarea class="modal-input" id="lyric-banner-input" placeholder="Music speaks when words can't..." maxlength="90" oninput="_updateLyricBannerCount()"></textarea>
+    <div class="lyric-banner-count" id="lyric-banner-count">0 / 90</div>
+    <div class="mbtns">
+      <button class="btn-s" onclick="closeLyricBannerModal()">Cancel</button>
+      <button class="btn-p" onclick="submitLyricBanner()">Post</button>
+    </div>
+  </div>
+</div>
+
 <!-- Rename Playlist Modal -->
 <div id="rename-modal" class="modal-bg" style="display:none">
   <div class="modal">
@@ -5126,6 +5185,100 @@ function _cleanupStaleLocalCache() {
   } catch (e) {}
 }
 
+// ─── LYRIC BANNER ─────────────────────────────────────────────
+// Banner publik di Home: siapa pun yang login boleh menulis satu baris
+// lirik lagu / kata-kata sendiri (db.ref('lyricBanner')), dan SEMUA user
+// melihat kumpulan kalimat itu tampil bergantian dengan animasi naik dari
+// bawah lalu menghilang ke atas (lihat @keyframes lyricBannerCycle di CSS).
+const LYRIC_BANNER_CYCLE_MS = 2600; // samakan dgn durasi animation di CSS
+const LYRIC_BANNER_DEFAULTS = [
+  { text: "Music speaks when words can't", name: '' },
+  { text: 'Every song tells a story.', name: '' },
+  { text: 'Keep listening.', name: '' }
+];
+let _lyricBannerQueue = LYRIC_BANNER_DEFAULTS.slice();
+let _lyricBannerIndex = -1;
+let _lyricBannerTimer = null;
+
+function _lyricBannerAdvance() {
+  const textEl = document.getElementById('lyric-banner-text');
+  const byEl = document.getElementById('lyric-banner-by');
+  if (!textEl || !_lyricBannerQueue.length) return;
+  _lyricBannerIndex = (_lyricBannerIndex + 1) % _lyricBannerQueue.length;
+  const entry = _lyricBannerQueue[_lyricBannerIndex];
+  textEl.textContent = entry.text;
+  if (byEl) byEl.textContent = entry.name ? ('— ' + entry.name) : '';
+  // Restart animasi CSS (force reflow) supaya efek naik→hilang berulang tiap kalimat baru
+  textEl.style.animation = 'none';
+  void textEl.offsetWidth;
+  textEl.style.animation = '';
+}
+
+function _startLyricBannerCycle() {
+  if (_lyricBannerTimer) clearInterval(_lyricBannerTimer);
+  _lyricBannerAdvance();
+  _lyricBannerTimer = setInterval(_lyricBannerAdvance, LYRIC_BANNER_CYCLE_MS);
+}
+
+// Dengarkan node publik lyricBanner secara realtime — dipanggil sekali
+// setelah login (lihat auth.onAuthStateChanged di bawah).
+function startLyricBannerListener() {
+  db.ref('lyricBanner').orderByChild('createdAt').limitToLast(40).on('value', snap => {
+    const submitted = [];
+    snap.forEach(child => {
+      const v = child.val() || {};
+      if (v.text) submitted.push({ text: v.text, name: v.name || '', key: child.key });
+    });
+    // Kalimat terbaru tampil duluan, lalu diselingi contoh bawaan supaya
+    // banner tidak pernah kosong walau belum ada yang mengirim apa-apa.
+    submitted.reverse();
+    _lyricBannerQueue = submitted.length ? submitted : LYRIC_BANNER_DEFAULTS.slice();
+    _lyricBannerIndex = -1;
+    _startLyricBannerCycle();
+  });
+}
+
+function openLyricBannerModal() {
+  if (!currentUser) { toast('ℹ️ Please log in first'); return; }
+  const input = document.getElementById('lyric-banner-input');
+  if (input) input.value = '';
+  _updateLyricBannerCount();
+  const modal = document.getElementById('lyric-banner-modal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeLyricBannerModal() {
+  const modal = document.getElementById('lyric-banner-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function _updateLyricBannerCount() {
+  const input = document.getElementById('lyric-banner-input');
+  const count = document.getElementById('lyric-banner-count');
+  if (input && count) count.textContent = input.value.length + ' / 90';
+}
+
+async function submitLyricBanner() {
+  const input = document.getElementById('lyric-banner-input');
+  const text = input ? input.value.trim() : '';
+  if (!text) return;
+  if (!currentUser) { toast('ℹ️ Please log in first'); return; }
+  try {
+    const profileSnap = await db.ref('users/' + currentUser.uid + '/profile/displayName').get();
+    const name = (profileSnap.exists() && profileSnap.val()) || currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'User');
+    await db.ref('lyricBanner').push({
+      text: text.slice(0, 90),
+      name: name,
+      uid: currentUser.uid,
+      createdAt: firebase.database.ServerValue.TIMESTAMP
+    });
+    closeLyricBannerModal();
+    toast('✅ Posted to the banner');
+  } catch (e) {
+    toast('⚠️ Failed to post, please try again');
+  }
+}
+
 auth.onAuthStateChanged(user => {
   if (user && !user.isAnonymous) {
     currentUser = user;
@@ -5134,6 +5287,7 @@ auth.onAuthStateChanged(user => {
     loadAllPlaylistsFromCloud();
     loadFavoriteArtistsFromCloud();
     startFriendSuggestionsListener();
+    startLyricBannerListener();
     loadPublicFeed();
     loadTrendingSongs();
     loadRecentlyPlayedFromCloud();
