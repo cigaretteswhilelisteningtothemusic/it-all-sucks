@@ -3288,6 +3288,15 @@ textarea.sugg-form-input{resize:vertical;}
 /* ── STREAK PAGE — overlay penuh, dibuka lewat menu foto profil ─────── */
 #streak-view{position:fixed;inset:0;z-index:2500;background:var(--bg);display:none;flex-direction:column;}
 #streak-view.show{display:flex;}
+/* Saat halaman Streak terbuka, topbar & bottom-nav mobile tetap harus bisa
+   ditekan (ditampilkan di atas overlay Streak) supaya user bisa langsung
+   pindah ke halaman lain tanpa perlu menutup Streak secara manual dulu —
+   penutupan Streak-nya otomatis ditangani lewat JS (lihat hideStreakView). */
+body:has(#streak-view.show) .home-topbar,
+body:has(#streak-view.show) #mob-nav{
+  position:relative;
+  z-index:3000;
+}
 .streak-header{display:flex;align-items:center;gap:14px;padding:18px 26px;border-bottom:1px solid var(--border);flex-shrink:0;}
 .streak-header .pv-back{margin:0;}
 .streak-header-title{font-size:1.05rem;font-weight:800;flex:1;letter-spacing:-.2px;}
@@ -3552,11 +3561,11 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 }
 
 @media(max-width:640px){
-  /* Di layar HP, lebarkan bubble GIF/foto/video mengikuti lebar layar supaya
-     GIF tampil utuh dan nyaman dilihat, dengan tinggi maksimal yang masih
-     bisa di-scroll kalau GIF-nya panjang. */
-  .chat-bubble-media{max-width:min(78vw,320px);max-height:min(60vh,460px);}
-  .chat-bubble-row:has(.chat-bubble-media){max-width:82vw;}
+  /* Di layar HP, ukuran foto/GIF/video di chat dibuat lebih kecil dan
+     ringkas mengikuti gaya WhatsApp mobile (bukan melebar penuh layar),
+     supaya chat tetap ringkas dan tidak terlalu besar/dominan. */
+  .chat-bubble-media{max-width:min(52vw,200px);max-height:min(38vh,260px);}
+  .chat-bubble-row:has(.chat-bubble-media){max-width:60vw;}
 }
 
 /* ── Send GIF di Chat (Giphy) ──────────────────────────────── */
@@ -5879,7 +5888,20 @@ function loadHomeProfileButtonPhoto(user) {
     const profile = snap.exists() ? (snap.val() || {}) : {};
     const photo = profile.photoURL || profile.photoBase64 || user.photoURL || '';
     if (photo) {
-      btn.innerHTML = `<img src="${esc(photo)}" alt="Profile" onerror="this.parentElement.innerHTML='<svg viewBox=&quot;0 0 24 24&quot; fill=&quot;currentColor&quot;><path d=&quot;M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v2h20v-2c0-3.3-6.7-5-10-5z&quot;/></svg>'">`;
+      // PENTING: jangan pakai btn.innerHTML di sini — itu akan ikut menghapus
+      // span.profile-streak-badge (badge angka streak) yang juga ada di
+      // dalam tombol ini, sehingga jumlah streak hilang/tertutup foto
+      // profil begitu foto berhasil dimuat. Cukup hapus ikon lama
+      // (img/svg default) saja, badge streak dibiarkan tetap ada.
+      btn.querySelectorAll('img, svg').forEach(el => el.remove());
+      const img = document.createElement('img');
+      img.alt = 'Profile';
+      img.onerror = function(){
+        this.remove();
+        btn.insertAdjacentHTML('afterbegin', '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v2h20v-2c0-3.3-6.7-5-10-5z"/></svg>');
+      };
+      img.src = esc(photo);
+      btn.insertBefore(img, btn.firstChild);
     }
   }).catch(() => {});
 }
@@ -10126,6 +10148,19 @@ function hideStreakView(){
   try{ _streakFlameAnim && _streakFlameAnim.pause(); }catch(e){}
   try{ _streakBgFireAnim && _streakBgFireAnim.pause(); }catch(e){}
 }
+
+// Saat halaman Streak sedang terbuka, kalau user menekan tombol apa pun di
+// luar halaman Streak (mis. tombol navigasi di topbar / bottom-nav mobile,
+// tombol chat, notifikasi, dll), halaman Streak akan otomatis tertutup
+// lebih dulu (dijalankan di fase capture, sebelum handler klik tombol
+// tersebut berjalan), lalu aksi tombol yang ditekan tetap berjalan seperti
+// biasa sehingga user langsung berpindah ke halaman yang dituju.
+document.addEventListener('click', function(e){
+  const streakView = document.getElementById('streak-view');
+  if (!streakView || !streakView.classList.contains('show')) return;
+  if (streakView.contains(e.target)) return; // klik di dalam halaman Streak sendiri (mis. tombol Back) dibiarkan berjalan normal
+  hideStreakView();
+}, true);
 
 function renderStreakView(){
   const data = _getStreakData();
