@@ -147,13 +147,11 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .streak-menu-count{margin-left:auto;background:rgba(255,145,0,.16);color:#ff9500;font-size:.68rem;font-weight:800;border-radius:9px;padding:1px 7px;flex-shrink:0;}
 #streak-menu-btn:hover svg{color:#ff9500;}
 /* Badge kecil bulatan jumlah streak menempel di foto profil (avatar) topbar */
-.profile-streak-badge{position:absolute;bottom:-3px;right:-3px;min-width:16px;height:16px;padding:0 3px;border-radius:9px;background:#ff9500;color:#fff;font-size:.6rem;font-weight:800;display:none;align-items:center;justify-content:center;line-height:1;box-shadow:0 0 0 2px var(--panel);}
-.profile-streak-badge.show{display:flex;}
+.profile-streak-badge{position:absolute;bottom:-3px;right:-3px;min-width:16px;height:16px;padding:0 3px;border-radius:9px;background:#ff9500;color:#fff;font-size:.6rem;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1;box-shadow:0 0 0 2px var(--panel);}
 .home-profile-btn{position:relative;}
 /* Pill streak yang selalu tampil di sebelah foto profil (bukan di dalam menu),
    supaya user langsung lihat & tidak lupa streak-nya tanpa perlu buka menu */
-.topbar-streak-pill{display:none;align-items:center;gap:5px;background:rgba(255,149,0,.14);border:1px solid rgba(255,149,0,.35);border-radius:50px;padding:5px 11px 5px 8px;cursor:pointer;flex-shrink:0;transition:all .15s;font-family:var(--f);}
-.topbar-streak-pill.show{display:flex;}
+.topbar-streak-pill{display:flex;align-items:center;gap:5px;background:rgba(255,149,0,.14);border:1px solid rgba(255,149,0,.35);border-radius:50px;padding:5px 11px 5px 8px;cursor:pointer;flex-shrink:0;transition:all .15s;font-family:var(--f);}
 .topbar-streak-pill:hover{background:rgba(255,149,0,.24);border-color:#ff9500;}
 .topbar-streak-pill svg{width:16px;height:16px;color:#ff9500;flex-shrink:0;}
 .topbar-streak-pill span{font-size:.78rem;font-weight:800;color:#ff9500;line-height:1;}
@@ -161,6 +159,14 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   .topbar-streak-pill{padding:4px 9px 4px 7px;}
   .topbar-streak-pill svg{width:14px;height:14px;}
   .topbar-streak-pill span{font-size:.72rem;}
+}
+/* Mobile (<=660px, sama dengan breakpoint topbar & avatar mengecil jadi
+   28x28): pill di samping foto disembunyikan supaya topbar tidak sesak —
+   angka streak dipindah jadi badge kecil menempel di foto profil saja,
+   diperkecil supaya tidak terlalu menutupi foto tapi tetap kebaca. */
+@media (max-width:660px){
+  .topbar-streak-pill{display:none !important;}
+  .profile-streak-badge{min-width:13px;height:13px;padding:0 2px;font-size:.52rem;bottom:-2px;right:-2px;box-shadow:0 0 0 1.5px var(--panel);}
 }
 
 
@@ -10045,15 +10051,10 @@ function _updateStreakBadges(){
   const data = _getStreakData();
   const badge = document.getElementById('profile-streak-badge');
   const menuCount = document.getElementById('streak-menu-count');
-  const pill = document.getElementById('topbar-streak-pill');
   const pillCount = document.getElementById('topbar-streak-pill-count');
-  if (badge){
-    badge.textContent = data.currentStreak;
-    badge.classList.toggle('show', data.currentStreak > 0);
-  }
+  if (badge) badge.textContent = data.currentStreak;
   if (menuCount) menuCount.textContent = data.currentStreak;
   if (pillCount) pillCount.textContent = data.currentStreak;
-  if (pill) pill.classList.toggle('show', data.currentStreak > 0);
 }
 
 // Dipanggil setiap kali sebuah songs berhasil diputar full (lihat
