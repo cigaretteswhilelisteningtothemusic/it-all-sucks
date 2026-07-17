@@ -3308,15 +3308,21 @@ body:has(#streak-view.show) #mob-nav{
 .streak-header .pv-back{margin:0;}
 .streak-header-title{font-size:1.05rem;font-weight:800;flex:1;letter-spacing:-.2px;}
 .streak-body{flex:1;overflow-y:auto;padding:26px 26px 60px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
-.streak-hero{position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:30px 18px 34px;background:radial-gradient(ellipse 320px 200px at 50% 0%,rgba(255,149,0,.14) 0%,transparent 70%);border-radius:var(--r);margin-bottom:22px;overflow:hidden;}
+.streak-hero{position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:30px 18px 34px;background:radial-gradient(ellipse 320px 200px at 50% 0%,rgba(255,149,0,.14) 0%,transparent 70%);border-radius:var(--r);margin-bottom:6px;overflow:hidden;}
 .streak-flame-wrap{width:84px;height:84px;border-radius:50%;background:rgba(255,149,0,.14);display:flex;align-items:center;justify-content:center;margin-bottom:6px;position:relative;z-index:3;overflow:hidden;}
 .streak-flame-wrap svg{width:44px;height:44px;color:#ff9500;}
 .streak-hero-count{font-size:2.4rem;font-weight:800;color:#fff;line-height:1.1;position:relative;z-index:3;}
 .streak-hero-textwrap{position:relative;display:flex;flex-direction:column;align-items:center;min-height:70px;justify-content:flex-start;padding-top:8px;width:100%;}
-.streak-hero-bg-fire{width:100%;max-width:260px;height:150px;margin:-6px auto 22px;pointer-events:none;}
+/* Banner api full-bleed: dipaksa selebar layar penuh (menembus padding kiri
+   kanan #streak-body) supaya tidak ada ruang kosong di samping, dan jarak
+   ke hero/kotak Daily Mission dirapatkan supaya tidak ada ruang kosong di
+   atas & bawahnya juga. preserveAspectRatio animasinya diset 'none' lewat
+   JS supaya animasinya memanjang mengikuti lebar layar TANPA ikut membesar
+   secara proporsional (tingginya tetap sama, cuma lebarnya yang stretch). */
+.streak-hero-bg-fire{position:relative;left:50%;right:50%;width:100vw;margin-left:-50vw;margin-right:-50vw;max-width:100vw;height:150px;margin-top:0;margin-bottom:0;overflow:hidden;pointer-events:none;}
 .streak-hero-label{font-size:.85rem;color:var(--sub);font-weight:600;position:relative;z-index:3;text-shadow:0 1px 8px rgba(0,0,0,.7);}
 .streak-hero-sub{font-size:.72rem;color:var(--muted);margin-top:4px;position:relative;z-index:3;text-shadow:0 1px 8px rgba(0,0,0,.7);}
-.streak-mission-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;margin-bottom:20px;}
+.streak-mission-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;margin-bottom:20px;margin-top:6px;}
 .streak-mission-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;}
 .streak-mission-title{font-size:.92rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px;}
 .streak-mission-title svg{width:17px;height:17px;color:#ff9500;flex-shrink:0;}
@@ -10142,7 +10148,13 @@ function _renderStreakHeroAnimations(currentStreak){
       renderer: 'svg',
       loop: true,
       autoplay: true,
-      path: STREAK_BG_FIRE_URL
+      path: STREAK_BG_FIRE_URL,
+      rendererSettings: {
+        // 'none' = animasinya di-stretch penuh mengikuti ukuran container
+        // (memanjang mengikuti lebar layar) tanpa letterboxing/ruang kosong
+        // di kiri-kanan atau atas-bawah, dan tanpa ikut membesar proporsional.
+        preserveAspectRatio: 'none'
+      }
     });
   } else if (_streakBgFireAnim && _streakBgFireAnim.isPaused){
     _streakBgFireAnim.play();
