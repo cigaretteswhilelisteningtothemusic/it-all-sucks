@@ -5341,6 +5341,50 @@ function _recomputeLyricBannerQueue() {
 let _lyricBannerExpiryTimer = null;
 let _lyricBannerSubmitting = false; // true selama submitLyricBanner() sedang menyimpan slot
 
+// ── DRAFT AUTOSAVE ───────────────────────────────────────────────────────
+// Supaya teks yang sedang diketik user di slot mana pun TIDAK hilang kalau
+// modal ditutup / user pindah halaman sebelum sempat menekan "Post", setiap
+// perubahan di input disimpan otomatis (debounced) ke localStorage sebagai
+// draft per-user. Draft ini murni tersimpan di device (belum terpost ke
+// banner publik) dan otomatis dimuat lagi setiap kali modal dibuka. Draft
+// suatu slot baru dihapus setelah slot itu berhasil di-Post (tersimpan ke
+// Firebase) atau dihapus.
+function _lyricBannerDraftKey() {
+  return currentUser ? ('lyricBannerDraft_' + currentUser.uid) : null;
+}
+function _loadLyricBannerDraft() {
+  const key = _lyricBannerDraftKey();
+  if (!key) return {};
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) || {}) : {};
+  } catch (e) { return {}; }
+}
+function _saveLyricBannerDraft(draft) {
+  const key = _lyricBannerDraftKey();
+  if (!key) return;
+  try {
+    if (draft && Object.keys(draft).length) localStorage.setItem(key, JSON.stringify(draft));
+    else localStorage.removeItem(key);
+  } catch (e) { /* localStorage penuh/diblokir — abaikan, tidak fatal */ }
+}
+let _lyricBannerDraftTimer = null;
+// Dipanggil tiap kali user mengetik di salah satu baris. Debounce 400ms
+// supaya tidak menulis ke localStorage di setiap ketukan huruf.
+function _onLyricRowInput() {
+  _updateLyricBannerCount();
+  if (_lyricBannerDraftTimer) clearTimeout(_lyricBannerDraftTimer);
+  _lyricBannerDraftTimer = setTimeout(() => {
+    const draft = {};
+    for (let j = 1; j <= LYRIC_BANNER_MAX; j++) {
+      const el = document.getElementById('lyric-row-' + j);
+      if (!el || el.disabled) continue;
+      if (el.value) draft[j] = el.value;
+    }
+    _saveLyricBannerDraft(draft);
+  }, 400);
+}
+
 // Render 20 baris input teks di dalam modal — satu baris = satu slot
 // urutan tampil. Slot kosong & bebas -> input aktif kosong. Slot milik
 // sendiri -> input aktif berisi teks lama (siap diedit / dikosongkan untuk
@@ -5352,6 +5396,7 @@ function _renderLyricBannerRows() {
   const now = Date.now();
   const owner = _lyricBannerActiveOwner();
   const lockedForMe = !!(owner && currentUser && owner !== currentUser.uid);
+  const draft = _loadLyricBannerDraft();
   let html = '';
   for (let i = 1; i <= LYRIC_BANNER_MAX; i++) {
     const rawEntry = _lyricBannerSlotsData[i];
@@ -5366,11 +5411,15 @@ function _renderLyricBannerRows() {
     if (takenByOther) { rowCls += ' taken'; status = '🔒 ' + esc(entry.name || 'User'); }
     else if (lockedEmpty) { rowCls += ' locked'; status = '🔒 terkunci'; }
     else if (mine) { rowCls += ' mine'; status = 'milikmu'; }
-    const value = mine ? esc(entry.text).replace(/"/g, '&quot;') : '';
+    // Draft (belum di-Post) diprioritaskan di atas teks yang sudah tersimpan,
+    // karena draft mewakili ketikan terbaru user yang belum sempat ditekan Post.
+    let rawValue = mine ? entry.text : '';
+    if (!disabled && Object.prototype.hasOwnProperty.call(draft, i)) rawValue = draft[i];
+    const value = esc(rawValue).replace(/"/g, '&quot;');
     const placeholder = disabled ? '' : ('Slot ' + i + ' kosong...');
     html += '<div class="' + rowCls + '">'
       + '<span class="lyric-banner-row-num">' + i + '</span>'
-      + '<input type="text" class="lyric-banner-row-input" id="lyric-row-' + i + '" maxlength="' + LYRIC_BANNER_TEXT_MAX + '" placeholder="' + placeholder + '" value="' + value + '"' + (disabled ? ' disabled' : '') + ' oninput="_updateLyricBannerCount()">'
+      + '<input type="text" class="lyric-banner-row-input" id="lyric-row-' + i + '" maxlength="' + LYRIC_BANNER_TEXT_MAX + '" placeholder="' + placeholder + '" value="' + value + '"' + (disabled ? ' disabled' : '') + ' oninput="_onLyricRowInput()">'
       + '<span class="lyric-banner-row-status">' + status + '</span>'
       + '</div>';
   }
@@ -5381,12 +5430,14 @@ function openLyricBannerModal() {
   if (!currentUser) { toast('ℹ️ Please log in first'); return; }
   const charMaxEl = document.getElementById('lyric-banner-charmax');
   if (charMaxEl) charMaxEl.textContent = LYRIC_BANNER_TEXT_MAX;
+  const hadDraft = Object.keys(_loadLyricBannerDraft()).length > 0;
   _renderLyricBannerRows();
   _updateLyricBannerCount();
   const modal = document.getElementById('lyric-banner-modal');
   if (modal) modal.style.display = 'flex';
   const owner = _lyricBannerActiveOwner();
   if (owner && owner !== currentUser.uid) toast('ℹ️ Sebagian slot terkunci — sedang dipakai user lain (maks 10 jam)');
+  else if (hadDraft) toast('📝 Draf sebelumnya yang belum di-Post dipulihkan');
 }
 
 function closeLyricBannerModal() {
@@ -5442,6 +5493,7 @@ async function submitLyricBanner() {
 
   _lyricBannerSubmitting = true;
   let saved = 0, removed = 0, failed = 0;
+  const settledSlots = []; // slot yang berhasil disimpan/dihapus -> draft-nya boleh dibuang
   try {
   for (const { i, text } of snapshot) {
     const rawEntry = _lyricBannerSlotsData[i];
@@ -5452,7 +5504,7 @@ async function submitLyricBanner() {
     if (!text) {
       // Baris dikosongkan: kalau sebelumnya memang milik sendiri, hapus dari banner.
       if (mine) {
-        try { await db.ref('lyricBanner/' + i).remove(); removed++; }
+        try { await db.ref('lyricBanner/' + i).remove(); removed++; settledSlots.push(i); }
         catch (e) { failed++; }
       }
       continue;
@@ -5469,11 +5521,19 @@ async function submitLyricBanner() {
           expiresAt: Date.now() + LYRIC_BANNER_EXPIRY_MS
         };
       });
-      if (res && res.committed) saved++; else failed++;
+      if (res && res.committed) { saved++; settledSlots.push(i); } else failed++;
     } catch (e) { failed++; }
   }
   } finally {
     _lyricBannerSubmitting = false;
+    // Slot yang gagal (mis. keduluan user lain) draft-nya TETAP disimpan
+    // supaya user tidak kehilangan ketikannya; hanya slot yang berhasil
+    // di-Post yang draft-nya dibuang.
+    if (settledSlots.length) {
+      const draft = _loadLyricBannerDraft();
+      settledSlots.forEach(i => { delete draft[i]; });
+      _saveLyricBannerDraft(draft);
+    }
   }
 
   closeLyricBannerModal();
