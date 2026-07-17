@@ -500,12 +500,13 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
    beberapa detik dengan animasi naik dari bawah lalu menghilang ke atas.
    Lihat startLyricBannerListener() / openLyricBannerModal() di JS. ── */
 .lyric-banner{position:relative;display:flex;align-items:stretch;gap:10px;margin-bottom:22px;}
-.lyric-banner-box{flex:1;min-width:0;position:relative;background:linear-gradient(180deg,rgba(46,125,255,.07),rgba(46,125,255,.02));border-top:2px solid var(--green);border-bottom:2px solid var(--green);border-radius:6px;height:64px;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0 22px;}
+.lyric-banner-box{flex:1;min-width:0;position:relative;background:linear-gradient(180deg,rgba(46,125,255,.07),rgba(46,125,255,.02));border-top:2px solid var(--green);border-bottom:2px solid var(--green);border-radius:6px;height:64px;display:flex;align-items:center;gap:14px;overflow:hidden;padding:0 20px;}
 .lyric-banner-box::before,.lyric-banner-box::after{content:'';position:absolute;left:0;right:0;height:2px;background:repeating-linear-gradient(90deg,var(--green) 0 10px,transparent 10px 16px);opacity:.55;}
 .lyric-banner-box::before{top:-2px;}
 .lyric-banner-box::after{bottom:-2px;}
-.lyric-banner-text{font-family:var(--fm);font-size:.92rem;font-weight:500;color:var(--text);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;letter-spacing:.2px;animation:lyricBannerCycle 2.6s ease-in-out;}
-.lyric-banner-by{display:block;font-size:.62rem;font-weight:600;color:var(--muted);margin-top:3px;letter-spacing:.5px;}
+.lyric-banner-by{flex:0 0 auto;max-width:130px;text-align:left;font-size:.66rem;font-weight:700;color:var(--green);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.3px;}
+.lyric-banner-text-wrap{flex:1;min-width:0;display:flex;justify-content:center;overflow:hidden;}
+.lyric-banner-text{font-family:var(--fm);font-size:.92rem;font-weight:800;color:var(--text);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;letter-spacing:.2px;animation:lyricBannerCycle 2.6s ease-in-out;}
 @keyframes lyricBannerCycle{
   0%{opacity:0;transform:translateY(18px);}
   14%{opacity:1;transform:translateY(0);}
@@ -3631,9 +3632,9 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
          Data publik di db.ref('lyricBanner'). Lihat startLyricBannerListener(). -->
     <div class="lyric-banner" id="lyric-banner">
       <div class="lyric-banner-box">
-        <div>
+        <span class="lyric-banner-by" id="lyric-banner-by"></span>
+        <div class="lyric-banner-text-wrap">
           <span class="lyric-banner-text" id="lyric-banner-text">Music speaks when words can't</span>
-          <span class="lyric-banner-by" id="lyric-banner-by"></span>
         </div>
       </div>
       <button class="lyric-banner-add" onclick="openLyricBannerModal()" title="Tulis lirik / kata-katamu sendiri">
@@ -5191,6 +5192,7 @@ function _cleanupStaleLocalCache() {
 // melihat kumpulan kalimat itu tampil bergantian dengan animasi naik dari
 // bawah lalu menghilang ke atas (lihat @keyframes lyricBannerCycle di CSS).
 const LYRIC_BANNER_CYCLE_MS = 2600; // samakan dgn durasi animation di CSS
+const LYRIC_BANNER_MAX = 20; // maksimal 20 kalimat dalam rotasi, lalu ulang dari awal
 const LYRIC_BANNER_DEFAULTS = [
   { text: "Music speaks when words can't", name: '' },
   { text: 'Every song tells a story.', name: '' },
@@ -5204,10 +5206,11 @@ function _lyricBannerAdvance() {
   const textEl = document.getElementById('lyric-banner-text');
   const byEl = document.getElementById('lyric-banner-by');
   if (!textEl || !_lyricBannerQueue.length) return;
+  // Loop balik ke kalimat pertama begitu sudah sampai kalimat terakhir (maks 20)
   _lyricBannerIndex = (_lyricBannerIndex + 1) % _lyricBannerQueue.length;
   const entry = _lyricBannerQueue[_lyricBannerIndex];
   textEl.textContent = entry.text;
-  if (byEl) byEl.textContent = entry.name ? ('— ' + entry.name) : '';
+  if (byEl) byEl.textContent = entry.name || '';
   // Restart animasi CSS (force reflow) supaya efek naik→hilang berulang tiap kalimat baru
   textEl.style.animation = 'none';
   void textEl.offsetWidth;
@@ -5223,16 +5226,16 @@ function _startLyricBannerCycle() {
 // Dengarkan node publik lyricBanner secara realtime — dipanggil sekali
 // setelah login (lihat auth.onAuthStateChanged di bawah).
 function startLyricBannerListener() {
-  db.ref('lyricBanner').orderByChild('createdAt').limitToLast(40).on('value', snap => {
+  db.ref('lyricBanner').orderByChild('createdAt').limitToLast(LYRIC_BANNER_MAX).on('value', snap => {
     const submitted = [];
     snap.forEach(child => {
       const v = child.val() || {};
       if (v.text) submitted.push({ text: v.text, name: v.name || '', key: child.key });
     });
-    // Kalimat terbaru tampil duluan, lalu diselingi contoh bawaan supaya
-    // banner tidak pernah kosong walau belum ada yang mengirim apa-apa.
+    // Kalimat terbaru tampil duluan, dibatasi maks 20, lalu diselingi contoh
+    // bawaan supaya banner tidak pernah kosong walau belum ada yang mengirim apa-apa.
     submitted.reverse();
-    _lyricBannerQueue = submitted.length ? submitted : LYRIC_BANNER_DEFAULTS.slice();
+    _lyricBannerQueue = (submitted.length ? submitted : LYRIC_BANNER_DEFAULTS.slice()).slice(0, LYRIC_BANNER_MAX);
     _lyricBannerIndex = -1;
     _startLyricBannerCycle();
   });
