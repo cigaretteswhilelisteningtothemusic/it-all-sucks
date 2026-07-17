@@ -5784,33 +5784,49 @@ async function setupPushNotifications(user) {
 _messagingReadyPromise.then(() => {
   if (messaging) {
     messaging.onMessage(payload => {
-      // Notifikasi pesan chat dikirim Cloud Function sebagai data-only payload
-      // (lihat functions/index.js: sendChatPushNotification), jadi title/body
-      // ada di payload.data — fallback ke payload.notification utk jenis
-      // notifikasi lain (mis. reminder harian) yang mungkin masih pakai format lama.
-      const d = payload?.data || {};
-      const title = d.title || payload?.notification?.title || 'Vibexa';
-      const body = d.body || payload?.notification?.body || '';
-      const senderUid = d.senderUid || '';
-
-      // Kalau notifikasi ini soal chat dengan peer yang PERSIS sedang saya buka,
-      // tidak perlu tampilkan popup notifikasi lagi (pesannya sudah muncul live
-      // di layar percakapan) — hindari notif dobel ala WhatsApp.
-      if (senderUid && _chatCurrentPeer && _chatCurrentPeer.uid === senderUid) return;
-
+      const title = payload?.notification?.title || 'Vibexa';
+      const body = payload?.notification?.body || '';
       if (Notification.permission === 'granted') {
-        const n = new Notification(title, { body, icon: 'icons/icon-192.png' });
-        if (senderUid) {
-          n.onclick = () => {
-            window.focus();
-            openChatWithUidWhenReady(senderUid);
-            n.close();
-          };
-        }
+        new Notification(title, { body, icon: 'icons/icon-192.png' });
       }
     });
   }
 });
+
+// ─── Push Notification Chat (ala WhatsApp) via Cloudflare Worker ───────
+// PENTING: ganti URL ini dengan URL Worker hasil `wrangler deploy` kamu
+// (lihat cloudflare-worker/README.md). Worker inilah yang benar-benar
+// mengirim notifikasi FCM ke device penerima saat dia sedang di luar app —
+// jadi ini BUKAN opsional, tanpa URL yang benar notifikasi chat tidak akan
+// terkirim (token FCM tetap tersimpan seperti biasa, hanya pengirimannya
+// yang butuh Worker ini).
+const CHAT_NOTIF_WORKER = 'https://vibexa-chat-notify.alpin432.workers.dev';
+
+// Dipanggil SETELAH pesan chat berhasil ditulis ke Firebase (teks/foto/
+// video/GIF). Sengaja "fire-and-forget" (tidak di-await, error diabaikan)
+// supaya kalau Worker sedang down atau URL belum diisi, pengiriman pesan
+// chat itu sendiri tidak ikut gagal/tertunda.
+async function triggerChatPushNotification(peer, previewText) {
+  try {
+    if (!currentUser || !peer || !peer.uid || !peer.chatId) return;
+    if (!CHAT_NOTIF_WORKER || CHAT_NOTIF_WORKER.includes('YOUR-SUBDOMAIN')) return;
+    const idToken = await currentUser.getIdToken();
+    const fromName = (currentUser.displayName || 'Someone').toString().slice(0, 60);
+    fetch(CHAT_NOTIF_WORKER + '/send-chat-notification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        idToken,
+        toUid: peer.uid,
+        chatId: peer.chatId,
+        title: fromName,
+        body: (previewText || '').toString().slice(0, 150)
+      })
+    }).catch(() => {});
+  } catch (e) {
+    console.warn('triggerChatPushNotification error:', e);
+  }
+}
 
 // Mengembalikan kata sapaan (Good morning/afternoon/evening/night) sesuai jam saat ini
 function getGreetingWord() {
@@ -5866,69 +5882,44 @@ function showApp(user) {
   _maybeAutoStartChatFromUrl();
 }
 
-// Cek query param ?startChatWith=<uid> di URL (dikirim dari tombol Chat di profile.html,
-// ATAU dari service worker saat user menekan notifikasi push pesan masuk — lihat
-// listener 'message' dari navigator.serviceWorker di bawah) lalu otomatis membuka
-// overlay Chat dan memulai/melanjutkan percakapan dengan user itu.
+// Cek query param ?startChatWith=<uid> di URL (dikirim dari tombol Chat di profile.html)
+// lalu otomatis membuka overlay Chat dan memulai/melanjutkan percakapan dengan user itu.
 function _maybeAutoStartChatFromUrl() {
   try {
     const params = new URLSearchParams(window.location.search);
     const targetUid = params.get('startChatWith');
-    if (!targetUid) return;
+    if (!targetUid || !currentUser || targetUid === currentUser.uid) return;
 
     // Bersihkan query param dari URL supaya refresh halaman tidak membuka chat berulang
     window.history.replaceState({}, document.title, window.location.pathname);
 
-    openChatWithUidWhenReady(targetUid);
+    const tryStart = () => {
+      const entry = _chatDirectory[targetUid];
+      const name = (entry && entry.displayName) || 'User';
+      const photo = (entry && entry.photoURL) || '';
+      openChatOverlay();
+      startChatWithFriend(targetUid, name, photo);
+    };
+
+    if (_chatDirLoaded) {
+      tryStart();
+    } else {
+      // Tunggu direktori chat selesai dimuat (maks. 5 detik) sebelum mencoba mulai chat
+      let waited = 0;
+      const waitTimer = setInterval(() => {
+        waited += 200;
+        if (_chatDirLoaded) {
+          clearInterval(waitTimer);
+          tryStart();
+        } else if (waited >= 5000) {
+          clearInterval(waitTimer);
+          tryStart(); // tetap coba walau direktori belum lengkap (pakai nama default)
+        }
+      }, 200);
+    }
   } catch(e) {
     console.error('Gagal auto-membuka chat dari URL:', e);
   }
-}
-
-// Buka overlay Chat & mulai/lanjutkan percakapan dengan targetUid, menunggu
-// direktori pengguna (_chatDirectory) selesai dimuat dulu kalau perlu (maks 5 detik).
-// Dipakai oleh _maybeAutoStartChatFromUrl() (buka lewat URL) dan oleh handler
-// pesan dari service worker (buka lewat klik notifikasi push).
-function openChatWithUidWhenReady(targetUid) {
-  if (!targetUid || !currentUser || targetUid === currentUser.uid) return;
-
-  const tryStart = () => {
-    const entry = _chatDirectory[targetUid];
-    const name = (entry && entry.displayName) || 'User';
-    const photo = (entry && entry.photoURL) || '';
-    openChatOverlay();
-    startChatWithFriend(targetUid, name, photo);
-  };
-
-  if (_chatDirLoaded) {
-    tryStart();
-  } else {
-    // Tunggu direktori chat selesai dimuat (maks. 5 detik) sebelum mencoba mulai chat
-    let waited = 0;
-    const waitTimer = setInterval(() => {
-      waited += 200;
-      if (_chatDirLoaded) {
-        clearInterval(waitTimer);
-        tryStart();
-      } else if (waited >= 5000) {
-        clearInterval(waitTimer);
-        tryStart(); // tetap coba walau direktori belum lengkap (pakai nama default)
-      }
-    }, 200);
-  }
-}
-
-// Dengarkan pesan dari service worker: saat user MENEKAN notifikasi push pesan
-// chat sementara tab Vibexa sudah terbuka, sw.js mem-fokus tab ini lalu
-// mengirim postMessage berisi uid pengirim — di sini kita langsung buka
-// percakapannya tanpa perlu reload halaman (lihat notificationclick di sw.js).
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.addEventListener('message', event => {
-    const data = event.data || {};
-    if (data.type === 'OPEN_CHAT_FROM_NOTIFICATION' && data.uid) {
-      openChatWithUidWhenReady(data.uid);
-    }
-  });
 }
 
 // Isi tombol profil bulat (di samping kotak search) dengan foto profil user;
@@ -6262,13 +6253,8 @@ function markFreeChatMessageUsed(peerUid, now) {
 function setupPresence(user) {
   if (!user) return;
   const myStatusRef = db.ref('status/' + user.uid);
-  const myActiveChatRef = db.ref('activeChat/' + user.uid);
   db.ref('.info/connected').on('value', snap => {
     if (snap.val() !== true) return;
-    // Kalau koneksi putus mendadak (tutup tab, internet mati, dsb), server
-    // Firebase otomatis membersihkan activeChat juga — supaya Cloud Function
-    // tidak salah kira saya masih membuka suatu percakapan padahal sudah offline.
-    myActiveChatRef.onDisconnect().remove().catch(() => {});
     myStatusRef.onDisconnect().set({
       state: 'offline',
       last_changed: firebase.database.ServerValue.TIMESTAMP
@@ -6286,14 +6272,10 @@ function setupPresence(user) {
 // putus-koneksi (yang baru terjadi kalau tab benar-benar ditutup).
 function markMyselfOffline() {
   if (!currentUser) return Promise.resolve();
-  const uid = currentUser.uid;
-  return Promise.all([
-    db.ref('status/' + uid).set({
-      state: 'offline',
-      last_changed: firebase.database.ServerValue.TIMESTAMP
-    }).catch(() => {}),
-    db.ref('activeChat/' + uid).remove().catch(() => {})
-  ]);
+  return db.ref('status/' + currentUser.uid).set({
+    state: 'offline',
+    last_changed: firebase.database.ServerValue.TIMESTAMP
+  }).catch(() => {});
 }
 
 function subscribeChatStatus() {
@@ -6773,13 +6755,6 @@ function openConversation(chatId, peerUid, peerName, peerPhoto) {
   const photo = (live && live.photoURL) || peerPhoto || '';
   _chatCurrentPeer = { uid: peerUid, name: name, photo: photo, chatId: chatId };
 
-  // Tandai di DB bahwa saya sedang membuka percakapan dengan peerUid ini —
-  // dibaca oleh Cloud Function pengirim push notif supaya TIDAK mengirim
-  // notifikasi kalau saya memang sedang melihat chat tsb (ala WhatsApp).
-  if (currentUser) {
-    db.ref('activeChat/' + currentUser.uid).set(peerUid).catch(() => {});
-  }
-
   const avatarEl = document.getElementById('chat-conv-avatar');
   avatarEl.innerHTML = photo
     ? `<img src="${esc(photo)}" alt="" onerror="this.parentElement.innerHTML='&#128100;'">`
@@ -6842,11 +6817,6 @@ function goToPeerProfile() {
 function detachChatMessagesListener() {
   if (_chatMsgsRef) { _chatMsgsRef.off(); _chatMsgsRef = null; }
   if (_chatSeenRef) { _chatSeenRef.off(); _chatSeenRef = null; }
-  // Percakapan ditutup → hapus penanda activeChat supaya Cloud Function
-  // kembali mengirim push notif normal kalau ada pesan masuk lagi nanti.
-  if (currentUser) {
-    db.ref('activeChat/' + currentUser.uid).remove().catch(() => {});
-  }
   _chatCurrentPeer = null;
   _chatPeerSeenAt = 0;
   _chatCurrentMessages = {};
@@ -7232,16 +7202,15 @@ async function sendChatMessage() {
   updates['userChats/' + peer.uid + '/' + chatId + '/lastMessage'] = text;
   updates['userChats/' + peer.uid + '/' + chatId + '/lastMessageAt'] = now;
   updates['userChats/' + peer.uid + '/' + chatId + '/unreadCount'] = firebase.database.ServerValue.increment(1);
-  // Antrian ringan untuk worker pengirim push notifikasi (lihat notify-worker/
-  // send-chat-push.js, dijalankan berkala oleh GitHub Actions). Worker HANYA
-  // baca node kecil ini, tidak perlu scan seluruh isi chat.
-  updates['notifyQueue/' + msgKey] = { chatId: chatId, from: myUid, to: peer.uid, ts: now, preview: text };
 
   cancelReply();
 
   db.ref().update(updates).then(() => {
     // Pesan teks berhasil terkirim & ini memakai jatah gratis (belum follow) → catat.
     if (perm.freeMessage) markFreeChatMessageUsed(peer.uid, now);
+    // Kabari penerima lewat push notification (ala WhatsApp) kalau dia
+    // sedang tidak membuka app — lihat CHAT_NOTIF_WORKER di atas.
+    triggerChatPushNotification(peer, text);
   }).catch(err => {
     console.error('Gagal mengirim pesan:', err);
     input.value = text; // kembalikan teks kalau gagal terkirim
@@ -7430,10 +7399,10 @@ async function sendChatMediaMessage() {
     updates['userChats/' + peer.uid + '/' + chatId + '/lastMessage'] = previewLabel;
     updates['userChats/' + peer.uid + '/' + chatId + '/lastMessageAt'] = now;
     updates['userChats/' + peer.uid + '/' + chatId + '/unreadCount'] = firebase.database.ServerValue.increment(1);
-    updates['notifyQueue/' + msgKey] = { chatId: chatId, from: myUid, to: peer.uid, ts: now, preview: previewLabel };
 
     cancelReply();
     await db.ref().update(updates);
+    triggerChatPushNotification(peer, previewLabel);
     _chatMediaUploading = false;
     cancelChatMediaPreview();
   } catch (err) {
@@ -7603,10 +7572,11 @@ async function sendGifMessage(gifUrl, width, height) {
   updates['userChats/' + peer.uid + '/' + chatId + '/lastMessage'] = previewLabel;
   updates['userChats/' + peer.uid + '/' + chatId + '/lastMessageAt'] = now;
   updates['userChats/' + peer.uid + '/' + chatId + '/unreadCount'] = firebase.database.ServerValue.increment(1);
-  updates['notifyQueue/' + msgKey] = { chatId: chatId, from: myUid, to: peer.uid, ts: now, preview: previewLabel };
 
   cancelReply();
-  db.ref().update(updates).catch(err => console.error('Gagal mengirim GIF:', err));
+  db.ref().update(updates)
+    .then(() => triggerChatPushNotification(peer, previewLabel))
+    .catch(err => console.error('Gagal mengirim GIF:', err));
 }
 
 // Format waktu singkat ala Instagram: "14:05" utk hari ini, "Kmr" utk kemarin,
