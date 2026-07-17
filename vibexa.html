@@ -5331,11 +5331,15 @@ function _recomputeLyricBannerQueue() {
   _lyricBannerQueue = queueFromSlots.length ? queueFromSlots : LYRIC_BANNER_DEFAULTS.slice();
   _lyricBannerIndex = -1;
   _startLyricBannerCycle();
-  // Kalau modal lagi terbuka, refresh grid slot-nya real-time juga
+  // Kalau modal lagi terbuka, refresh grid slot-nya real-time juga — TAPI
+  // jangan render ulang selagi submitLyricBanner() sedang berjalan (lihat
+  // _lyricBannerSubmitting), supaya input yang belum sempat disimpan tidak
+  // ikut tertimpa/hilang di tengah proses.
   const modal = document.getElementById('lyric-banner-modal');
-  if (modal && modal.style.display !== 'none') _renderLyricBannerRows();
+  if (modal && modal.style.display !== 'none' && !_lyricBannerSubmitting) _renderLyricBannerRows();
 }
 let _lyricBannerExpiryTimer = null;
+let _lyricBannerSubmitting = false; // true selama submitLyricBanner() sedang menyimpan slot
 
 // Render 20 baris input teks di dalam modal — satu baris = satu slot
 // urutan tampil. Slot kosong & bebas -> input aktif kosong. Slot milik
@@ -5421,11 +5425,25 @@ async function submitLyricBanner() {
     name = currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'User');
   }
 
-  let saved = 0, removed = 0, failed = 0;
+  // PENTING: ambil (snapshot) dulu SEMUA nilai input sebelum mulai proses
+  // simpan yang async & satu-per-satu di bawah. Kalau dibaca ulang dari DOM
+  // di tengah loop, begitu slot pertama berhasil tersimpan, listener
+  // realtime lyricBanner langsung memicu _renderLyricBannerRows() yang
+  // mengganti SEMUA elemen input dengan yang baru (kosong, karena slot
+  // berikutnya belum tersimpan) — akibatnya teks di slot 2,3,4,... hilang
+  // sebelum sempat dibaca & disimpan. Inilah penyebab bug "teks di slot
+  // lain tidak tersimpan / hilang".
+  const snapshot = [];
   for (let i = 1; i <= LYRIC_BANNER_MAX; i++) {
     const el = document.getElementById('lyric-row-' + i);
     if (!el || el.disabled) continue; // slot terkunci/dipakai user lain, lewati
-    const text = el.value.trim().slice(0, LYRIC_BANNER_TEXT_MAX);
+    snapshot.push({ i: i, text: el.value.trim().slice(0, LYRIC_BANNER_TEXT_MAX) });
+  }
+
+  _lyricBannerSubmitting = true;
+  let saved = 0, removed = 0, failed = 0;
+  try {
+  for (const { i, text } of snapshot) {
     const rawEntry = _lyricBannerSlotsData[i];
     const expired = !!(rawEntry && rawEntry.expiresAt && rawEntry.expiresAt <= Date.now());
     const entry = expired ? null : rawEntry;
@@ -5453,6 +5471,9 @@ async function submitLyricBanner() {
       });
       if (res && res.committed) saved++; else failed++;
     } catch (e) { failed++; }
+  }
+  } finally {
+    _lyricBannerSubmitting = false;
   }
 
   closeLyricBannerModal();
