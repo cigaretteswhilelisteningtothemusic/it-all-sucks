@@ -1679,19 +1679,21 @@ body.np-is-fullscreen #bar{display:none !important;}
 }
 @media(max-width:660px){
   #np-view{bottom:var(--np-bottom);}
-  .np-art,.np-art-ph{width:min(280px,68vw);height:min(280px,68vw);}
+  .np-art,.np-art-ph{width:min(250px,62vw);height:min(250px,62vw);}
   /* Tampilkan kontrol pemutaran (play/pause/next/prev/repeat), tombol
      tambah ke playlist, dan tombol Queue — khusus tampilan mobile,
      meniru halaman "Now Playing" Spotify di HP. Ukuran & animasi kotak
      "Tentang Artis"/Album/Playlist di bawahnya (lihat rule2 lain di
      media query ini) TIDAK diubah sama sekali. */
   .np-mob-add-btn{display:flex;}
-  .np-mob-controls{display:flex;}
-  .np-hero{padding-bottom:8px;}
+  .np-mob-controls{display:flex;margin-top:14px;gap:14px;}
+  .np-hero{padding-bottom:4px;}
+  .np-track-title{margin-top:12px;}
+  .np-track-artist{margin-top:3px;}
   /* Kotak "Tentang Artis", "Albums" & "Playlist" persegi tapi UKURAN
      DIPERKECIL (menyesuaikan lebar layar hp, tidak memenuhi layar) dan
      disusun berurutan dari atas ke bawah, bukan berdampingan 2 kolom. */
-  #np-scroll{padding:8px 4% 50px;}
+  #np-scroll{padding:8px 4% 80px;}
   .np-grid{gap:12px;}
   .np-card{padding:12px 14px;min-height:auto;}
   .np-card-head{margin-bottom:8px;}
@@ -1699,7 +1701,7 @@ body.np-is-fullscreen #bar{display:none !important;}
   .np-card-head .np-showall{font-size:.62rem;}
   /* Kotak "Tentang Artis" dibuat persegi kecil, ukurannya disamakan
      dengan kotak foto album (.np-art) di atasnya. */
-  .np-about-card-big{aspect-ratio:1;min-height:0;width:min(280px,68vw);margin:0 auto;}
+  .np-about-card-big{aspect-ratio:1;min-height:0;width:min(250px,62vw);margin:0 auto;}
   .np-card-label{font-size:.8rem;top:12px;left:14px;}
   .np-about-overlay{padding:12px;}
   .np-about-overlay .np-about-name{font-size:.92rem;}
