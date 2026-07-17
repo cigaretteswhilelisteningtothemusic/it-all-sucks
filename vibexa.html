@@ -3274,12 +3274,14 @@ textarea.sugg-form-input{resize:vertical;}
 .streak-header .pv-back{margin:0;}
 .streak-header-title{font-size:1.05rem;font-weight:800;flex:1;letter-spacing:-.2px;}
 .streak-body{flex:1;overflow-y:auto;padding:26px 26px 60px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
-.streak-hero{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:30px 18px 34px;background:radial-gradient(ellipse 320px 200px at 50% 0%,rgba(255,149,0,.14) 0%,transparent 70%);border-radius:var(--r);margin-bottom:22px;}
-.streak-flame-wrap{width:84px;height:84px;border-radius:50%;background:rgba(255,149,0,.14);display:flex;align-items:center;justify-content:center;margin-bottom:6px;}
+.streak-hero{position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:30px 18px 34px;background:radial-gradient(ellipse 320px 200px at 50% 0%,rgba(255,149,0,.14) 0%,transparent 70%);border-radius:var(--r);margin-bottom:22px;overflow:hidden;}
+.streak-flame-wrap{width:84px;height:84px;border-radius:50%;background:rgba(255,149,0,.14);display:flex;align-items:center;justify-content:center;margin-bottom:6px;position:relative;z-index:3;overflow:hidden;}
 .streak-flame-wrap svg{width:44px;height:44px;color:#ff9500;}
-.streak-hero-count{font-size:2.4rem;font-weight:800;color:#fff;line-height:1.1;}
-.streak-hero-label{font-size:.85rem;color:var(--sub);font-weight:600;}
-.streak-hero-sub{font-size:.72rem;color:var(--muted);margin-top:4px;}
+.streak-hero-count{font-size:2.4rem;font-weight:800;color:#fff;line-height:1.1;position:relative;z-index:3;}
+.streak-hero-textwrap{position:relative;display:flex;flex-direction:column;align-items:center;min-height:70px;justify-content:flex-start;padding-top:8px;width:100%;}
+.streak-hero-bg-fire{position:absolute;top:-26px;left:50%;transform:translateX(-50%);width:220px;height:220px;z-index:1;pointer-events:none;opacity:.9;}
+.streak-hero-label{font-size:.85rem;color:var(--sub);font-weight:600;position:relative;z-index:3;text-shadow:0 1px 8px rgba(0,0,0,.7);}
+.streak-hero-sub{font-size:.72rem;color:var(--muted);margin-top:4px;position:relative;z-index:3;text-shadow:0 1px 8px rgba(0,0,0,.7);}
 .streak-mission-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;margin-bottom:20px;}
 .streak-mission-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;}
 .streak-mission-title{font-size:.92rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px;}
@@ -4161,12 +4163,13 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
     </div>
     <div class="streak-body">
       <div class="streak-hero">
-        <div class="streak-flame-wrap">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 3-2 4-2 7a3 3 0 0 0 6 0c0-1-.3-2-1-3 2 1 4 3.5 4 7a7 7 0 1 1-14 0c0-4.5 3-6.5 4-9 1-2 2.3-2.5 3-2z"/></svg>
-        </div>
+        <div class="streak-flame-wrap" id="streak-flame-wrap"></div>
         <div class="streak-hero-count" id="streak-hero-count">0</div>
-        <div class="streak-hero-label">Day Streak</div>
-        <div class="streak-hero-sub" id="streak-hero-sub">Longest streak: 0 days</div>
+        <div class="streak-hero-textwrap">
+          <div class="streak-hero-bg-fire" id="streak-hero-bg-fire"></div>
+          <div class="streak-hero-label">Day Streak</div>
+          <div class="streak-hero-sub" id="streak-hero-sub">Longest streak: 0 days</div>
+        </div>
       </div>
 
       <div class="streak-mission-card">
@@ -5107,7 +5110,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
-<!-- Lottie-web: dipakai untuk memutar animasi check-in-stream.json di halaman Streak -->
+<!-- Lottie-web: dipakai untuk memutar animasi fire-small-out.json / fire-lottie-animation.json / fire-feu-fuego.json di halaman Streak -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
 
 <script>
@@ -9953,9 +9956,16 @@ function backFromRecentlyPlayedFullView() {
 // localStorage tetap dipakai sebagai cache lokal untuk render instan.
 const STREAK_PREFIX = 'vibexa_streak_';
 const STREAK_DAILY_TARGET = 7;
-const STREAK_LOTTIE_URL = 'check-in-stream.json';
+const STREAK_MILESTONE_DAYS = 7; // mulai dari sini animasi check-in modal berganti jadi versi "besar"
+// File animasi Lottie (taruh sejajar dengan vibexa.html di server):
+const STREAK_FLAME_ICON_URL = 'loop-fire.json';            // ikon flame di atas angka streak (halaman Streak)
+const STREAK_FLAME_SMALL_URL = 'fire-small-out.json';      // animasi check-in modal default
+const STREAK_FLAME_BIG_URL = 'fire-lottie-animation.json'; // animasi check-in modal setelah streak >= 7 hari
+const STREAK_BG_FIRE_URL = 'fire-feu-fuego.json';          // animasi api besar di background, di bawah angka streak
 let _streakCache = null; // {currentStreak, longestStreak, lastCompletedDate, completedDates:{'YYYY-MM-DD':true}}
-let _streakLottieAnim = null;
+let _streakLottieAnim = null;     // animasi modal celebration
+let _streakFlameAnim = null;      // animasi ikon flame kecil di hero
+let _streakBgFireAnim = null;     // animasi api besar di background hero
 
 function _pad2(n){ return n < 10 ? '0' + n : '' + n; }
 function _dayKey(d){ return d.getFullYear() + '-' + _pad2(d.getMonth() + 1) + '-' + _pad2(d.getDate()); }
@@ -10054,6 +10064,37 @@ function _onSongFullyPlayedForStreak(){
   showStreakCelebration();
 }
 
+// Memuat animasi flame di hero (ikon di atas angka streak) & animasi api
+// besar di background. Keduanya hanya perlu dimuat sekali dan terus loop.
+function _renderStreakHeroAnimations(currentStreak){
+  if (typeof lottie === 'undefined') return;
+  const flameContainer = document.getElementById('streak-flame-wrap');
+  if (flameContainer && !_streakFlameAnim){
+    _streakFlameAnim = lottie.loadAnimation({
+      container: flameContainer,
+      renderer: 'svg',
+      loop: true,
+      autoplay: true,
+      path: STREAK_FLAME_ICON_URL
+    });
+  } else if (_streakFlameAnim && _streakFlameAnim.isPaused){
+    _streakFlameAnim.play();
+  }
+
+  const bgContainer = document.getElementById('streak-hero-bg-fire');
+  if (bgContainer && !_streakBgFireAnim){
+    _streakBgFireAnim = lottie.loadAnimation({
+      container: bgContainer,
+      renderer: 'svg',
+      loop: true,
+      autoplay: true,
+      path: STREAK_BG_FIRE_URL
+    });
+  } else if (_streakBgFireAnim && _streakBgFireAnim.isPaused){
+    _streakBgFireAnim.play();
+  }
+}
+
 // ── Halaman Streak (overlay) ──
 function showStreakView(){
   document.getElementById('streak-view').classList.add('show');
@@ -10061,6 +10102,8 @@ function showStreakView(){
 }
 function hideStreakView(){
   document.getElementById('streak-view').classList.remove('show');
+  try{ _streakFlameAnim && _streakFlameAnim.pause(); }catch(e){}
+  try{ _streakBgFireAnim && _streakBgFireAnim.pause(); }catch(e){}
 }
 
 function renderStreakView(){
@@ -10069,6 +10112,7 @@ function renderStreakView(){
   const todayCount = Math.min(todaySongs.length, STREAK_DAILY_TARGET);
   const missionDone = !!(data.completedDates && data.completedDates[_todayKey()]);
 
+  _renderStreakHeroAnimations(data.currentStreak);
   document.getElementById('streak-hero-count').textContent = data.currentStreak;
   document.getElementById('streak-hero-sub').textContent = 'Longest streak: ' + data.longestStreak + (data.longestStreak === 1 ? ' day' : ' days');
   document.getElementById('streak-mission-count').textContent = todayCount + '/' + STREAK_DAILY_TARGET;
@@ -10117,6 +10161,7 @@ function showStreakCelebration(){
   modal.classList.add('show');
   const container = document.getElementById('streak-celeb-anim');
   container.innerHTML = '';
+  const animUrl = data.currentStreak >= STREAK_MILESTONE_DAYS ? STREAK_FLAME_BIG_URL : STREAK_FLAME_SMALL_URL;
   try{
     if (_streakLottieAnim){ _streakLottieAnim.destroy(); _streakLottieAnim = null; }
     if (typeof lottie !== 'undefined'){
@@ -10125,7 +10170,7 @@ function showStreakCelebration(){
         renderer: 'svg',
         loop: true,
         autoplay: true,
-        path: STREAK_LOTTIE_URL
+        path: animUrl
       });
     }
   }catch(e){ console.error('[Streak] gagal memutar animasi check-in:', e); }
