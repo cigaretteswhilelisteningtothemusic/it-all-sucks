@@ -3639,6 +3639,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
         <button class="topbar-profile-menu-item" onclick="closeTopProfileMenu();window.location.href='profile.html'">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
           <span>My Profile</span>
+          <span class="streak-menu-count" id="profile-menu-streak-count">0</span>
         </button>
         <button class="topbar-profile-menu-item" id="streak-menu-btn" onclick="closeTopProfileMenu();showStreakView()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c1 3-2 4-2 7a3 3 0 0 0 6 0c0-1-.3-2-1-3 2 1 4 3.5 4 7a7 7 0 1 1-14 0c0-4.5 3-6.5 4-9 1-2 2.3-2.5 3-2z"/></svg>
@@ -10029,11 +10030,13 @@ function _updateStreakBadges(){
   const data = _getStreakData();
   const badge = document.getElementById('profile-streak-badge');
   const menuCount = document.getElementById('streak-menu-count');
+  const profileMenuCount = document.getElementById('profile-menu-streak-count');
   if (badge){
     badge.textContent = data.currentStreak;
     badge.classList.toggle('show', data.currentStreak > 0);
   }
   if (menuCount) menuCount.textContent = data.currentStreak;
+  if (profileMenuCount) profileMenuCount.textContent = data.currentStreak;
 }
 
 // Dipanggil setiap kali sebuah songs berhasil diputar full (lihat
