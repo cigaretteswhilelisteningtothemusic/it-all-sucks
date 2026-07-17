@@ -150,6 +150,18 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .profile-streak-badge{position:absolute;bottom:-3px;right:-3px;min-width:16px;height:16px;padding:0 3px;border-radius:9px;background:#ff9500;color:#fff;font-size:.6rem;font-weight:800;display:none;align-items:center;justify-content:center;line-height:1;box-shadow:0 0 0 2px var(--panel);}
 .profile-streak-badge.show{display:flex;}
 .home-profile-btn{position:relative;}
+/* Pill streak yang selalu tampil di sebelah foto profil (bukan di dalam menu),
+   supaya user langsung lihat & tidak lupa streak-nya tanpa perlu buka menu */
+.topbar-streak-pill{display:none;align-items:center;gap:5px;background:rgba(255,149,0,.14);border:1px solid rgba(255,149,0,.35);border-radius:50px;padding:5px 11px 5px 8px;cursor:pointer;flex-shrink:0;transition:all .15s;font-family:var(--f);}
+.topbar-streak-pill.show{display:flex;}
+.topbar-streak-pill:hover{background:rgba(255,149,0,.24);border-color:#ff9500;}
+.topbar-streak-pill svg{width:16px;height:16px;color:#ff9500;flex-shrink:0;}
+.topbar-streak-pill span{font-size:.78rem;font-weight:800;color:#ff9500;line-height:1;}
+@media (max-width:900px){
+  .topbar-streak-pill{padding:4px 9px 4px 7px;}
+  .topbar-streak-pill svg{width:14px;height:14px;}
+  .topbar-streak-pill span{font-size:.72rem;}
+}
 
 
 /* ── COLLAPSED SIDEBAR (Spotify-style icon rail) ───────────── */
@@ -3630,6 +3642,10 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
         <span class="notif-badge" id="notif-badge">0</span>
       </button>
     </div>
+    <button class="topbar-streak-pill" id="topbar-streak-pill" onclick="showStreakView()" title="Your Streak">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 3-2 4-2 7a3 3 0 0 0 6 0c0-1-.3-2-1-3 2 1 4 3.5 4 7a7 7 0 1 1-14 0c0-4.5 3-6.5 4-9 1-2 2.3-2.5 3-2z"/></svg>
+      <span id="topbar-streak-pill-count">0</span>
+    </button>
     <div class="topbar-profile-wrap" id="topbar-profile-wrap">
       <button class="home-profile-btn" id="home-profile-btn" onclick="toggleTopProfileMenu(event)" title="My Profile">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v2h20v-2c0-3.3-6.7-5-10-5z"/></svg>
@@ -3639,7 +3655,6 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
         <button class="topbar-profile-menu-item" onclick="closeTopProfileMenu();window.location.href='profile.html'">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
           <span>My Profile</span>
-          <span class="streak-menu-count" id="profile-menu-streak-count">0</span>
         </button>
         <button class="topbar-profile-menu-item" id="streak-menu-btn" onclick="closeTopProfileMenu();showStreakView()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c1 3-2 4-2 7a3 3 0 0 0 6 0c0-1-.3-2-1-3 2 1 4 3.5 4 7a7 7 0 1 1-14 0c0-4.5 3-6.5 4-9 1-2 2.3-2.5 3-2z"/></svg>
@@ -10030,13 +10045,15 @@ function _updateStreakBadges(){
   const data = _getStreakData();
   const badge = document.getElementById('profile-streak-badge');
   const menuCount = document.getElementById('streak-menu-count');
-  const profileMenuCount = document.getElementById('profile-menu-streak-count');
+  const pill = document.getElementById('topbar-streak-pill');
+  const pillCount = document.getElementById('topbar-streak-pill-count');
   if (badge){
     badge.textContent = data.currentStreak;
     badge.classList.toggle('show', data.currentStreak > 0);
   }
   if (menuCount) menuCount.textContent = data.currentStreak;
-  if (profileMenuCount) profileMenuCount.textContent = data.currentStreak;
+  if (pillCount) pillCount.textContent = data.currentStreak;
+  if (pill) pill.classList.toggle('show', data.currentStreak > 0);
 }
 
 // Dipanggil setiap kali sebuah songs berhasil diputar full (lihat
