@@ -3308,21 +3308,14 @@ body:has(#streak-view.show) #mob-nav{
 .streak-header .pv-back{margin:0;}
 .streak-header-title{font-size:1.05rem;font-weight:800;flex:1;letter-spacing:-.2px;}
 .streak-body{flex:1;overflow-y:auto;padding:26px 26px 60px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
-.streak-hero{position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:30px 18px 34px;background:radial-gradient(ellipse 320px 200px at 50% 0%,rgba(255,149,0,.14) 0%,transparent 70%);border-radius:var(--r);margin-bottom:6px;overflow:hidden;}
+.streak-hero{position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:30px 18px 34px;background:radial-gradient(ellipse 320px 200px at 50% 0%,rgba(255,149,0,.14) 0%,transparent 70%);border-radius:var(--r);margin-bottom:22px;overflow:hidden;}
 .streak-flame-wrap{width:84px;height:84px;border-radius:50%;background:rgba(255,149,0,.14);display:flex;align-items:center;justify-content:center;margin-bottom:6px;position:relative;z-index:3;overflow:hidden;}
 .streak-flame-wrap svg{width:44px;height:44px;color:#ff9500;}
 .streak-hero-count{font-size:2.4rem;font-weight:800;color:#fff;line-height:1.1;position:relative;z-index:3;}
 .streak-hero-textwrap{position:relative;display:flex;flex-direction:column;align-items:center;min-height:70px;justify-content:flex-start;padding-top:8px;width:100%;}
-/* Banner api full-bleed: dipaksa selebar layar penuh (menembus padding kiri
-   kanan #streak-body) supaya tidak ada ruang kosong di samping, dan jarak
-   ke hero/kotak Daily Mission dirapatkan supaya tidak ada ruang kosong di
-   atas & bawahnya juga. preserveAspectRatio animasinya diset 'none' lewat
-   JS supaya animasinya memanjang mengikuti lebar layar TANPA ikut membesar
-   secara proporsional (tingginya tetap sama, cuma lebarnya yang stretch). */
-.streak-hero-bg-fire{position:relative;left:50%;right:50%;width:100vw;margin-left:-50vw;margin-right:-50vw;max-width:100vw;height:150px;margin-top:0;margin-bottom:0;overflow:hidden;pointer-events:none;}
 .streak-hero-label{font-size:.85rem;color:var(--sub);font-weight:600;position:relative;z-index:3;text-shadow:0 1px 8px rgba(0,0,0,.7);}
 .streak-hero-sub{font-size:.72rem;color:var(--muted);margin-top:4px;position:relative;z-index:3;text-shadow:0 1px 8px rgba(0,0,0,.7);}
-.streak-mission-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;margin-bottom:20px;margin-top:6px;}
+.streak-mission-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;margin-bottom:20px;}
 .streak-mission-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;}
 .streak-mission-title{font-size:.92rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px;}
 .streak-mission-title svg{width:17px;height:17px;color:#ff9500;flex-shrink:0;}
@@ -4217,8 +4210,6 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
           <div class="streak-hero-sub" id="streak-hero-sub">Longest streak: 0 days</div>
         </div>
       </div>
-
-      <div class="streak-hero-bg-fire" id="streak-hero-bg-fire"></div>
 
       <div class="streak-mission-card">
         <div class="streak-mission-top">
@@ -5158,7 +5149,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
-<!-- Lottie-web: dipakai untuk memutar animasi fire-small-out.json / fire-lottie-animation.json / fire-feu-fuego.json di halaman Streak -->
+<!-- Lottie-web: dipakai untuk memutar animasi fire-small-out.json / fire-lottie-animation.json / loop-fire.json di halaman Streak -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
 
 <script>
@@ -10022,11 +10013,9 @@ const STREAK_MILESTONE_DAYS = 7; // mulai dari sini animasi check-in modal berga
 const STREAK_FLAME_ICON_URL = 'loop-fire.json';            // ikon flame di atas angka streak (halaman Streak)
 const STREAK_FLAME_SMALL_URL = 'fire-small-out.json';      // animasi check-in modal default
 const STREAK_FLAME_BIG_URL = 'fire-lottie-animation.json'; // animasi check-in modal setelah streak >= 7 hari
-const STREAK_BG_FIRE_URL = 'fire-feu-fuego.json';          // animasi api besar di background, di bawah angka streak
 let _streakCache = null; // {currentStreak, longestStreak, lastCompletedDate, completedDates:{'YYYY-MM-DD':true}}
 let _streakLottieAnim = null;     // animasi modal celebration
 let _streakFlameAnim = null;      // animasi ikon flame kecil di hero
-let _streakBgFireAnim = null;     // animasi api besar di background hero
 
 function _pad2(n){ return n < 10 ? '0' + n : '' + n; }
 function _dayKey(d){ return d.getFullYear() + '-' + _pad2(d.getMonth() + 1) + '-' + _pad2(d.getDate()); }
@@ -10124,8 +10113,8 @@ function _onSongFullyPlayedForStreak(){
   showStreakCelebration();
 }
 
-// Memuat animasi flame di hero (ikon di atas angka streak) & animasi api
-// besar di background. Keduanya hanya perlu dimuat sekali dan terus loop.
+// Memuat animasi flame di hero (ikon di atas angka streak). Hanya perlu
+// dimuat sekali dan terus loop.
 function _renderStreakHeroAnimations(currentStreak){
   if (typeof lottie === 'undefined') return;
   const flameContainer = document.getElementById('streak-flame-wrap');
@@ -10140,25 +10129,6 @@ function _renderStreakHeroAnimations(currentStreak){
   } else if (_streakFlameAnim && _streakFlameAnim.isPaused){
     _streakFlameAnim.play();
   }
-
-  const bgContainer = document.getElementById('streak-hero-bg-fire');
-  if (bgContainer && !_streakBgFireAnim){
-    _streakBgFireAnim = lottie.loadAnimation({
-      container: bgContainer,
-      renderer: 'svg',
-      loop: true,
-      autoplay: true,
-      path: STREAK_BG_FIRE_URL,
-      rendererSettings: {
-        // 'none' = animasinya di-stretch penuh mengikuti ukuran container
-        // (memanjang mengikuti lebar layar) tanpa letterboxing/ruang kosong
-        // di kiri-kanan atau atas-bawah, dan tanpa ikut membesar proporsional.
-        preserveAspectRatio: 'none'
-      }
-    });
-  } else if (_streakBgFireAnim && _streakBgFireAnim.isPaused){
-    _streakBgFireAnim.play();
-  }
 }
 
 // ── Halaman Streak (overlay) ──
@@ -10169,7 +10139,6 @@ function showStreakView(){
 function hideStreakView(){
   document.getElementById('streak-view').classList.remove('show');
   try{ _streakFlameAnim && _streakFlameAnim.pause(); }catch(e){}
-  try{ _streakBgFireAnim && _streakBgFireAnim.pause(); }catch(e){}
 }
 
 // Saat halaman Streak sedang terbuka, kalau user menekan tombol apa pun di
