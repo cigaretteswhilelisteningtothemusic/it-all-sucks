@@ -1,3 +1,4 @@
+# force re-register schedule
 name: Vibexa Chat Push Notification
 
 on:
