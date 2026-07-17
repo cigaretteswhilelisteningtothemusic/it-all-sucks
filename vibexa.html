@@ -517,6 +517,18 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .lyric-banner-add:hover{border-color:var(--green);color:var(--green);background:var(--green-dim);}
 .lyric-banner-add svg{width:18px;height:18px;}
 #lyric-banner-modal .modal-input{resize:none;min-height:74px;font-family:var(--fm);}
+.lyric-banner-slot-label{font-size:.68rem;font-weight:700;color:var(--sub);margin-bottom:8px;letter-spacing:.6px;text-transform:uppercase;}
+.lyric-banner-slots{display:grid;grid-template-columns:repeat(10,1fr);gap:6px;margin-bottom:16px;}
+.lyric-banner-slot{aspect-ratio:1;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--sub);font-size:.7rem;font-weight:700;font-family:var(--fm);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;padding:0;}
+.lyric-banner-slot:hover:not(:disabled){border-color:var(--green);color:var(--green);}
+.lyric-banner-slot.mine{background:var(--green-dim);border-color:rgba(46,125,255,.4);color:var(--green);}
+.lyric-banner-slot.taken{background:var(--hover);color:var(--muted);cursor:not-allowed;opacity:.5;}
+.lyric-banner-slot.selected{background:var(--green);border-color:var(--green);color:#fff;box-shadow:var(--green-glow);}
+.lyric-banner-delete-btn{color:#ff5c5c !important;border-color:rgba(255,92,92,.35) !important;}
+.lyric-banner-delete-btn:hover{background:rgba(255,92,92,.12) !important;}
+@media (max-width:520px){
+  .lyric-banner-slots{grid-template-columns:repeat(5,1fr);}
+}
 .lyric-banner-count{font-size:.68rem;color:var(--muted);text-align:right;margin-top:-8px;margin-bottom:12px;}
 @media (max-width:640px){
   .lyric-banner-box{height:56px;padding:0 14px;}
@@ -4601,17 +4613,21 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   </div>
 </div>
 
-<!-- Lyric Banner Modal — user menulis lirik/kata-kata sendiri untuk
-     ditampilkan bergiliran di banner Home untuk SEMUA orang -->
+<!-- Lyric Banner Modal — user memilih urutan tampil (slot 1–20), menulis
+     lirik/kata-kata sendiri, dan bisa menghapus kalimatnya sendiri kapan
+     saja. Ditampilkan bergiliran di banner Home untuk SEMUA orang. -->
 <div id="lyric-banner-modal" class="modal-bg" style="display:none">
-  <div class="modal">
+  <div class="modal" style="width:440px;">
     <h3>Share Lyrics / Words</h3>
-    <p>Kalimat ini akan tampil bergiliran di banner Home untuk semua orang</p>
-    <textarea class="modal-input" id="lyric-banner-input" placeholder="Music speaks when words can't..." maxlength="90" oninput="_updateLyricBannerCount()"></textarea>
+    <p>Pilih urutan tampil (1–20), lalu tulis kalimatmu. Nomor abu-abu berarti sudah dipakai user lain; nomor biru adalah kalimatmu sendiri (bisa diedit atau dihapus).</p>
+    <div class="lyric-banner-slot-label">Urutan Tampil</div>
+    <div class="lyric-banner-slots" id="lyric-banner-slots"></div>
+    <textarea class="modal-input" id="lyric-banner-input" placeholder="Pilih nomor urutan dulu di atas..." maxlength="90" oninput="_updateLyricBannerCount()" disabled></textarea>
     <div class="lyric-banner-count" id="lyric-banner-count">0 / 90</div>
     <div class="mbtns">
       <button class="btn-s" onclick="closeLyricBannerModal()">Cancel</button>
-      <button class="btn-p" onclick="submitLyricBanner()">Post</button>
+      <button class="btn-s lyric-banner-delete-btn" id="lyric-banner-delete-btn" style="display:none;" onclick="deleteLyricBannerSlot()">🗑 Delete</button>
+      <button class="btn-p" id="lyric-banner-post-btn" onclick="submitLyricBanner()" disabled>Post</button>
     </div>
   </div>
 </div>
@@ -5188,11 +5204,13 @@ function _cleanupStaleLocalCache() {
 
 // ─── LYRIC BANNER ─────────────────────────────────────────────
 // Banner publik di Home: siapa pun yang login boleh menulis satu baris
-// lirik lagu / kata-kata sendiri (db.ref('lyricBanner')), dan SEMUA user
-// melihat kumpulan kalimat itu tampil bergantian dengan animasi naik dari
-// bawah lalu menghilang ke atas (lihat @keyframes lyricBannerCycle di CSS).
+// lirik lagu / kata-kata sendiri dan MEMILIH urutan tampilnya (slot 1–20).
+// Data disimpan per-slot di db.ref('lyricBanner/{slot}') supaya setiap
+// slot punya "pemilik" (uid) yang bisa mengedit atau menghapus kalimatnya
+// sendiri kapan saja — begitu dihapus, user lain langsung tidak melihatnya
+// lagi (realtime, lihat startLyricBannerListener()).
 const LYRIC_BANNER_CYCLE_MS = 2600; // samakan dgn durasi animation di CSS
-const LYRIC_BANNER_MAX = 20; // maksimal 20 kalimat dalam rotasi, lalu ulang dari awal
+const LYRIC_BANNER_MAX = 20; // jumlah slot urutan tampil (1..20), lalu ulang dari awal
 const LYRIC_BANNER_DEFAULTS = [
   { text: "Music speaks when words can't", name: '' },
   { text: 'Every song tells a story.', name: '' },
@@ -5201,12 +5219,14 @@ const LYRIC_BANNER_DEFAULTS = [
 let _lyricBannerQueue = LYRIC_BANNER_DEFAULTS.slice();
 let _lyricBannerIndex = -1;
 let _lyricBannerTimer = null;
+let _lyricBannerSlotsData = {};   // { [slot]: { text, name, uid, createdAt } } — cache realtime
+let _selectedLyricSlot = null;    // slot yang sedang dipilih di dalam modal
 
 function _lyricBannerAdvance() {
   const textEl = document.getElementById('lyric-banner-text');
   const byEl = document.getElementById('lyric-banner-by');
   if (!textEl || !_lyricBannerQueue.length) return;
-  // Loop balik ke kalimat pertama begitu sudah sampai kalimat terakhir (maks 20)
+  // Loop balik ke kalimat pertama begitu sudah sampai slot terakhir yang terisi
   _lyricBannerIndex = (_lyricBannerIndex + 1) % _lyricBannerQueue.length;
   const entry = _lyricBannerQueue[_lyricBannerIndex];
   textEl.textContent = entry.text;
@@ -5224,28 +5244,79 @@ function _startLyricBannerCycle() {
 }
 
 // Dengarkan node publik lyricBanner secara realtime — dipanggil sekali
-// setelah login (lihat auth.onAuthStateChanged di bawah).
+// setelah login (lihat auth.onAuthStateChanged di bawah). Urutan tampil
+// mengikuti nomor slot (1 → 20), bukan waktu kirim.
 function startLyricBannerListener() {
-  db.ref('lyricBanner').orderByChild('createdAt').limitToLast(LYRIC_BANNER_MAX).on('value', snap => {
-    const submitted = [];
-    snap.forEach(child => {
-      const v = child.val() || {};
-      if (v.text) submitted.push({ text: v.text, name: v.name || '', key: child.key });
-    });
-    // Kalimat terbaru tampil duluan, dibatasi maks 20, lalu diselingi contoh
-    // bawaan supaya banner tidak pernah kosong walau belum ada yang mengirim apa-apa.
-    submitted.reverse();
-    _lyricBannerQueue = (submitted.length ? submitted : LYRIC_BANNER_DEFAULTS.slice()).slice(0, LYRIC_BANNER_MAX);
+  db.ref('lyricBanner').on('value', snap => {
+    _lyricBannerSlotsData = snap.val() || {};
+    const queueFromSlots = [];
+    for (let i = 1; i <= LYRIC_BANNER_MAX; i++) {
+      const entry = _lyricBannerSlotsData[i];
+      if (entry && entry.text) queueFromSlots.push({ text: entry.text, name: entry.name || '' });
+    }
+    // Kalau belum ada satupun slot yang diisi user, pakai contoh bawaan
+    // supaya banner tidak pernah kosong.
+    _lyricBannerQueue = queueFromSlots.length ? queueFromSlots : LYRIC_BANNER_DEFAULTS.slice();
     _lyricBannerIndex = -1;
     _startLyricBannerCycle();
+    // Kalau modal lagi terbuka, refresh grid slot-nya real-time juga
+    const modal = document.getElementById('lyric-banner-modal');
+    if (modal && modal.style.display !== 'none') _renderLyricBannerSlots();
   });
+}
+
+// Render 20 tombol nomor slot di dalam modal: kosong (bisa diisi siapa
+// saja), milik sendiri (bisa diedit/dihapus), atau sudah dipakai user lain
+// (tidak bisa diklik).
+function _renderLyricBannerSlots() {
+  const wrap = document.getElementById('lyric-banner-slots');
+  if (!wrap) return;
+  let html = '';
+  for (let i = 1; i <= LYRIC_BANNER_MAX; i++) {
+    const entry = _lyricBannerSlotsData[i];
+    const mine = !!(entry && currentUser && entry.uid === currentUser.uid);
+    const taken = !!(entry && !mine);
+    let cls = 'lyric-banner-slot';
+    if (i === _selectedLyricSlot) cls += ' selected';
+    else if (mine) cls += ' mine';
+    else if (taken) cls += ' taken';
+    const title = taken ? ('Dipakai oleh ' + esc(entry.name || 'User')) : (mine ? 'Kalimatmu — klik untuk edit / hapus' : 'Slot kosong — klik untuk isi');
+    html += '<button type="button" class="' + cls + '" title="' + title + '"' + (taken ? ' disabled' : '') + ' onclick="selectLyricBannerSlot(' + i + ')">' + i + '</button>';
+  }
+  wrap.innerHTML = html;
+}
+
+// User memilih nomor urutan (1–20) di dalam modal
+function selectLyricBannerSlot(slot) {
+  const entry = _lyricBannerSlotsData[slot];
+  if (entry && currentUser && entry.uid !== currentUser.uid) return; // dipakai orang lain, tidak bisa dipilih
+  _selectedLyricSlot = slot;
+  const mine = !!(entry && currentUser && entry.uid === currentUser.uid);
+  const input = document.getElementById('lyric-banner-input');
+  const deleteBtn = document.getElementById('lyric-banner-delete-btn');
+  const postBtn = document.getElementById('lyric-banner-post-btn');
+  if (input) {
+    input.disabled = false;
+    input.value = mine ? entry.text : '';
+    input.focus();
+  }
+  if (deleteBtn) deleteBtn.style.display = mine ? 'inline-flex' : 'none';
+  if (postBtn) { postBtn.disabled = false; postBtn.textContent = mine ? 'Save' : 'Post'; }
+  _updateLyricBannerCount();
+  _renderLyricBannerSlots();
 }
 
 function openLyricBannerModal() {
   if (!currentUser) { toast('ℹ️ Please log in first'); return; }
+  _selectedLyricSlot = null;
   const input = document.getElementById('lyric-banner-input');
-  if (input) input.value = '';
+  if (input) { input.value = ''; input.disabled = true; }
   _updateLyricBannerCount();
+  const postBtn = document.getElementById('lyric-banner-post-btn');
+  if (postBtn) { postBtn.disabled = true; postBtn.textContent = 'Post'; }
+  const deleteBtn = document.getElementById('lyric-banner-delete-btn');
+  if (deleteBtn) deleteBtn.style.display = 'none';
+  _renderLyricBannerSlots();
   const modal = document.getElementById('lyric-banner-modal');
   if (modal) modal.style.display = 'flex';
 }
@@ -5253,6 +5324,7 @@ function openLyricBannerModal() {
 function closeLyricBannerModal() {
   const modal = document.getElementById('lyric-banner-modal');
   if (modal) modal.style.display = 'none';
+  _selectedLyricSlot = null;
 }
 
 function _updateLyricBannerCount() {
@@ -5262,6 +5334,7 @@ function _updateLyricBannerCount() {
 }
 
 async function submitLyricBanner() {
+  if (!_selectedLyricSlot) { toast('ℹ️ Pilih dulu urutan tampil (1–20)'); return; }
   const input = document.getElementById('lyric-banner-input');
   const text = input ? input.value.trim() : '';
   if (!text) return;
@@ -5269,7 +5342,7 @@ async function submitLyricBanner() {
   try {
     const profileSnap = await db.ref('users/' + currentUser.uid + '/profile/displayName').get();
     const name = (profileSnap.exists() && profileSnap.val()) || currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'User');
-    await db.ref('lyricBanner').push({
+    await db.ref('lyricBanner/' + _selectedLyricSlot).set({
       text: text.slice(0, 90),
       name: name,
       uid: currentUser.uid,
@@ -5279,6 +5352,22 @@ async function submitLyricBanner() {
     toast('✅ Posted to the banner');
   } catch (e) {
     toast('⚠️ Failed to post, please try again');
+  }
+}
+
+// Hapus kalimat milik sendiri dari slot yang sedang dipilih — begitu
+// dihapus, node-nya hilang dari Firebase sehingga user lain langsung
+// tidak melihat kalimat itu lagi di banner mereka (realtime).
+async function deleteLyricBannerSlot() {
+  if (!_selectedLyricSlot || !currentUser) return;
+  const entry = _lyricBannerSlotsData[_selectedLyricSlot];
+  if (!entry || entry.uid !== currentUser.uid) return;
+  try {
+    await db.ref('lyricBanner/' + _selectedLyricSlot).remove();
+    closeLyricBannerModal();
+    toast('🗑️ Removed from the banner');
+  } catch (e) {
+    toast('⚠️ Failed to delete, please try again');
   }
 }
 
