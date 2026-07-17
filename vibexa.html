@@ -709,6 +709,7 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .c-btn-text{margin-left:14px;padding:6px 12px;border-radius:50px;border:1px solid var(--border);font-family:var(--f);font-size:.72rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;}
 .c-btn-text:hover{border-color:var(--text);transform:none;background:var(--hover)}
 .c-btn-text.active{color:var(--green);border-color:var(--green);background:var(--green-dim)}
+.btn-lyrics-icon{display:none;width:16px;height:16px;}
 #btn-play{width:42px;height:42px;background:var(--text);border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0}
 #btn-play:hover{transform:scale(1.08);background:#fff;box-shadow:var(--green-glow)}
 #btn-play svg{width:19px;height:19px;color:#000}
@@ -1160,7 +1161,11 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
   .bar-ctrl{flex:0 0 auto}
   .ctrl-btns{gap:4px}
   .ctrl-btns .c-btn:not(.c-btn-text){width:30px;height:30px}
-  .c-btn-text{margin-left:8px;padding:5px 9px;font-size:.62rem;}
+  #btn-prev,#btn-next{display:none !important;}
+  .c-btn-text{margin-left:0;padding:0;font-size:.62rem;width:34px;height:34px;border:none;border-radius:50%;display:flex;align-items:center;justify-content:center;}
+  .c-btn-text:hover{background:var(--hover);}
+  .btn-lyrics-label{display:none;}
+  .btn-lyrics-icon{display:block;width:18px;height:18px;}
   #btn-play{width:40px;height:40px}
   #btn-play svg{width:18px;height:18px}
   .prog-wrap{display:none}
@@ -1580,10 +1585,12 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .np-mob-add-btn svg{width:19px;height:19px}
 
 .np-mob-controls{display:none;width:100%;flex-direction:column;gap:20px;margin-top:28px;}
+.np-mob-top-actions{display:flex;align-items:center;justify-content:space-between;width:100%;}
+.np-mob-top-actions .np-mob-add-btn{position:static;margin-left:auto;}
 .np-mob-prog-wrap{display:flex;flex-direction:column;gap:7px;}
 .np-mob-prog-track{position:relative;height:4px;border-radius:4px;background:rgba(255,255,255,.25);cursor:pointer;}
 .np-mob-prog-track:active .np-mob-prog-fill{background:var(--green)}
-.np-mob-prog-fill{height:100%;width:0%;border-radius:4px;background:#fff;transition:width .2s linear;}
+.np-mob-prog-fill{height:100%;width:0%;border-radius:4px;background:var(--green);transition:width .2s linear;}
 .np-mob-prog-times{display:flex;justify-content:space-between;font-family:var(--fm);font-size:.68rem;color:rgba(255,255,255,.6);}
 .np-mob-ctrl-row{display:flex;align-items:center;justify-content:space-between;}
 .np-mob-ctrl-btn{position:relative;flex-shrink:0;background:none;border:none;color:rgba(255,255,255,.78);cursor:pointer;width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:all .15s;}
@@ -4499,7 +4506,8 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="m6 18 8.5-6L6 6v12zm2-6 8.5 6V6L8 12z"/></svg>
       </button>
       <button class="c-btn c-btn-text" id="btn-lyrics" onclick="toggleFSLyrics()" title="Show Lyrics">
-        <span>Lyrics</span>
+        <svg class="btn-lyrics-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4M9 22h6"/></svg>
+        <span class="btn-lyrics-label">Lyrics</span>
       </button>
     </div>
     <div class="prog-wrap">
@@ -4636,12 +4644,18 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
           <div class="np-track-title" id="np-track-title">—</div>
           <div class="np-track-artist" id="np-track-artist" onclick="npGoArtist()">—</div>
         </div>
-        <button class="np-mob-add-btn" id="np-mob-add-btn" onclick="event.stopPropagation();openAddSongModal(curTrack)" title="Add to Playlist">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-        </button>
       </div>
       <!-- Kontrol pemutaran khusus mobile (progress bar + repeat/prev/play/next/lyrics + queue) -->
       <div class="np-mob-controls" id="np-mob-controls">
+        <div class="np-mob-top-actions">
+          <button class="np-mob-queue-btn" id="np-mob-queue-btn" onclick="goToPlayingPlaylist()" title="Queue" style="display:none">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h10"/><path d="m18 15 3 3-3 3" /></svg>
+            <span>Queue</span>
+          </button>
+          <button class="np-mob-add-btn" id="np-mob-add-btn" onclick="event.stopPropagation();openAddSongModal(curTrack)" title="Add to Playlist">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+        </div>
         <div class="np-mob-prog-wrap">
           <div class="np-mob-prog-track" id="np-mob-prog-track"><div class="np-mob-prog-fill" id="np-mob-prog-fill"></div></div>
           <div class="np-mob-prog-times">
@@ -4666,12 +4680,6 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
           </button>
           <button class="np-mob-ctrl-btn" id="np-mob-btn-lyrics" onclick="toggleFSLyrics()" title="Lyrics">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4M9 22h6"/></svg>
-          </button>
-        </div>
-        <div class="np-mob-bottom-row">
-          <button class="np-mob-queue-btn" id="np-mob-queue-btn" onclick="goToPlayingPlaylist()" title="Queue" style="display:none">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h10"/><path d="m18 15 3 3-3 3" /></svg>
-            <span>Queue</span>
           </button>
         </div>
       </div>
