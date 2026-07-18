@@ -5786,8 +5786,15 @@ _messagingReadyPromise.then(() => {
     messaging.onMessage(payload => {
       const title = payload?.notification?.title || 'Vibexa';
       const body = payload?.notification?.body || '';
+      const fromUid = payload?.data?.fromUid || '';
       if (Notification.permission === 'granted') {
-        new Notification(title, { body, icon: 'icons/icon-192.png' });
+        // tag = fromUid, sama seperti di sw.js, supaya notif dari orang
+        // yang sama menggantikan notif sebelumnya (bukan menumpuk).
+        new Notification(title, {
+          body,
+          icon: 'icons/icon-192.png',
+          tag: fromUid ? `chat_${fromUid}` : undefined,
+        });
       }
     });
   }

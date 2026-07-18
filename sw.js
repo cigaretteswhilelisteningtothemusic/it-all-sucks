@@ -33,7 +33,11 @@ messaging.onBackgroundMessage((payload) => {
     body,
     icon: 'icons/icon-192.png',
     badge: 'icons/icon-192.png',
-    tag: chatId || undefined,   // notif dari chat yang sama akan menumpuk jadi 1, bukan spam banyak
+    // tag = fromUid: notif dari orang yang SAMA akan menggantikan notif
+    // sebelumnya (jadi 1 notif per lawan chat), bukan menumpuk per pesan.
+    // renotify: true supaya tetap muncul/berbunyi ulang walau tag sama.
+    tag: fromUid ? `chat_${fromUid}` : (chatId || undefined),
+    renotify: true,
     data: { chatId, fromUid },
   });
 });
