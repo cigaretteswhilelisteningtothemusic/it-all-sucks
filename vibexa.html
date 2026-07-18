@@ -523,9 +523,9 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
    server. Karena lokal per perangkat, user lain (dan akun yang sama di
    perangkat lain) akan melihat GIF bawaan (DEFAULT_HOME_BANNER).
    Lihat loadHomeBannerFromCloud() / openHomeBannerModal() di JS. ── */
-.home-gif-banner-wrap{margin-bottom:10px;max-width:640px;}
-@media (min-width:900px){.home-gif-banner-wrap{max-width:560px;}}
+.home-gif-banner-wrap{margin-bottom:10px;}
 .home-gif-banner{position:relative;width:100%;aspect-ratio:750/224;border-radius:14px;overflow:hidden;background:var(--card);border:1px solid var(--border);}
+@media (min-width:900px){.home-gif-banner{aspect-ratio:unset;height:340px;}}
 .home-gif-banner img{width:100%;height:100%;object-fit:cover;display:block;}
 .home-gif-banner-edit-btn{position:absolute;right:10px;bottom:10px;display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;border:none;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);color:#fff;font-family:var(--f);font-size:1.3rem;line-height:1;font-weight:700;cursor:pointer;transition:all .18s;}
 .home-gif-banner-edit-btn:hover{background:var(--green);transform:scale(1.06);}
