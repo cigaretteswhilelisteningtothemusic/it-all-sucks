@@ -1301,6 +1301,18 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
     position:relative;
     z-index:3000;
   }
+  /* Sama seperti pola halaman Chat di bawah: sembunyikan kotak mini player
+     (#bar) & hapus baris grid "bar" (64px) dari layout (bukan cuma
+     disembunyikan elemennya) supaya tidak menyisakan ruang kosong — halaman
+     Streak jadi memenuhi penuh dari bawah topbar sampai tepat di atas
+     navigasi bawah (#mob-nav). */
+  body.streak-mobile-open{
+    grid-template-rows:60px 1fr 56px !important;
+    grid-template-areas:"topbar""main""mob-nav" !important;
+  }
+  body.streak-mobile-open #bar{
+    display:none !important;
+  }
 
   /* ════════════════════════════════
      HALAMAN CHAT — mobile full screen
@@ -3745,26 +3757,6 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
       <div class="fav-artist-grid" id="fav-artist-grid"></div>
     </div>
 
-    <!-- SARAN PUBLIC (bersifat PUBLIC — lihat startFriendSuggestionsListener()).
-         Siapa pun bisa menekan tombol "+ Suggest Song" untuk menambahkan lagu ke
-         sini, lengkap dengan bubble catatan (sama seperti Lagu Favorit di
-         halaman profil). Tampil untuk SEMUA user, tidak peduli sudah follow
-         atau belum. Satu baris scroll horizontal, diurutkan dari jumlah like
-         terbanyak di paling kiri (kalau sama, yang paling baru diupload di
-         paling kiri). -->
-    <div class="pub-section" id="friend-fav-section">
-      <div class="pub-section-header">
-        <div class="pub-section-title">
-           Picked by Listeners
-        </div>
-        <button class="home-new-pl-btn" onclick="openAddSuggestionModal()" title="Add song suggestion">
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-          Suggest Song
-        </button>
-      </div>
-      <div class="friend-fav-grid" id="friend-fav-grid"></div>
-    </div>
-
     <!-- WEEKDAY VIBES (9 playlist x 15 lagu trending saat ini, judul berubah tiap hari sesuai hari dalam seminggu, GLOBAL untuk semua user, diperbarui 1x sehari) -->
     <div class="pub-section" id="weekday-playlist-section" style="display:none;">
       <div class="pub-section-header">
@@ -3811,6 +3803,26 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
         </div>
       </div>
       <div class="dm-grid" id="maybe-like-grid"></div>
+    </div>
+
+    <!-- SARAN PUBLIC (bersifat PUBLIC — lihat startFriendSuggestionsListener()).
+         Siapa pun bisa menekan tombol "+ Suggest Song" untuk menambahkan lagu ke
+         sini, lengkap dengan bubble catatan (sama seperti Lagu Favorit di
+         halaman profil). Tampil untuk SEMUA user, tidak peduli sudah follow
+         atau belum. Satu baris scroll horizontal, diurutkan dari jumlah like
+         terbanyak di paling kiri (kalau sama, yang paling baru diupload di
+         paling kiri). -->
+    <div class="pub-section" id="friend-fav-section">
+      <div class="pub-section-header">
+        <div class="pub-section-title">
+           Picked by Listeners
+        </div>
+        <button class="home-new-pl-btn" onclick="openAddSuggestionModal()" title="Add song suggestion">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          Suggest Song
+        </button>
+      </div>
+      <div class="friend-fav-grid" id="friend-fav-grid"></div>
     </div>
 
     <!-- RADIO ARTIS FAVORIT (8 playlist x 15 lagu = gabungan 3 artis yang
@@ -3862,6 +3874,21 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
       <div class="dm-grid" id="made-for-you-grid"></div>
     </div>
 
+    <!-- PUBLIC PLAYLISTS FEED -->
+    <div class="pub-section" id="public-feed-section" style="display:none;">
+      <div class="pub-section-header">
+        <div class="pub-section-title">
+           Public Playlists
+        </div>
+      </div>
+      <div class="pub-grid" id="pub-grid">
+        <div class="empty" style="grid-column:1/-1;padding:24px 0;font-size:.82rem;">
+          <i></i>
+          <h3>Loading public playlists...</h3>
+        </div>
+      </div>
+    </div>
+
     <!-- UNTUK KAMU: SATU ARTIS SATU PLAYLIST (jumlah playlist = jumlah artis
          yang diikuti user, tiap playlist murni 15 lagu top dari 1 artis saja,
          muncul/hilang otomatis saat user follow/unfollow artis, tidak
@@ -3900,20 +3927,6 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
       <div class="recent-grid" id="recently-played-grid"></div>
     </div>
 
-    <!-- PUBLIC PLAYLISTS FEED -->
-    <div class="pub-section" id="public-feed-section" style="display:none;">
-      <div class="pub-section-header">
-        <div class="pub-section-title">
-           Public Playlists
-        </div>
-      </div>
-      <div class="pub-grid" id="pub-grid">
-        <div class="empty" style="grid-column:1/-1;padding:24px 0;font-size:.82rem;">
-          <i></i>
-          <h3>Loading public playlists...</h3>
-        </div>
-      </div>
-    </div>
     <!-- FOOTER: credit sumber data + copyright, di paling bawah halaman Home -->
     <div class="home-footer">
       <p class="home-footer-credit">Data provided by YouTube, Apple Music (iTunes), Deezer, MusicBrainz, Wikipedia &amp; Google Translate.</p>
@@ -9748,10 +9761,14 @@ function _renderStreakHeroAnimations(currentStreak){
 function showStreakView(){
   document.getElementById('streak-view').classList.add('show');
   renderStreakView();
+  // Khusus mobile: sembunyikan mini player (#bar) & buat halaman Streak
+  // memenuhi layar penuh tanpa ruang kosong (lihat CSS body.streak-mobile-open).
+  if (typeof isMobile === 'function' && isMobile()) document.body.classList.add('streak-mobile-open');
 }
 function hideStreakView(){
   document.getElementById('streak-view').classList.remove('show');
   try{ _streakFlameAnim && _streakFlameAnim.pause(); }catch(e){}
+  document.body.classList.remove('streak-mobile-open');
 }
 
 // Saat halaman Streak sedang terbuka, kalau user menekan tombol apa pun di
