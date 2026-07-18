@@ -518,18 +518,18 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 /* ── HOME GIF BANNER — banner pribadi berbasis GIF di paling atas
    halaman Home. Ukuran box mengikuti rasio GIF referensi (750x224)
    dan sedikit dibesarkan dari kotak lirik supaya GIF tidak terpotong.
-   GIF yang disimpan bersifat privat per akun (users/{uid}/homeBanner
-   di Firebase) sehingga hanya pemilik akun yang melihat GIF miliknya;
-   user lain / yang belum upload akan melihat GIF bawaan (DEFAULT_HOME_BANNER).
+   GIF yang diupload disimpan LOKAL di perangkat user sendiri (IndexedDB
+   browser, key homeBanner_{uid}) — TIDAK dikirim/disimpan ke Firebase/
+   server. Karena lokal per perangkat, user lain (dan akun yang sama di
+   perangkat lain) akan melihat GIF bawaan (DEFAULT_HOME_BANNER).
    Lihat loadHomeBannerFromCloud() / openHomeBannerModal() di JS. ── */
 .home-gif-banner-wrap{margin-bottom:10px;}
 .home-gif-banner{position:relative;width:100%;aspect-ratio:750/224;border-radius:14px;overflow:hidden;background:var(--card);border:1px solid var(--border);}
 .home-gif-banner img{width:100%;height:100%;object-fit:cover;display:block;}
-.home-gif-banner-edit-btn{position:absolute;right:10px;bottom:10px;display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;border:none;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);color:#fff;font-family:var(--f);font-size:.7rem;font-weight:700;cursor:pointer;transition:all .18s;}
-.home-gif-banner-edit-btn:hover{background:var(--green);}
-.home-gif-banner-edit-btn svg{width:13px;height:13px;flex-shrink:0;}
+.home-gif-banner-edit-btn{position:absolute;right:10px;bottom:10px;display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;border:none;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);color:#fff;font-family:var(--f);font-size:1.3rem;line-height:1;font-weight:700;cursor:pointer;transition:all .18s;}
+.home-gif-banner-edit-btn:hover{background:var(--green);transform:scale(1.06);}
 @media (max-width:640px){
-  .home-gif-banner-edit-btn{font-size:.64rem;padding:5px 10px;bottom:8px;right:8px;}
+  .home-gif-banner-edit-btn{width:30px;height:30px;font-size:1.15rem;bottom:8px;right:8px;}
 }
 
 /* Home GIF Banner modal */
@@ -3735,16 +3735,14 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   <div id="home-view" class="active">
 
     <!-- HOME GIF BANNER — banner GIF pribadi. Kalau user sudah upload GIF
-         sendiri, GIF itu HANYA tampil untuk dirinya sendiri (disimpan di
-         users/{uid}/homeBanner). Kalau belum upload sama sekali, yang
-         tampil adalah GIF bawaan (DEFAULT_HOME_BANNER). -->
+         sendiri, GIF itu disimpan LOKAL di perangkat ini (IndexedDB,
+         key homeBanner_{uid}) — bukan di server/cloud. Kalau belum upload
+         sama sekali (atau lagi di perangkat lain), yang tampil adalah
+         GIF bawaan (DEFAULT_HOME_BANNER). -->
     <div class="home-gif-banner-wrap">
       <div class="home-gif-banner" id="home-gif-banner">
         <img id="home-gif-banner-img" src="" alt="Home banner">
-        <button class="home-gif-banner-edit-btn" onclick="openHomeBannerModal()" title="Upload GIF banner milikmu sendiri (hanya kamu yang bisa lihat)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          GIF Banner
-        </button>
+        <button class="home-gif-banner-edit-btn" onclick="openHomeBannerModal()" title="Upload GIF banner milikmu sendiri (disimpan lokal di perangkat ini)">+</button>
       </div>
     </div>
 
@@ -4958,11 +4956,11 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 </div>
 
 <!-- Home GIF Banner Modal — upload GIF pribadi untuk banner Home.
-     Hanya pemilik akun yang bisa melihat GIF miliknya sendiri. -->
+     GIF disimpan LOKAL di perangkat ini saja (tidak diunggah ke server/cloud). -->
 <div id="home-banner-modal" class="modal-bg" style="display:none">
   <div class="modal">
     <h3>🎬 GIF Banner</h3>
-    <p>Upload GIF milikmu sendiri untuk banner Home. GIF ini hanya akan tampil untukmu — orang lain tetap melihat GIF bawaan. Ukuran GIF wajib maksimal <b>750×224px</b> (tidak boleh lebih besar dari itu).</p>
+    <p>Upload GIF milikmu sendiri untuk banner Home. GIF ini disimpan hanya di perangkat ini (tidak dikirim ke server) — orang lain, atau kamu di perangkat lain, tetap melihat GIF bawaan.</p>
     <div class="hgb-preview-wrap">
       <img id="hgb-preview-img" alt="Preview GIF banner">
       <div class="hgb-preview-empty" id="hgb-preview-empty">
@@ -4981,7 +4979,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
         Remove
       </button>
     </div>
-    <div class="hgb-tip" id="hgb-hint">Format .gif, maks 750×224px, maks 5MB. Hanya kamu yang bisa melihat GIF ini setelah disimpan.</div>
+    <div class="hgb-tip" id="hgb-hint">Format .gif. Disimpan lokal di perangkat ini saja (tidak ke server).</div>
     <div class="mbtns">
       <button class="btn-s" onclick="closeHomeBannerModal()">Close</button>
       <button class="btn-p" id="hgb-save-btn" style="display:none" onclick="saveHomeBanner()">Save</button>
@@ -15532,30 +15530,68 @@ async function togglePublishPlaylist() {
 }
 
 // ─── HOME GIF BANNER ──────────────────────────────────────
-// GIF pribadi yang tampil di banner paling atas halaman Home. Disimpan di
-// users/{uid}/homeBanner sehingga PRIVAT per akun — hanya pemilik akun
-// yang login yang akan melihat GIF miliknya sendiri. Kalau user belum
-// pernah upload, semua orang (termasuk dirinya sendiri) akan melihat GIF
-// bawaan (DEFAULT_HOME_BANNER). Ukuran GIF yang diupload wajib maksimal
-// 750x224px (ukuran GIF bawaan) — kalau lebih besar, upload ditolak.
-const HOME_BANNER_MAX_W = 750;
-const HOME_BANNER_MAX_H = 224;
+// GIF pribadi yang tampil di banner paling atas halaman Home. Disimpan
+// LOKAL di perangkat user sendiri (IndexedDB milik browser), BUKAN di
+// Firebase/cloud. Artinya GIF ini tidak ikut sinkron ke perangkat lain —
+// hanya tersimpan & tampil di browser/perangkat tempat GIF itu diupload.
+// Disimpan per-akun (keyed by uid) supaya tiap akun yang login di
+// perangkat yang sama tetap punya GIF banner masing-masing. Kalau user
+// belum pernah upload di perangkat ini, yang tampil adalah GIF bawaan
+// (DEFAULT_HOME_BANNER). Tidak ada batasan ukuran file / dimensi piksel
+// untuk GIF yang diupload.
 let _hgbData = null;    // base64 GIF baru yang dipilih (belum disimpan)
 let _hgbSaved = null;   // base64 GIF yang sudah aktif/tersimpan milik user ini
 let _hgbPending = false;
 
-function applyHomeBanner(dataUrl) {
-  const img = document.getElementById('home-gif-banner-img');
-  if (img) img.src = dataUrl || DEFAULT_HOME_BANNER;
+// ── Helper IndexedDB generik (key-value sederhana) untuk penyimpanan lokal ──
+const _localKvDbPromise = new Promise((resolve, reject) => {
+  const req = indexedDB.open('vibexaLocalStore', 1);
+  req.onupgradeneeded = () => {
+    if (!req.result.objectStoreNames.contains('kv')) {
+      req.result.createObjectStore('kv');
+    }
+  };
+  req.onsuccess = () => resolve(req.result);
+  req.onerror = () => reject(req.error);
+});
+async function localKvGet(key) {
+  const idb = await _localKvDbPromise;
+  return new Promise((resolve, reject) => {
+    const tx = idb.transaction('kv', 'readonly');
+    const req = tx.objectStore('kv').get(key);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function localKvSet(key, value) {
+  const idb = await _localKvDbPromise;
+  return new Promise((resolve, reject) => {
+    const tx = idb.transaction('kv', 'readwrite');
+    tx.objectStore('kv').put(value, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function localKvDelete(key) {
+  const idb = await _localKvDbPromise;
+  return new Promise((resolve, reject) => {
+    const tx = idb.transaction('kv', 'readwrite');
+    tx.objectStore('kv').delete(key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+function _hgbLocalKey() {
+  return 'homeBanner_' + (currentUser ? currentUser.uid : 'guest');
 }
 
-// Load GIF banner dari Firebase saat login (privat per akun)
+// Load GIF banner dari penyimpanan lokal perangkat ini saat login (privat per akun & per perangkat)
 async function loadHomeBannerFromCloud() {
   if (!currentUser) { _hgbSaved = null; applyHomeBanner(null); return; }
   try {
-    const snap = await db.ref('users/' + currentUser.uid + '/homeBanner').get();
-    if (snap.exists() && snap.val()) {
-      _hgbSaved = snap.val();
+    const saved = await localKvGet(_hgbLocalKey());
+    if (saved) {
+      _hgbSaved = saved;
       applyHomeBanner(_hgbSaved);
     } else {
       _hgbSaved = null;
@@ -15576,7 +15612,7 @@ function openHomeBannerModal() {
   const resetBtn = document.getElementById('hgb-reset-btn');
   const hint = document.getElementById('hgb-hint');
   hint.classList.remove('err');
-  hint.textContent = 'Format .gif, maks ' + HOME_BANNER_MAX_W + '×' + HOME_BANNER_MAX_H + 'px, maks 5MB. Hanya kamu yang bisa melihat GIF ini setelah disimpan.';
+  hint.textContent = 'Format .gif. Hanya kamu yang bisa melihat GIF ini setelah disimpan.';
 
   if (_hgbSaved) {
     previewImg.src = _hgbSaved;
@@ -15608,34 +15644,19 @@ document.getElementById('hgb-file').addEventListener('change', function() {
 
   const hint = document.getElementById('hgb-hint');
 
-  // Wajib format GIF
+  // Wajib format GIF (tidak ada lagi batasan ukuran file / dimensi piksel)
   if (file.type !== 'image/gif' && !/\.gif$/i.test(file.name)) {
     hint.classList.add('err');
     hint.textContent = '❌ File harus berformat GIF (.gif)';
     toast('❌ File harus berformat GIF (.gif)');
     return;
   }
-  // Batas ukuran file
-  if (file.size > 5 * 1024 * 1024) {
-    hint.classList.add('err');
-    hint.textContent = '❌ Ukuran file GIF terlalu besar (maks 5MB)';
-    toast('❌ GIF terlalu besar (maks 5MB)');
-    return;
-  }
 
   const reader = new FileReader();
   reader.onload = e => {
     const dataUrl = e.target.result;
-    // Validasi dimensi piksel: harus <= 750x224 (ukuran GIF bawaan).
-    // Kalau GIF yang diupload user lebih besar dari itu, TIDAK diizinkan.
     const testImg = new Image();
     testImg.onload = () => {
-      if (testImg.naturalWidth > HOME_BANNER_MAX_W || testImg.naturalHeight > HOME_BANNER_MAX_H) {
-        hint.classList.add('err');
-        hint.textContent = '❌ Ukuran GIF ' + testImg.naturalWidth + '×' + testImg.naturalHeight + 'px melebihi batas maksimal ' + HOME_BANNER_MAX_W + '×' + HOME_BANNER_MAX_H + 'px';
-        toast('❌ GIF terlalu besar (maks ' + HOME_BANNER_MAX_W + '×' + HOME_BANNER_MAX_H + 'px)');
-        return;
-      }
       hint.classList.remove('err');
       hint.textContent = '✅ GIF valid (' + testImg.naturalWidth + '×' + testImg.naturalHeight + 'px)';
       _hgbData = dataUrl;
@@ -15665,11 +15686,12 @@ async function saveHomeBanner() {
   btn.textContent = 'Menyimpan...';
   btn.disabled = true;
   try {
-    // Disimpan di path privat milik user sendiri -> hanya dia yang melihatnya.
-    await db.ref('users/' + currentUser.uid + '/homeBanner').set(_hgbData);
+    // Disimpan lokal di perangkat ini saja (IndexedDB) -> tidak dikirim ke
+    // server/cloud, dan tidak ikut sinkron ke perangkat lain.
+    await localKvSet(_hgbLocalKey(), _hgbData);
     _hgbSaved = _hgbData;
     applyHomeBanner(_hgbSaved);
-    toast('✅ GIF banner disimpan! Hanya kamu yang bisa melihatnya.');
+    toast('✅ GIF banner disimpan di perangkat ini.');
     closeHomeBannerModal();
   } catch(e) {
     toast('❌ Gagal menyimpan: ' + e.message);
@@ -15682,7 +15704,7 @@ async function saveHomeBanner() {
 async function resetHomeBanner() {
   if (!currentUser) return;
   try {
-    await db.ref('users/' + currentUser.uid + '/homeBanner').remove();
+    await localKvDelete(_hgbLocalKey());
     _hgbSaved = null;
     _hgbData = null;
     applyHomeBanner(null);
