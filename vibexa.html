@@ -15585,6 +15585,15 @@ function _hgbLocalKey() {
   return 'homeBanner_' + (currentUser ? currentUser.uid : 'guest');
 }
 
+// Terapkan GIF banner ke elemen <img> di Home. Kalau ada "src" (GIF yang
+// disimpan user), pakai itu; kalau tidak (null/undefined), fallback ke GIF
+// bawaan (DEFAULT_HOME_BANNER) supaya banner selalu tampil.
+function applyHomeBanner(src) {
+  const img = document.getElementById('home-gif-banner-img');
+  if (!img) return;
+  img.src = src || DEFAULT_HOME_BANNER;
+}
+
 // Load GIF banner dari penyimpanan lokal perangkat ini saat login (privat per akun & per perangkat)
 async function loadHomeBannerFromCloud() {
   if (!currentUser) { _hgbSaved = null; applyHomeBanner(null); return; }
