@@ -685,13 +685,11 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 }
 
 /* Instrumental lines */
-.ll.instrumental{display:flex;align-items:center;gap:8px;padding:6px 0;cursor:default;}
+.ll.instrumental{display:flex;align-items:center;justify-content:center;gap:8px;padding:6px 0;cursor:default;}
 .ll.instrumental .inst-notes{display:flex;align-items:flex-end;gap:3px;}
 .ll.instrumental .inst-notes span{display:inline-block;width:3px;border-radius:3px;background:var(--muted);transition:all .35s;}
 .ll.instrumental.active .inst-notes span{background:var(--green);}
 .ll.instrumental.past .inst-notes span{background:var(--muted);opacity:.4;}
-.ll.instrumental .inst-label{font-size:.72rem;color:var(--muted);font-style:italic;letter-spacing:.5px;}
-.ll.instrumental.active .inst-label{color:var(--sub);}
 
 @keyframes inst-bar1{0%,100%{height:6px}50%{height:16px}}
 @keyframes inst-bar2{0%,100%{height:14px}50%{height:5px}}
@@ -706,13 +704,11 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .ll.instrumental.active .inst-notes span:nth-child(5){animation:inst-bar5 .75s ease-in-out infinite .08s;}
 
 /* Fullscreen instrumental lines */
-.fs-ll.instrumental{display:flex;align-items:center;gap:10px;cursor:default;}
+.fs-ll.instrumental{display:flex;align-items:center;justify-content:center;gap:10px;cursor:default;}
 .fs-ll.instrumental .inst-notes{display:flex;align-items:flex-end;gap:4px;}
 .fs-ll.instrumental .inst-notes span{display:inline-block;width:4px;border-radius:3px;background:rgba(255,255,255,0.2);}
 .fs-ll.instrumental.active .inst-notes span{background:rgba(255,255,255,0.85);}
 .fs-ll.instrumental.past .inst-notes span{background:rgba(255,255,255,0.12);}
-.fs-ll.instrumental .inst-label{font-size:.85rem;color:rgba(255,255,255,0.35);font-style:italic;}
-.fs-ll.instrumental.active .inst-label{color:rgba(255,255,255,0.65);}
 
 .fs-ll.instrumental.active .inst-notes span:nth-child(1){animation:inst-bar1 .7s ease-in-out infinite;}
 .fs-ll.instrumental.active .inst-notes span:nth-child(2){animation:inst-bar2 .6s ease-in-out infinite .1s;}
@@ -10012,7 +10008,7 @@ function pPlain(raw, speedFactor){
     return e;
   });
 }
-function _instHTML(){return'<span class="inst-notes"><span style="height:6px"></span><span style="height:14px"></span><span style="height:8px"></span><span style="height:16px"></span><span style="height:10px"></span></span><span class="inst-label"> Instrumental</span>';}
+function _instHTML(){return'<span class="inst-notes"><span style="height:6px"></span><span style="height:14px"></span><span style="height:8px"></span><span style="height:16px"></span><span style="height:10px"></span></span>';}
 
 // ── LYRICS TRANSLATION SYSTEM ─────────────────────────────
 let _translationEnabled = false;
@@ -11103,7 +11099,7 @@ function _renderNPPlaylists(){
     c.appendChild(d);
   });
 }
-function _fsInstHTML(){return'<span class="inst-notes"><span style="height:8px"></span><span style="height:18px"></span><span style="height:10px"></span><span style="height:20px"></span><span style="height:12px"></span></span><span class="inst-label"> Instrumental</span>';}
+function _fsInstHTML(){return'<span class="inst-notes"><span style="height:8px"></span><span style="height:18px"></span><span style="height:10px"></span><span style="height:20px"></span><span style="height:12px"></span></span>';}
 function updateFSLyr(){
   const el=document.getElementById('fs-lyr-scroll');
   if(!lyrs.length){el.innerHTML='<div class="lyr-empty" style="color:rgba(255,255,255,0.4);padding-top:80px"><i></i>Lyrics not available</div>';return;}
@@ -11324,7 +11320,7 @@ function renderKineticLines(idx) {
 
   // Instrumental line: show animated bars in stage
   if (lyrs[idx].instrumental) {
-    stage.innerHTML = '<div class="fs-ll instrumental active" style="justify-content:center;"><span class="inst-notes"><span style="height:8px"></span><span style="height:18px"></span><span style="height:10px"></span><span style="height:20px"></span><span style="height:12px"></span></span><span class="inst-label" style="color:rgba(255,255,255,0.6);font-size:1rem;"> Instrumental</span></div>';
+    stage.innerHTML = '<div class="fs-ll instrumental active" style="justify-content:center;"><span class="inst-notes"><span style="height:8px"></span><span style="height:18px"></span><span style="height:10px"></span><span style="height:20px"></span><span style="height:12px"></span></span></div>';
     _kWordTimestamps = [];
     buildProgressDots(0);
     void stage.offsetWidth;
