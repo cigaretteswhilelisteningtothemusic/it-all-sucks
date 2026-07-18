@@ -867,12 +867,27 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .mix-lib-btn.added:hover{transform:scale(1.08);background:var(--green);color:#fff;}
 .dm-badge-num{position:absolute;right:8px;bottom:-2px;font-size:2.5rem;font-weight:800;font-family:var(--fm);line-height:1;text-shadow:0 2px 12px rgba(0,0,0,.55);}
 .dm-title{font-size:.82rem;font-weight:700;color:var(--text);line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
-/* YEAR MIX — kartu "Hits that defined <tahun>": label judul ditaruh sebagai
-   pita berwarna yang menempel di bagian bawah cover (setengah menutupi foto
-   artis), meniru gaya kartu genre Spotify. Warna pita berbeda-beda per kartu. */
-.ym-badge{position:absolute;left:10px;right:10px;bottom:-11px;padding:7px 10px;border-radius:6px;font-size:.86rem;font-weight:800;color:#000;line-height:1.15;box-shadow:0 6px 16px rgba(0,0,0,.35);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
-.ym-card .dm-cover-wrap{margin-bottom:18px;}
-.ym-caption{font-size:.72rem;color:var(--sub);line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+/* YEAR MIX / TIME MACHINE — kartu gaya "Wrapped" glossy: background gelap
+   dengan glow warna yang berbeda-beda per kartu (bervariasi per tahun),
+   wordmark VIBEXA + ikon kilau di atas, judul besar "Yearly Mix" + tahun
+   di tengah-bawah, tagline kecil di paling bawah. Warna glow tiap kartu
+   diatur lewat CSS var --ym-glow (di-set inline per kartu lewat JS). */
+.ym-card{flex:0 0 168px;width:168px;cursor:pointer;}
+.dm-grid.expanded .ym-card{flex:0 0 168px;}
+.ym-hero-card{position:relative;width:100%;aspect-ratio:3/4;border-radius:18px;overflow:hidden;padding:16px 16px 16px;display:flex;flex-direction:column;box-shadow:0 10px 28px rgba(0,0,0,.45);transition:transform .2s;background:
+    radial-gradient(ellipse 150% 85% at 78% 108%, var(--ym-glow) 0%, transparent 62%),
+    radial-gradient(ellipse 110% 65% at 105% 10%, var(--ym-glow) 0%, transparent 55%),
+    linear-gradient(165deg,#0c1220 0%,#05060b 100%);}
+.ym-hero-card:hover{transform:translateY(-3px);}
+.ym-hero-top{position:relative;z-index:2;display:flex;align-items:flex-start;justify-content:space-between;}
+.ym-hero-brand{font-size:.62rem;font-weight:800;letter-spacing:2.5px;color:rgba(255,255,255,.92);text-transform:uppercase;}
+.ym-hero-spark{width:15px;height:15px;color:rgba(255,255,255,.9);flex-shrink:0;filter:drop-shadow(0 0 4px rgba(255,255,255,.5));}
+.ym-hero-mid{position:relative;z-index:2;margin-top:auto;}
+.ym-hero-title{font-size:1.42rem;font-weight:800;line-height:1.04;color:#fff;letter-spacing:-.4px;}
+.ym-hero-year{font-size:.86rem;font-weight:700;color:rgba(255,255,255,.55);margin-top:3px;}
+.ym-hero-sub{position:relative;z-index:2;margin-top:12px;font-size:.64rem;line-height:1.4;color:rgba(255,255,255,.6);}
+.ym-hero-card .dm-cover-ov{border-radius:0;}
+.ym-hero-card .mix-lib-btn{top:auto;bottom:12px;right:12px;z-index:4;}
 
 /* UNTUK KAMU — SATU ARTIS SATU PLAYLIST (kartu gaya "This Is ..." ala
    Spotify: background warna solid/flat yang bervariasi tiap kartu, foto
@@ -1313,9 +1328,9 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
      & bottom-nav tetap bisa ditekan di atasnya lewat z-index yang di-boost
      di bawah ini. */
   #streak-view{
-    position:fixed;
-    inset:0;
-    z-index:2500;
+    position:fixed !important;
+    inset:0 !important;
+    z-index:2500 !important;
   }
   body:has(#streak-view.show) .home-topbar,
   body:has(#streak-view.show) #mob-nav{
@@ -13440,6 +13455,16 @@ const YEAR_MIX_COLORS = {
   '2020': 'linear-gradient(135deg,#ff6fc9,#a52a72)',
   '2026': 'linear-gradient(135deg,#ff5a4d,#a8281d)'
 };
+// Warna glow untuk kartu "Yearly Mix" bergaya Wrapped (beda-beda tiap kartu,
+// dipakai sebagai CSS var --ym-glow di background radial-gradient kartu).
+const YEAR_MIX_GLOW = {
+  '1980': 'rgba(255,178,56,.55)',
+  '1990': 'rgba(216,255,46,.5)',
+  '2000': 'rgba(92,232,124,.5)',
+  '2010': 'rgba(38,224,255,.5)',
+  '2020': 'rgba(255,111,201,.5)',
+  '2026': 'rgba(255,90,77,.5)'
+};
 const YEAR_MIX_DEFS = [
   {
     key: '1980', label: 'Hits that defined 1980', color: YEAR_MIX_COLORS['1980'],
@@ -13802,16 +13827,23 @@ function renderYearMixes(mixes) {
 function buildYearMixCardEl(mix) {
   const div = document.createElement('div');
   div.className = 'dm-card ym-card';
+  const glow = YEAR_MIX_GLOW[mix.key] || 'rgba(46,125,255,.5)';
   div.innerHTML = `
-    <div class="dm-cover-wrap">
-      ${mix.cover ? `<img class="dm-cover-img" src="${esc(mix.cover)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
+    <div class="ym-hero-card" style="--ym-glow:${glow}">
+      <div class="ym-hero-top">
+        <span class="ym-hero-brand">Vibexa</span>
+        <svg class="ym-hero-spark" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c.9 4.2 2.1 7.1 3.6 8.6C17.1 10.1 20 11.3 24 12c-4 .9-6.9 2.1-8.4 3.6C14.1 17.1 12.9 20 12 24c-.9-4-2.1-6.9-3.6-8.4C6.9 14.1 4 12.9 0 12c4-.9 6.9-2.1 8.4-3.6C9.9 6.9 11.1 4 12 0z"/></svg>
+      </div>
+      <div class="ym-hero-mid">
+        <div class="ym-hero-title">Yearly<br>Mix</div>
+        <div class="ym-hero-year">${esc(mix.key)}</div>
+      </div>
+      <div class="ym-hero-sub">Your sounds.<br>Your year.</div>
       <div class="dm-cover-ov">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
       </div>
-      <div class="ym-badge" style="background:${mix.color}">${esc(mix.title)}</div>
       ${mixLibBtnHtml(mix)}
     </div>
-    <div class="ym-caption">${esc(mix.caption || '')}</div>
   `;
   div.querySelector('.dm-cover-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
   attachMixLibBtn(div, mix);
