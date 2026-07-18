@@ -155,12 +155,9 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .profile-streak-badge{font-size:.7rem;font-weight:800;color:#ff9500;line-height:1;}
 .home-profile-btn{position:relative;}
 /* Pill kecil jumlah streak di samping foto profil (.profile-streak-pill-mobile)
-   HANYA tampil di mobile (<=660px) sebagai akses cepat ke halaman Streak.
-   Di PC/tablet disembunyikan supaya tidak dobel dengan menu "Streak" yang
-   sudah ada di dalam dropdown foto profil. */
-@media (min-width:661px){
-  .profile-streak-pill-mobile{display:none !important;}
-}
+   sekarang tampil di SEMUA ukuran layar, termasuk PC/tablet, sebagai akses
+   cepat ke halaman Streak (menu "Streak" di dropdown foto profil tetap ada
+   sebagai cara akses tambahan, jadi tidak masalah kalau sedikit "dobel"). */
 @media (max-width:660px){
   .profile-streak-pill-mobile{padding:3px 6px;gap:2px;}
   .profile-streak-pill-mobile svg{width:11px;height:11px;}
@@ -2285,11 +2282,14 @@ body.np-is-fullscreen #bar{display:none !important;}
      ada tombol Home di navigasi bawah) */
   .topbar-home-btn{display:none;}
   /* Kotak search jadi mengisi ruang yang tersisa (sedikit lebih panjang)
-     setelah tombol Home di sampingnya disembunyikan */
+     setelah tombol Home di sampingnya disembunyikan. Gap cluster kanan
+     (bell/streak/avatar) juga dikecilkan supaya kotak search dapat ruang
+     ekstra sedikit lebih panjang di mobile. */
   .home-search-wrap{max-width:none;}
   .topbar-search-pill{height:38px;}
   #home-q{font-size:.8rem;}
   .home-profile-btn{width:28px;height:28px}
+  .topbar-right{gap:8px;}
   /* Tombol Song Preview di topbar disembunyikan khusus mobile (sudah ada
      tombol Preview di navigasi bawah) */
   #nav-songpreview{display:none;}
@@ -3298,7 +3298,7 @@ textarea.sugg-form-input{resize:vertical;}
    tidak ikut tertutup. Ini juga otomatis membuat tombol Back muncul,
    karena sebelumnya ketutupan topbar (yang di-boost z-index-nya lebih
    tinggi dari overlay Streak yang position:fixed penuh 1 layar). */
-#streak-view{position:absolute;inset:0;z-index:20;background:var(--bg);display:none;flex-direction:column;}
+#streak-view{position:absolute;inset:0;z-index:25;background:var(--bg);display:none;flex-direction:column;}
 #streak-view.show{display:flex;}
 .streak-header{display:flex;align-items:center;gap:14px;padding:18px 26px;border-bottom:1px solid var(--border);flex-shrink:0;}
 .streak-header .pv-back{margin:0;}
@@ -5161,6 +5161,18 @@ let _messagingReadyPromise = (async () => {
 
 let currentUser = null;
 let saveTimeout = null;
+// _recentlyPlayedCache & _streakCache dideklarasikan di sini (lebih awal),
+// BUKAN di dekat fungsi-fungsi pemakainya di bawah, karena keduanya juga
+// dipakai oleh auth.onAuthStateChanged() (lihat beberapa ratus baris di
+// bawah). Kalau dideklarasikan pakai `let` di tempat yang jauh di bawah,
+// ada risiko race condition: callback onAuthStateChanged dari Firebase bisa
+// saja terpanggil (microtask) SEBELUM baris `let` aslinya sempat dieksekusi,
+// sehingga terjadi "ReferenceError: Cannot access before initialization"
+// (temporal dead zone) — inilah penyebab halaman Streak kadang gagal
+// tampil penuh (hanya bagian atas/header saja yang sempat ke-render,
+// karena renderStreakView() berhenti di tengah jalan akibat error ini).
+let _recentlyPlayedCache = null; // array lagu, sinkron dengan cloud
+let _streakCache = null; // {currentStreak, longestStreak, lastCompletedDate, completedDates:{'YYYY-MM-DD':true}}
 
 // ─── State ────────────────────────────────────────────────
 const WORKER = 'https://fancy-band-d65b.alpinofficial26.workers.dev';
@@ -9830,7 +9842,7 @@ function _restoreLastPlayedTrack(){
 const RECENTLY_PLAYED_PREFIX = 'vibexa_recently_played_';
 const RECENTLY_PLAYED_MAX = 100;
 const RECENTLY_PLAYED_HOME_PREVIEW_COUNT = 8;
-let _recentlyPlayedCache = null; // array lagu, sinkron dengan cloud
+// _recentlyPlayedCache sudah dideklarasikan di awal script (dekat currentUser)
 
 function _recentlyPlayedKey(){
   const uid = (typeof currentUser !== 'undefined' && currentUser && currentUser.uid) ? currentUser.uid : 'anon';
@@ -9996,7 +10008,7 @@ const STREAK_MILESTONE_DAYS = 7; // mulai dari sini animasi check-in modal berga
 const STREAK_FLAME_ICON_URL = 'loop-fire.json';            // ikon flame di atas angka streak (halaman Streak)
 const STREAK_FLAME_SMALL_URL = 'fire-small-out.json';      // animasi check-in modal default
 const STREAK_FLAME_BIG_URL = 'fire-lottie-animation.json'; // animasi check-in modal setelah streak >= 7 hari
-let _streakCache = null; // {currentStreak, longestStreak, lastCompletedDate, completedDates:{'YYYY-MM-DD':true}}
+// _streakCache sudah dideklarasikan di awal script (dekat currentUser)
 let _streakLottieAnim = null;     // animasi modal celebration
 let _streakFlameAnim = null;      // animasi ikon flame kecil di hero
 
