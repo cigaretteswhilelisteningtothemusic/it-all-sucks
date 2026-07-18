@@ -515,6 +515,15 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .pv-owner-arrow{color:var(--muted);display:flex;align-items:center;flex-shrink:0;}
 .pv-owner-arrow svg{width:16px;height:16px;}
 
+/* ── HOME GIF BANNER — banner "GIF Time" bawaan di paling atas halaman
+   Home. Ukuran box mengikuti rasio GIF referensi (750x224). Bersifat
+   read-only: GIF berganti otomatis sesuai jam (lihat HOME_GIF_TIME_SCHEDULE
+   / getHomeGifTimeUrl() di JS), user tidak bisa menggantinya. ── */
+.home-gif-banner-wrap{margin-bottom:10px;}
+.home-gif-banner{position:relative;width:100%;aspect-ratio:750/224;border-radius:14px;overflow:hidden;background:var(--card);border:1px solid var(--border);}
+@media (min-width:900px){.home-gif-banner{aspect-ratio:unset;height:220px;}}
+.home-gif-banner img{width:100%;height:100%;object-fit:cover;display:block;}
+
 /* ── HOME / PLAYLISTS GRID ────────────────────────────────── */
 #home-view{padding:24px;display:none;}
 #home-view.active{display:block;}
@@ -3699,6 +3708,15 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 
   <!-- HOME VIEW -->
   <div id="home-view" class="active">
+
+    <!-- HOME GIF BANNER — banner GIF "GIF Time" bawaan yang otomatis
+         berganti sesuai jam (lihat HOME_GIF_TIME_SCHEDULE di JS). Tidak
+         ada lagi opsi bagi user untuk mengunggah/mengganti GIF ini. -->
+    <div class="home-gif-banner-wrap">
+      <div class="home-gif-banner" id="home-gif-banner">
+        <img id="home-gif-banner-img" src="" alt="Home banner">
+      </div>
+    </div>
 
     <div class="home-greeting" id="home-greeting">Welcome </div>
     <div class="home-sub">Your playlists are automatically saved to this account.</div>
@@ -15450,6 +15468,71 @@ async function togglePublishPlaylist() {
     } catch(e) { toast(' Failed: ' + e.message); }
   }
 }
+
+// ─── HOME GIF BANNER — "GIF TIME" ──────────────────────────
+// Banner GIF bawaan di paling atas halaman Home yang otomatis berganti
+// sesuai jam lokal perangkat. Bersifat read-only: tidak ada lagi opsi
+// bagi user untuk mengunggah atau mengganti GIF ini.
+// Jadwal (berulang setiap hari, berdasarkan jam lokal perangkat):
+//   01:00–03:00  kiss
+//   03:00–08:00  sunrise
+//   08:00–12:00  cat
+//   12:00–15:00  waterboom
+//   15:00–18:00  dawn
+//   18:00–20:00  night
+//   20:00–23:00  cyber
+//   23:00–01:00  zombie
+const HOME_GIF_TIME_SCHEDULE = [
+  { start: 1,  end: 3,  url: 'https://res.cloudinary.com/vqlllesq/image/upload/v1784382654/kiss_hbfu93.gif' },
+  { start: 3,  end: 8,  url: 'https://res.cloudinary.com/vqlllesq/image/upload/v1784382655/sunrise_d3hvle.gif' },
+  { start: 8,  end: 12, url: 'https://res.cloudinary.com/vqlllesq/image/upload/v1784382655/cat_khs6b2.gif' },
+  { start: 12, end: 15, url: 'https://res.cloudinary.com/vqlllesq/image/upload/v1784382653/waterboom_obkyn2.gif' },
+  { start: 15, end: 18, url: 'https://res.cloudinary.com/vqlllesq/image/upload/v1784382654/dawn_whuqpy.gif' },
+  { start: 18, end: 20, url: 'https://res.cloudinary.com/vqlllesq/image/upload/v1784382653/night_fyngrn.gif' },
+  { start: 20, end: 23, url: 'https://res.cloudinary.com/vqlllesq/image/upload/v1784382652/cyber_tqwdtn.gif' },
+  // 23:00–01:00 (lewat tengah malam)
+  { start: 23, end: 25, url: 'https://res.cloudinary.com/vqlllesq/image/upload/v1784382653/zombie_tc31kb.gif' },
+];
+
+// Ambil URL GIF yang seharusnya tampil untuk jam tertentu (default: jam sekarang)
+function getHomeGifTimeUrl(date) {
+  date = date || new Date();
+  let hour = date.getHours();
+  // Normalisasi jam 0 (tengah malam) supaya jatuh ke slot 23-25 (zombie)
+  const h = hour === 0 ? 24 : hour;
+  for (const slot of HOME_GIF_TIME_SCHEDULE) {
+    if (h >= slot.start && h < slot.end) return slot.url;
+  }
+  // fallback (seharusnya tidak pernah kena karena jadwal menutup 24 jam penuh)
+  return HOME_GIF_TIME_SCHEDULE[HOME_GIF_TIME_SCHEDULE.length - 1].url;
+}
+
+let _hgbTimeInterval = null;
+let _hgbLastAppliedTimeUrl = null;
+
+// Jalankan pengecekan berkala supaya banner otomatis ganti begitu masuk slot
+// jam berikutnya, tanpa perlu reload halaman.
+function _hgbStartTimeWatcher() {
+  if (_hgbTimeInterval) return;
+  _hgbTimeInterval = setInterval(() => {
+    const nextUrl = getHomeGifTimeUrl();
+    if (nextUrl !== _hgbLastAppliedTimeUrl) {
+      applyHomeBanner();
+    }
+  }, 30000); // cek tiap 30 detik
+}
+
+// Terapkan GIF "GIF Time" (sesuai jam saat ini) ke elemen <img> di Home.
+function applyHomeBanner() {
+  const img = document.getElementById('home-gif-banner-img');
+  if (!img) return;
+  const timeUrl = getHomeGifTimeUrl();
+  _hgbLastAppliedTimeUrl = timeUrl;
+  img.src = timeUrl;
+  _hgbStartTimeWatcher();
+}
+
+applyHomeBanner();
 
 
 // ─── LYRICS BACKGROUND ────────────────────────────────────
