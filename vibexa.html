@@ -1791,7 +1791,17 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 #np-view.np-fullscreen .np-track-artist{font-size:1.05rem;}
 #np-view.np-fs-morphing,
 #np-view.np-fullscreen{bottom:0 !important;z-index:600;}
-body.np-is-fullscreen #bar{opacity:0;pointer-events:none;transition:opacity 1s ease;}
+/* Kotak "play" di bawah (mini player/bar bawah): tiap bagiannya menutup
+   satu-per-satu berurutan seperti laci (info lagu dulu, lalu tombol like,
+   lalu kontrol transport, lalu volume) — BARU setelah semuanya tertutup,
+   seluruh bar meluncur turun & hilang dari layar. */
+#bar>.bar-track,#bar>.bar-like-btn,#bar>.bar-ctrl,#bar>.bar-r{transform-origin:top center;transition:opacity .85s ease,transform .85s cubic-bezier(.65,0,.35,1);}
+body.np-is-fullscreen #bar>.bar-track{opacity:0;transform:scaleY(0);transition-delay:0s;}
+body.np-is-fullscreen #bar>.bar-like-btn{opacity:0;transform:scaleY(0);transition-delay:.16s;}
+body.np-is-fullscreen #bar>.bar-ctrl{opacity:0;transform:scaleY(0);transition-delay:.32s;}
+body.np-is-fullscreen #bar>.bar-r{opacity:0;transform:scaleY(0);transition-delay:.48s;}
+#bar{transition:transform .6s cubic-bezier(.65,0,.35,1) 1.05s;}
+body.np-is-fullscreen #bar{pointer-events:none;transform:translateY(100%);}
 body.np-fs-final #bar{display:none !important;}
 @media(max-width:660px){
   #np-view.np-fs-morphing .np-art,#np-view.np-fs-morphing .np-art-ph,
