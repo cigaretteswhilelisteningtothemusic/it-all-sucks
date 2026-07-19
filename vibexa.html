@@ -1860,13 +1860,11 @@ body.np-fs-final #bar{display:none !important;}
   .np-card-head{margin-bottom:8px;}
   .np-card-head h4{font-size:.85rem;}
   .np-card-head .np-showall{font-size:.62rem;}
-  /* Kotak "Tentang Artis" TIDAK dihilangkan — tetap ada di halaman, hanya
-     posisinya dipindah ke PALING BAWAH (di bawah Albums/Playlist/Next Up)
-     memakai "order", supaya baru terlihat kalau user scroll ke bawah, dan
-     elemen di atasnya (foto album, kontrol pemutaran) tidak ikut menyempit
-     karena kotak ini tidak lagi berada di urutan paling atas konten scroll. */
-  .np-about-card-big{order:2;aspect-ratio:1;min-height:0;width:min(250px,62vw);margin:0 auto;}
-  .np-right-col{order:1;}
+  /* Kotak "Tentang Artis" ditampilkan PALING ATAS (di atas Albums/Playlist/
+     Next Up) memakai "order", jadi langsung terlihat begitu user scroll
+     turun sedikit dari foto album, sebelum kotak Albums/Playlist/Next Up. */
+  .np-about-card-big{order:1;aspect-ratio:1;min-height:0;width:min(250px,62vw);margin:0 auto;}
+  .np-right-col{order:2;}
   .np-card-label{font-size:.8rem;top:12px;left:14px;}
   .np-about-overlay{padding:12px;}
   .np-about-overlay .np-about-name{font-size:.92rem;}
@@ -1880,13 +1878,18 @@ body.np-fs-final #bar{display:none !important;}
   #np-card-nextup{display:block;}
   /* Kotak "Albums" & "Playlist" juga dibuat persegi kecil dengan ukuran
      yang sama dengan kotak foto album (.np-art). */
-  .np-right-col .np-card{aspect-ratio:1;min-height:0;width:min(280px,68vw);margin:0 auto;}
-  .np-albums-list,.np-pl-list{max-height:none;min-height:0;}
+  .np-right-col .np-card{aspect-ratio:1;min-height:0;width:min(280px,68vw);margin:0 auto;overflow:hidden;}
+  .np-albums-list,.np-pl-list{max-height:none;min-height:0;overflow-y:auto;}
   .np-album-cover,.np-album-cover-ph,.np-pl-thumb,.np-pl-ph{width:30px;height:30px;}
   .np-album-title,.np-pl-name{font-size:.72rem;}
   .np-album-year,.np-pl-count{font-size:.6rem;}
   /* Tombol Like di kartu Song Preview TETAP ditampilkan di mobile (dulu
      disembunyikan karena masih berupa tombol titik-3 yang belum berfungsi) */
+  /* Khusus mobile: kotak "Tentang Artis" menutup ke BAWAH (translateY),
+     bukan ke samping (translateX) seperti di PC. Kotak Albums/Playlist/
+     Next Up di .np-right-col TETAP menutup ke samping seperti biasa —
+     override ini hanya menyasar .np-about-card-big. */
+  #np-view.np-fs-morphing .np-about-card-big{transform:translateY(120%);}
 }
 
 /* LYRICS (NON-FULLSCREEN) — kini hanya mengisi area 'main' (halaman home),
