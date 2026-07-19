@@ -3713,7 +3713,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
    Kalau rasio GIF-nya tinggi/panjang, bubble tetap dibatasi tingginya lewat
    max-height + overflow-y:auto supaya layout chat tidak jebol, dan sisa
    bagian GIF-nya bisa di-scroll oleh user. */
-.chat-bubble-media{padding:4px;border-radius:16px;overflow:hidden;overflow-y:auto;max-width:260px;max-height:420px;cursor:pointer;line-height:0;position:relative;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
+.chat-bubble-media{padding:4px;border-radius:16px;overflow:hidden;overflow-y:auto;max-width:260px;max-height:420px;cursor:pointer;line-height:0;position:relative;-webkit-overflow-scrolling:touch;overscroll-behavior:auto;touch-action:pan-y;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
 .chat-bubble-media img,.chat-bubble-media video{width:100%;height:auto;max-height:none;border-radius:13px;display:block;object-fit:contain;background:#000;}
 .chat-bubble-media video{cursor:pointer;}
 .chat-bubble-caption{padding:8px 14px 2px;font-size:.86rem;line-height:1.42;word-wrap:break-word;white-space:pre-wrap;}
