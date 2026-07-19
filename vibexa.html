@@ -1848,6 +1848,12 @@ body.np-fs-final #bar{display:none !important;}
      media query ini) TIDAK diubah sama sekali. */
   .np-mob-add-btn{display:flex;}
   .np-mob-controls{display:flex;margin-top:14px;gap:14px;}
+  /* Fitur immersive fullscreen (tombol + mode-nya) dimatikan khusus untuk
+     tampilan mobile — tombolnya disembunyikan di sini, dan pemicunya
+     (klik + idle timer otomatis) juga dinonaktifkan lewat isMobile() di
+     dalam toggleNPFullscreen() (lihat bagian JS). Di tampilan PC tombol
+     ini tetap tampil seperti biasa (class .np-fs-hide bawaan). */
+  #np-fs-btn{display:none !important;}
   /* Kotak "Tentang Artis" (& Albums/Playlist di bawahnya) didorong turun
      sampai berada di luar area yang terlihat sebelum di-scroll: .np-hero
      dibuat setinggi penuh area scroll yang tampak (min-height:100%, relatif
@@ -1859,7 +1865,14 @@ body.np-fs-final #bar{display:none !important;}
      wajar (persis gaya halaman Now Playing Spotify asli), sekaligus kotak
      "Tentang Artis" otomatis berada tepat di bawah batas layar & baru
      kelihatan begitu user scroll ke bawah. */
-  .np-hero{padding-bottom:4px;min-height:100%;justify-content:center;}
+  /* min-height:100% saja tidak cukup: #np-scroll punya padding sendiri
+     (8px atas + 80px bawah = 88px) yang termakan oleh box-sizing:border-box,
+     jadi tinggi .np-hero jadi lebih pendek dari area yang benar2 terlihat —
+     akibatnya kotak "About the artist" mengintip sedikit di bawah layar
+     SEBELUM di-scroll. Ditambah 88px di sini supaya .np-hero benar2
+     memenuhi seluruh area yang terlihat, sehingga kotak "About the artist"
+     baru kelihatan setelah user scroll, bukan sebelumnya. */
+  .np-hero{padding-bottom:4px;min-height:calc(100% + 88px);justify-content:center;}
   .np-track-title{margin-top:12px;}
   .np-track-artist{margin-top:3px;}
   /* Kotak "Tentang Artis", "Albums" & "Playlist" persegi tapi UKURAN
@@ -3600,7 +3613,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 .chat-conv-status.online{color:var(--green);font-weight:600;}
 
 
-.chat-messages{flex:1;overflow-y:auto;padding:20px 22px;display:flex;flex-direction:column;gap:9px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
+.chat-messages{flex:1;overflow-y:auto;overflow-x:hidden;padding:20px 22px;display:flex;flex-direction:column;gap:9px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
 .chat-bubble-row{display:flex;flex-direction:column;max-width:66%;}
 .chat-bubble-row.me{align-self:flex-end;align-items:flex-end;}
 .chat-bubble-row.them{align-self:flex-start;align-items:flex-start;}
@@ -3711,12 +3724,19 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   .chat-media-preview{padding:10px 16px;}
 }
 
-@media(max-width:640px){
+@media(max-width:660px){
   /* Di layar HP, ukuran foto/GIF/video di chat dibuat lebih kecil dan
      ringkas mengikuti gaya WhatsApp mobile (bukan melebar penuh layar),
-     supaya chat tetap ringkas dan tidak terlalu besar/dominan. */
+     supaya chat tetap ringkas dan tidak terlalu besar/dominan. Breakpoint
+     disamakan dengan 660px (sebelumnya 640px, tidak selaras dengan
+     breakpoint mobile lain di file ini) supaya batasan ukuran ini selalu
+     ikut aktif tepat saat tampilan lain sudah berubah ke mode mobile. */
   .chat-bubble-media{max-width:min(52vw,200px);max-height:min(38vh,260px);}
   .chat-bubble-row:has(.chat-bubble-media){max-width:60vw;}
+  /* Jaga-jaga tambahan: kunci overflow-x supaya halaman chat TIDAK PERNAH
+     bisa di-scroll ke samping di mobile, apa pun lebar kontennya. */
+  #chat-overlay,.chat-subview,.chat-messages{overflow-x:hidden;max-width:100%;}
+  .chat-bubble-media,.chat-bubble-media img,.chat-bubble-media video{max-width:100%;}
 }
 
 /* ── Send GIF di Chat (Giphy) ──────────────────────────────── */
@@ -11307,6 +11327,10 @@ let _npFsAnimTimer = null;
 function toggleNPFullscreen(force){
   const npView=document.getElementById('np-view');
   if(!npView) return;
+  // Fitur immersive fullscreen (baik dipicu klik tombol maupun otomatis oleh
+  // idle timer) khusus dimatikan untuk tampilan mobile — di PC perilakunya
+  // tetap seperti semula.
+  if(isMobile()) return;
   const isFS = typeof force === 'boolean' ? force : !npView.classList.contains('np-fullscreen') && !npView.classList.contains('np-fs-morphing');
   // Setiap kali fungsi ini dipanggil dianggap "manual" dulu (mis. klik tombol
   // atau tombol back) — kalau ternyata dipicu oleh idle timer, flag ini akan
@@ -11361,6 +11385,7 @@ function _npClearIdleTimer(){
 
 function _npArmIdleTimer(){
   _npClearIdleTimer();
+  if(isMobile()) return; // fitur immersive fullscreen dimatikan khusus mobile
   const npView=document.getElementById('np-view');
   if(!npView || !npView.classList.contains('open')) return; // hanya aktif selagi halaman Now Playing terbuka
   if(typeof playing==='undefined' || !playing) return;       // hanya kalau musik sedang diputar
