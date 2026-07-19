@@ -2429,6 +2429,10 @@ body.np-is-fullscreen #bar{display:none !important;}
 .notif-icon-app {
   background: rgba(29,185,84,.15); font-size: 1.05rem;
   display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.notif-icon-app img {
+  width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
 }
 .notif-app-item { background: rgba(29,185,84,.05); }
 .notif-app-actions { display: flex; gap: 8px; margin-top: 8px; }
@@ -15775,7 +15779,7 @@ function shouldShowAppUpdateNotif() {
 function buildAppUpdateNotifHtml() {
   return `
     <div class="notif-item notif-app-item" id="notif-app-update-item">
-      <div class="notif-icon-wrap notif-icon-app">⬇️</div>
+      <div class="notif-icon-wrap notif-icon-app"><img src="logo-icon.png" alt="Vibexa" onerror="this.parentElement.textContent='⬇️'"></div>
       <div class="notif-body">
         <div class="notif-msg">
           <strong>Vibexa</strong> Pasang aplikasi Vibexa di perangkatmu — lebih cepat, tampil di layar utama, dan bisa dibuka walau offline.
@@ -16929,29 +16933,13 @@ async function downloadAppNow() {
         localStorage.setItem('vibexa_pwa_installed', '1');
       }
       renderNotifications(_notifCache);
-      return;
     } catch (err) {
       console.error('PWA install prompt gagal:', err);
     }
   }
-  // Fallback: browser tidak mendukung prompt native (mis. Safari/iOS,
-  // atau prompt belum siap) — tampilkan instruksi manual sesuai platform.
-  showPwaInstallInstructions();
-}
-
-function showPwaInstallInstructions() {
-  const ua = navigator.userAgent || '';
-  const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
-  const isAndroid = /Android/.test(ua);
-  let msg;
-  if (isIOS) {
-    msg = 'Cara memasang Vibexa di iPhone/iPad:\n\n1. Buka tombol Share (kotak dengan panah ke atas) di Safari.\n2. Pilih "Add to Home Screen" / "Tambah ke Layar Utama".\n3. Ketuk "Add". Vibexa akan muncul sebagai aplikasi di layar utamamu.';
-  } else if (isAndroid) {
-    msg = 'Cara memasang Vibexa di Android:\n\n1. Buka menu (titik tiga) di pojok kanan atas browser.\n2. Pilih "Install app" atau "Add to Home screen".\n3. Ketuk "Install". Vibexa akan terpasang seperti aplikasi biasa.';
-  } else {
-    msg = 'Cara memasang Vibexa di komputer:\n\n1. Klik ikon install (biasanya berbentuk ⊕ atau layar+panah) di address bar browser.\n2. Atau buka menu browser (⋮) lalu pilih "Install Vibexa...".\n3. Klik "Install".';
-  }
-  alert(msg);
+  // Kalau browser tidak mendukung prompt native (mis. Safari/iOS, atau
+  // prompt belum siap), tidak ada langkah manual apa pun yang ditampilkan —
+  // biarkan browser menangani proses install-nya sendiri lewat UI bawaannya.
 }
 
 // ══════════════════════════════════════════════════════════
