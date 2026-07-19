@@ -5246,6 +5246,38 @@ let curQueue = []; // songs yang sedang dalam antrian putar
 // otomatis kalau user memutar 1 lagu saja (bukan dari playlist/queue apa pun)
 // dan lagu tsb selesai — lihat _playNextFromTopSongs().
 let _topSongsCache = [];
+// Cache daftar LENGKAP Top Songs (peringkat 1–99/100), dipakai sebagai lanjutan
+// otomatis (bukan hanya 5 teratas) — baik saat user memutar 1 lagu saja maupun
+// saat playlist yang sedang diputar habis. Lihat _ensureTopSongsFullCache()
+// dan _playNextFromTopSongs().
+let _topSongsFullCache = [];
+let _topSongsFullLoading = null;
+async function _ensureTopSongsFullCache(){
+  if(_topSongsFullCache.length) return _topSongsFullCache;
+  if(_topSongsFullLoading) return _topSongsFullLoading;
+  _topSongsFullLoading = (async () => {
+    try{
+      const todayKey = 'vibexa_trending_full_' + new Date().toISOString().slice(0, 10);
+      try{
+        const cached = localStorage.getItem(todayKey);
+        if(cached){
+          const items = JSON.parse(cached);
+          if(items && items.length){ _topSongsFullCache = items; return _topSongsFullCache; }
+        }
+      }catch(e){}
+      const items = await fetchDeezerChartTracks(100);
+      _topSongsFullCache = items || [];
+      try{ localStorage.setItem(todayKey, JSON.stringify(_topSongsFullCache)); }catch(e){}
+      return _topSongsFullCache;
+    }catch(e){
+      console.error('_ensureTopSongsFullCache error:', e);
+      return _topSongsFullCache;
+    }finally{
+      _topSongsFullLoading = null;
+    }
+  })();
+  return _topSongsFullLoading;
+}
 let _currentDailyMix = null; // daily mix yang sedang dibuka di playlist-view
 // Mode Repeat khusus tombol di halaman Now Playing mobile: 'off' | 'all' | 'one'
 let _repeatMode = 'off';
@@ -9260,11 +9292,13 @@ function _topSongToTrack(t){
     videoId: null, photo: null, duration: t.duration, _query: `${t.artist}|||${t.title}|||${t.id}`
   };
 }
-function _playNextFromTopSongs(){
-  if(!_topSongsCache.length) return;
+async function _playNextFromTopSongs(){
+  const list = await _ensureTopSongsFullCache();
+  const source = list.length ? list : _topSongsCache;
+  if(!source.length) return;
   let idx = -1;
-  if(curTrack) idx = _topSongsCache.findIndex(t => `${t.artist}|||${t.title}|||${t.id}` === curTrack._query);
-  const nextRaw = _topSongsCache[idx === -1 ? 0 : (idx + 1) % _topSongsCache.length];
+  if(curTrack) idx = source.findIndex(t => `${t.artist}|||${t.title}|||${t.id}` === curTrack._query);
+  const nextRaw = source[idx === -1 ? 0 : (idx + 1) % source.length];
   if(!nextRaw) return;
   _nextGuarded = true;
   loadPlay(_topSongToTrack(nextRaw), null);
@@ -9272,6 +9306,14 @@ function _playNextFromTopSongs(){
 function playNext(){
   if(!curQueue.length){ _playNextFromTopSongs(); return; }
   const i = _qIdx();
+  // Kalau lagu yang baru selesai adalah lagu TERAKHIR di playlist/queue dan
+  // Repeat All tidak aktif, jangan wrap-around ke awal playlist — lanjutkan
+  // otomatis dengan Top Songs peringkat 1–99 (sama seperti saat user hanya
+  // memutar 1 lagu saja).
+  if(i !== -1 && i === curQueue.length - 1 && _repeatMode !== 'all'){
+    _playNextFromTopSongs();
+    return;
+  }
   const next = curQueue[i===-1 ? 0 : (i+1) % curQueue.length];
   if(!next) return;
   // Kunci guard selama proses pindah songs berlangsung — baru dilepas saat
@@ -11282,26 +11324,49 @@ function _renderNPPlaylists(){
 // mulai dari lagu setelah yang sedang diputar. Kalau user cuma memutar 1
 // lagu (curQueue kosong), tampilkan urutan lanjutan dari Top Songs — sama
 // persis dengan lagu yang akan otomatis diputar lewat _playNextFromTopSongs().
+function _topSongsForUpcoming(){
+  // Pakai daftar lengkap (1–99/100) kalau sudah ada di cache; kalau belum,
+  // mulai loading di background (akan re-render Next Up begitu selesai) dan
+  // sementara pakai 5 teratas dari Home supaya preview tidak kosong.
+  if(_topSongsFullCache.length) return _topSongsFullCache;
+  if(!_topSongsFullLoading) _ensureTopSongsFullCache().then(()=>_renderNPNextUp());
+  return _topSongsCache;
+}
 function _getUpcomingTracks(limit){
   limit = limit || 30;
   if(curQueue.length > 1){
     const i = _qIdx();
-    const startIdx = i===-1 ? 0 : (i+1) % curQueue.length;
     const out = [];
-    for(let k=0;k<curQueue.length-1 && out.length<limit;k++){
-      out.push(curQueue[(startIdx+k)%curQueue.length]);
+    if(i===-1 || _repeatMode==='all'){
+      const startIdx = i===-1 ? 0 : (i+1) % curQueue.length;
+      for(let k=0;k<curQueue.length-1 && out.length<limit;k++){
+        out.push(curQueue[(startIdx+k)%curQueue.length]);
+      }
+      return out;
+    }
+    // Tanpa Repeat All: tampilkan sisa lagu di playlist, lalu lanjut Top Songs
+    // 1–99 setelah lagu terakhir — sama seperti perilaku autoplay yang baru.
+    for(let k=i+1;k<curQueue.length && out.length<limit;k++){
+      out.push(curQueue[k]);
+    }
+    if(out.length<limit){
+      const topList = _topSongsForUpcoming();
+      for(let k=0;k<topList.length && out.length<limit;k++){
+        out.push(_topSongToTrack(topList[k]));
+      }
     }
     return out;
   }
-  if(_topSongsCache.length){
+  const topList = _topSongsForUpcoming();
+  if(topList.length){
     let idx=-1;
-    if(curTrack) idx=_topSongsCache.findIndex(t => `${t.artist}|||${t.title}|||${t.id}` === curTrack._query);
-    const total=_topSongsCache.length;
+    if(curTrack) idx=topList.findIndex(t => `${t.artist}|||${t.title}|||${t.id}` === curTrack._query);
+    const total=topList.length;
     const startIdx = idx===-1 ? 0 : (idx+1)%total;
     const count = idx===-1 ? total : total-1;
     const out=[];
     for(let k=0;k<count && out.length<limit;k++){
-      out.push(_topSongToTrack(_topSongsCache[(startIdx+k)%total]));
+      out.push(_topSongToTrack(topList[(startIdx+k)%total]));
     }
     return out;
   }
