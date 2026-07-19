@@ -730,11 +730,22 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .c-btn{background:none;border:none;color:var(--sub);cursor:pointer;transition:all .18s;padding:4px;border-radius:50%;display:flex;align-items:center;justify-content:center}
 .c-btn:hover{color:var(--text);transform:scale(1.1)}
 .c-btn svg{width:17px;height:17px}
-/* "Lyrics" text button — kept clearly apart from the prev/play/next cluster */
-.c-btn-text{margin-left:14px;padding:6px 12px;border-radius:50px;border:1px solid var(--border);font-family:var(--f);font-size:.72rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;}
-.c-btn-text:hover{border-color:var(--text);transform:none;background:var(--hover)}
-.c-btn-text.active{color:var(--green);border-color:var(--green);background:var(--green-dim)}
-.btn-lyrics-icon{display:none;width:16px;height:16px;}
+/* "Lyrics" button — di desktop kini tombol ikon bulat polos, meniru gaya
+   tombol Lyrics yang ada di halaman Now Playing versi mobile (bukan lagi pil
+   bertuliskan teks). */
+.c-btn-text{margin-left:2px;padding:4px;border-radius:50%;border:none;}
+.c-btn-text:hover{border-color:transparent;transform:scale(1.1);background:var(--hover)}
+.c-btn-text.active{color:var(--green);border-color:transparent;background:none}
+.btn-lyrics-label{display:none;}
+.btn-lyrics-icon{display:block;width:17px;height:17px;}
+
+/* Tombol Repeat & Queue di kotak player desktop — mengikuti logika &
+   status yang sama dengan tombol Repeat/Queue di halaman Now Playing mobile
+   (lihat .np-mob-repeat-btn / .np-mob-queue-btn di CSS Now Playing), hanya
+   ukurannya disesuaikan supaya pas berjajar dengan prev/play/next/lyrics. */
+#btn-repeat{position:relative}
+#btn-repeat .np-mob-repeat-one-dot{width:11px;height:11px;font-size:.42rem;bottom:-2px;right:-2px;}
+.bar-queue-btn{display:flex}
 #btn-play{width:42px;height:42px;background:var(--text);border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0}
 #btn-play:hover{transform:scale(1.08);background:#fff;box-shadow:var(--green-glow)}
 #btn-play svg{width:19px;height:19px;color:#000}
@@ -1702,6 +1713,12 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .np-about-follow.following{border-color:var(--green);color:var(--green);}
 .np-about-bio{font-size:.8rem;line-height:1.65;color:rgba(255,255,255,.82);margin-top:14px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
 .np-right-col{display:flex;flex-direction:column;gap:16px;}
+/* Urutan default (tampilan PC): Albums → Next Up → Your Playlists.
+   Di mobile urutan ini diubah lewat media query di bawah supaya
+   Next Up pindah ke posisi paling bawah (setelah Your Playlists). */
+#np-card-albums{order:1}
+#np-card-nextup{order:2}
+#np-card-playlists{order:3}
 .np-right-col .np-card{flex:1;display:flex;flex-direction:column;min-height:0;}
 .np-albums-list{display:flex;flex-direction:column;gap:2px;overflow-y:auto;scrollbar-width:none;flex:1;max-height:170px;}
 .np-albums-list::-webkit-scrollbar{display:none}
@@ -1779,6 +1796,10 @@ body.np-is-fullscreen #bar{display:none !important;}
   .np-about-follow{font-size:.62rem;padding:4px 12px;}
   .np-about-bio{font-size:.68rem;line-height:1.45;margin-top:7px;-webkit-line-clamp:2;}
   .np-right-col{display:flex;flex-direction:column;gap:12px;}
+  /* Khusus mobile: Next Up dipindah ke posisi paling bawah, setelah
+     kotak Your Playlists (bukan di bawah Albums seperti di PC). */
+  #np-card-playlists{order:2}
+  #np-card-nextup{order:3}
   /* Kotak "Albums" & "Playlist" juga dibuat persegi kecil dengan ukuran
      yang sama dengan kotak foto album (.np-art). */
   .np-right-col .np-card{aspect-ratio:1;min-height:0;width:min(280px,68vw);margin:0 auto;}
@@ -4694,6 +4715,10 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   </button>
   <div class="bar-ctrl">
     <div class="ctrl-btns">
+      <button class="c-btn np-mob-repeat-btn" id="btn-repeat" onclick="toggleRepeatMode()" title="Repeat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
+        <span class="np-mob-repeat-one-dot">1</span>
+      </button>
       <button class="c-btn" id="btn-prev">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
       </button>
@@ -4707,6 +4732,9 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
       <button class="c-btn c-btn-text" id="btn-lyrics" onclick="toggleFSLyrics()" title="Show Lyrics">
         <svg class="btn-lyrics-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4M9 22h6"/></svg>
         <span class="btn-lyrics-label">Lyrics</span>
+      </button>
+      <button class="c-btn bar-queue-btn" id="btn-queue" onclick="goToPlayingPlaylist()" title="Queue" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h10"/><path d="m18 15 3 3-3 3"/></svg>
       </button>
     </div>
     <div class="prog-wrap">
@@ -4896,11 +4924,15 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
         </div>
       </div>
       <div class="np-right-col">
-        <div class="np-card">
+        <div class="np-card" id="np-card-albums">
           <div class="np-card-head"><h4>Albums</h4></div>
           <div class="np-albums-list" id="np-albums-list"></div>
         </div>
-        <div class="np-card">
+        <div class="np-card" id="np-card-nextup">
+          <div class="np-card-head"><h4>Next Up</h4></div>
+          <div class="np-albums-list" id="np-nextup-list"></div>
+        </div>
+        <div class="np-card" id="np-card-playlists">
           <div class="np-card-head"><h4>Your Playlists</h4><span class="np-showall" onclick="closeNP();showHomeView()">Show all</span></div>
           <div class="np-pl-list" id="np-pl-list"></div>
         </div>
@@ -5199,6 +5231,10 @@ let YTP = null;
 let playing = false, cur = 0, tot = 0, raf = null;
 let lyrCache = {}, lyrs = [], curTrack = null;
 let curQueue = []; // songs yang sedang dalam antrian putar
+// Cache daftar lagu di section "Top Songs" (home), dipakai sebagai lanjutan
+// otomatis kalau user memutar 1 lagu saja (bukan dari playlist/queue apa pun)
+// dan lagu tsb selesai — lihat _playNextFromTopSongs().
+let _topSongsCache = [];
 let _currentDailyMix = null; // daily mix yang sedang dibuka di playlist-view
 // Mode Repeat khusus tombol di halaman Now Playing mobile: 'off' | 'all' | 'one'
 let _repeatMode = 'off';
@@ -9202,8 +9238,28 @@ async function _prefetchNext(){
   } catch(e){}
   _prefetching.delete(next._query);
 }
+// Dipakai saat user hanya memutar 1 lagu (bukan dari playlist/queue apa pun,
+// curQueue kosong) dan lagu itu selesai secara alami — lanjutkan otomatis
+// dengan lagu-lagu di section "Top Songs" secara berurutan dari awal, lalu
+// lanjut mengikuti urutan Top Songs (mulai dari lagu setelah lagu yg baru
+// selesai, kalau lagu itu kebetulan ada di daftar Top Songs).
+function _topSongToTrack(t){
+  return {
+    title: t.title, artist: t.artist, thumb: t.thumb || '', preview: t.preview || null,
+    videoId: null, photo: null, duration: t.duration, _query: `${t.artist}|||${t.title}|||${t.id}`
+  };
+}
+function _playNextFromTopSongs(){
+  if(!_topSongsCache.length) return;
+  let idx = -1;
+  if(curTrack) idx = _topSongsCache.findIndex(t => `${t.artist}|||${t.title}|||${t.id}` === curTrack._query);
+  const nextRaw = _topSongsCache[idx === -1 ? 0 : (idx + 1) % _topSongsCache.length];
+  if(!nextRaw) return;
+  _nextGuarded = true;
+  loadPlay(_topSongToTrack(nextRaw), null);
+}
 function playNext(){
-  if(!curQueue.length) return;
+  if(!curQueue.length){ _playNextFromTopSongs(); return; }
   const i = _qIdx();
   const next = curQueue[i===-1 ? 0 : (i+1) % curQueue.length];
   if(!next) return;
@@ -10959,6 +11015,7 @@ function openNP(track){
   _updateNPArtistCard(track);
   _updateNPAlbumsBox(track);
   _renderNPPlaylists();
+  _renderNPNextUp();
   // Reset posisi scroll & jalankan ulang animasi header setiap kali halaman Now Playing dibuka
   const scrollEl=document.getElementById('np-scroll');
   if(scrollEl) scrollEl.scrollTop=0;
@@ -10981,10 +11038,10 @@ function updateNPMobAddBtn(track){
 // Tombol Queue di halaman Now Playing mobile: hanya tampil kalau memang
 // sedang memutar songs dari sebuah playlist (bukan Daily Mix / single track dsb)
 function updateNPMobQueueBtn(){
-  const btn=document.getElementById('np-mob-queue-btn');
-  if(!btn) return;
   const canShow = !!(_npPlayingPlId && playlists && playlists[_npPlayingPlId]);
-  btn.style.display = canShow ? 'flex' : 'none';
+  document.querySelectorAll('#np-mob-queue-btn, .bar-queue-btn').forEach(btn=>{
+    btn.style.display = canShow ? 'flex' : 'none';
+  });
 }
 // Diklik dari tombol Queue: tutup Now Playing lalu arahkan ke halaman playlist yang sedang diputar
 function goToPlayingPlaylist(){
@@ -11205,6 +11262,57 @@ function _renderNPPlaylists(){
       </div>
     `;
     d.addEventListener('click', ()=>{ closeNP(); showPlaylistView(id); });
+    c.appendChild(d);
+  });
+}
+
+// ── Kotak "Next Up" — daftar lagu setelah lagu yang sedang diputar ──
+// Kalau sedang memutar dari playlist/queue apa pun, urutannya ikut curQueue
+// mulai dari lagu setelah yang sedang diputar. Kalau user cuma memutar 1
+// lagu (curQueue kosong), tampilkan urutan lanjutan dari Top Songs — sama
+// persis dengan lagu yang akan otomatis diputar lewat _playNextFromTopSongs().
+function _getUpcomingTracks(limit){
+  limit = limit || 30;
+  if(curQueue.length > 1){
+    const i = _qIdx();
+    const startIdx = i===-1 ? 0 : (i+1) % curQueue.length;
+    const out = [];
+    for(let k=0;k<curQueue.length-1 && out.length<limit;k++){
+      out.push(curQueue[(startIdx+k)%curQueue.length]);
+    }
+    return out;
+  }
+  if(_topSongsCache.length){
+    let idx=-1;
+    if(curTrack) idx=_topSongsCache.findIndex(t => `${t.artist}|||${t.title}|||${t.id}` === curTrack._query);
+    const total=_topSongsCache.length;
+    const startIdx = idx===-1 ? 0 : (idx+1)%total;
+    const count = idx===-1 ? total : total-1;
+    const out=[];
+    for(let k=0;k<count && out.length<limit;k++){
+      out.push(_topSongToTrack(_topSongsCache[(startIdx+k)%total]));
+    }
+    return out;
+  }
+  return [];
+}
+function _renderNPNextUp(){
+  const c=document.getElementById('np-nextup-list');
+  if(!c) return;
+  const upcoming=_getUpcomingTracks();
+  if(!upcoming.length){ c.innerHTML='<div class="np-albums-empty">No more songs queued</div>'; return; }
+  c.innerHTML='';
+  upcoming.forEach(t=>{
+    const d=document.createElement('div');
+    d.className='np-album-row';
+    d.innerHTML=`
+      ${t.thumb ? `<img class="np-album-cover" src="${esc(t.thumb)}" alt="" loading="lazy" onerror="this.style.display='none'">` : `<div class="np-album-cover-ph"></div>`}
+      <div class="np-album-info">
+        <div class="np-album-title">${esc(t.title)}</div>
+        <div class="np-album-year">${esc(t.artist || '')}</div>
+      </div>
+    `;
+    d.addEventListener('click', (e)=>{ e.stopPropagation(); loadPlay(t, currentPlaylistId); });
     c.appendChild(d);
   });
 }
@@ -15324,6 +15432,7 @@ function syncRankAddButtons() {
 }
 
 function renderTrendingSongs(items) {
+  _topSongsCache = items || [];
   const c = document.getElementById('rank-grid');
   if (!c) return;
   c.innerHTML = '';
