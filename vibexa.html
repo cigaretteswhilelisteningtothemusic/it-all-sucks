@@ -16909,9 +16909,21 @@ let _deferredInstallPrompt = null;
 
 // Browser (Chrome/Edge/Android) menyiapkan prompt instalasi native di sini.
 // Kita simpan eventnya supaya bisa dipanggil manual saat user menekan tombol Download.
+//
+// Catatan penting: browser Chromium TIDAK akan fire event ini kalau app sedang
+// terpasang. Jadi kalau event ini fire lagi padahal kita sebelumnya sudah
+// menandai 'vibexa_pwa_installed', itu bukti kuat user baru saja meng-uninstall
+// app-nya — reset flag itu supaya notifikasi "Download" muncul lagi di bell.
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   _deferredInstallPrompt = e;
+
+  const wasMarkedInstalled = localStorage.getItem('vibexa_pwa_installed') === '1';
+  if (wasMarkedInstalled) {
+    localStorage.removeItem('vibexa_pwa_installed');
+    localStorage.removeItem('vibexa_pwa_dismissed_version'); // abaikan "Nanti" lama, situasinya sudah beda
+    renderNotifications(_notifCache);
+  }
 });
 
 // Kalau user berhasil install (lewat prompt native ATAU cara manual browser),
@@ -16938,9 +16950,16 @@ async function downloadAppNow() {
       console.error('PWA install prompt gagal:', err);
     }
   }
-  // Browser tidak mendukung prompt install otomatis (mis. Opera, Firefox, Safari) —
-  // tampilkan pesan singkat, bukan langkah-langkah manual.
-  toast('This app can only be downloaded on Chrome. Not yet supported in this browser.');
+  // Kalau app sudah terpasang sebelumnya di browser ini, Chrome/Edge/dll
+  // sengaja tidak akan fire beforeinstallprompt lagi — jadi ini BUKAN berarti
+  // browsernya tidak didukung, tapi appnya memang sudah diinstall.
+  if (isPwaInstalled()) {
+    toast('Vibexa is already installed on this device.', 6000);
+    return;
+  }
+  // Browser benar-benar tidak mendukung prompt install otomatis
+  // (mis. Opera, Firefox, Safari) — tampilkan pesan singkat, bukan langkah manual.
+  toast('This app can only be downloaded on Chrome. Not yet supported in this browser.', 6000);
 }
 
 // ══════════════════════════════════════════════════════════
