@@ -1761,7 +1761,14 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 #np-view.np-fullscreen #np-topbar{background:transparent !important;box-shadow:none !important;justify-content:flex-end;}
 /* Fase morphing: grid masih ada di layout tapi memudar dulu (opacity+scale),
    baru di fase final (.np-fullscreen) beneran dihilangkan (display:none). */
-#np-view.np-fs-morphing .np-grid{opacity:0;transform:scale(.98);pointer-events:none;transition:opacity .32s ease,transform .32s ease;}
+#np-view.np-fs-morphing .np-grid{pointer-events:none;}
+/* Kotak kanan (Albums/Playlists/Next Up — "kotak play") menutup cepat,
+   seperti laci/lid yang mengatup dari bawah ke atas. */
+.np-right-col{transform-origin:top center;transition:opacity .3s ease,transform .32s cubic-bezier(.4,0,.2,1);}
+#np-view.np-fs-morphing .np-right-col{opacity:0;transform:scaleY(0);}
+/* Kotak "About the artist" meluncur turun perlahan sambil memudar. */
+.np-about-card-big{transition:opacity .55s ease .04s,transform .55s cubic-bezier(.22,1,.36,1) .04s;}
+#np-view.np-fs-morphing .np-about-card-big{opacity:0;transform:translateY(70px);}
 #np-view.np-fullscreen .np-grid{display:none !important;}
 #np-view.np-fs-morphing #np-scroll,
 #np-view.np-fullscreen #np-scroll{padding:10px 8% 60px;}
@@ -11237,7 +11244,7 @@ function _updateNPScrollFx(){
 // selesai, class struktural (yang benar2 men-display:none-kan/mengubah layout)
 // dipasang/dilepas. Karena state akhir "morph" & "fullscreen" sama persis
 // secara visual, perpindahannya jadi mulus, tidak ada lompatan.
-const NP_FS_MORPH_MS = 380; // durasi fase morph — harus selaras dgn transition di CSS
+const NP_FS_MORPH_MS = 600; // durasi fase morph — harus selaras dgn transition terlama di CSS (kotak "about artist")
 let _npFsAnimTimer = null;
 
 function toggleNPFullscreen(force){
