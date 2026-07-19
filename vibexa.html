@@ -1762,19 +1762,17 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 /* Fase morphing: grid masih ada di layout tapi memudar dulu (opacity+scale),
    baru di fase final (.np-fullscreen) beneran dihilangkan (display:none). */
 #np-view.np-fs-morphing .np-grid{pointer-events:none;}
-/* Kotak "play" (Albums / Playlists / Next Up di kolom kanan) menutup satu-
-   per-satu berurutan — meluncur ke SAMPING KANAN sambil memudar, berlawanan
-   arah dengan kotak "About the artist" di sebelahnya (yang meluncur ke kiri)
-   — seperti dua panel yang terbuka/membelah ke arah luar. */
-.np-right-col .np-card{transition:opacity 1.1s ease,transform 1.2s cubic-bezier(.22,1,.36,1);}
-#np-view.np-fs-morphing .np-right-col .np-card{opacity:0;transform:translateX(150px);}
-#np-view.np-fs-morphing .np-right-col .np-card:nth-child(1){transition-delay:0s;}
-#np-view.np-fs-morphing .np-right-col .np-card:nth-child(2){transition-delay:.45s;}
-#np-view.np-fs-morphing .np-right-col .np-card:nth-child(3){transition-delay:.9s;}
-/* Kotak "About the artist" (di bawah foto album) meluncur ke SAMPING KIRI
-   perlahan sambil memudar, sampai menghilang sepenuhnya. */
-.np-about-card-big{transition:opacity 1.6s ease .25s,transform 1.6s cubic-bezier(.22,1,.36,1) .25s;}
-#np-view.np-fs-morphing .np-about-card-big{opacity:0;transform:translateX(-150px);}
+/* Kotak "play" (Albums / Playlists / Next Up di kolom kanan) & kotak "About
+   the artist" menutup BERSAMAAN (di waktu yang sama persis, tanpa jeda
+   berurutan) — meluncur ke SAMPING, saling berlawanan arah, jelas terlihat
+   bergerak menyamping jauh sampai keluar area kotaknya masing-masing. */
+.np-right-col .np-card{transition:opacity 1.3s ease,transform 1.3s cubic-bezier(.22,1,.36,1);}
+#np-view.np-fs-morphing .np-right-col .np-card{opacity:0;transform:translateX(120%);}
+/* Kotak "About the artist" (di bawah foto album) meluncur ke SAMPING KIRI,
+   di waktu yang sama persis dengan kotak Albums di atas, sampai menghilang
+   sepenuhnya keluar layar. */
+.np-about-card-big{transition:opacity 1.3s ease,transform 1.3s cubic-bezier(.22,1,.36,1);}
+#np-view.np-fs-morphing .np-about-card-big{opacity:0;transform:translateX(-120%);}
 #np-view.np-fullscreen .np-grid{display:none !important;}
 #np-view.np-fs-morphing #np-scroll,
 #np-view.np-fullscreen #np-scroll{padding:10px 8% 60px;}
