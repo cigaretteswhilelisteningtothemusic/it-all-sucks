@@ -1848,7 +1848,18 @@ body.np-fs-final #bar{display:none !important;}
      media query ini) TIDAK diubah sama sekali. */
   .np-mob-add-btn{display:flex;}
   .np-mob-controls{display:flex;margin-top:14px;gap:14px;}
-  .np-hero{padding-bottom:4px;}
+  /* Kotak "Tentang Artis" (& Albums/Playlist di bawahnya) didorong turun
+     sampai berada di luar area yang terlihat sebelum di-scroll: .np-hero
+     dibuat setinggi penuh area scroll yang tampak (min-height:100%, relatif
+     ke tinggi #np-scroll yang sudah pasti/definite lewat calc di atas),
+     lalu isinya (foto album + judul + kontrol) di-center secara vertikal
+     memakai justify-content — BUKAN dengan memperbesar/mengecilkan ukuran
+     foto album atau kontrolnya sendiri. Jadi tidak ada kotak kosong yang
+     "menggantung": ruang ekstra dipakai untuk menengahkan konten secara
+     wajar (persis gaya halaman Now Playing Spotify asli), sekaligus kotak
+     "Tentang Artis" otomatis berada tepat di bawah batas layar & baru
+     kelihatan begitu user scroll ke bawah. */
+  .np-hero{padding-bottom:4px;min-height:100%;justify-content:center;}
   .np-track-title{margin-top:12px;}
   .np-track-artist{margin-top:3px;}
   /* Kotak "Tentang Artis", "Albums" & "Playlist" persegi tapi UKURAN
@@ -1878,9 +1889,9 @@ body.np-fs-final #bar{display:none !important;}
   #np-card-nextup{display:block;}
   /* Kotak "Albums" & "Playlist" juga dibuat persegi kecil dengan ukuran
      yang sama dengan kotak foto album (.np-art). */
-  .np-right-col .np-card{flex:none;aspect-ratio:1;height:min(280px,68vw);min-height:0;width:min(280px,68vw);margin:0 auto;overflow:hidden;display:flex;flex-direction:column;}
+  .np-right-col .np-card{flex:none;height:min(280px,68vw);min-height:0;width:min(280px,68vw);margin:0 auto;overflow:hidden;display:flex;flex-direction:column;}
   .np-right-col .np-card-head{flex-shrink:0;}
-  .np-albums-list,.np-pl-list{flex:1 1 auto;max-height:none;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  .np-albums-list,.np-pl-list{flex:1 1 0;max-height:none;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;}
   .np-album-cover,.np-album-cover-ph,.np-pl-thumb,.np-pl-ph{width:30px;height:30px;}
   .np-album-title,.np-pl-name{font-size:.72rem;}
   .np-album-year,.np-pl-count{font-size:.6rem;}
