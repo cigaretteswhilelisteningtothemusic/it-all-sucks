@@ -3899,7 +3899,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
       <div class="dm-grid" id="daily-mix-grid"></div>
     </div>
 
-    <!-- MIX TAHUNAN (6 playlist tetap: Hits that defined 1980/1990/2000/2010/2020/2026,
+    <!-- MIX TAHUNAN (9 playlist tetap: Hits that defined 1980/1990/1995/2000/2005/2010/2015/2020/2026,
          masing-masing 30 lagu yang populer di tahun tsb. Isinya DIKURASI MANUAL (statis),
          BUKAN hasil generate ulang tiap hari, dan SAMA untuk semua user — sekali di-resolve
          (cover + info lagu dari Deezer) lalu disimpan permanen di Firebase (tanpa stempel
@@ -13175,8 +13175,11 @@ function toggleDailyMixShowAll() {
 const YEAR_MIX_COLORS = {
   '1980': 'linear-gradient(135deg,#ffb238,#c97c00)',
   '1990': 'linear-gradient(135deg,#eaff2e,#a7b800)',
+  '1995': 'linear-gradient(135deg,#2eeecb,#0a8f79)',
   '2000': 'linear-gradient(135deg,#5ce87c,#1c8a3d)',
+  '2005': 'linear-gradient(135deg,#4d8bff,#1a4fb8)',
   '2010': 'linear-gradient(135deg,#26e0ff,#0e7c96)',
+  '2015': 'linear-gradient(135deg,#c17bff,#6b21a8)',
   '2020': 'linear-gradient(135deg,#ff6fc9,#a52a72)',
   '2026': 'linear-gradient(135deg,#ff5a4d,#a8281d)'
 };
@@ -13185,8 +13188,11 @@ const YEAR_MIX_COLORS = {
 const YEAR_MIX_GLOW = {
   '1980': 'rgba(255,178,56,.55)',
   '1990': 'rgba(216,255,46,.5)',
+  '1995': 'rgba(46,238,203,.5)',
   '2000': 'rgba(92,232,124,.5)',
+  '2005': 'rgba(77,139,255,.5)',
   '2010': 'rgba(38,224,255,.5)',
+  '2015': 'rgba(193,123,255,.5)',
   '2020': 'rgba(255,111,201,.5)',
   '2026': 'rgba(255,90,77,.5)'
 };
@@ -13262,6 +13268,41 @@ const YEAR_MIX_DEFS = [
     ]
   },
   {
+    key: '1995', label: 'Hits that defined 1995', color: YEAR_MIX_COLORS['1995'],
+    songs: [
+      { artist: 'Whitney Houston', title: 'I Will Always Love You' },
+      { artist: 'Nirvana', title: 'Smells Like Teen Spirit' },
+      { artist: 'Boyz II Men', title: 'End of the Road' },
+      { artist: 'Boyz II Men', title: "I'll Make Love to You" },
+      { artist: 'Bryan Adams', title: '(Everything I Do) I Do It for You' },
+      { artist: 'TLC', title: 'Waterfalls' },
+      { artist: 'Coolio', title: "Gangsta's Paradise" },
+      { artist: 'Ace of Base', title: 'The Sign' },
+      { artist: 'Mariah Carey', title: 'Fantasy' },
+      { artist: 'Mariah Carey', title: 'Hero' },
+      { artist: 'Mariah Carey', title: 'Dreamlover' },
+      { artist: 'Whigfield', title: 'Saturday Night' },
+      { artist: 'Haddaway', title: 'What Is Love' },
+      { artist: 'Snow', title: 'Informer' },
+      { artist: 'Sir Mix-a-Lot', title: 'Baby Got Back' },
+      { artist: 'En Vogue', title: "My Lovin' (You're Never Gonna Get It)" },
+      { artist: 'Whitney Houston', title: "I'm Every Woman" },
+      { artist: 'R.E.M.', title: 'Losing My Religion' },
+      { artist: 'Salt-N-Pepa', title: 'Shoop' },
+      { artist: 'C+C Music Factory', title: 'Gonna Make You Sweat (Everybody Dance Now)' },
+      { artist: 'Vanessa Williams', title: 'Save the Best for Last' },
+      { artist: 'Michael Jackson', title: 'Black or White' },
+      { artist: 'Michael Jackson', title: 'Remember the Time' },
+      { artist: 'All-4-One', title: 'I Swear' },
+      { artist: 'Seal', title: 'Kiss from a Rose' },
+      { artist: "Des'ree", title: 'You Gotta Be' },
+      { artist: 'Real McCoy', title: 'Another Night' },
+      { artist: 'Color Me Badd', title: 'I Wanna Sex You Up' },
+      { artist: 'Amy Grant', title: 'Baby Baby' },
+      { artist: 'Tag Team', title: 'Whoomp! (There It Is)' }
+    ]
+  },
+  {
     key: '2000', label: 'Hits that defined 2000', color: YEAR_MIX_COLORS['2000'],
     songs: [
       { artist: 'Faith Hill', title: 'Breathe' },
@@ -13297,6 +13338,41 @@ const YEAR_MIX_DEFS = [
     ]
   },
   {
+    key: '2005', label: 'Hits that defined 2005', color: YEAR_MIX_COLORS['2005'],
+    songs: [
+      { artist: 'Usher', title: 'Yeah!' },
+      { artist: 'OutKast', title: 'Hey Ya!' },
+      { artist: '50 Cent', title: 'In da Club' },
+      { artist: 'Black Eyed Peas', title: "Let's Get It Started" },
+      { artist: 'Kelly Clarkson', title: 'Since U Been Gone' },
+      { artist: 'Green Day', title: 'Boulevard of Broken Dreams' },
+      { artist: 'Nelly', title: 'Hot in Herre' },
+      { artist: 'Beyoncé', title: 'Crazy in Love' },
+      { artist: 'Gwen Stefani', title: 'Hollaback Girl' },
+      { artist: 'Mario', title: 'Let Me Love You' },
+      { artist: 'Ashanti', title: 'Foolish' },
+      { artist: 'Avril Lavigne', title: 'Complicated' },
+      { artist: 'Linkin Park', title: 'In the End' },
+      { artist: 'Shaggy', title: "It Wasn't Me" },
+      { artist: 'Christina Aguilera', title: 'Beautiful' },
+      { artist: 'Alicia Keys', title: "Fallin'" },
+      { artist: 'Nickelback', title: 'How You Remind Me' },
+      { artist: 'P!nk', title: 'Get the Party Started' },
+      { artist: 'Missy Elliott', title: 'Get Ur Freak On' },
+      { artist: 'R. Kelly', title: 'Ignition (Remix)' },
+      { artist: 'Ludacris', title: 'Stand Up' },
+      { artist: 'Maroon 5', title: 'This Love' },
+      { artist: 'Rihanna', title: 'Pon de Replay' },
+      { artist: 'Mariah Carey', title: 'We Belong Together' },
+      { artist: 'Sean Paul', title: 'Get Busy' },
+      { artist: 'Fabolous', title: "Can't Deny It" },
+      { artist: 'Coldplay', title: 'Clocks' },
+      { artist: 'Ja Rule', title: 'Always on Time' },
+      { artist: '3 Doors Down', title: 'Here Without You' },
+      { artist: 'Daniel Bedingfield', title: 'Gotta Get Thru This' }
+    ]
+  },
+  {
     key: '2010', label: 'Hits that defined 2010', color: YEAR_MIX_COLORS['2010'],
     songs: [
       { artist: "Ke$ha", title: 'Tik Tok' },
@@ -13329,6 +13405,41 @@ const YEAR_MIX_DEFS = [
       { artist: "Ke$ha", title: 'Blah Blah Blah' },
       { artist: 'Miley Cyrus', title: 'Party in the U.S.A.' },
       { artist: 'B.o.B', title: "Nothin' on You" }
+    ]
+  },
+  {
+    key: '2015', label: 'Hits that defined 2015', color: YEAR_MIX_COLORS['2015'],
+    songs: [
+      { artist: 'Adele', title: 'Rolling in the Deep' },
+      { artist: 'Adele', title: 'Someone Like You' },
+      { artist: 'Gotye', title: 'Somebody That I Used to Know' },
+      { artist: 'Carly Rae Jepsen', title: 'Call Me Maybe' },
+      { artist: 'PSY', title: 'Gangnam Style' },
+      { artist: 'Macklemore & Ryan Lewis', title: 'Thrift Shop' },
+      { artist: 'Robin Thicke', title: 'Blurred Lines' },
+      { artist: 'Daft Punk', title: 'Get Lucky' },
+      { artist: 'Lorde', title: 'Royals' },
+      { artist: 'Katy Perry', title: 'Roar' },
+      { artist: 'Pharrell Williams', title: 'Happy' },
+      { artist: 'John Legend', title: 'All of Me' },
+      { artist: 'Meghan Trainor', title: 'All About That Bass' },
+      { artist: 'Mark Ronson', title: 'Uptown Funk' },
+      { artist: 'Taylor Swift', title: 'Shake It Off' },
+      { artist: 'Ed Sheeran', title: 'Thinking Out Loud' },
+      { artist: 'Sam Smith', title: 'Stay with Me' },
+      { artist: 'Wiz Khalifa', title: 'See You Again' },
+      { artist: 'Adele', title: 'Hello' },
+      { artist: 'The Weeknd', title: "Can't Feel My Face" },
+      { artist: 'Silentó', title: 'Watch Me (Whip/Nae Nae)' },
+      { artist: 'Fetty Wap', title: 'Trap Queen' },
+      { artist: 'Omi', title: 'Cheerleader' },
+      { artist: 'Rihanna', title: 'Diamonds' },
+      { artist: 'One Direction', title: 'What Makes You Beautiful' },
+      { artist: 'LMFAO', title: 'Party Rock Anthem' },
+      { artist: 'Bruno Mars', title: 'Locked Out of Heaven' },
+      { artist: 'Imagine Dragons', title: 'Radioactive' },
+      { artist: 'Avicii', title: 'Wake Me Up' },
+      { artist: 'Iggy Azalea', title: 'Fancy' }
     ]
   },
   {
@@ -13467,7 +13578,7 @@ async function _ymBuildMix(def) {
   };
 }
 
-// Muat 6 Mix Tahunan. Urutan sumber: cache lokal (permanen, tanpa tanggal) ->
+// Muat 9 Mix Tahunan. Urutan sumber: cache lokal (permanen, tanpa tanggal) ->
 // data BERSAMA di Firebase (supaya semua user dapat hasil yang identik &
 // tidak perlu tiap orang resolve ulang ke Deezer) -> baru kalau benar-benar
 // belum ada, resolve dari nol lalu simpan sebagai data bersama.
