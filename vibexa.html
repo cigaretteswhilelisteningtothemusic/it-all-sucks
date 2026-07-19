@@ -1241,15 +1241,15 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
      atasnya) — hanya ikon saja, tanpa lingkaran warna, menyatu dengan
      tombol navigasi bawah lainnya. */
   .mob-nav-preview-center{
-    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
-    flex:none;width:46px;height:46px;padding:0;border-radius:50%;
+    position:absolute;left:50%;top:5px;transform:translateX(-50%);
+    flex:none;width:46px;padding:0;border-radius:12px;
     background:none;color:var(--muted);box-shadow:none;
-    z-index:11;
+    z-index:11;gap:2px;
   }
   .mob-nav-preview-center.on{color:#2e7dff!important;}
   .mob-nav-preview-center svg{width:22px;height:22px}
-  .mob-nav-preview-center span{display:none}
-  .mob-nav-preview-center:active{transform:translate(-50%,-50%) scale(.92)}
+  .mob-nav-preview-center span{display:block;font-size:.52rem;}
+  .mob-nav-preview-center:active{transform:translateX(-50%) scale(.92)}
   /* Tombol "Temukan" diletakkan berdekatan dengan tombol Home (tanpa jarak
      di antara keduanya). Jarak untuk menghindari lingkaran Preview yang ada
      persis di tengah dipindah ke SETELAH tombol Temukan (sebelum
@@ -5137,7 +5137,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   </button>
   <button class="mob-nav-btn mob-nav-preview-center" id="mob-btn-songpreview" onclick="mobNav('songpreview')" title="Song Preview">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M10 9.2v5.6l4.8-2.8z" fill="currentColor" stroke="none"/></svg>
-    <span>Preview</span>
+    <span>View</span>
   </button>
   <button class="mob-nav-btn mob-nav-vibeprofile" id="mob-btn-vibeprofile" onclick="window.location.href='vibeprofile.html'">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12h8M8 8h5M8 16h4"/><circle cx="17" cy="16" r="2.5" fill="currentColor" stroke="none"/><path d="M17 13.5V12" stroke-width="2"/></svg>
@@ -6207,6 +6207,9 @@ function syncMyDirectoryEntry(user) {
 
 // ── Buka / tutup overlay chat ───────────────────────────────
 function openChatOverlay() {
+  // Kalau halaman lirik fullscreen sedang terbuka, tutup dulu supaya user
+  // langsung diarahkan ke halaman Chat, bukan malah ketutupan lirik.
+  if (typeof closeFSLyricsIfOpen === 'function') { closeFSLyricsIfOpen(); }
   const mainEl = document.getElementById('main');
   if (mainEl) { mainEl.scrollTop = 0; mainEl.style.overflow = 'hidden'; }
   document.getElementById('chat-overlay').classList.add('show');
@@ -16718,6 +16721,9 @@ function toggleNotifPanel() {
   if (panel.classList.contains('open')) {
     closeNotifPanel();
   } else {
+    // Kalau halaman lirik fullscreen sedang terbuka, tutup dulu supaya user
+    // langsung diarahkan ke panel notifikasi, bukan malah ketutupan lirik.
+    if (typeof closeFSLyricsIfOpen === 'function') { closeFSLyricsIfOpen(); }
     panel.classList.add('open');
     overlay.classList.add('show');
   }
