@@ -16933,13 +16933,14 @@ async function downloadAppNow() {
         localStorage.setItem('vibexa_pwa_installed', '1');
       }
       renderNotifications(_notifCache);
+      return;
     } catch (err) {
       console.error('PWA install prompt gagal:', err);
     }
   }
-  // Kalau browser tidak mendukung prompt native (mis. Safari/iOS, atau
-  // prompt belum siap), tidak ada langkah manual apa pun yang ditampilkan —
-  // biarkan browser menangani proses install-nya sendiri lewat UI bawaannya.
+  // Browser tidak mendukung prompt install otomatis (mis. Opera, Firefox, Safari) —
+  // tampilkan pesan singkat, bukan langkah-langkah manual.
+  toast('This app can only be downloaded on Chrome. Not yet supported in this browser.');
 }
 
 // ══════════════════════════════════════════════════════════
