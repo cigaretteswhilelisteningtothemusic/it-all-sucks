@@ -7233,6 +7233,7 @@ async function flushSave() {
         name: pl.name,
         coverThumb: pl.coverThumb || '',
         public: pl.public || false,
+        sourceMixId: pl.sourceMixId || null,
         tracks: (pl.tracks || []).map(t => ({
           title: t.title || '',
           artist: t.artist || '',
@@ -7349,10 +7350,24 @@ async function syncPublicPlaylists() {
   }
 }
 
+// Supaya playlist yang baru ditambahkan (mis. dari Home/Daily Mix) TIDAK
+// pernah hilang/tertimpa gara-gara Firebase auth token refresh (yang bisa
+// memicu auth.onAuthStateChanged lagi di tengah sesi dan memanggil fungsi
+// ini ULANG), kita hanya benar-benar reload+timpa `playlists` dari cloud
+// SEKALI per sesi login. Panggilan berikutnya cukup dilewati saja karena
+// state lokal sudah jadi sumber kebenaran dan rutin ter-sync ke cloud
+// lewat scheduleSave().
+let _playlistsLoadedOnce = false;
+
 async function loadAllPlaylistsFromCloud() {
   if (!currentUser) return;
+  if (_playlistsLoadedOnce) return;
   setCloudStatus('saving', 'Loading playlist...');
   try {
+    // Pastikan tidak ada penambahan lokal yang masih menunggu debounce
+    // sebelum kita membaca dari cloud, supaya tidak ada race condition
+    // yang membuat data lokal ke-timpa oleh data cloud yang lebih lama.
+    await flushPendingSaveBeforeExit();
     const snap = await getPlRef().get();
     if (snap.exists()) {
       const data = snap.val();
@@ -7366,6 +7381,7 @@ async function loadAllPlaylistsFromCloud() {
             coverThumb: raw.coverThumb || '',
             cover: raw.coverThumb || '',
             public: raw.public || false,
+            sourceMixId: raw.sourceMixId || null,
             tracks: Array.isArray(raw.tracks) ? raw.tracks.map(t => ({
               title: t.title || '',
               artist: t.artist || '',
@@ -7379,6 +7395,7 @@ async function loadAllPlaylistsFromCloud() {
         toast(' ' + count + ' playlist dimuat');
       }
     }
+    _playlistsLoadedOnce = true;
     ensureLikedPlaylist();
     renderSidebarPlaylists();
     renderHomeGrid();
