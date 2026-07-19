@@ -3792,6 +3792,22 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
       <div class="fav-artist-grid" id="fav-artist-grid"></div>
     </div>
 
+    <!-- PLAYLIST BERDASARKAN WAKTU (8 playlist x 15 lagu trending saat ini,
+         judul & isi playlist berubah otomatis tergantung jam saat ini di
+         device user: 04:00-16:59 = teks "pagi/siang", 17:00-03:59 = teks
+         "malam". Playlist-nya GLOBAL untuk semua user, disimpan bersama di
+         Firebase per periode waktu, dan otomatis diperbarui begitu masuk
+         periode berikutnya tanpa perlu reload halaman — lihat
+         loadTimePlaylists() di JS.) -->
+    <div class="pub-section" id="time-playlist-section" style="display:none;">
+      <div class="pub-section-header">
+        <div class="pub-section-title">
+           <span id="time-playlist-title">Loading...</span>
+        </div>
+      </div>
+      <div class="dm-grid" id="time-playlist-grid"></div>
+    </div>
+
     <!-- WEEKDAY VIBES (9 playlist x 15 lagu trending saat ini, judul berubah tiap hari sesuai hari dalam seminggu, GLOBAL untuk semua user, diperbarui 1x sehari) -->
     <div class="pub-section" id="weekday-playlist-section" style="display:none;">
       <div class="pub-section-header">
@@ -5337,6 +5353,7 @@ auth.onAuthStateChanged(user => {
     _cleanupStaleLocalCache();
     loadAllPlaylistsFromCloud();
     loadFavoriteArtistsFromCloud();
+    loadTimePlaylists();
     startFriendSuggestionsListener();
     loadPublicFeed();
     loadTrendingSongs();
@@ -7617,6 +7634,13 @@ function renderFriendFavorites() {
     const isMine = currentUser && s.uid === currentUser.uid;
     const likeCount = s.likes ? Object.keys(s.likes).length : 0;
     const iLiked = !!(currentUser && s.likes && s.likes[currentUser.uid]);
+    // Pakai data terbaru dari node "directory" (live) kalau ada, supaya kalau
+    // pemilik saran mengganti nama/foto profil, bubble ini langsung ikut
+    // berubah — bukan memakai snapshot name/photo yang disimpan sekali saja
+    // saat lagu itu pertama kali disarankan (lihat addSongSuggestion()).
+    const liveSuggester = _chatDirectory[s.uid];
+    const suggesterName = (liveSuggester && liveSuggester.displayName) || s.name || 'User';
+    const suggesterPhoto = (liveSuggester && liveSuggester.photoURL) || s.photo || '';
     // Bubble catatan dibuat SAMA PERSIS dengan struktur di halaman profil
     // (fav-note-bubble > fav-note-text + fav-note-author), baris "author" di
     // sini memakai nama & foto user yang MENYARANKAN lagu itu. Bubble bisa
@@ -7628,8 +7652,8 @@ function renderFriendFavorites() {
            ${s.emoji ? `<span class="fav-note-emoji-badge">${esc(s.emoji)}</span>` : ''}
            <div class="fav-note-text">${esc(s.note)}</div>
            <div class="fav-note-author">
-             <span class="fav-note-author-name" onclick="event.stopPropagation();window.location.href='profile.html?uid=${encodeURIComponent(s.uid)}'">– ${esc(s.name || 'User')}</span>
-             <span class="fav-note-avatar" onclick="event.stopPropagation();window.location.href='profile.html?uid=${encodeURIComponent(s.uid)}'">${s.photo ? `<img src="${esc(s.photo)}" alt="">` : '👤'}</span>
+             <span class="fav-note-author-name" onclick="event.stopPropagation();window.location.href='profile.html?uid=${encodeURIComponent(s.uid)}'">– ${esc(suggesterName)}</span>
+             <span class="fav-note-avatar" onclick="event.stopPropagation();window.location.href='profile.html?uid=${encodeURIComponent(s.uid)}'">${suggesterPhoto ? `<img src="${esc(suggesterPhoto)}" alt="">` : '👤'}</span>
            </div>
          </div>`
       : '';
@@ -14540,6 +14564,271 @@ function toggleSadPlaylistShowAll() {
 // (weekday_playlist_shared_v2/{dateStr}), sama seperti Daily Mix, supaya
 // SEMUA user melihat 9 playlist yang identik pada hari yang sama, dan
 // otomatis berganti begitu tanggal (WIB) berpindah ke hari berikutnya.
+// ─── TIME PLAYLIST (playlist yang berubah tergantung waktu) ──────────────
+// Section ini menampilkan judul + 8 playlist x 15 lagu trending yang
+// otomatis berganti sesuai jam saat ini di device user (waktu lokal, sama
+// seperti Home GIF Banner di atas):
+//   04:00–16:59  -> "Make your day better with a playlist made just for you"
+//   17:00–03:59  -> "Let the music carry you through the night"
+// Setiap teks judul berganti, isi playlist-nya juga ikut diperbarui.
+// Playlist-nya BERSAMA untuk semua user (disimpan di Firebase, path
+// time_playlist_shared_v2/{periodKey}) supaya SEMUA user melihat 8 playlist
+// yang identik selama masih di periode waktu yang sama, dan otomatis
+// digenerate ulang begitu masuk periode berikutnya — tanpa perlu reload
+// halaman (dicek berkala tiap 30 detik, lihat _tpStartTimeWatcher()).
+const TIME_PLAYLIST_COUNT = 8;
+const TIME_TRACKS_PER_MIX = 15;
+const TIME_NEEDED_TOTAL = TIME_PLAYLIST_COUNT * TIME_TRACKS_PER_MIX; // 120 lagu
+
+// 'day' untuk jam 04:00–16:59, 'night' untuk jam 17:00–03:59
+function getTimePlaylistPeriod(date) {
+  date = date || new Date();
+  const h = date.getHours();
+  return (h >= 4 && h < 17) ? 'day' : 'night';
+}
+
+function getTimePlaylistTitle() {
+  return getTimePlaylistPeriod() === 'day'
+    ? 'Make your day better with a playlist made just for you'
+    : 'Let the music carry you through the night';
+}
+
+// Key gabungan tanggal+periode. Periode malam (17:00 s/d 03:59 keesokan
+// harinya) sengaja dikunci ke tanggal MULAINYA (bukan tanggal kalender saat
+// itu) supaya seluruh periode malam yang melewati tengah malam tetap
+// dianggap satu periode yang sama, bukan berganti mendadak jam 00:00.
+function _tpPeriodKey(date) {
+  date = date || new Date();
+  const h = date.getHours();
+  const period = getTimePlaylistPeriod(date);
+  const d = new Date(date);
+  if (period === 'night' && h < 4) d.setDate(d.getDate() - 1);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}_${period}`;
+}
+
+let _tpLastLoadedKey = null;
+let _tpTimeInterval = null;
+
+// Cek berkala apakah periode waktu sudah berganti (mis. dari "day" ke
+// "night" begitu jam 17:00 lewat). Kalau berganti, judul & playlist
+// langsung diperbarui otomatis tanpa perlu reload halaman.
+function _tpStartTimeWatcher() {
+  if (_tpTimeInterval) return;
+  _tpTimeInterval = setInterval(() => {
+    const key = _tpPeriodKey();
+    if (key !== _tpLastLoadedKey) loadTimePlaylists();
+  }, 30000); // cek tiap 30 detik
+}
+
+async function loadTimePlaylists(force) {
+  const section = document.getElementById('time-playlist-section');
+  const grid = document.getElementById('time-playlist-grid');
+  const titleEl = document.getElementById('time-playlist-title');
+  if (section) section.style.display = 'block';
+  // Judul langsung di-set sesuai jam saat ini, terlepas dari apakah
+  // playlist-nya nanti diambil dari cache atau digenerate ulang.
+  if (titleEl) titleEl.textContent = getTimePlaylistTitle();
+
+  const periodKey = _tpPeriodKey();
+  _tpLastLoadedKey = periodKey;
+  const cacheKey = 'vibexa_timeplaylists_v1_' + periodKey;
+
+  if (!force) {
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const mixes = JSON.parse(cached);
+        if (mixes && mixes.length) { renderTimePlaylists(mixes); _tpStartTimeWatcher(); return; }
+      }
+    } catch (e) { console.error('[TimePlaylist] gagal baca cache lokal:', e); }
+  }
+
+  // Time Playlist BERSAMA untuk semua user: sebelum generate sendiri, coba
+  // dulu ambil hasil yang sudah dibuat user lain pada periode ini dari
+  // Firebase. Kalau sudah ada, semua user pakai data yang sama persis.
+  if (!force) {
+    try {
+      const sharedSnap = await db.ref('time_playlist_shared_v2/' + periodKey).get();
+      if (sharedSnap.exists()) {
+        const sharedMixes = sharedSnap.val();
+        if (Array.isArray(sharedMixes) && sharedMixes.length) {
+          try { localStorage.setItem(cacheKey, JSON.stringify(sharedMixes)); } catch (e) { console.error('[TimePlaylist] gagal simpan cache lokal:', e); }
+          renderTimePlaylists(sharedMixes);
+          _tpStartTimeWatcher();
+          return;
+        }
+      }
+    } catch (e) {
+      console.error('[TimePlaylist] gagal baca time_playlist_shared_v2 dari Firebase (cek Firebase Rules):', e);
+    }
+  }
+
+  if (grid) grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;"><i></i><h3>Preparing your playlist...</h3></div>';
+
+  try {
+    // 1) Ambil chart top/trending Deezer SAAT INI (gabungan semua genre),
+    // lalu lengkapi dari chart per-genre — sumber sama seperti Daily Mix —
+    // supaya isinya lagu yang benar-benar lagi trending saat ini.
+    const seen = new Set();
+    let allRawTracks = [];
+    try {
+      const chartTracks = await _dmFetchRawTracks('https://api.deezer.com/chart/0/tracks?limit=100');
+      chartTracks.forEach(t => { if (!seen.has(t.id)) { seen.add(t.id); allRawTracks.push(t); } });
+    } catch (e) {}
+
+    try {
+      const genreData = await _deezerJsonp('https://api.deezer.com/genre');
+      const genreIds = ((genreData && genreData.data) || [])
+        .map(g => g.id)
+        .filter(id => id && id !== 0)
+        .slice(0, 10);
+      for (const gid of genreIds) {
+        try {
+          const gTracks = await _dmFetchRawTracks('https://api.deezer.com/chart/' + gid + '/tracks?limit=40');
+          gTracks.forEach(t => { if (!seen.has(t.id)) { seen.add(t.id); allRawTracks.push(t); } });
+        } catch (e) {}
+      }
+    } catch (e) {}
+
+    // 2) Saring: hanya lagu dari artis yang benar-benar terkenal (nb_fan tinggi).
+    let pool = await _dmFilterFamousTracks(allRawTracks, TIME_NEEDED_TOTAL);
+
+    // 3) Kalau masih belum cukup untuk 8 x 15 lagu, lengkapi dari lagu-lagu
+    // top milik artis-artis paling populer SAAT INI.
+    if (pool.length < TIME_NEEDED_TOTAL) {
+      try {
+        const artistData = await _deezerJsonp('https://api.deezer.com/chart/0/artists?limit=100');
+        const topArtists = ((artistData && artistData.data) || []).filter(a => (a.nb_fan || 0) >= DM_FAMOUS_FAN_THRESHOLD);
+        for (const artist of topArtists) {
+          if (pool.length >= TIME_NEEDED_TOTAL) break;
+          try {
+            const topTracks = await _dmFetchRawTracks('https://api.deezer.com/artist/' + artist.id + '/top?limit=30');
+            for (const t of topTracks) {
+              if (seen.has(t.id)) continue;
+              seen.add(t.id);
+              const track = { ...t, artistId: artist.id, artist: t.artist || artist.name };
+              allRawTracks.push(track);
+              if (pool.length < TIME_NEEDED_TOTAL) pool.push(track);
+            }
+          } catch (e) {}
+        }
+      } catch (e) {}
+    }
+
+    // 4) Jaring pengaman terakhir supaya 8 x 15 lagu selalu terpenuhi.
+    if (pool.length < TIME_NEEDED_TOTAL) {
+      const poolIds = new Set(pool.map(t => t.id));
+      for (const t of allRawTracks) {
+        if (pool.length >= TIME_NEEDED_TOTAL) break;
+        if (poolIds.has(t.id)) continue;
+        poolIds.add(t.id);
+        pool.push(t);
+      }
+    }
+
+    if (pool.length < TIME_TRACKS_PER_MIX) throw new Error('Trending song data insufficient');
+
+    // 5) Acak dengan seed berbasis periode waktu ini (stabil selama periode
+    // berjalan, otomatis berubah begitu masuk periode berikutnya) lalu bagi
+    // rata ke 8 playlist x 15 lagu.
+    const shuffledPool = _dmSeededShuffle(pool, cacheKey);
+    let mixes = [];
+    let offset = 0;
+    while (mixes.length < TIME_PLAYLIST_COUNT && offset + TIME_TRACKS_PER_MIX <= shuffledPool.length) {
+      const tracks = shuffledPool.slice(offset, offset + TIME_TRACKS_PER_MIX).map(t => ({ ...t, _query: `${t.artist}|||${t.title}|||${t.id}` }));
+
+      // Judul playlist = nama-nama artis yang lagunya ada di situ.
+      const uniqueArtists = [];
+      for (const t of tracks) { if (!uniqueArtists.includes(t.artist)) uniqueArtists.push(t.artist); if (uniqueArtists.length >= 2) break; }
+      mixes.push({
+        id: 'time_' + periodKey + '_' + offset,
+        label: getTimePlaylistPeriod() === 'day' ? 'Daytime' : 'Nighttime',
+        title: uniqueArtists.length >= 2 ? `${uniqueArtists[0]} and ${uniqueArtists[1]}` : (uniqueArtists[0] || 'Your Playlist'),
+        cover: tracks[0].thumb,
+        tracks
+      });
+      offset += TIME_TRACKS_PER_MIX;
+    }
+
+    if (!mixes.length) throw new Error('Failed to create Time Playlist');
+
+    // Simpan hasil generate ini sebagai playlist BERSAMA di Firebase supaya
+    // user lain di periode ini tinggal membaca, bukan generate ulang.
+    try {
+      const txResult = await db.ref('time_playlist_shared_v2/' + periodKey).transaction(current => {
+        if (current) return; // sudah ada -> batalkan, jangan timpa
+        return mixes;
+      });
+      if (txResult && txResult.snapshot && txResult.snapshot.exists()) {
+        const finalMixes = txResult.snapshot.val();
+        if (Array.isArray(finalMixes) && finalMixes.length) mixes = finalMixes;
+      }
+      // Bersihkan entri periode-periode lama supaya node ini tidak menumpuk.
+      db.ref('time_playlist_shared_v2').get().then(snap => {
+        if (!snap.exists()) return;
+        snap.forEach(child => {
+          if (child.key !== periodKey) db.ref('time_playlist_shared_v2/' + child.key).remove().catch(() => {});
+        });
+      }).catch(() => {});
+    } catch (e) {
+      console.error('[TimePlaylist] gagal tulis time_playlist_shared_v2 ke Firebase (cek Firebase Rules):', e);
+    }
+
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify(mixes));
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith('vibexa_timeplaylists_v') && k !== cacheKey) localStorage.removeItem(k);
+      });
+    } catch (e) {
+      console.error('[TimePlaylist] gagal simpan cache lokal, coba bersihkan & ulang:', e);
+      try {
+        Object.keys(localStorage).forEach(k => { if (k.startsWith('vibexa_')) localStorage.removeItem(k); });
+        localStorage.setItem(cacheKey, JSON.stringify(mixes));
+      } catch (e2) { console.error('[TimePlaylist] tetap gagal simpan cache lokal:', e2); }
+    }
+
+    renderTimePlaylists(mixes);
+    _tpStartTimeWatcher();
+  } catch (e) {
+    console.error('loadTimePlaylists error:', e);
+    if (grid) grid.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;color:var(--sub)"> Failed to load playlist, try refreshing.</div>';
+    _tpStartTimeWatcher();
+  }
+}
+
+function renderTimePlaylists(mixes) {
+  const c = document.getElementById('time-playlist-grid');
+  if (!c) return;
+  c.innerHTML = '';
+  mixes.forEach((mix, i) => c.appendChild(buildTimePlaylistCardEl(mix, i)));
+}
+
+function buildTimePlaylistCardEl(mix, i) {
+  const color = DM_COLORS[i % DM_COLORS.length];
+  const num = String(i + 1).padStart(2, '0');
+  const div = document.createElement('div');
+  div.className = 'dm-card';
+  div.innerHTML = `
+    <div class="dm-cover-wrap">
+      ${mix.cover ? `<img class="dm-cover-img" src="${esc(mix.cover)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
+      <div class="dm-cover-ov">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </div>
+      <div class="dm-badge-mix">${esc(mix.label || 'Mix')}</div>
+      <div class="dm-badge-num" style="color:${color}">${num}</div>
+      ${mixLibBtnHtml(mix)}
+    </div>
+    <div class="dm-title">${esc(mix.title)}</div>
+  `;
+  div.querySelector('.dm-cover-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
+  attachMixLibBtn(div, mix);
+  div.addEventListener('click', () => openDailyMix(mix));
+  return div;
+}
+
 const WEEKDAY_PLAYLIST_COUNT = 9;
 const WEEKDAY_TRACKS_PER_MIX = 15;
 const WEEKDAY_NEEDED_TOTAL = WEEKDAY_PLAYLIST_COUNT * WEEKDAY_TRACKS_PER_MIX; // 135 lagu

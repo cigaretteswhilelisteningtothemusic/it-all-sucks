@@ -1529,6 +1529,10 @@ async function saveProfile() {
   try {
     await db.ref('users/' + currentUser.uid + '/profile').update({ displayName: name, bio, about, marqueeText, bgColor });
     await currentUser.updateProfile({ displayName: name });
+    // Sinkronkan juga node "directory" (dipakai fitur Chat di vibexa.html untuk
+    // menampilkan nama secara real-time) supaya nama baru langsung terlihat di
+    // Chat tanpa perlu menunggu vibexa.html dimuat ulang.
+    db.ref('directory/' + currentUser.uid).update({ displayName: name, updatedAt: Date.now() }).catch(() => {});
     document.getElementById('display-name').textContent = name;
     document.getElementById('user-bio').textContent = bio || 'No description yet';
     document.getElementById('user-bio').style.fontStyle = bio ? 'normal' : 'italic';
@@ -1647,6 +1651,10 @@ async function savePhoto() {
     // Store as base64 in DB (small sized)
     const compressed = await compressImage(pendingPhotoData, 200, 200, 0.7);
     await db.ref('users/' + currentUser.uid + '/profile/photoURL').set(compressed);
+    // Sinkronkan juga node "directory" (dipakai fitur Chat di vibexa.html untuk
+    // menampilkan foto secara real-time) supaya foto baru langsung terlihat di
+    // Chat tanpa perlu menunggu vibexa.html dimuat ulang.
+    db.ref('directory/' + currentUser.uid).update({ photoURL: compressed, updatedAt: Date.now() }).catch(() => {});
     // Update public playlists with new photo
     const ids = Object.keys(myPlaylists).filter(id => myPlaylists[id].public);
     for (const id of ids) {
