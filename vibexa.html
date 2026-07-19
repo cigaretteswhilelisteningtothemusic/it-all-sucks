@@ -1860,14 +1860,13 @@ body.np-fs-final #bar{display:none !important;}
   .np-card-head{margin-bottom:8px;}
   .np-card-head h4{font-size:.85rem;}
   .np-card-head .np-showall{font-size:.62rem;}
-  /* Kotak "Tentang Artis" disembunyikan total di tampilan mobile (bukan
-     cuma diperkecil) — pakai display:none supaya elemen di atasnya (hero,
-     kontrol pemutaran) tidak ikut menyempit menyesuaikan kotak ini, dan
-     tidak ada ruang kosong tersisa: kotak Albums/Playlist di bawahnya
-     otomatis naik mengisi tempatnya karena display:none melepas elemen
-     ini sepenuhnya dari alur layout (bukan cuma disembunyikan visual). */
-  #np-about-card{display:none !important;}
-  .np-about-card-big{aspect-ratio:1;min-height:0;width:min(250px,62vw);margin:0 auto;}
+  /* Kotak "Tentang Artis" TIDAK dihilangkan — tetap ada di halaman, hanya
+     posisinya dipindah ke PALING BAWAH (di bawah Albums/Playlist/Next Up)
+     memakai "order", supaya baru terlihat kalau user scroll ke bawah, dan
+     elemen di atasnya (foto album, kontrol pemutaran) tidak ikut menyempit
+     karena kotak ini tidak lagi berada di urutan paling atas konten scroll. */
+  .np-about-card-big{order:2;aspect-ratio:1;min-height:0;width:min(250px,62vw);margin:0 auto;}
+  .np-right-col{order:1;}
   .np-card-label{font-size:.8rem;top:12px;left:14px;}
   .np-about-overlay{padding:12px;}
   .np-about-overlay .np-about-name{font-size:.92rem;}
@@ -1882,7 +1881,7 @@ body.np-fs-final #bar{display:none !important;}
   /* Kotak "Albums" & "Playlist" juga dibuat persegi kecil dengan ukuran
      yang sama dengan kotak foto album (.np-art). */
   .np-right-col .np-card{aspect-ratio:1;min-height:0;width:min(280px,68vw);margin:0 auto;}
-  .np-albums-list,.np-pl-list{max-height:none;}
+  .np-albums-list,.np-pl-list{max-height:none;min-height:0;}
   .np-album-cover,.np-album-cover-ph,.np-pl-thumb,.np-pl-ph{width:30px;height:30px;}
   .np-album-title,.np-pl-name{font-size:.72rem;}
   .np-album-year,.np-pl-count{font-size:.6rem;}
