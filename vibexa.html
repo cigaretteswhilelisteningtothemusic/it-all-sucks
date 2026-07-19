@@ -1326,6 +1326,21 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
     display:none !important;
   }
 
+  /* Saat keyboard HP terbuka di halaman Chat (user sedang mengetik pesan):
+     navigasi bawah (#mob-nav) DISEMBUNYIKAN sepenuhnya beserta barisnya di
+     grid, supaya tidak ikut "naik" mengambang di atas keyboard. Dengan
+     begitu, kotak tulis pesan beserta tombol-tombol di sampingnya (lampiran,
+     GIF, kirim) langsung menempel tepat di atas keyboard — tetap di bawah,
+     tidak melompat naik bersama #mob-nav. Class "chat-kb-open" ditambahkan/
+     dihapus otomatis lewat JS (lihat listener window.visualViewport). */
+  body.chat-kb-open{
+    grid-template-rows:60px 1fr !important;
+    grid-template-areas:"topbar""main" !important;
+  }
+  body.chat-kb-open #mob-nav{
+    display:none !important;
+  }
+
   /* ════════════════════════════════
      HALAMAN NOW PLAYING — mobile: sembunyikan mini player
   ════════════════════════════════ */
@@ -5990,6 +6005,7 @@ function closeChatOverlay() {
   detachChatMessagesListener();
   if (_chatSelectMode) exitChatSelectMode();
   document.body.classList.remove('chat-mobile-open');
+  document.body.classList.remove('chat-kb-open');
 }
 
 // ── Auto-tutup halaman Chat saat tombol lain ditekan ─────────
@@ -10711,6 +10727,34 @@ window.showSearchView = function(){
 
 window.addEventListener('resize', initMobileNav);
 initMobileNav();
+
+// ─── Deteksi keyboard HP terbuka khusus di halaman Chat ────
+// Saat user mengetik pesan di #chat-input dan keyboard HP muncul, browser
+// mobile mengecilkan tinggi visualViewport. Kita pantau perubahan itu untuk
+// menambahkan class "chat-kb-open" ke <body> selama halaman Chat terbuka —
+// ini otomatis menyembunyikan #mob-nav (lihat CSS body.chat-kb-open) supaya
+// navigasi bawah tidak ikut "naik" bersama kotak tulis pesan & tombol-tombol
+// di sampingnya (lampiran/GIF/kirim). Saat keyboard ditutup, class ini
+// dihapus lagi dan #mob-nav kembali muncul seperti semula.
+(function setupChatKeyboardHandling(){
+  const vv = window.visualViewport;
+  if (!vv) return; // browser lama tanpa dukungan visualViewport, biarkan perilaku default
+
+  function updateChatKbState(){
+    const chatOpen = document.getElementById('chat-overlay')?.classList.contains('show');
+    if (!chatOpen || !isMobile()) {
+      document.body.classList.remove('chat-kb-open');
+      return;
+    }
+    // Selisih signifikan antara tinggi layar penuh & visualViewport = keyboard sedang terbuka.
+    const heightDiff = window.innerHeight - vv.height;
+    const keyboardOpen = heightDiff > 120;
+    document.body.classList.toggle('chat-kb-open', keyboardOpen);
+  }
+
+  vv.addEventListener('resize', updateChatKbState);
+  vv.addEventListener('scroll', updateChatKbState);
+})();
 
 // ─── Fullscreen Lyrics ────────────────────────────────────
 // Background layar lirik penuh sekarang ikut warna dominan sampul album lagu
