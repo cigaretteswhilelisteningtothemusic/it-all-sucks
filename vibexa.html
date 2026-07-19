@@ -2425,6 +2425,26 @@ body.np-is-fullscreen #bar{display:none !important;}
 .notif-follow-status.accepted { color: var(--green); }
 .notif-follow-status.rejected { color: #FF5A5A; }
 
+/* ── Notifikasi "Download / Update App" (pinned, di paling atas panel) ── */
+.notif-icon-app {
+  background: rgba(29,185,84,.15); font-size: 1.05rem;
+  display: flex; align-items: center; justify-content: center;
+}
+.notif-app-item { background: rgba(29,185,84,.05); }
+.notif-app-actions { display: flex; gap: 8px; margin-top: 8px; }
+.notif-download-btn {
+  flex: 0 0 auto; padding: 7px 18px; border-radius: 50px; border: none;
+  font-family: var(--f); font-size: .75rem; font-weight: 700;
+  background: var(--green); color: #000; cursor: pointer; transition: filter .15s;
+}
+.notif-download-btn:hover { filter: brightness(1.08); }
+.notif-dismiss-btn {
+  flex: 0 0 auto; padding: 7px 16px; border-radius: 50px;
+  border: 1px solid var(--border); background: var(--card); color: var(--sub);
+  font-family: var(--f); font-size: .75rem; font-weight: 600; cursor: pointer; transition: all .15s;
+}
+.notif-dismiss-btn:hover { color: var(--text); border-color: var(--green); }
+
 /* Overlay gelap di belakang panel */
 #notif-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,.25);
@@ -15735,6 +15755,46 @@ let _notifCache = [];           // cache notifikasi terakhir yang dirender
 let _notifSelectMode = false;   // apakah mode pilih sedang aktif
 let _selectedNotifIds = new Set(); // id notifikasi yang sedang dicentang
 
+// ── Notifikasi "Download / Update App" (pinned di paling atas panel bell) ──
+// Naikkan APP_VERSION setiap kali merilis versi baru supaya notifikasi ini
+// muncul lagi ke user yang sebelumnya sudah menekan "Nanti".
+const APP_VERSION = '1.0.0';
+
+function isPwaInstalled() {
+  return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+    || window.navigator.standalone === true
+    || localStorage.getItem('vibexa_pwa_installed') === '1';
+}
+
+function shouldShowAppUpdateNotif() {
+  if (isPwaInstalled()) return false; // sudah pakai app, tidak perlu ditawari lagi
+  if (localStorage.getItem('vibexa_pwa_dismissed_version') === APP_VERSION) return false;
+  return true;
+}
+
+function buildAppUpdateNotifHtml() {
+  return `
+    <div class="notif-item notif-app-item" id="notif-app-update-item">
+      <div class="notif-icon-wrap notif-icon-app">⬇️</div>
+      <div class="notif-body">
+        <div class="notif-msg">
+          <strong>Vibexa</strong> Pasang aplikasi Vibexa di perangkatmu — lebih cepat, tampil di layar utama, dan bisa dibuka walau offline.
+        </div>
+        <div class="notif-app-actions">
+          <button class="notif-download-btn" type="button" onclick="event.stopPropagation(); downloadAppNow();">Download</button>
+          <button class="notif-dismiss-btn" type="button" onclick="event.stopPropagation(); dismissAppUpdateNotif();">Nanti</button>
+        </div>
+        <div class="notif-time">Versi ${esc(APP_VERSION)}</div>
+      </div>
+    </div>
+  `;
+}
+
+function dismissAppUpdateNotif() {
+  localStorage.setItem('vibexa_pwa_dismissed_version', APP_VERSION);
+  renderNotifications(_notifCache);
+}
+
 function timeAgo(ts) {
   const diff = Date.now() - ts;
   const m = Math.floor(diff / 60000);
@@ -15947,13 +16007,16 @@ function renderNotifications(notifs) {
   _notifCache = notifs || [];
   const list = document.getElementById('notif-list');
   if (!list) return;
+
+  const appUpdateHtml = shouldShowAppUpdateNotif() ? buildAppUpdateNotifHtml() : '';
+
   if (!notifs || !notifs.length) {
-    list.innerHTML = `<div class="notif-empty"><span></span>No notifications yet.<br>When someone likes, comments,<br>or sends an anonymous message to<br>your vibeprofile, it will appear here.</div>`;
+    list.innerHTML = appUpdateHtml + `<div class="notif-empty"><span></span>No notifications yet.<br>When someone likes, comments,<br>or sends an anonymous message to<br>your vibeprofile, it will appear here.</div>`;
     updateNotifBulkBar();
     return;
   }
   const sorted = [...notifs].sort((a, b) => (b.ts || 0) - (a.ts || 0));
-  list.innerHTML = '';
+  list.innerHTML = appUpdateHtml;
   sorted.forEach(n => {
     const item = document.createElement('div');
     const isChecked = _selectedNotifIds.has(n._id);
@@ -16172,7 +16235,7 @@ function startNotifListeners() {
     renderNotifications(notifs);
 
     // Hitung unread
-    const unread = notifs.filter(n => !n.read).length;
+    const unread = notifs.filter(n => !n.read).length + (shouldShowAppUpdateNotif() ? 1 : 0);
     updateNotifBadge(unread);
   });
   _notifListeners.push(() => notifRef.off('value', allOff));
@@ -16833,6 +16896,62 @@ showApp = function(user) {
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(console.error);
+}
+
+// ══════════════════════════════════════════════════════════
+// PWA INSTALL — dipicu dari tombol "Download" di notifikasi lonceng
+// ══════════════════════════════════════════════════════════
+let _deferredInstallPrompt = null;
+
+// Browser (Chrome/Edge/Android) menyiapkan prompt instalasi native di sini.
+// Kita simpan eventnya supaya bisa dipanggil manual saat user menekan tombol Download.
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  _deferredInstallPrompt = e;
+});
+
+// Kalau user berhasil install (lewat prompt native ATAU cara manual browser),
+// tandai supaya notifikasi "Download" tidak muncul lagi.
+window.addEventListener('appinstalled', () => {
+  _deferredInstallPrompt = null;
+  localStorage.setItem('vibexa_pwa_installed', '1');
+  renderNotifications(_notifCache);
+});
+
+// Dipanggil dari tombol "Download" pada notifikasi lonceng
+async function downloadAppNow() {
+  if (_deferredInstallPrompt) {
+    try {
+      _deferredInstallPrompt.prompt();
+      const choice = await _deferredInstallPrompt.userChoice;
+      _deferredInstallPrompt = null;
+      if (choice && choice.outcome === 'accepted') {
+        localStorage.setItem('vibexa_pwa_installed', '1');
+      }
+      renderNotifications(_notifCache);
+      return;
+    } catch (err) {
+      console.error('PWA install prompt gagal:', err);
+    }
+  }
+  // Fallback: browser tidak mendukung prompt native (mis. Safari/iOS,
+  // atau prompt belum siap) — tampilkan instruksi manual sesuai platform.
+  showPwaInstallInstructions();
+}
+
+function showPwaInstallInstructions() {
+  const ua = navigator.userAgent || '';
+  const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+  const isAndroid = /Android/.test(ua);
+  let msg;
+  if (isIOS) {
+    msg = 'Cara memasang Vibexa di iPhone/iPad:\n\n1. Buka tombol Share (kotak dengan panah ke atas) di Safari.\n2. Pilih "Add to Home Screen" / "Tambah ke Layar Utama".\n3. Ketuk "Add". Vibexa akan muncul sebagai aplikasi di layar utamamu.';
+  } else if (isAndroid) {
+    msg = 'Cara memasang Vibexa di Android:\n\n1. Buka menu (titik tiga) di pojok kanan atas browser.\n2. Pilih "Install app" atau "Add to Home screen".\n3. Ketuk "Install". Vibexa akan terpasang seperti aplikasi biasa.';
+  } else {
+    msg = 'Cara memasang Vibexa di komputer:\n\n1. Klik ikon install (biasanya berbentuk ⊕ atau layar+panah) di address bar browser.\n2. Atau buka menu browser (⋮) lalu pilih "Install Vibexa...".\n3. Klik "Install".';
+  }
+  alert(msg);
 }
 
 // ══════════════════════════════════════════════════════════
