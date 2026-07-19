@@ -9022,6 +9022,12 @@ function setPB(p){
   updateFSPB(p);
   updateNPMobPB(p);
   if('mediaSession' in navigator) navigator.mediaSession.playbackState = p ? 'playing' : 'paused';
+  // Musik dipause: kalau sedang immersive otomatis, keluar dulu. Musik play
+  // lagi: mulai hitung ulang idle timer immersive dari 0.
+  if(typeof _npArmIdleTimer==='function'){
+    if(!p && typeof _npAutoFS!=='undefined' && _npAutoFS){ toggleNPFullscreen(false); _npAutoFS=false; }
+    _npArmIdleTimer();
+  }
 }
 // Sinkronkan ikon play/pause di kontrol khusus mobile pada halaman Now Playing
 function updateNPMobPB(p){
@@ -11092,6 +11098,9 @@ function openNP(track){
   updateNPMobProg();
   updateNPMobAddBtn(track);
   updateNPMobQueueBtn();
+  // Mulai hitung mundur idle timer untuk mode immersive fullscreen otomatis
+  _npAutoFS=false;
+  _npArmIdleTimer();
 }
 
 // Tombol "+" (Add to Playlist) di halaman Now Playing mobile: kasih warna aktif
@@ -11157,6 +11166,9 @@ function closeNP(){
   document.getElementById('np-view').classList.remove('np-fullscreen');
   document.body.classList.remove('np-is-fullscreen');
   document.body.classList.remove('np-mobile-open');
+  // Halaman Now Playing ditutup: hentikan idle timer immersive fullscreen
+  _npClearIdleTimer();
+  _npAutoFS=false;
 }
 
 // ── Animasi berpindah/transisi header saat scroll turun di halaman Now Playing (gaya Spotify) ──
@@ -11190,7 +11202,66 @@ function toggleNPFullscreen(force){
   const isFS = typeof force === 'boolean' ? force : !npView.classList.contains('np-fullscreen');
   npView.classList.toggle('np-fullscreen', isFS);
   document.body.classList.toggle('np-is-fullscreen', isFS);
+  // Setiap kali fungsi ini dipanggil dianggap "manual" dulu (mis. klik tombol
+  // atau tombol back) — kalau ternyata dipicu oleh idle timer, flag ini akan
+  // di-set true lagi tepat setelah pemanggilan ini oleh _npArmIdleTimer().
+  _npAutoFS=false;
+  if(!isFS) _npClearIdleTimer();
+  _npArmIdleTimer();
 }
+
+// ═══════════ NOW PLAYING · IMMERSIVE AUTO-FULLSCREEN (gaya Spotify) ═══════════
+// Kalau user berada di halaman Now Playing & musik sedang diputar, tapi tidak
+// ada aktivitas apa pun (mouse, keyboard, scroll, atau touch) selama 10 detik,
+// halaman otomatis bertransisi ke mode fullscreen immersive (hanya cover art,
+// judul & artis — mode np-fullscreen yang sudah ada). Begitu ada aktivitas
+// lagi, mode immersive ini otomatis keluar — tapi HANYA kalau fullscreen
+// tersebut dipicu otomatis oleh idle timer, bukan karena user sengaja
+// menekan tombol fullscreen (supaya pilihan sadar user tidak diganggu).
+const NP_IDLE_MS = 10000; // 10 detik, sesuai perilaku Now Playing Spotify
+let _npIdleTimer = null;
+let _npAutoFS = false; // true = mode fullscreen ini dipicu otomatis oleh idle timer
+
+function _npClearIdleTimer(){
+  if(_npIdleTimer){ clearTimeout(_npIdleTimer); _npIdleTimer=null; }
+}
+
+function _npArmIdleTimer(){
+  _npClearIdleTimer();
+  const npView=document.getElementById('np-view');
+  if(!npView || !npView.classList.contains('open')) return; // hanya aktif selagi halaman Now Playing terbuka
+  if(typeof playing==='undefined' || !playing) return;       // hanya kalau musik sedang diputar
+  if(npView.classList.contains('np-fullscreen')) return;     // sudah fullscreen, tak perlu timer lagi
+  _npIdleTimer=setTimeout(()=>{
+    const v=document.getElementById('np-view');
+    if(!v || !v.classList.contains('open')) return;
+    if(typeof playing==='undefined' || !playing) return;
+    if(v.classList.contains('np-fullscreen')) return;
+    toggleNPFullscreen(true);
+    _npAutoFS=true; // tandai bahwa ini dipicu otomatis, bukan klik user
+  }, NP_IDLE_MS);
+}
+
+// Dipanggil tiap ada aktivitas user selagi halaman Now Playing terbuka:
+// keluar dari immersive mode (kalau itu dipicu otomatis), lalu mulai
+// menghitung ulang idle timer dari 0.
+function _npNoteActivity(){
+  const npView=document.getElementById('np-view');
+  if(!npView || !npView.classList.contains('open')) return;
+  if(_npAutoFS && npView.classList.contains('np-fullscreen')){
+    toggleNPFullscreen(false);
+  }
+  _npAutoFS=false;
+  _npArmIdleTimer();
+}
+
+(function(){
+  const _npActivityEvts=['mousemove','mousedown','keydown','wheel','touchstart','touchmove'];
+  _npActivityEvts.forEach(evt=>document.addEventListener(evt, _npNoteActivity, {passive:true}));
+  // 'scroll' tidak bubbling, jadi harus didengarkan di fase capture supaya
+  // scroll di dalam #np-scroll (atau elemen manapun) tetap terdeteksi.
+  document.addEventListener('scroll', _npNoteActivity, {passive:true, capture:true});
+})();
 
 // ── Klik nama artis di halaman Now Playing: tutup Now Playing dulu baru buka halaman artis ──
 function npGoArtist(){
