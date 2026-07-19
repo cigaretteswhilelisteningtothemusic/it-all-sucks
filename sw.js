@@ -19,7 +19,7 @@ const messaging = firebase.messaging();
 
 // ── PWA APP-SHELL CACHING ─────────────────────────────────
 // Bump versi ini setiap kali vibexa.html/asset berubah, supaya user dapat update.
-const CACHE_VERSION = 'vibexa-v2';
+const CACHE_VERSION = 'vibexa-v3';
 const APP_SHELL = [
   './vibexa.html',
   './manifest.json'

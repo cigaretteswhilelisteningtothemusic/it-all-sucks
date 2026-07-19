@@ -16923,6 +16923,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
     localStorage.removeItem('vibexa_pwa_installed');
     localStorage.removeItem('vibexa_pwa_dismissed_version'); // abaikan "Nanti" lama, situasinya sudah beda
     renderNotifications(_notifCache);
+    refreshAppInstallBadge();
   }
 });
 
@@ -16932,7 +16933,48 @@ window.addEventListener('appinstalled', () => {
   _deferredInstallPrompt = null;
   localStorage.setItem('vibexa_pwa_installed', '1');
   renderNotifications(_notifCache);
+  refreshAppInstallBadge();
 });
+
+function refreshAppInstallBadge() {
+  const unread = (_notifCache || []).filter(n => !n.read).length + (shouldShowAppUpdateNotif() ? 1 : 0);
+  updateNotifBadge(unread);
+}
+
+// Cek status instalasi yang SEBENARNYA lewat API resmi browser
+// (navigator.getInstalledRelatedApps) — ini API yang sama yang dipakai Chrome
+// untuk menampilkan chip "Open in app" di address bar. Jauh lebih akurat
+// daripada cuma mengandalkan localStorage kita sendiri, karena localStorage
+// bisa tidak sinkron kalau install/uninstall terjadi lewat cara lain.
+async function checkRealPwaInstallStatus() {
+  if (!('getInstalledRelatedApps' in navigator)) return null; // browser tidak mendukung API ini
+  try {
+    const related = await navigator.getInstalledRelatedApps();
+    return related && related.length > 0;
+  } catch (err) {
+    console.error('getInstalledRelatedApps gagal:', err);
+    return null;
+  }
+}
+
+// Sinkronkan localStorage dengan status asli begitu halaman dibuka,
+// supaya notifikasi "Download" di bell selalu akurat tanpa perlu user
+// menekan tombolnya dulu.
+(async function syncPwaInstallStatusOnLoad() {
+  const reallyInstalled = await checkRealPwaInstallStatus();
+  if (reallyInstalled === null) return; // API tidak tersedia, jangan ubah apa-apa
+  const wasMarked = localStorage.getItem('vibexa_pwa_installed') === '1';
+  if (reallyInstalled && !wasMarked) {
+    localStorage.setItem('vibexa_pwa_installed', '1');
+  } else if (!reallyInstalled && wasMarked) {
+    localStorage.removeItem('vibexa_pwa_installed');
+    localStorage.removeItem('vibexa_pwa_dismissed_version');
+  } else {
+    return; // tidak ada perubahan, tidak perlu render ulang
+  }
+  renderNotifications(_notifCache);
+  refreshAppInstallBadge();
+})();
 
 // Dipanggil dari tombol "Download" pada notifikasi lonceng
 async function downloadAppNow() {
@@ -16945,11 +16987,25 @@ async function downloadAppNow() {
         localStorage.setItem('vibexa_pwa_installed', '1');
       }
       renderNotifications(_notifCache);
+      refreshAppInstallBadge();
       return;
     } catch (err) {
       console.error('PWA install prompt gagal:', err);
     }
   }
+
+  // Cek ulang status instalasi asli sebelum menyimpulkan "tidak didukung" —
+  // ini mencegah pesan salah kaprah seperti yang terjadi waktu app sudah
+  // terpasang tapi localStorage kita belum sinkron.
+  const reallyInstalled = await checkRealPwaInstallStatus();
+  if (reallyInstalled === true) {
+    localStorage.setItem('vibexa_pwa_installed', '1');
+    renderNotifications(_notifCache);
+    refreshAppInstallBadge();
+    toast('Vibexa is already installed on this device.', 6000);
+    return;
+  }
+
   // Kalau app sudah terpasang sebelumnya di browser ini, Chrome/Edge/dll
   // sengaja tidak akan fire beforeinstallprompt lagi — jadi ini BUKAN berarti
   // browsernya tidak didukung, tapi appnya memang sudah diinstall.
@@ -16958,6 +17014,7 @@ async function downloadAppNow() {
     return;
   }
   // Browser benar-benar tidak mendukung prompt install otomatis
+
   // (mis. Opera, Firefox, Safari) — tampilkan pesan singkat, bukan langkah manual.
   toast('This app can only be downloaded on Chrome. Not yet supported in this browser.', 6000);
 }
