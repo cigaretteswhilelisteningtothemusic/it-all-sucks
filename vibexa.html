@@ -1789,18 +1789,31 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 #np-view.np-fullscreen .np-track-title{font-size:1.9rem;margin-top:28px;}
 #np-view.np-fs-morphing .np-track-artist,
 #np-view.np-fullscreen .np-track-artist{font-size:1.05rem;}
-#np-view.np-fs-morphing,
+/* PENTING: bottom:0 (yang membuat halaman Now Playing melebar menutupi area
+   kotak "play" di bawah) HANYA dipasang saat fase ".np-fullscreen" (kondisi
+   akhir), BUKAN saat ".np-fs-morphing" (fase transisi). Sebelumnya kedua
+   kelas sama-sama memicu bottom:0 secara instan (tanpa transition), jadi
+   #np-view langsung menutupi seluruh area kotak "play" sejak detik pertama
+   transisi dimulai — akibatnya animasi menutup laci di #bar (lihat di bawah)
+   sebenarnya tetap berjalan, tapi tidak kelihatan sama sekali karena sudah
+   keburu ketutup duluan. Dengan hanya memasang bottom:0 di fase akhir
+   (setelah animasi kotak "play" selesai, lihat toggleNPFullscreen() &
+   NP_FS_MORPH_MS), animasi menutup laci itu jadi kelihatan penuh dulu,
+   baru area itu "diserahkan" ke halaman Now Playing yang sudah melebar. */
+#np-view.np-fs-morphing{z-index:600;}
 #np-view.np-fullscreen{bottom:0 !important;z-index:600;}
 /* Kotak "play" di bawah (mini player/bar bawah): tiap bagiannya menutup
    satu-per-satu berurutan seperti laci (info lagu dulu, lalu tombol like,
    lalu kontrol transport, lalu volume) — BARU setelah semuanya tertutup,
    seluruh bar meluncur turun & hilang dari layar. */
-#bar>.bar-track,#bar>.bar-like-btn,#bar>.bar-ctrl,#bar>.bar-r{transform-origin:top center;transition:opacity .85s ease,transform .85s cubic-bezier(.65,0,.35,1);}
+#bar>.bar-track,#bar>.bar-like-btn,#bar>.bar-ctrl,#bar>.bar-r{transform-origin:top center;transition:opacity 1.1s ease,transform 1.1s cubic-bezier(.65,0,.35,1);}
 body.np-is-fullscreen #bar>.bar-track{opacity:0;transform:scaleY(0);transition-delay:0s;}
-body.np-is-fullscreen #bar>.bar-like-btn{opacity:0;transform:scaleY(0);transition-delay:.16s;}
-body.np-is-fullscreen #bar>.bar-ctrl{opacity:0;transform:scaleY(0);transition-delay:.32s;}
-body.np-is-fullscreen #bar>.bar-r{opacity:0;transform:scaleY(0);transition-delay:.48s;}
-#bar{transition:transform .6s cubic-bezier(.65,0,.35,1) 1.05s;}
+body.np-is-fullscreen #bar>.bar-like-btn{opacity:0;transform:scaleY(0);transition-delay:.3s;}
+body.np-is-fullscreen #bar>.bar-ctrl{opacity:0;transform:scaleY(0);transition-delay:.6s;}
+body.np-is-fullscreen #bar>.bar-r{opacity:0;transform:scaleY(0);transition-delay:.9s;}
+/* Baru setelah SEMUA bagian di atas selesai menutup (bagian terakhir, .bar-r,
+   selesai di detik ke-2.0), seluruh kotak "play" meluncur turun & hilang. */
+#bar{transition:transform .9s cubic-bezier(.65,0,.35,1) 2.1s;}
 body.np-is-fullscreen #bar{pointer-events:none;transform:translateY(100%);}
 body.np-fs-final #bar{display:none !important;}
 @media(max-width:660px){
@@ -11259,7 +11272,7 @@ function _updateNPScrollFx(){
 // selesai, class struktural (yang benar2 men-display:none-kan/mengubah layout)
 // dipasang/dilepas. Karena state akhir "morph" & "fullscreen" sama persis
 // secara visual, perpindahannya jadi mulus, tidak ada lompatan.
-const NP_FS_MORPH_MS = 2200; // durasi fase morph — harus selaras dgn transition terlama di CSS (kartu terakhir kotak "play")
+const NP_FS_MORPH_MS = 3050; // durasi fase morph — harus selaras dgn transition terlama di CSS: kotak "play" bawah baru benar2 selesai meluncur turun di detik ke-3.0 (lihat #bar di CSS)
 let _npFsAnimTimer = null;
 
 function toggleNPFullscreen(force){
