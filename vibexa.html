@@ -1713,12 +1713,11 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .np-about-follow.following{border-color:var(--green);color:var(--green);}
 .np-about-bio{font-size:.8rem;line-height:1.65;color:rgba(255,255,255,.82);margin-top:14px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
 .np-right-col{display:flex;flex-direction:column;gap:16px;}
-/* Urutan default (tampilan PC): Albums → Next Up → Your Playlists.
-   Di mobile urutan ini diubah lewat media query di bawah supaya
-   Next Up pindah ke posisi paling bawah (setelah Your Playlists). */
-#np-card-albums{order:1}
-#np-card-nextup{order:2}
-#np-card-playlists{order:3}
+/* Kotak "Next Up" di halaman Now Playing HANYA dipakai untuk tampilan mobile
+   (lihat media query max-width:660px di bawah yang menampilkannya lagi).
+   Di PC, lagu selanjutnya ditampilkan di panel kanan #lyr (lihat
+   .lyr-nextup-box), bukan di sini. */
+#np-card-nextup{display:none;}
 .np-right-col .np-card{flex:1;display:flex;flex-direction:column;min-height:0;}
 .np-albums-list{display:flex;flex-direction:column;gap:2px;overflow-y:auto;scrollbar-width:none;flex:1;max-height:170px;}
 .np-albums-list::-webkit-scrollbar{display:none}
@@ -1796,10 +1795,10 @@ body.np-is-fullscreen #bar{display:none !important;}
   .np-about-follow{font-size:.62rem;padding:4px 12px;}
   .np-about-bio{font-size:.68rem;line-height:1.45;margin-top:7px;-webkit-line-clamp:2;}
   .np-right-col{display:flex;flex-direction:column;gap:12px;}
-  /* Khusus mobile: Next Up dipindah ke posisi paling bawah, setelah
-     kotak Your Playlists (bukan di bawah Albums seperti di PC). */
-  #np-card-playlists{order:2}
-  #np-card-nextup{order:3}
+  /* Khusus mobile: tampilkan kotak Next Up (disembunyikan secara default
+     untuk PC di atas), posisinya otomatis paling bawah karena memang
+     ditaruh terakhir di dalam .np-right-col. */
+  #np-card-nextup{display:block;}
   /* Kotak "Albums" & "Playlist" juga dibuat persegi kecil dengan ukuran
      yang sama dengan kotak foto album (.np-art). */
   .np-right-col .np-card{aspect-ratio:1;min-height:0;width:min(280px,68vw);margin:0 auto;}
@@ -3141,6 +3140,10 @@ body.np-is-fullscreen #bar{display:none !important;}
 .lyr-albums-box.show{display:block;}
 .lyr-albums-label{font-size:.62rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
 .lyr-albums-scroll{display:flex;flex-direction:column;gap:5px;max-height:210px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;padding-right:3px;}
+/* Kotak "Next Up" — sama persis gayanya dengan kotak Other Albums di atas
+   (label + list scrollable), bedanya selalu tampil (tidak butuh class .show
+   karena selalu ada lagu selanjutnya untuk ditampilkan). */
+.lyr-nextup-box{width:100%;max-width:220px;margin-top:14px;text-align:left;}
 .lyr-album-item{display:flex;align-items:center;gap:8px;padding:6px;border-radius:9px;cursor:pointer;transition:all .15s;}
 .lyr-album-item:hover{background:var(--hover);}
 .lyr-album-item-cover{width:34px;height:34px;border-radius:6px;object-fit:cover;background:var(--hover);flex-shrink:0;}
@@ -4692,6 +4695,14 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
         <div class="lyr-albums-label">Other Albums</div>
         <div class="lyr-albums-scroll" id="lyr-albums-scroll"></div>
       </div>
+
+      <!-- Kotak "Next Up" (lagu selanjutnya yang akan diputar), khusus PC —
+           panel #lyr ini otomatis tersembunyi di tampilan mobile. Bisa
+           discroll sama seperti kotak Other Albums di atas. -->
+      <div class="lyr-nextup-box" id="lyr-nextup-box">
+        <div class="lyr-albums-label">Next Up</div>
+        <div class="lyr-albums-scroll" id="lyr-nextup-scroll"></div>
+      </div>
     </div>
     <!-- Mesin lirik tersinkron tetap berjalan di balik layar, dipakai oleh mode layar penuh -->
     <div class="lyr-fade-t" style="display:none"></div>
@@ -4928,13 +4939,13 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
           <div class="np-card-head"><h4>Albums</h4></div>
           <div class="np-albums-list" id="np-albums-list"></div>
         </div>
-        <div class="np-card" id="np-card-nextup">
-          <div class="np-card-head"><h4>Next Up</h4></div>
-          <div class="np-albums-list" id="np-nextup-list"></div>
-        </div>
         <div class="np-card" id="np-card-playlists">
           <div class="np-card-head"><h4>Your Playlists</h4><span class="np-showall" onclick="closeNP();showHomeView()">Show all</span></div>
           <div class="np-pl-list" id="np-pl-list"></div>
+        </div>
+        <div class="np-card" id="np-card-nextup">
+          <div class="np-card-head"><h4>Next Up</h4></div>
+          <div class="np-albums-list" id="np-nextup-list"></div>
         </div>
       </div>
     </div>
@@ -11828,6 +11839,8 @@ function _updateArtistWidgets(track) {
 
   // Panel kanan: kotak artis + daftar album artis (bisa discroll)
   _updateLyrArtistBox(track);
+  // Panel kanan: kotak "Next Up" (lagu selanjutnya, khusus PC)
+  _renderLyrNextUp();
 }
 
 // ─── Kotak "Tentang Artis" + Daftar Album di panel lirik kanan ──
@@ -11938,6 +11951,33 @@ function renderLyrAlbumsList(albums) {
       </div>
     `;
     div.addEventListener('click', (e) => { e.stopPropagation(); openAlbumView(a.id, a.title); });
+    c.appendChild(div);
+  });
+}
+
+// Kotak "Next Up" di panel kanan (khusus PC) — pakai style yang sama dengan
+// kotak "Other Albums" (.lyr-album-item), isinya lagu-lagu setelah lagu yang
+// sedang diputar (lihat _getUpcomingTracks()). Klik salah satu langsung memutarnya.
+function _renderLyrNextUp() {
+  const c = document.getElementById('lyr-nextup-scroll');
+  if (!c) return;
+  const upcoming = typeof _getUpcomingTracks === 'function' ? _getUpcomingTracks() : [];
+  if (!upcoming.length) {
+    c.innerHTML = '<div class="lyr-albums-empty">No more songs queued</div>';
+    return;
+  }
+  c.innerHTML = '';
+  upcoming.forEach(t => {
+    const div = document.createElement('div');
+    div.className = 'lyr-album-item';
+    div.innerHTML = `
+      ${t.thumb ? `<img class="lyr-album-item-cover" src="${esc(t.thumb)}" alt="" loading="lazy" onerror="this.style.display='none'">` : `<div class="lyr-album-item-cover"></div>`}
+      <div class="lyr-album-item-info">
+        <div class="lyr-album-item-title">${esc(t.title)}</div>
+        <div class="lyr-album-item-year">${esc(t.artist || '')}</div>
+      </div>
+    `;
+    div.addEventListener('click', (e) => { e.stopPropagation(); loadPlay(t, currentPlaylistId); });
     c.appendChild(div);
   });
 }
