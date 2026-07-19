@@ -3211,13 +3211,20 @@ body.np-is-fullscreen #bar{display:none !important;}
    baru ditambahkan di paling kiri — lihat startFriendSuggestionsListener(). */
 .friend-fav-grid{display:flex;flex-direction:row;gap:16px;overflow-x:auto;padding:18px 2px 14px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
 .friend-fav-item{flex:0 0 132px;width:132px;display:flex;flex-direction:column;position:relative;}
+/* Baris tombol Like + Comment di bawah tiap lagu saran */
+.friend-fav-actions-row{display:flex;align-items:center;gap:6px;margin-top:6px;}
 /* Tombol Like — menggantikan baris "suggested by" (avatar+nama) yang
    sebelumnya tampil di luar bubble di bawah lagu. Lagu diurutkan berdasarkan
    jumlah like ini, lihat startFriendSuggestionsListener(). */
-.friend-fav-like-btn{display:flex;align-items:center;gap:4px;margin-top:6px;background:var(--bg);border:1px solid var(--border);color:var(--sub);font-family:var(--f);font-size:.66rem;font-weight:700;cursor:pointer;padding:3px 8px;border-radius:50px;transition:all .18s;width:fit-content;}
+.friend-fav-like-btn{display:flex;align-items:center;gap:4px;margin-top:0;background:var(--bg);border:1px solid var(--border);color:var(--sub);font-family:var(--f);font-size:.66rem;font-weight:700;cursor:pointer;padding:3px 8px;border-radius:50px;transition:all .18s;width:fit-content;}
 .friend-fav-like-btn:hover{color:#ff7eb3;border-color:rgba(255,77,148,.35);background:rgba(255,77,148,.06);}
 .friend-fav-like-btn.liked{color:#ff4d94;border-color:rgba(255,77,148,.45);background:rgba(255,77,148,.1);}
 .friend-fav-like-btn svg{width:11px;height:11px;flex-shrink:0;}
+/* Tombol Comment — buka comment-modal yang sama dengan playlist publik,
+   lihat openCommentModal() (key diberi prefix "sugg__", lihat _isSuggComment()). */
+.friend-fav-comment-btn{display:flex;align-items:center;gap:4px;background:var(--bg);border:1px solid var(--border);color:var(--sub);font-family:var(--f);font-size:.66rem;font-weight:700;cursor:pointer;padding:3px 8px;border-radius:50px;transition:all .18s;width:fit-content;}
+.friend-fav-comment-btn:hover{color:var(--teal);border-color:rgba(79,168,255,.35);background:rgba(79,168,255,.06);}
+.friend-fav-comment-btn svg{width:11px;height:11px;flex-shrink:0;}
 /* Tombol hapus — hanya dirender kalau saran lagu itu milik currentUser sendiri */
 .friend-fav-del-btn{position:absolute;top:5px;right:5px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.55);border:none;color:#fff;font-size:.68rem;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:all .15s;z-index:2;}
 .friend-fav-thumb-wrap:hover .friend-fav-del-btn{opacity:1;}
@@ -7713,6 +7720,7 @@ function renderFriendFavorites() {
     const isMine = currentUser && s.uid === currentUser.uid;
     const likeCount = s.likes ? Object.keys(s.likes).length : 0;
     const iLiked = !!(currentUser && s.likes && s.likes[currentUser.uid]);
+    const commentCount = s.comments ? Object.keys(s.comments).length : 0;
     // Pakai data terbaru dari node "directory" (live) kalau ada, supaya kalau
     // pemilik saran mengganti nama/foto profil, bubble ini langsung ikut
     // berubah — bukan memakai snapshot name/photo yang disimpan sekali saja
@@ -7750,10 +7758,16 @@ function renderFriendFavorites() {
         </div>
         <div class="friend-fav-title" onclick="playFriendSuggestedSong('${s.key}')">${esc(s.title || '—')}</div>
         <div class="friend-fav-artist">${esc(s.artist || '—')}</div>
-        <button type="button" class="friend-fav-like-btn${iLiked ? ' liked' : ''}" onclick="event.stopPropagation();toggleFriendSongLike(event,'${s.key}',${iLiked})" title="${iLiked ? 'Unlike this song' : 'Like this song'}">
-          <svg viewBox="0 0 24 24" fill="${iLiked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-          <span>${likeCount}</span>
-        </button>
+        <div class="friend-fav-actions-row">
+          <button type="button" class="friend-fav-like-btn${iLiked ? ' liked' : ''}" onclick="event.stopPropagation();toggleFriendSongLike(event,'${s.key}',${iLiked})" title="${iLiked ? 'Unlike this song' : 'Like this song'}">
+            <svg viewBox="0 0 24 24" fill="${iLiked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            <span>${likeCount}</span>
+          </button>
+          <button type="button" class="friend-fav-comment-btn" onclick="openCommentModal(event,'${SUGG_COMMENT_PREFIX}${esc(s.key)}','${esc(((s.title||'Song') + (s.artist ? ' · ' + s.artist : '')).replace(/'/g,"\\'"))}')" title="Comment on this song">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span class="comment-count-${SUGG_COMMENT_PREFIX}${esc(s.key)}">${commentCount ? ' '+commentCount : ''}</span>
+          </button>
+        </div>
       </div>`;
   }).join('');
 }
@@ -16616,12 +16630,14 @@ function openNotifZoom(id) {
   const isCommentLike = n.type === 'comment_like';
   const isReply = n.type === 'comment_reply';
 
+  const isSongTarget = n.targetType === 'song';
   let actionText;
   if (isAsk) actionText = 'sent an anonymous message to your vibeprofile';
   else if (isLike) actionText = `liked your "${n.playlistName || 'playlist'}" playlist`;
   else if (isSongLike) actionText = `liked the song you suggested: "${n.songTitle || 'song'}"`;
   else if (isCommentLike) actionText = `liked your comment on "${n.playlistName || 'playlist'}"`;
   else if (isReply) actionText = `membalas komentarmu di "${n.playlistName || 'playlist'}"`;
+  else if (isSongTarget) actionText = `mengomentari lagu yang kamu sarankan: "${n.playlistName || 'song'}"`;
   else actionText = `mengomentari playlist "${n.playlistName || 'playlist'}"mu`;
 
   document.getElementById('notif-zoom-name').textContent = n.fromName || 'Seseorang';
@@ -16711,6 +16727,9 @@ function renderNotifications(notifs) {
     } else if (isReply) {
       icon = `<div class="notif-icon-wrap notif-icon-comment">↩</div>`;
       actionText = `membalas komentarmu di <span class="notif-pl">${esc(n.playlistName || 'playlist')}</span>`;
+    } else if (n.targetType === 'song') {
+      icon = `<div class="notif-icon-wrap notif-icon-comment"></div>`;
+      actionText = `mengomentari lagu yang kamu sarankan: <span class="notif-pl">${esc(n.playlistName || 'song')}</span>`;
     } else {
       icon = `<div class="notif-icon-wrap notif-icon-comment"></div>`;
       actionText = `mengomentari playlist <span class="notif-pl">${esc(n.playlistName || 'playlist')}</span>mu`;
@@ -17026,14 +17045,37 @@ function removeCmModalPhoto() {
   if (sendBtn) sendBtn.disabled = !ta?.value.trim();
 }
 
-// ── Kirim notifikasi ke owner playlist setelah komentar ──
+// ── Komentar bisa menempel di DUA jenis target: playlist publik ATAU lagu
+// saran di "Picked by Listeners". Supaya seluruh mesin komentar (like, reply,
+// foto, notifikasi) bisa dipakai untuk keduanya tanpa duplikasi kode, key
+// untuk lagu saran selalu diberi prefix "sugg__" (mis. "sugg__-Nx8k...").
+// _commentRootPath() menerjemahkan key itu ke path Firebase yang benar, dan
+// _commentTargetInfo() mengambil info pemilik + nama/judul untuk notifikasi.
+const SUGG_COMMENT_PREFIX = 'sugg__';
+function _isSuggComment(key){ return typeof key === 'string' && key.startsWith(SUGG_COMMENT_PREFIX); }
+function _commentRootPath(key){
+  return _isSuggComment(key)
+    ? 'friendSuggestions/' + key.slice(SUGG_COMMENT_PREFIX.length)
+    : 'public_playlists/' + key;
+}
+async function _commentTargetInfo(key){
+  if (_isSuggComment(key)) {
+    const suggKey = key.slice(SUGG_COMMENT_PREFIX.length);
+    const snap = await db.ref('friendSuggestions/' + suggKey).get().catch(() => null);
+    const v = snap?.val() || {};
+    const name = v.title ? (v.title + (v.artist ? ' · ' + v.artist : '')) : 'a song';
+    return { ownerUid: v.uid || null, name, targetType: 'song' };
+  }
+  const snap = await db.ref('public_playlists/' + key).get().catch(() => null);
+  const v = snap?.val() || {};
+  return { ownerUid: v.ownerUid || null, name: v.name || 'Playlist', targetType: 'playlist' };
+}
+
+// ── Kirim notifikasi ke owner playlist/lagu setelah komentar ──
 async function sendCommentNotif(playlistKey, commentText) {
   if (!currentUser) return;
   try {
-    const plSnap = await db.ref('public_playlists/' + playlistKey).get();
-    if (!plSnap.exists()) return;
-    const plData = plSnap.val();
-    const ownerUid = plData.ownerUid;
+    const { ownerUid, name, targetType } = await _commentTargetInfo(playlistKey);
     if (!ownerUid || ownerUid === currentUser.uid) return;
 
     const profileSnap = await db.ref('users/' + currentUser.uid + '/profile').get().catch(() => null);
@@ -17047,7 +17089,8 @@ async function sendCommentNotif(playlistKey, commentText) {
       fromName,
       fromPhoto,
       playlistKey,
-      playlistName: plData.name || 'Playlist',
+      playlistName: name,
+      targetType,
       comment: (commentText || '').slice(0, 200),
       ts: Date.now(),
       read: false
@@ -17069,8 +17112,7 @@ async function sendCommentLikeNotif(playlistKey, commentOwnerUid, commenterName,
     const fromName = profile.displayName || currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'User');
     const fromPhoto = profile.photoURL || profile.photoBase64 || currentUser.photoURL || '';
 
-    const plSnap = await db.ref('public_playlists/' + playlistKey).get().catch(() => null);
-    const plName = plSnap?.val()?.name || 'Playlist';
+    const { name: plName, targetType } = await _commentTargetInfo(playlistKey);
 
     const notif = {
       type: 'comment_like',
@@ -17079,6 +17121,7 @@ async function sendCommentLikeNotif(playlistKey, commentOwnerUid, commenterName,
       fromPhoto,
       playlistKey,
       playlistName: plName,
+      targetType,
       comment: (commentText || '').slice(0, 100),
       ts: Date.now(),
       read: false
@@ -17100,8 +17143,7 @@ async function sendReplyNotif(playlistKey, commentOwnerUid, replyText) {
     const fromName = profile.displayName || currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'User');
     const fromPhoto = profile.photoURL || profile.photoBase64 || currentUser.photoURL || '';
 
-    const plSnap = await db.ref('public_playlists/' + playlistKey).get().catch(() => null);
-    const plName = plSnap?.val()?.name || 'Playlist';
+    const { name: plName, targetType } = await _commentTargetInfo(playlistKey);
 
     const notif = {
       type: 'comment_reply',
@@ -17110,6 +17152,7 @@ async function sendReplyNotif(playlistKey, commentOwnerUid, replyText) {
       fromPhoto,
       playlistKey,
       playlistName: plName,
+      targetType,
       comment: (replyText || '').slice(0, 100),
       ts: Date.now(),
       read: false
@@ -17129,7 +17172,7 @@ let _replyPhotoDataMap = {}; // commentId → base64
 // ── Toggle like komentar ──
 async function toggleCommentLike(playlistKey, commentId, commentOwnerUid, commentText, btn) {
   if (!currentUser) { toast(' Please log in first'); return; }
-  const likeRef = db.ref('public_playlists/' + playlistKey + '/comments/' + commentId + '/likes/' + currentUser.uid);
+  const likeRef = db.ref(_commentRootPath(playlistKey) + '/comments/' + commentId + '/likes/' + currentUser.uid);
   const isLiked = btn.classList.contains('liked');
   const countEl = btn.querySelector('.clk-count');
 
@@ -17250,7 +17293,7 @@ async function submitReply(playlistKey, commentId, commentOwnerUid, textareaEl, 
     const photoURL = profile.photoURL || profile.photoBase64 || currentUser.photoURL || '';
     const reply = { uid: currentUser.uid, name, photoURL, text: text || '', ts: Date.now() };
     if (photoData) reply.photoData = photoData;
-    await db.ref('public_playlists/' + playlistKey + '/comments/' + commentId + '/replies').push(reply);
+    await db.ref(_commentRootPath(playlistKey) + '/comments/' + commentId + '/replies').push(reply);
     textareaEl.value = '';
     textareaEl.style.height = 'auto';
     _replyPhotoDataMap[commentId] = null;
@@ -17356,7 +17399,7 @@ function renderCommentList(container, comments, playlistKey, isModal) {
 
 // ── Ambil & render komentar, pasang listener real-time ──
 function listenComments(playlistKey, listEl, offCallback) {
-  const ref = db.ref('public_playlists/' + playlistKey + '/comments').orderByChild('ts').limitToLast(100);
+  const ref = db.ref(_commentRootPath(playlistKey) + '/comments').orderByChild('ts').limitToLast(100);
   const handler = ref.on('value', snap => {
     const comments = [];
     if (snap.exists()) {
@@ -17383,7 +17426,7 @@ async function submitComment(playlistKey, textareaEl, sendBtn, photoDataRef) {
     const photoURL = profile.photoURL || profile.photoBase64 || currentUser.photoURL || '';
     const comment = { uid: currentUser.uid, name, photoURL, text: text || '', ts: Date.now() };
     if (photoData) comment.photoData = photoData;
-    await db.ref('public_playlists/' + playlistKey + '/comments').push(comment);
+    await db.ref(_commentRootPath(playlistKey) + '/comments').push(comment);
     textareaEl.value = '';
     textareaEl.style.height = 'auto';
     sendBtn.disabled = true;
@@ -17399,7 +17442,7 @@ async function submitComment(playlistKey, textareaEl, sendBtn, photoDataRef) {
 async function deleteComment(playlistKey, commentId, source) {
   if (!confirm('Delete this comment?')) return;
   try {
-    await db.ref('public_playlists/' + playlistKey + '/comments/' + commentId).remove();
+    await db.ref(_commentRootPath(playlistKey) + '/comments/' + commentId).remove();
     toast(' Comment deleted');
   } catch(e) { toast(' Delete failed: ' + e.message); }
 }
@@ -17408,7 +17451,7 @@ async function deleteComment(playlistKey, commentId, source) {
 async function deleteReply(playlistKey, commentId, replyId) {
   if (!confirm('Delete this reply?')) return;
   try {
-    await db.ref('public_playlists/' + playlistKey + '/comments/' + commentId + '/replies/' + replyId).remove();
+    await db.ref(_commentRootPath(playlistKey) + '/comments/' + commentId + '/replies/' + replyId).remove();
     toast(' Reply deleted');
   } catch(e) { toast(' Delete failed: ' + e.message); }
 }
