@@ -1738,23 +1738,53 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .np-pl-count{font-size:.68rem;color:rgba(255,255,255,.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .np-pl-empty{font-size:.76rem;color:rgba(255,255,255,.5);text-align:center;padding:24px 8px;line-height:1.7;}
 
-/* ── NOW PLAYING · FULLSCREEN MODE ── Hanya foto album, judul, artis & tombol kembali ── */
-.np-fs-only{display:none;position:absolute;top:16px;left:20px;z-index:6;opacity:0;pointer-events:none;transition:opacity .3s ease;}
-#np-view.np-fullscreen .np-fs-only{display:flex;opacity:1;pointer-events:auto;}
+/* ── NOW PLAYING · FULLSCREEN MODE ── Hanya foto album, judul, artis & tombol kembali ──
+   Dipecah jadi 2 kelas: ".np-fs-morphing" (fase transisi ~.4s, elemen lain
+   memudar & album art/teks membesar TAPI layout belum diubah struktural)
+   lalu ".np-fullscreen" (kondisi akhir: grid dkk baru benar2 display:none &
+   layout di-switch ke posisi tengah). Karena ukuran akhir art/teks sudah
+   sama antara kedua kelas, tidak ada "lompatan" saat kelas struktural
+   dipasang — animasinya sudah selesai duluan. Lihat toggleNPFullscreen(). */
+.np-fs-only{display:flex;position:absolute;top:16px;left:20px;z-index:6;opacity:0;pointer-events:none;transition:opacity .35s ease;}
+#np-view.np-fs-morphing .np-fs-only,
+#np-view.np-fullscreen .np-fs-only{opacity:1;pointer-events:auto;}
+.np-fs-hide{transition:opacity .25s ease;}
+#np-view.np-fs-morphing .np-fs-hide{opacity:0;pointer-events:none;}
 #np-view.np-fullscreen .np-fs-hide{display:none !important;}
+#np-view.np-fs-morphing #np-topbar-mini,
+#np-view.np-fullscreen #np-topbar-mini{opacity:0 !important;transition:opacity .25s ease;}
 #np-view.np-fullscreen #np-topbar-mini{display:none !important;}
+#np-view.np-fs-morphing #np-top-title,
+#np-view.np-fullscreen #np-top-title{opacity:0;transition:opacity .25s ease;}
 #np-view.np-fullscreen #np-top-title{display:none;}
+#np-view.np-fs-morphing #np-topbar,
 #np-view.np-fullscreen #np-topbar{background:transparent !important;box-shadow:none !important;justify-content:flex-end;}
+/* Fase morphing: grid masih ada di layout tapi memudar dulu (opacity+scale),
+   baru di fase final (.np-fullscreen) beneran dihilangkan (display:none). */
+#np-view.np-fs-morphing .np-grid{opacity:0;transform:scale(.98);pointer-events:none;transition:opacity .32s ease,transform .32s ease;}
 #np-view.np-fullscreen .np-grid{display:none !important;}
+#np-view.np-fs-morphing #np-scroll,
+#np-view.np-fullscreen #np-scroll{padding:10px 8% 60px;}
 #np-view.np-fullscreen #np-scroll{height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0 8%;}
+#np-view.np-fs-morphing .np-hero,
 #np-view.np-fullscreen .np-hero{padding:0;transform:none !important;opacity:1 !important;}
+.np-art,.np-art-ph{transition:width .5s cubic-bezier(.22,1,.36,1),height .5s cubic-bezier(.22,1,.36,1),box-shadow .4s ease;}
+.np-track-title{transition:font-size .4s cubic-bezier(.22,1,.36,1),margin-top .4s cubic-bezier(.22,1,.36,1);}
+.np-track-artist{transition:font-size .4s cubic-bezier(.22,1,.36,1);}
+#np-view.np-fs-morphing .np-art,#np-view.np-fs-morphing .np-art-ph,
 #np-view.np-fullscreen .np-art,#np-view.np-fullscreen .np-art-ph{width:min(420px,72vw);height:min(420px,72vw);}
+#np-view.np-fs-morphing .np-track-title,
 #np-view.np-fullscreen .np-track-title{font-size:1.9rem;margin-top:28px;}
+#np-view.np-fs-morphing .np-track-artist,
 #np-view.np-fullscreen .np-track-artist{font-size:1.05rem;}
+#np-view.np-fs-morphing,
 #np-view.np-fullscreen{bottom:0 !important;z-index:600;}
-body.np-is-fullscreen #bar{display:none !important;}
+body.np-is-fullscreen #bar{opacity:0;pointer-events:none;transition:opacity .3s ease;}
+body.np-fs-final #bar{display:none !important;}
 @media(max-width:660px){
+  #np-view.np-fs-morphing .np-art,#np-view.np-fs-morphing .np-art-ph,
   #np-view.np-fullscreen .np-art,#np-view.np-fullscreen .np-art-ph{width:min(300px,78vw);height:min(300px,78vw);}
+  #np-view.np-fs-morphing .np-track-title,
   #np-view.np-fullscreen .np-track-title{font-size:1.4rem;}
 }
 
@@ -11070,6 +11100,8 @@ function openNP(track){
   if(!track) return;
   document.getElementById('np-view').classList.add('open');
   document.getElementById('np-view').classList.remove('np-fullscreen');
+  document.getElementById('np-view').classList.remove('np-fs-morphing');
+  document.body.classList.remove('np-fs-final');
   // Di mobile: sembunyikan kotak mini player (#bar) di bawah selama halaman
   // Now Playing terbuka, dan hapus baris grid-nya supaya tidak ada ruang
   // kosong (lihat CSS body.np-mobile-open).
@@ -11164,10 +11196,13 @@ function _handleSongEnded(){
 function closeNP(){
   document.getElementById('np-view').classList.remove('open');
   document.getElementById('np-view').classList.remove('np-fullscreen');
+  document.getElementById('np-view').classList.remove('np-fs-morphing');
   document.body.classList.remove('np-is-fullscreen');
+  document.body.classList.remove('np-fs-final');
   document.body.classList.remove('np-mobile-open');
-  // Halaman Now Playing ditutup: hentikan idle timer immersive fullscreen
+  // Halaman Now Playing ditutup: hentikan idle & morph timer immersive fullscreen
   _npClearIdleTimer();
+  if(typeof _npFsAnimTimer!=='undefined' && _npFsAnimTimer){ clearTimeout(_npFsAnimTimer); _npFsAnimTimer=null; }
   _npAutoFS=false;
 }
 
@@ -11196,17 +11231,51 @@ function _updateNPScrollFx(){
 })();
 
 // ── Tombol fullscreen di halaman Now Playing: hanya tampilkan foto album, judul, artis & tombol kembali ──
+// Transisinya dipecah 2 fase (biar tidak langsung "meloncat" seperti sebelumnya,
+// gaya Spotify): fase "morph" (~.4s) dulu — art & teks membesar/mengecil dan
+// elemen lain (grid, mini player, dsb) memudar — BARU setelah animasi itu
+// selesai, class struktural (yang benar2 men-display:none-kan/mengubah layout)
+// dipasang/dilepas. Karena state akhir "morph" & "fullscreen" sama persis
+// secara visual, perpindahannya jadi mulus, tidak ada lompatan.
+const NP_FS_MORPH_MS = 380; // durasi fase morph — harus selaras dgn transition di CSS
+let _npFsAnimTimer = null;
+
 function toggleNPFullscreen(force){
   const npView=document.getElementById('np-view');
   if(!npView) return;
-  const isFS = typeof force === 'boolean' ? force : !npView.classList.contains('np-fullscreen');
-  npView.classList.toggle('np-fullscreen', isFS);
-  document.body.classList.toggle('np-is-fullscreen', isFS);
+  const isFS = typeof force === 'boolean' ? force : !npView.classList.contains('np-fullscreen') && !npView.classList.contains('np-fs-morphing');
   // Setiap kali fungsi ini dipanggil dianggap "manual" dulu (mis. klik tombol
   // atau tombol back) — kalau ternyata dipicu oleh idle timer, flag ini akan
   // di-set true lagi tepat setelah pemanggilan ini oleh _npArmIdleTimer().
   _npAutoFS=false;
-  if(!isFS) _npClearIdleTimer();
+  if(_npFsAnimTimer){ clearTimeout(_npFsAnimTimer); _npFsAnimTimer=null; }
+
+  if(isFS){
+    // ── MASUK immersive fullscreen ──
+    npView.classList.remove('np-fullscreen');
+    npView.classList.add('np-fs-morphing');
+    document.body.classList.add('np-is-fullscreen');
+    document.body.classList.remove('np-fs-final');
+    _npFsAnimTimer=setTimeout(()=>{
+      npView.classList.add('np-fullscreen');
+      npView.classList.remove('np-fs-morphing');
+      document.body.classList.add('np-fs-final');
+      _npFsAnimTimer=null;
+    }, NP_FS_MORPH_MS);
+  } else {
+    // ── KELUAR immersive fullscreen ──
+    // Lepas class struktural & mulai class morph DALAM tick yang sama supaya
+    // tidak sempat "kelip" ke tampilan penuh sebelum animasi mengecil mulai.
+    npView.classList.remove('np-fullscreen');
+    npView.classList.add('np-fs-morphing');
+    document.body.classList.remove('np-fs-final');
+    requestAnimationFrame(()=>{
+      void npView.offsetHeight; // paksa reflow biar transisi dari state morph benar2 kepakai
+      npView.classList.remove('np-fs-morphing');
+      document.body.classList.remove('np-is-fullscreen');
+    });
+    _npClearIdleTimer();
+  }
   _npArmIdleTimer();
 }
 
@@ -11231,24 +11300,24 @@ function _npArmIdleTimer(){
   const npView=document.getElementById('np-view');
   if(!npView || !npView.classList.contains('open')) return; // hanya aktif selagi halaman Now Playing terbuka
   if(typeof playing==='undefined' || !playing) return;       // hanya kalau musik sedang diputar
-  if(npView.classList.contains('np-fullscreen')) return;     // sudah fullscreen, tak perlu timer lagi
+  if(npView.classList.contains('np-fullscreen') || npView.classList.contains('np-fs-morphing')) return; // sudah fullscreen/lagi bertransisi, tak perlu timer lagi
   _npIdleTimer=setTimeout(()=>{
     const v=document.getElementById('np-view');
     if(!v || !v.classList.contains('open')) return;
     if(typeof playing==='undefined' || !playing) return;
-    if(v.classList.contains('np-fullscreen')) return;
+    if(v.classList.contains('np-fullscreen') || v.classList.contains('np-fs-morphing')) return;
     toggleNPFullscreen(true);
     _npAutoFS=true; // tandai bahwa ini dipicu otomatis, bukan klik user
   }, NP_IDLE_MS);
 }
 
 // Dipanggil tiap ada aktivitas user selagi halaman Now Playing terbuka:
-// keluar dari immersive mode (kalau itu dipicu otomatis), lalu mulai
-// menghitung ulang idle timer dari 0.
+// keluar dari immersive mode (kalau itu dipicu otomatis — termasuk kalau
+// masih di tengah animasi masuk), lalu mulai menghitung ulang idle timer.
 function _npNoteActivity(){
   const npView=document.getElementById('np-view');
   if(!npView || !npView.classList.contains('open')) return;
-  if(_npAutoFS && npView.classList.contains('np-fullscreen')){
+  if(_npAutoFS && (npView.classList.contains('np-fullscreen') || npView.classList.contains('np-fs-morphing'))){
     toggleNPFullscreen(false);
   }
   _npAutoFS=false;
