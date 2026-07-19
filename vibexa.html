@@ -1228,9 +1228,7 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
   .mob-nav-btn svg{width:20px;height:20px;transition:all .18s}
   .mob-nav-btn.on{color:var(--green)}
   .mob-nav-btn.on svg{filter:drop-shadow(0 0 6px rgba(46,125,255,.5))}
-  .mob-nav-vibeprofile{color:var(--green)!important;position:relative;}
-  .mob-nav-vibeprofile svg{filter:drop-shadow(0 0 5px rgba(46,125,255,.4))!important;}
-  .mob-nav-vibeprofile::before{content:'';position:absolute;top:5px;inset-inline:12px;height:2px;background:linear-gradient(90deg,var(--green),var(--teal));border-radius:2px;opacity:.5;}
+  .mob-nav-vibeprofile{position:relative;}
   #mob-btn-search{display:none}
   #mob-btn-notif{display:none}
   /* Tombol Profil bawah dihilangkan khusus tampilan mobile (sudah ada akses
@@ -1254,7 +1252,8 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
      di antara keduanya). Jarak untuk menghindari lingkaran Preview yang ada
      persis di tengah dipindah ke SETELAH tombol Temukan (sebelum
      VibeProfile), bukan lagi di antara Home & Temukan. */
-  #mob-btn-finder{margin-right:26px}
+  #mob-btn-finder{margin-right:36px}
+  .mob-nav-vibeprofile{margin-left:36px}
 
   /* ════════════════════════════════
      SONG PREVIEW — mobile full screen
@@ -5139,16 +5138,16 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M10 9.2v5.6l4.8-2.8z" fill="currentColor" stroke="none"/></svg>
     <span>View</span>
   </button>
-  <button class="mob-nav-btn mob-nav-vibeprofile" id="mob-btn-vibeprofile" onclick="window.location.href='vibeprofile.html'">
+  <button class="mob-nav-btn mob-nav-vibeprofile" id="mob-btn-vibeprofile" onclick="setMobNavActive('mob-btn-vibeprofile');window.location.href='vibeprofile.html'">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12h8M8 8h5M8 16h4"/><circle cx="17" cy="16" r="2.5" fill="currentColor" stroke="none"/><path d="M17 13.5V12" stroke-width="2"/></svg>
     VibeProfile
   </button>
-  <button class="mob-nav-btn" id="mob-btn-chat" onclick="openChatOverlay()" style="position:relative;">
+  <button class="mob-nav-btn" id="mob-btn-chat" onclick="setMobNavActive('mob-btn-chat');openChatOverlay()" style="position:relative;">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
     Chat
     <span class="mob-nav-badge" id="mob-chat-badge">0</span>
   </button>
-  <button class="mob-nav-btn" id="mob-btn-notif" onclick="toggleNotifPanel()" style="position:relative;">
+  <button class="mob-nav-btn" id="mob-btn-notif" onclick="setMobNavActive('mob-btn-notif');toggleNotifPanel()" style="position:relative;">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
     Notif
     <span class="notif-badge" id="mob-notif-badge" style="position:absolute;top:4px;right:16px;margin:0;"></span>
@@ -10957,14 +10956,20 @@ function initMobileNav(){
   else nav.style.display = 'none';
 }
 
-function mobNav(tab){
-  const btns = ['home','search','finder','playlist','logout','songpreview','genre'];
-  btns.forEach(b => {
-    const el = document.getElementById('mob-btn-'+b);
-    if(el) el.classList.remove('on');
+// Nyalakan warna biru (.on) HANYA pada satu tombol nav bawah yang baru saja
+// ditekan, dan matikan di semua tombol lainnya — dipakai oleh SEMUA tombol
+// nav bawah (termasuk VibeProfile, Chat, Notif yang sebelumnya tidak pernah
+// ikut berubah warna sama sekali) supaya user langsung dapat feedback visual
+// begitu menekan tombol apa pun.
+const MOB_NAV_BTN_IDS = ['mob-btn-home','mob-btn-search','mob-btn-finder','mob-btn-songpreview','mob-btn-vibeprofile','mob-btn-chat','mob-btn-notif'];
+function setMobNavActive(activeId){
+  MOB_NAV_BTN_IDS.forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.classList.toggle('on', id===activeId);
   });
-  const active = document.getElementById('mob-btn-'+tab);
-  if(active) active.classList.add('on');
+}
+function mobNav(tab){
+  setMobNavActive('mob-btn-'+tab);
 
   if(tab==='home') showHomeView();
   else if(tab==='search') showSearchView();
@@ -10977,22 +10982,12 @@ function mobNav(tab){
 const _origShowHome = showHomeView;
 window.showHomeView = function(){
   _origShowHome();
-  ['home','search','playlist','finder','songpreview','genre'].forEach(b=>{
-    const el=document.getElementById('mob-btn-'+b);
-    if(el) el.classList.remove('on');
-  });
-  const h=document.getElementById('mob-btn-home');
-  if(h) h.classList.add('on');
+  setMobNavActive('mob-btn-home');
 };
 const _origShowSearch = showSearchView;
 window.showSearchView = function(){
   _origShowSearch();
-  ['home','search','playlist','finder','songpreview','genre'].forEach(b=>{
-    const el=document.getElementById('mob-btn-'+b);
-    if(el) el.classList.remove('on');
-  });
-  const s=document.getElementById('mob-btn-search');
-  if(s) s.classList.add('on');
+  setMobNavActive('mob-btn-search');
 };
 
 window.addEventListener('resize', initMobileNav);
