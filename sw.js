@@ -1,9 +1,5 @@
 // sw.js — Service Worker Vibexa
-//
-// CATATAN: kalau kamu SUDAH punya sw.js (misalnya untuk caching PWA/offline),
-// JANGAN timpa filenya — gabungkan isi di bawah ini (importScripts +
-// onBackgroundMessage + notificationclick) ke dalam sw.js yang sudah ada,
-// supaya fitur lama tidak hilang.
+// Gabungan: (1) caching PWA/offline app-shell, (2) Firebase push notification (chat).
 
 importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
@@ -21,6 +17,62 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+// ── PWA APP-SHELL CACHING ─────────────────────────────────
+// Bump versi ini setiap kali vibexa.html/asset berubah, supaya user dapat update.
+const CACHE_VERSION = 'vibexa-v1';
+const APP_SHELL = [
+  './vibexa.html',
+  './manifest.json'
+];
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_VERSION).then((cache) => cache.addAll(APP_SHELL))
+  );
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys.filter((key) => key !== CACHE_VERSION).map((key) => caches.delete(key))
+      )
+    )
+  );
+  self.clients.claim();
+});
+
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+
+  // Lewati request cross-origin (YouTube, font CDN, Firebase, dll) — biar langsung ke network.
+  if (new URL(request.url).origin !== self.location.origin) return;
+
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).catch(() => caches.match('./vibexa.html'))
+    );
+    return;
+  }
+
+  event.respondWith(
+    caches.match(request).then((cached) => {
+      if (cached) return cached;
+      return fetch(request)
+        .then((response) => {
+          if (request.method === 'GET' && response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_VERSION).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        })
+        .catch(() => cached);
+    })
+  );
+});
+
+// ── FIREBASE PUSH NOTIFICATION (CHAT) ─────────────────────
 // Notifikasi masuk saat tab/app TERTUTUP atau di background — inilah yang
 // bikin perilakunya persis WhatsApp (dapat notif walau app tidak dibuka).
 messaging.onBackgroundMessage((payload) => {
@@ -31,8 +83,8 @@ messaging.onBackgroundMessage((payload) => {
 
   self.registration.showNotification(title, {
     body,
-    icon: 'icons/icon-192.png',
-    badge: 'icons/icon-192.png',
+    icon: 'icons/launchericon-192x192.png',
+    badge: 'icons/launchericon-192x192.png',
     // tag = fromUid: notif dari orang yang SAMA akan menggantikan notif
     // sebelumnya (jadi 1 notif per lawan chat), bukan menumpuk per pesan.
     // renotify: true supaya tetap muncul/berbunyi ulang walau tag sama.
