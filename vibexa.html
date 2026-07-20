@@ -1651,21 +1651,6 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .np-track-artist{font-size:.92rem;color:rgba(255,255,255,.72);margin-top:6px;cursor:pointer;}
 .np-track-artist:hover{color:#fff;text-decoration:underline}
 
-/* ── Lyrics mode kinetik di halaman Now Playing (khusus mobile) ──
-   Ditaruh di antara foto album & baris judul/artis. Disembunyikan total
-   di layar besar (desktop) lewat display:none di sini; baru dimunculkan
-   lagi khusus mobile lewat media query max-width:660px di bawah. */
-.np-mob-lyrics{display:none;}
-.npkl-current{
-  font-family:'Outfit',sans-serif;font-weight:800;line-height:1.32;
-  letter-spacing:-.3px;text-align:center;
-}
-.npkl-word{display:inline-block;color:rgba(255,255,255,.38);filter:blur(0);
-  transition:color .28s ease,text-shadow .28s ease;}
-.npkl-word.npkl-word-lit{color:#fff;text-shadow:0 0 16px rgba(255,255,255,.55),0 0 32px rgba(46,125,255,.35);}
-.npkl-word.npkl-word-past{color:rgba(255,255,255,.7);text-shadow:none;}
-.npkl-instrumental{color:rgba(255,255,255,.32);font-size:1.05rem;letter-spacing:2px;}
-
 /* ── Now Playing · MOBILE PLAYBACK CONTROLS (Spotify-style) ──
    Title row (judul+artis) + tombol tambah (+) di sampingnya, lalu di
    bawahnya progress bar + baris kontrol (repeat/prev/play/next/lyrics)
@@ -1854,17 +1839,7 @@ body.np-fs-final #bar{display:none !important;}
 }
 @media(max-width:660px){
   #np-view{bottom:var(--np-bottom);}
-  /* Foto album agak dikecilkan/dinaikkan supaya lirik kinetik di bawahnya muat
-     tanpa halaman jadi kepanjangan (dulu min(250px,62vw)). */
-  .np-art,.np-art-ph{width:min(212px,52vw);height:min(212px,52vw);}
-  .np-mob-lyrics{
-    display:flex;align-items:center;justify-content:center;
-    width:100%;max-width:92vw;margin-top:16px;padding:0 4px;
-    min-height:30px;
-  }
-  .npkl-current{font-size:1.18rem;}
-  .npkl-instrumental{font-size:.95rem;}
-  .np-mob-lyrics.npkl-empty{min-height:0;margin-top:0;}
+  .np-art,.np-art-ph{width:min(250px,62vw);height:min(250px,62vw);}
   /* Tampilkan kontrol pemutaran (play/pause/next/prev/repeat), tombol
      tambah ke playlist, dan tombol Queue — khusus tampilan mobile,
      meniru halaman "Now Playing" Spotify di HP. Ukuran & animasi kotak
@@ -3224,6 +3199,71 @@ body.np-fs-final #bar{display:none !important;}
   .finder-album-art, .finder-album-placeholder { width: 80px; height: 80px; }
   .finder-song-title { font-size: 1.05rem; }
   .finder-ripple-wrap { padding: 28px 0 24px; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   FULLSCREEN LYRICS — MOBILE (≤660px)
+   Halaman lirik jadi benar-benar full screen (menutupi seluruh
+   layar, bukan cuma area 'main'). Info lagu (foto album, judul,
+   artis) + kontrol pemutaran (prev/play/next + seek bar) yang
+   biasanya melayang di bawah (desktop) dipindah ke ATAS, tepat di
+   bawah baris tombol aksi. Tombol "Full Lyrics Mode" (pure/fullscreen
+   toggle) disembunyikan khusus mobile karena halamannya memang sudah
+   fullscreen. Tombol kembali/keluar tetap di kiri atas. Ukuran teks
+   lirik dikecilkan supaya nyaman dibaca di layar kecil.
+   Ditaruh di akhir <style> supaya menang dari aturan #fs-lyr/#fs-bar
+   sebelumnya (yang beberapa propertinya "tertimpa" oleh definisi
+   unconditional yang datang belakangan di file ini).
+   ═══════════════════════════════════════════════════════════ */
+@media(max-width:660px){
+  #fs-lyr{
+    position:fixed;
+    inset:0;
+    z-index:999;
+    border-radius:0;
+    border:none;
+  }
+
+  /* Baris atas: tombol kembali/keluar (kiri) — terjemahan, gaya teks,
+     ubah background (kanan). Nama lagu/artis di baris ini disembunyikan
+     (dipindah ke baris foto album di bawah), dan tombol fullscreen
+     toggle disembunyikan total karena halaman sudah fullscreen. */
+  #fs-nav{padding:14px 14px 6px;gap:6px;}
+  #fs-back{display:flex;order:0;width:34px;height:34px;flex-shrink:0;}
+  #fs-track-info{order:1;visibility:hidden;}
+  #fs-translate-btn{order:2;width:34px;height:34px;flex-shrink:0;}
+  #fs-style-btn{order:3;width:34px;height:34px;flex-shrink:0;}
+  #fs-bg-btn{order:4;width:34px;height:34px;flex-shrink:0;}
+  #fs-pure-btn{display:none !important;}
+
+  /* Info lagu + kontrol pemutaran dipindah ke atas (bukan melayang di
+     bawah lirik seperti di desktop) */
+  #fs-bar{
+    position:static;
+    background:none;
+    padding:6px 18px 14px;
+    flex-direction:column;
+    align-items:stretch;
+    gap:12px;
+  }
+  #fs-bar-left{display:flex !important;flex:none;width:100%;}
+  .fs-np-thumb,.fs-np-ph{width:46px;height:46px;border-radius:7px;}
+  #fs-bar-center{width:100%;max-width:100%;}
+  #fs-bar-right{display:none;}
+  #fs-prog-wrap{margin-bottom:10px;}
+  #fs-ctrl{gap:22px;}
+  #fs-btn-play{width:46px;height:46px;}
+  #fs-btn-play svg{width:19px;height:19px;}
+  .fs-btn svg{width:19px;height:19px;}
+
+  /* Area lirik mengisi sisa layar di bawah header & kontrol */
+  #fs-lyr-scroll{padding:6px 6% 40px;}
+
+  /* Ukuran teks lirik dikecilkan khusus tampilan mobile */
+  .fs-ll{font-size:1.05rem;line-height:1.55;padding:5px 0;}
+  .fs-ll.active{font-size:1.25rem;}
+
+  #pure-exit-hint{display:none;}
 }
 </style>
 <style>
@@ -5022,11 +5062,6 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
     <div class="np-hero">
       <img class="np-art" id="np-art" src="" alt="" style="display:none" onerror="this.style.display='none';document.getElementById('np-art-ph').style.display='flex'">
       <div class="np-art-ph" id="np-art-ph" style="display:none"></div>
-      <!-- Lyrics mode kinetik (khusus tampilan mobile): preview baris lirik yang sedang
-           berjalan, kata per kata menyala mengikuti waktu putar — mirip fitur Lyrics
-           di halaman Now Playing Spotify versi HP. Disembunyikan otomatis kalau lirik
-           songs tidak tersedia (lihat updateNPKineticLyrics()). -->
-      <div class="np-mob-lyrics" id="np-mob-lyrics"></div>
       <div class="np-title-row">
         <div class="np-title-col">
           <div class="np-track-title" id="np-track-title">—</div>
@@ -5132,6 +5167,39 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
     <button id="fs-translate-btn" title="Terjemahan lirik" onclick="toggleFSTranslation()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>
     </button>
+  </div>
+  <!-- Now-playing info + playback controls (photo/title/artist, prev/play/next, seek bar).
+       On desktop this overlays the bottom of the lyrics; on mobile (see mobile CSS) it's
+       moved up to sit right under the top nav so the page reads: back/actions on top,
+       then photo+title+artist, then prev/play/next + seek bar, then the lyrics. -->
+  <div id="fs-bar">
+    <div id="fs-bar-left">
+      <div class="fs-np-ph" id="fs-np-thumb"></div>
+      <div class="fs-np-info">
+        <div class="fs-np-title" id="fs-np-title">—</div>
+        <div class="fs-np-artist" id="fs-np-artist">—</div>
+      </div>
+    </div>
+    <div id="fs-bar-center">
+      <div id="fs-prog-wrap">
+        <span class="fs-t" id="fs-t-cur">0:00</span>
+        <div id="fs-prog-track"><div id="fs-prog-fill"></div></div>
+        <span class="fs-t r" id="fs-t-tot">0:00</span>
+      </div>
+      <div id="fs-ctrl">
+        <button class="fs-btn" id="fs-btn-prev" title="Previous">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
+        </button>
+        <button id="fs-btn-play" title="Play/Pause">
+          <svg id="fs-ico-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          <svg id="fs-ico-pause" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+        </button>
+        <button class="fs-btn" id="fs-btn-next" title="Next">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="m6 18 8.5-6L6 6v12zm2-6 8.5 6V6L8 12z"/></svg>
+        </button>
+      </div>
+    </div>
+    <div id="fs-bar-right"></div>
   </div>
   <!-- Kinetic Typography Stage -->
   <div id="kinetic-stage">
@@ -10538,9 +10606,6 @@ function syncLyr(ct){
     el.scrollTo({top:actWrap.offsetTop-el.offsetHeight/2+actWrap.offsetHeight/2,behavior:'smooth'});
   }
   if(document.getElementById('fs-lyr').classList.contains('open'))updateFSLyr();
-  // Lyrics mode kinetik di halaman Now Playing (mobile): update tiap kali
-  // halaman Now Playing sedang terbuka, terlepas dari fullscreen lyrics.
-  if(document.getElementById('np-view').classList.contains('open'))updateNPKineticLyrics();
 }
 
 function setHeroImg(t){
@@ -11245,10 +11310,6 @@ function openNP(track){
   updateNPMobProg();
   updateNPMobAddBtn(track);
   updateNPMobQueueBtn();
-  // Lyrics mode kinetik: paksa render ulang dari awal setiap kali halaman
-  // Now Playing dibuka (biar tidak nampilin baris sisa songs sebelumnya).
-  _npklIdx=-1; _npklSongKey=null;
-  updateNPKineticLyrics();
   // Mulai hitung mundur idle timer untuk mode immersive fullscreen otomatis
   _npAutoFS=false;
   _npArmIdleTimer();
@@ -11323,8 +11384,6 @@ function closeNP(){
   _npClearIdleTimer();
   if(typeof _npFsAnimTimer!=='undefined' && _npFsAnimTimer){ clearTimeout(_npFsAnimTimer); _npFsAnimTimer=null; }
   _npAutoFS=false;
-  // Hentikan loop animasi kata lirik kinetik biar tidak jalan sia-sia di background
-  if(_npklRafId){ cancelAnimationFrame(_npklRafId); _npklRafId=null; }
 }
 
 // ── Animasi berpindah/transisi header saat scroll turun di halaman Now Playing (gaya Spotify) ──
@@ -11800,102 +11859,6 @@ closeFS = function() {
   }
   _origCloseFS();
 };
-
-// ─── LYRICS MODE KINETIK · HALAMAN NOW PLAYING (khusus mobile) ──────────────
-// Preview baris lirik yang sedang berjalan di halaman Now Playing itu sendiri
-// (bukan di halaman lirik fullscreen terpisah) — kata per kata menyala
-// mengikuti waktu putar, mirip fitur Lyrics di Now Playing Spotify versi HP.
-let _npklIdx = -1;
-let _npklSongKey = null;
-let _npklWordTimestamps = [];
-let _npklWordLitIdx = -1;
-let _npklRafId = null;
-
-function updateNPKineticLyrics(){
-  const box=document.getElementById('np-mob-lyrics');
-  if(!box) return;
-  const songKey = curTrack ? (curTrack.artist+'|'+curTrack.title) : null;
-  if(songKey !== _npklSongKey){
-    _npklSongKey = songKey;
-    _npklIdx = -1; // paksa render ulang, songs berganti
-  }
-  if(!lyrs || !lyrs.length){
-    box.innerHTML='';
-    box.classList.add('npkl-empty');
-    _npklIdx=-1;
-    if(_npklRafId){ cancelAnimationFrame(_npklRafId); _npklRafId=null; }
-    return;
-  }
-  box.classList.remove('npkl-empty');
-  const adjustedCt = cur + (_lyrOffset||0);
-  let idx=0;
-  for(let i=0;i<lyrs.length;i++){ if(adjustedCt>=lyrs[i].time) idx=i; else break; }
-  if(idx===_npklIdx) return;
-  _npklIdx=idx;
-  _renderNPKineticLine(idx);
-}
-
-function _renderNPKineticLine(idx){
-  const box=document.getElementById('np-mob-lyrics');
-  if(!box) return;
-  const line=lyrs[idx];
-
-  if(_npklRafId){ cancelAnimationFrame(_npklRafId); _npklRafId=null; }
-
-  if(!line || line.instrumental || !line.text || !line.text.trim()){
-    box.innerHTML='<div class="npkl-current npkl-instrumental">♪ ♪ ♪</div>';
-    _npklWordTimestamps=[]; _npklWordLitIdx=-1;
-    return;
-  }
-
-  const lineStart = line.time;
-  const lineEnd = idx < lyrs.length-1 ? lyrs[idx+1].time : lineStart+4;
-  const lineDur = Math.max(lineEnd-lineStart, 0.5);
-  const words = line.text.trim().split(/\s+/).filter(Boolean);
-
-  // Sebar timestamp tiap kata berdasar bobot panjang karakternya — kata lebih
-  // panjang dapat "jatah" waktu lebih lama, sama seperti mode kinetik fullscreen.
-  const LEAD=0.05, TRAIL=0.1;
-  const usable = lineDur*(1-LEAD-TRAIL);
-  const charLens = words.map(w=>Math.max(w.replace(/\W/g,'').length,1));
-  const totalChars = charLens.reduce((a,b)=>a+b,0);
-
-  box.innerHTML='<div class="npkl-current" id="npkl-current-inner"></div>';
-  const wrap=document.getElementById('npkl-current-inner');
-  _npklWordTimestamps=[];
-  _npklWordLitIdx=-1;
-  let cum=0;
-  words.forEach((w,i)=>{
-    const sp=document.createElement('span');
-    sp.className='npkl-word';
-    sp.textContent=w+(i<words.length-1?'\u00A0':'');
-    wrap.appendChild(sp);
-    const tW = lineStart + lineDur*LEAD + (cum/totalChars)*usable;
-    _npklWordTimestamps.push({t:tW, el:sp});
-    cum+=charLens[i];
-  });
-
-  _npklRafWordLoop();
-}
-
-function _npklRafWordLoop(){
-  const npView=document.getElementById('np-view');
-  if(!npView || !npView.classList.contains('open')){ _npklRafId=null; return; }
-  const nowSec = cur + (_lyrOffset||0);
-  for(let i=0;i<_npklWordTimestamps.length;i++){
-    const wt=_npklWordTimestamps[i];
-    if(nowSec>=wt.t && i>_npklWordLitIdx){
-      if(_npklWordLitIdx>=0){
-        const prev=_npklWordTimestamps[_npklWordLitIdx].el;
-        prev.classList.remove('npkl-word-lit');
-        prev.classList.add('npkl-word-past');
-      }
-      wt.el.classList.add('npkl-word-lit');
-      _npklWordLitIdx=i;
-    }
-  }
-  _npklRafId=requestAnimationFrame(_npklRafWordLoop);
-}
 
 // ─── GAYA TEKS / KINETIC TYPOGRAPHY ──────────────────────
 let _lyrStyle = localStorage.getItem('lyrStyle') || 'classic'; // 'classic' | 'kinetic'
