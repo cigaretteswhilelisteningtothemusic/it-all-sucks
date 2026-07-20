@@ -2305,7 +2305,14 @@ body.np-fs-final #bar{display:none !important;}
   pointer-events: none;
 }
 #fs-lyr.alight-mode #k-word-stage::-webkit-scrollbar { display: none; }
-#fs-lyr.alight-mode #k-word-stage.k-stage-enter { animation: none; }
+/* Baris baru masuk dari bawah lalu bergeser naik ke posisinya */
+@keyframes kw-alight-line-in {
+  from { opacity: 0; transform: translateY(64px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+#fs-lyr.alight-mode #k-word-stage.k-stage-enter {
+  animation: kw-alight-line-in .5s cubic-bezier(.22,1,.36,1) forwards;
+}
 
 /* Setiap grup kata (minimal 3 kata) dibungkus dalam satu baris (row)
    supaya tampil sebaris, bukan satu kata per baris. */
@@ -12455,7 +12462,9 @@ function _kRafWordLoop() {
       // Mode Alight: kata turun ke bawah, jaga kata aktif tetap di tengah layar
       if (_lyrStyle === 'alight') {
         const stage = document.getElementById('k-word-stage');
-        if (stage) stage.scrollTo({ top: wt.el.offsetTop - stage.clientHeight / 2 + wt.el.clientHeight / 2, behavior: 'smooth' });
+        // Titik pusat digeser sedikit ke bawah (bukan persis 50%) supaya
+        // baris aktif tidak terlalu mepet ke atas layar.
+        if (stage) stage.scrollTo({ top: wt.el.offsetTop - stage.clientHeight * 0.42 + wt.el.clientHeight / 2, behavior: 'smooth' });
       }
 
       _kWordLitIdx = i;
