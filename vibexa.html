@@ -1929,6 +1929,8 @@ body.np-fs-final #bar{display:none !important;}
 #fs-back{background:rgba(0,0,0,0.3);border:none;border-radius:50%;width:38px;height:38px;align-items:center;justify-content:center;cursor:pointer;color:#fff;transition:background .2s;}
 #fs-back:hover{background:rgba(0,0,0,0.5)}
 #fs-back svg{width:20px;height:20px}
+.fs-back-icon-mobile{display:none;}
+#fs-more-btn,#fs-more-menu{display:none;}
 #fs-track-info{text-align:center;flex:1}
 #fs-track-name{font-size:.75rem;font-weight:700;color:rgba(255,255,255,0.7);letter-spacing:2px;text-transform:uppercase}
 #fs-artist-name{font-size:.85rem;font-weight:600;color:#fff;margin-top:2px}
@@ -3224,40 +3226,81 @@ body.np-fs-final #bar{display:none !important;}
     border:none;
   }
 
-  /* Baris atas: tombol kembali/keluar (kiri) — terjemahan, gaya teks,
-     ubah background (kanan). Nama lagu/artis di baris ini disembunyikan
-     (dipindah ke baris foto album di bawah), dan tombol fullscreen
-     toggle disembunyikan total karena halaman sudah fullscreen. */
+  /* Baris atas: tombol kembali (kiri, jadi ▽) — terjemahan, gaya teks &
+     ubah background digabung jadi satu tombol titik tiga (kanan). Nama
+     lagu/artis di baris ini disembunyikan (dipindah ke baris foto album
+     di bawah), dan tombol fullscreen toggle disembunyikan total karena
+     halaman sudah fullscreen. */
   #fs-nav{padding:14px 14px 6px;gap:6px;}
   #fs-back{display:flex;order:0;width:34px;height:34px;flex-shrink:0;}
+  .fs-back-icon{display:none;}
+  .fs-back-icon-mobile{display:block;font-size:1.15rem;line-height:1;color:#fff;}
   #fs-track-info{order:1;visibility:hidden;}
-  #fs-translate-btn{order:2;width:34px;height:34px;flex-shrink:0;}
-  #fs-style-btn{order:3;width:34px;height:34px;flex-shrink:0;}
-  #fs-bg-btn{order:4;width:34px;height:34px;flex-shrink:0;}
+  #fs-translate-btn,#fs-style-btn,#fs-bg-btn{display:none !important;}
   #fs-pure-btn{display:none !important;}
 
-  /* Info lagu + kontrol pemutaran dipindah ke atas (bukan melayang di
-     bawah lirik seperti di desktop) */
+  /* Tombol titik tiga (gabungan terjemahan/gaya teks/ubah background) */
+  #fs-more-btn{display:flex;order:2;width:34px;height:34px;flex-shrink:0;background:rgba(0,0,0,0.3);border:none;border-radius:50%;align-items:center;justify-content:center;cursor:pointer;color:#fff;transition:background .2s;}
+  #fs-more-btn:hover,#fs-more-btn:active{background:rgba(0,0,0,0.5);}
+  #fs-more-btn svg{width:19px;height:19px;}
+
+  #fs-more-menu{
+    position:absolute;
+    top:52px;
+    right:14px;
+    z-index:20;
+    display:none;
+    flex-direction:column;
+    min-width:196px;
+    background:rgba(24,24,28,.97);
+    backdrop-filter:blur(16px);
+    -webkit-backdrop-filter:blur(16px);
+    border:1px solid rgba(255,255,255,.09);
+    border-radius:14px;
+    padding:6px;
+    box-shadow:0 14px 36px rgba(0,0,0,.55);
+  }
+  #fs-more-menu.show{display:flex;}
+  #fs-more-menu button{
+    display:flex;align-items:center;gap:10px;
+    width:100%;background:none;border:none;
+    color:#fff;font-family:var(--f);font-size:.82rem;font-weight:600;
+    padding:10px 12px;border-radius:9px;cursor:pointer;text-align:left;
+  }
+  #fs-more-menu button:hover,#fs-more-menu button:active{background:rgba(255,255,255,.09);}
+  #fs-more-menu button svg{width:17px;height:17px;flex-shrink:0;opacity:.9;}
+
+  /* Foto album + judul + artis: tetap di ATAS, tepat di bawah nav.
+     Kontrol pemutaran (prev/play/next) + seek bar: dipindah ke BAWAH,
+     melayang di atas lirik seperti mini player, bukan menyatu di atas. */
   #fs-bar{
     position:static;
     background:none;
-    padding:6px 18px 14px;
-    flex-direction:column;
-    align-items:stretch;
-    gap:12px;
+    padding:6px 18px 4px;
   }
   #fs-bar-left{display:flex !important;flex:none;width:100%;}
   .fs-np-thumb,.fs-np-ph{width:46px;height:46px;border-radius:7px;}
-  #fs-bar-center{width:100%;max-width:100%;}
   #fs-bar-right{display:none;}
+
+  #fs-bar-center{
+    position:fixed;
+    left:0; right:0; bottom:0;
+    z-index:6;
+    width:auto;
+    max-width:100%;
+    background:linear-gradient(to top, rgba(0,0,0,0.75) 55%, transparent);
+    padding:26px 18px 20px;
+  }
   #fs-prog-wrap{margin-bottom:10px;}
   #fs-ctrl{gap:22px;}
   #fs-btn-play{width:46px;height:46px;}
   #fs-btn-play svg{width:19px;height:19px;}
   .fs-btn svg{width:19px;height:19px;}
 
-  /* Area lirik mengisi sisa layar di bawah header & kontrol */
-  #fs-lyr-scroll{padding:6px 6% 40px;}
+  /* Area lirik mengisi sisa layar di bawah header, dan diberi jarak
+     bawah supaya tidak ketutupan kontrol yang sekarang melayang di
+     bawah (fixed) */
+  #fs-lyr-scroll{padding:6px 6% 130px;}
 
   /* Ukuran teks lirik dikecilkan khusus tampilan mobile */
   .fs-ll{font-size:1.05rem;line-height:1.55;padding:5px 0;}
@@ -5142,7 +5185,8 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   <div id="fs-bg"></div>
   <div id="fs-nav">
     <button id="fs-back">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      <svg class="fs-back-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      <span class="fs-back-icon-mobile">▽</span>
     </button>
     <div id="fs-track-info">
       <div id="fs-track-name">NOW PLAYING</div>
@@ -5167,6 +5211,25 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
     <button id="fs-translate-btn" title="Terjemahan lirik" onclick="toggleFSTranslation()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>
     </button>
+
+    <!-- Mobile-only: gabungan Terjemahan/Gaya Teks/Ubah Background jadi satu tombol titik tiga -->
+    <button id="fs-more-btn" title="Opsi lainnya" onclick="toggleFSMoreMenu(event)">
+      <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg>
+    </button>
+    <div id="fs-more-menu">
+      <button onclick="toggleFSTranslation();closeFSMoreMenu();">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>
+        <span>Terjemahan Lirik</span>
+      </button>
+      <button onclick="openStylePicker();closeFSMoreMenu();">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h10M4 17h6"/><circle cx="19" cy="17" r="2"/><path d="M19 15v-3"/></svg>
+        <span>Gaya Teks Lirik</span>
+      </button>
+      <button onclick="openLyrBgModal();closeFSMoreMenu();">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+        <span>Ubah Background</span>
+      </button>
+    </div>
   </div>
   <!-- Now-playing info + playback controls (photo/title/artist, prev/play/next, seek bar).
        On desktop this overlays the bottom of the lyrics; on mobile (see mobile CSS) it's
@@ -11780,6 +11843,25 @@ function updateFSLyr(){
     el.scrollTo({top:actWrap.offsetTop-el.offsetHeight/2+actWrap.offsetHeight/2,behavior:'smooth'});
   }
 }
+
+// ── Mobile: menu titik tiga (gabungan Terjemahan/Gaya Teks/Ubah Background) ──
+function toggleFSMoreMenu(e){
+  if(e) e.stopPropagation();
+  const menu = document.getElementById('fs-more-menu');
+  if(!menu) return;
+  menu.classList.toggle('show');
+}
+function closeFSMoreMenu(){
+  const menu = document.getElementById('fs-more-menu');
+  if(menu) menu.classList.remove('show');
+}
+document.addEventListener('click', function(e){
+  const menu = document.getElementById('fs-more-menu');
+  const btn = document.getElementById('fs-more-btn');
+  if(!menu || !menu.classList.contains('show')) return;
+  if(menu.contains(e.target) || (btn && btn.contains(e.target))) return;
+  closeFSMoreMenu();
+});
 
 function toggleFSTranslation() {
   // Reuse the same toggle logic, synced with sidebar button
