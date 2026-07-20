@@ -1931,6 +1931,7 @@ body.np-fs-final #bar{display:none !important;}
 #fs-back svg{width:20px;height:20px}
 .fs-back-icon-mobile{display:none;}
 #fs-more-btn,#fs-more-menu{display:none;}
+.fs-more-pure-item{display:none;}
 #fs-track-info{text-align:center;flex:1}
 #fs-track-name{font-size:.75rem;font-weight:700;color:rgba(255,255,255,0.7);letter-spacing:2px;text-transform:uppercase}
 #fs-artist-name{font-size:.85rem;font-weight:600;color:#fff;margin-top:2px}
@@ -3381,7 +3382,8 @@ body.np-fs-final #bar{display:none !important;}
   /* Gabungkan tombol Terjemahan Lirik / Gaya Teks Lirik / Ubah Background
      jadi satu tombol dropdown "˅" khusus tampilan PC (memakai mekanisme
      menu yang sama dengan tombol titik-tiga di mobile). */
-  #fs-style-btn,#fs-translate-btn,#fs-bg-btn{display:none !important;}
+  #fs-style-btn,#fs-translate-btn,#fs-bg-btn,#fs-pure-btn{display:none !important;}
+  .fs-more-pure-item{display:flex !important;}
 
   #fs-more-btn{
     display:flex;background:rgba(0,0,0,0.3);border:none;border-radius:50%;
@@ -5328,6 +5330,10 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
       <svg class="fs-more-icon-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
     </button>
     <div id="fs-more-menu">
+      <button class="fs-more-pure-item" onclick="togglePureMode();closeFSMoreMenu();">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+        <span>Full Lyrics Mode</span>
+      </button>
       <button onclick="toggleFSTranslation();closeFSMoreMenu();">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>
         <span>Terjemahan Lirik</span>
