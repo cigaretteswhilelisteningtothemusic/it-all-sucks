@@ -12198,6 +12198,12 @@ let _kDotTimer = null;
 let _kRafId = null;
 let _kWordTimestamps = [];
 let _kWordLitIdx = -1;
+// Mode Alight: baris pendek (<3 kata) digabung dengan baris berikutnya supaya
+// setiap "kelompok" yang tampil di layar selalu berisi minimal 3 kata, dan
+// kata yang sudah tampil tidak dirender ulang / diblur lagi selama masih
+// dalam kelompok yang sama.
+let _kAlightGroupStart = -1;
+let _kAlightGroupEnd = -1;
 
 function openStylePicker() {
   document.getElementById('style-picker-modal').style.display = 'flex';
@@ -12226,6 +12232,8 @@ function selectLyrStyle(style) {
     _kineticIdx = -1;
     _kWordLitIdx = -1;
     _kWordTimestamps = [];
+    _kAlightGroupStart = -1;
+    _kAlightGroupEnd = -1;
     if (lyrs.length) updateKinetic();
   } else {
     if (styleBtn) styleBtn.classList.remove('active');
@@ -12285,10 +12293,72 @@ function renderKineticLines(idx) {
   if (lyrs[idx].instrumental) {
     stage.innerHTML = '<div class="fs-ll instrumental active" style="justify-content:center;"><span class="inst-notes"><span style="height:8px"></span><span style="height:18px"></span><span style="height:10px"></span><span style="height:20px"></span><span style="height:12px"></span></span></div>';
     _kWordTimestamps = [];
+    _kAlightGroupStart = -1;
+    _kAlightGroupEnd = -1;
     buildProgressDots(0);
     void stage.offsetWidth;
     stage.classList.add('k-stage-enter');
     if (_kRafId) cancelAnimationFrame(_kRafId);
+    return;
+  }
+
+  // ── Mode Alight: gabungkan baris pendek (<3 kata) dengan baris
+  //    berikutnya supaya kelompok kata yang tampil selalu minimal 3 kata.
+  //    Kalau baris aktif (idx) masih bagian dari kelompok yang sedang
+  //    tampil, jangan render ulang stage sama sekali — supaya kata yang
+  //    sudah muncul sebelumnya tidak ikut ter-reset/blur lagi.
+  if (_lyrStyle === 'alight') {
+    if (idx >= _kAlightGroupStart && idx <= _kAlightGroupEnd && stage.children.length) {
+      return; // masih dalam kelompok yang sama, biarkan rAF loop lanjut jalan
+    }
+
+    const MIN_WORDS = 3;
+    let groupEnd = idx;
+    let wordCount = (lyrs[idx].instrumental ? 0 : lyrs[idx].text.trim().split(/\s+/).filter(Boolean).length);
+    while (wordCount < MIN_WORDS && groupEnd + 1 < lyrs.length && !lyrs[groupEnd + 1].instrumental) {
+      groupEnd++;
+      wordCount += lyrs[groupEnd].text.trim().split(/\s+/).filter(Boolean).length;
+    }
+    _kAlightGroupStart = idx;
+    _kAlightGroupEnd = groupEnd;
+
+    stage.innerHTML = '';
+    _kWordTimestamps = [];
+    _kWordLitIdx = -1;
+
+    const LEAD  = 0.08;
+    const TRAIL = 0.12;
+
+    for (let li = idx; li <= groupEnd; li++) {
+      const subStart = lyrs[li].time;
+      const subEnd   = li < lyrs.length - 1 ? lyrs[li + 1].time : subStart + 4;
+      const subDur   = Math.max(subEnd - subStart, 0.5);
+      const subWords = lyrs[li].text.trim().split(/\s+/).filter(Boolean);
+      if (!subWords.length) continue;
+
+      const usable   = subDur * (1 - LEAD - TRAIL);
+      const charLens = subWords.map(w => Math.max(w.replace(/\W/g, '').length, 1));
+      const totalChars = charLens.reduce((a, b) => a + b, 0);
+
+      let cumChars = 0;
+      subWords.forEach((w, i) => {
+        const sp = document.createElement('span');
+        sp.className = 'k-word';
+        sp.textContent = w;
+        stage.appendChild(sp);
+
+        const tWord = subStart + subDur * LEAD + (cumChars / totalChars) * usable;
+        _kWordTimestamps.push({ t: tWord, el: sp });
+        cumChars += charLens[i];
+      });
+    }
+
+    void stage.offsetWidth;
+    stage.classList.add('k-stage-enter');
+    buildProgressDots(_kWordTimestamps.length);
+
+    if (_kRafId) cancelAnimationFrame(_kRafId);
+    _kRafWordLoop();
     return;
   }
 
@@ -12425,6 +12495,8 @@ openFS = function() {
     _kineticIdx = -1;
     _kWordLitIdx = -1;
     _kWordTimestamps = [];
+    _kAlightGroupStart = -1;
+    _kAlightGroupEnd = -1;
     if (lyrs.length) updateKinetic();
   } else {
     if (styleBtn) styleBtn.classList.remove('active');
