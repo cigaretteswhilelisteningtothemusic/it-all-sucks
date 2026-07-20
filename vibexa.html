@@ -687,15 +687,19 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 /* Instrumental lines */
 .ll.instrumental{display:flex;align-items:center;justify-content:center;gap:8px;padding:6px 0;cursor:default;}
 .ll.instrumental .inst-notes{display:flex;align-items:flex-end;gap:3px;}
-.ll.instrumental .inst-notes span{display:inline-block;width:3px;border-radius:3px;background:var(--muted);transition:all .35s;}
+.ll.instrumental .inst-notes span{display:inline-block;width:3px;border-radius:3px;background:var(--muted);transition:background .35s,opacity .35s;transform-origin:bottom;}
 .ll.instrumental.active .inst-notes span{background:var(--green);}
 .ll.instrumental.past .inst-notes span{background:var(--muted);opacity:.4;}
 
-@keyframes inst-bar1{0%,100%{height:6px}50%{height:16px}}
-@keyframes inst-bar2{0%,100%{height:14px}50%{height:5px}}
-@keyframes inst-bar3{0%,100%{height:8px}50%{height:18px}}
-@keyframes inst-bar4{0%,100%{height:16px}50%{height:6px}}
-@keyframes inst-bar5{0%,100%{height:10px}50%{height:20px}}
+/* Rasio scaleY di bawah ini dihitung dari tinggi asli tiap bar (mis. bar1: 6px→16px = skala 2.667x)
+   supaya gerakannya identik seperti sebelumnya — bedanya sekarang murni visual (transform),
+   tidak lagi mengubah properti "height" sehingga tidak memicu reflow/layout shift yang
+   membuat baris lirik di bawahnya ikut bergerak naik-turun. */
+@keyframes inst-bar1{0%,100%{transform:scaleY(1)}50%{transform:scaleY(2.667)}}
+@keyframes inst-bar2{0%,100%{transform:scaleY(1)}50%{transform:scaleY(0.357)}}
+@keyframes inst-bar3{0%,100%{transform:scaleY(1)}50%{transform:scaleY(2.25)}}
+@keyframes inst-bar4{0%,100%{transform:scaleY(1)}50%{transform:scaleY(0.375)}}
+@keyframes inst-bar5{0%,100%{transform:scaleY(1)}50%{transform:scaleY(2)}}
 
 .ll.instrumental.active .inst-notes span:nth-child(1){animation:inst-bar1 .7s ease-in-out infinite;}
 .ll.instrumental.active .inst-notes span:nth-child(2){animation:inst-bar2 .6s ease-in-out infinite .1s;}
@@ -706,7 +710,7 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 /* Fullscreen instrumental lines */
 .fs-ll.instrumental{display:flex;align-items:center;justify-content:center;gap:10px;cursor:default;}
 .fs-ll.instrumental .inst-notes{display:flex;align-items:flex-end;gap:4px;}
-.fs-ll.instrumental .inst-notes span{display:inline-block;width:4px;border-radius:3px;background:rgba(255,255,255,0.2);}
+.fs-ll.instrumental .inst-notes span{display:inline-block;width:4px;border-radius:3px;background:rgba(255,255,255,0.2);transform-origin:bottom;}
 .fs-ll.instrumental.active .inst-notes span{background:rgba(255,255,255,0.85);}
 .fs-ll.instrumental.past .inst-notes span{background:rgba(255,255,255,0.12);}
 
@@ -715,6 +719,7 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .fs-ll.instrumental.active .inst-notes span:nth-child(3){animation:inst-bar3 .8s ease-in-out infinite .05s;}
 .fs-ll.instrumental.active .inst-notes span:nth-child(4){animation:inst-bar4 .65s ease-in-out infinite .15s;}
 .fs-ll.instrumental.active .inst-notes span:nth-child(5){animation:inst-bar5 .75s ease-in-out infinite .08s;}
+
 
 /* PLAYER BAR */
 #bar{grid-area:bar;background:rgba(8,11,18,.96);backdrop-filter:blur(20px);display:flex;align-items:center;padding:0 22px;gap:20px;z-index:10}
