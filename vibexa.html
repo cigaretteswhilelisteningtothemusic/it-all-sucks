@@ -3247,6 +3247,8 @@ body.np-fs-final #bar{display:none !important;}
   #fs-more-btn{display:flex;order:3;width:34px;height:34px;flex-shrink:0;background:none;border:none;border-radius:50%;align-items:center;justify-content:center;cursor:pointer;color:#fff;transition:background .15s;}
   #fs-more-btn:hover,#fs-more-btn:active{background:rgba(255,255,255,.08);}
   #fs-more-btn svg{width:19px;height:19px;}
+  .fs-more-icon-dots{display:block;}
+  .fs-more-icon-chevron{display:none;}
 
   /* FIX: #fs-nav dan #fs-lyr-scroll sebelumnya sama-sama z-index:2, sehingga
      #fs-lyr-scroll (datang belakangan di DOM) menang dan menutupi menu titik
@@ -3315,11 +3317,11 @@ body.np-fs-final #bar{display:none !important;}
     z-index:16;
     width:auto;
     max-width:100%;
-    background:var(--fs-bg-color, rgba(16,13,11,.95));
+    background:linear-gradient(to bottom, transparent, var(--fs-bg-color, rgba(16,13,11,.95)) 42%);
     backdrop-filter:blur(18px);
     -webkit-backdrop-filter:blur(18px);
-    border-top:1px solid rgba(255,255,255,.08);
-    box-shadow:0 -8px 28px rgba(0,0,0,.4);
+    border-top:none;
+    box-shadow:none;
     padding:20px 20px 26px;
     pointer-events:auto;
   }
@@ -3375,6 +3377,46 @@ body.np-fs-final #bar{display:none !important;}
 @media(min-width:661px){
   #fs-back{display:none !important;}
   #fs-bar{display:none !important;}
+
+  /* Gabungkan tombol Terjemahan Lirik / Gaya Teks Lirik / Ubah Background
+     jadi satu tombol dropdown "˅" khusus tampilan PC (memakai mekanisme
+     menu yang sama dengan tombol titik-tiga di mobile). */
+  #fs-style-btn,#fs-translate-btn,#fs-bg-btn{display:none !important;}
+
+  #fs-more-btn{
+    display:flex;background:rgba(0,0,0,0.3);border:none;border-radius:50%;
+    width:38px;height:38px;align-items:center;justify-content:center;
+    cursor:pointer;color:#fff;transition:background .2s;flex-shrink:0;
+  }
+  #fs-more-btn:hover{background:rgba(0,0,0,0.5);}
+  .fs-more-icon-dots{display:none;}
+  .fs-more-icon-chevron{display:block;width:20px;height:20px;}
+
+  #fs-more-menu{
+    display:none;
+    position:absolute;
+    top:56px;
+    right:24px;
+    z-index:20;
+    flex-direction:column;
+    min-width:210px;
+    background:rgba(24,24,28,.97);
+    backdrop-filter:blur(16px);
+    -webkit-backdrop-filter:blur(16px);
+    border:1px solid rgba(255,255,255,.09);
+    border-radius:14px;
+    padding:6px;
+    box-shadow:0 14px 36px rgba(0,0,0,.55);
+  }
+  #fs-more-menu.show{display:flex;}
+  #fs-more-menu button{
+    display:flex;align-items:center;gap:10px;
+    width:100%;background:none;border:none;
+    color:#fff;font-family:var(--f);font-size:.82rem;font-weight:600;
+    padding:10px 12px;border-radius:9px;cursor:pointer;text-align:left;
+  }
+  #fs-more-menu button:hover{background:rgba(255,255,255,.09);}
+  #fs-more-menu button svg{width:17px;height:17px;flex-shrink:0;opacity:.9;}
 }
 </style>
 <style>
@@ -5282,7 +5324,8 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 
     <!-- Mobile-only: gabungan Terjemahan/Gaya Teks/Ubah Background jadi satu tombol titik tiga -->
     <button id="fs-more-btn" title="Opsi lainnya" onclick="toggleFSMoreMenu(event)">
-      <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg>
+      <svg class="fs-more-icon-dots" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg>
+      <svg class="fs-more-icon-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
     </button>
     <div id="fs-more-menu">
       <button onclick="toggleFSTranslation();closeFSMoreMenu();">
