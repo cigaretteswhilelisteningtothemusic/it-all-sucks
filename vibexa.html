@@ -3226,13 +3226,12 @@ body.np-fs-final #bar{display:none !important;}
     border:none;
   }
 
-  /* Baris atas: tombol kembali (kiri, jadi ▽) — terjemahan, gaya teks &
-     ubah background digabung jadi satu tombol titik tiga (kanan). Nama
-     lagu/artis di baris ini disembunyikan (dipindah ke baris foto album
-     di bawah), dan tombol fullscreen toggle disembunyikan total karena
-     halaman sudah fullscreen. */
-  #fs-nav{padding:14px 14px 6px;gap:6px;}
-  #fs-back{display:flex;order:0;width:34px;height:34px;flex-shrink:0;}
+  /* Baris atas: foto album + judul + artis (kiri, diperbesar) — tombol
+     kembali (jadi ▽) sekarang diletakkan BERDAMPINGAN dengan tombol
+     titik tiga (kanan), bukan lagi di ujung kiri. Tombol fullscreen
+     toggle disembunyikan total karena halaman sudah fullscreen. */
+  #fs-nav{padding:16px 14px 8px;gap:10px;}
+  #fs-back{display:flex;order:2;width:34px;height:34px;flex-shrink:0;}
   .fs-back-icon{display:none;}
   .fs-back-icon-mobile{display:block;font-size:1.15rem;line-height:1;color:#fff;}
   #fs-track-info{display:none;}
@@ -3257,25 +3256,25 @@ body.np-fs-final #bar{display:none !important;}
   #fs-nav{z-index:15;}
 
   /* Foto album + judul + artis: dipindah (lewat JS, lihat _fsMobileLayout)
-     ke baris NAV paling atas, berdampingan dengan tombol kembali & titik
-     tiga, dengan jarak di kiri-kanannya. */
+     ke baris NAV paling atas, diperbesar, dengan tombol kembali & titik
+     tiga sekarang berdampingan di sisi kanan. */
   #fs-bar-left.fs-bar-left-in-nav{
     order:1;
     display:flex !important;
     flex:1 1 auto;
     min-width:0;
     align-items:center;
-    gap:9px;
-    margin:0 8px;
+    gap:12px;
+    margin:0 4px 0 0;
   }
-  .fs-bar-left-in-nav .fs-np-thumb,.fs-bar-left-in-nav .fs-np-ph{width:32px;height:32px;border-radius:6px;flex-shrink:0;}
+  .fs-bar-left-in-nav .fs-np-thumb,.fs-bar-left-in-nav .fs-np-ph{width:56px;height:56px;border-radius:9px;flex-shrink:0;}
   .fs-bar-left-in-nav .fs-np-info{min-width:0;overflow:hidden;}
-  .fs-bar-left-in-nav .fs-np-title{font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .fs-bar-left-in-nav .fs-np-artist{font-size:.65rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}
+  .fs-bar-left-in-nav .fs-np-title{font-size:1.05rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .fs-bar-left-in-nav .fs-np-artist{font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px;}
 
   #fs-more-menu{
     position:absolute;
-    top:52px;
+    top:58px;
     right:14px;
     z-index:20;
     display:none;
@@ -3301,7 +3300,8 @@ body.np-fs-final #bar{display:none !important;}
 
   /* #fs-bar sekarang hanya "wrapper" kosong (fs-bar-left sudah dipindah ke
      nav lewat JS). Kontrol pemutaran (prev/play/next) + seek bar tetap
-     melayang (fixed) di atas lirik seperti mini player. */
+     melayang (fixed) di atas lirik seperti mini player — sekarang dengan
+     latar SOLID (tidak transparan) dan elemen yang diperbesar. */
   #fs-bar{
     position:static;
     background:none;
@@ -3315,19 +3315,33 @@ body.np-fs-final #bar{display:none !important;}
     z-index:16;
     width:auto;
     max-width:100%;
-    background:linear-gradient(to top, rgba(0,0,0,0.75) 55%, transparent);
-    padding:26px 18px 20px;
+    background:var(--fs-bg-color, rgba(16,13,11,.95));
+    backdrop-filter:blur(18px);
+    -webkit-backdrop-filter:blur(18px);
+    border-top:1px solid rgba(255,255,255,.08);
+    box-shadow:0 -8px 28px rgba(0,0,0,.4);
+    padding:20px 20px 26px;
     pointer-events:auto;
   }
-  #fs-prog-wrap{margin-bottom:10px;}
-  #fs-ctrl{gap:22px;}
-  #fs-btn-play{width:46px;height:46px;}
-  #fs-btn-play svg{width:19px;height:19px;}
-  .fs-btn svg{width:19px;height:19px;}
+  #fs-bar-center::before{
+    content:'';
+    position:absolute;
+    inset:0;
+    background:rgba(0,0,0,.28);
+    pointer-events:none;
+  }
+  #fs-bar-center > *{position:relative;z-index:1;}
+  #fs-prog-wrap{margin-bottom:14px;gap:12px;}
+  .fs-t{font-size:.72rem;width:38px;}
+  #fs-ctrl{gap:30px;}
+  #fs-btn-play{width:64px;height:64px;}
+  #fs-btn-play svg{width:27px;height:27px;}
+  .fs-btn{opacity:.9;}
+  .fs-btn svg{width:25px;height:25px;}
 
-  /* Seek bar: area sentuh diperbesar & warna biru (var(--green) = #2E7DFF) */
+  /* Seek bar: area sentuh diperbesar, lebih tebal & warna biru (var(--green) = #2E7DFF) */
   #fs-prog-track{
-    height:5px;
+    height:6px;
     background:rgba(255,255,255,.25);
     padding:10px 0;
     background-clip:content-box;
@@ -3340,8 +3354,8 @@ body.np-fs-final #bar{display:none !important;}
 
   /* Area lirik mengisi sisa layar di bawah header, dan diberi jarak
      bawah supaya tidak ketutupan kontrol yang sekarang melayang di
-     bawah (fixed) */
-  #fs-lyr-scroll{padding:6px 6% 130px;}
+     bawah (fixed, lebih tinggi karena elemen diperbesar) */
+  #fs-lyr-scroll{padding:6px 6% 155px;}
 
   /* Ukuran teks lirik dibesarkan sedikit khusus tampilan mobile */
   .fs-ll{font-size:1.15rem;line-height:1.55;padding:5px 0;}
@@ -11248,7 +11262,7 @@ let _fsColorCache={};
 let _fsColorReqSeq=0;
 function _applyFSColorValue(c){
   const l=document.getElementById('fs-lyr'), b=document.getElementById('fs-bg');
-  if(l) l.style.background=c;
+  if(l){ l.style.background=c; l.style.setProperty('--fs-bg-color', c); }
   if(b) b.style.background=c;
 }
 // Ubah rgb(...) jadi versi lebih cerah & jenuh (vivid), gaya "Canvas" Spotify,
