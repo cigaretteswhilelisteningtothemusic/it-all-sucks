@@ -3235,14 +3235,43 @@ body.np-fs-final #bar{display:none !important;}
   #fs-back{display:flex;order:0;width:34px;height:34px;flex-shrink:0;}
   .fs-back-icon{display:none;}
   .fs-back-icon-mobile{display:block;font-size:1.15rem;line-height:1;color:#fff;}
-  #fs-track-info{order:1;visibility:hidden;}
+  #fs-track-info{display:none;}
   #fs-translate-btn,#fs-style-btn,#fs-bg-btn{display:none !important;}
   #fs-pure-btn{display:none !important;}
 
-  /* Tombol titik tiga (gabungan terjemahan/gaya teks/ubah background) */
-  #fs-more-btn{display:flex;order:2;width:34px;height:34px;flex-shrink:0;background:rgba(0,0,0,0.3);border:none;border-radius:50%;align-items:center;justify-content:center;cursor:pointer;color:#fff;transition:background .2s;}
-  #fs-more-btn:hover,#fs-more-btn:active{background:rgba(0,0,0,0.5);}
+  /* Tombol kembali: hilangkan background lingkaran, hanya ikon polos */
+  #fs-back{background:none;}
+  #fs-back:hover,#fs-back:active{background:rgba(255,255,255,.08);}
+
+  /* Tombol titik tiga (gabungan terjemahan/gaya teks/ubah background) —
+     background lingkaran dihilangkan, hanya ikon polos seperti tombol kembali. */
+  #fs-more-btn{display:flex;order:3;width:34px;height:34px;flex-shrink:0;background:none;border:none;border-radius:50%;align-items:center;justify-content:center;cursor:pointer;color:#fff;transition:background .15s;}
+  #fs-more-btn:hover,#fs-more-btn:active{background:rgba(255,255,255,.08);}
   #fs-more-btn svg{width:19px;height:19px;}
+
+  /* FIX: #fs-nav dan #fs-lyr-scroll sebelumnya sama-sama z-index:2, sehingga
+     #fs-lyr-scroll (datang belakangan di DOM) menang dan menutupi menu titik
+     tiga secara visual/klik meskipun #fs-more-menu punya z-index tinggi —
+     inilah sebabnya tombol Terjemahan/Gaya Teks/Ubah Background terasa
+     "tidak berfungsi". Menaikkan z-index #fs-nav menyelesaikannya. */
+  #fs-nav{z-index:15;}
+
+  /* Foto album + judul + artis: dipindah (lewat JS, lihat _fsMobileLayout)
+     ke baris NAV paling atas, berdampingan dengan tombol kembali & titik
+     tiga, dengan jarak di kiri-kanannya. */
+  #fs-bar-left.fs-bar-left-in-nav{
+    order:1;
+    display:flex !important;
+    flex:1 1 auto;
+    min-width:0;
+    align-items:center;
+    gap:9px;
+    margin:0 8px;
+  }
+  .fs-bar-left-in-nav .fs-np-thumb,.fs-bar-left-in-nav .fs-np-ph{width:32px;height:32px;border-radius:6px;flex-shrink:0;}
+  .fs-bar-left-in-nav .fs-np-info{min-width:0;overflow:hidden;}
+  .fs-bar-left-in-nav .fs-np-title{font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .fs-bar-left-in-nav .fs-np-artist{font-size:.65rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}
 
   #fs-more-menu{
     position:absolute;
@@ -3270,26 +3299,25 @@ body.np-fs-final #bar{display:none !important;}
   #fs-more-menu button:hover,#fs-more-menu button:active{background:rgba(255,255,255,.09);}
   #fs-more-menu button svg{width:17px;height:17px;flex-shrink:0;opacity:.9;}
 
-  /* Foto album + judul + artis: tetap di ATAS, tepat di bawah nav.
-     Kontrol pemutaran (prev/play/next) + seek bar: dipindah ke BAWAH,
-     melayang di atas lirik seperti mini player, bukan menyatu di atas. */
+  /* #fs-bar sekarang hanya "wrapper" kosong (fs-bar-left sudah dipindah ke
+     nav lewat JS). Kontrol pemutaran (prev/play/next) + seek bar tetap
+     melayang (fixed) di atas lirik seperti mini player. */
   #fs-bar{
     position:static;
     background:none;
-    padding:6px 18px 4px;
+    padding:0;
   }
-  #fs-bar-left{display:flex !important;flex:none;width:100%;}
-  .fs-np-thumb,.fs-np-ph{width:46px;height:46px;border-radius:7px;}
   #fs-bar-right{display:none;}
 
   #fs-bar-center{
     position:fixed;
     left:0; right:0; bottom:0;
-    z-index:6;
+    z-index:16;
     width:auto;
     max-width:100%;
     background:linear-gradient(to top, rgba(0,0,0,0.75) 55%, transparent);
     padding:26px 18px 20px;
+    pointer-events:auto;
   }
   #fs-prog-wrap{margin-bottom:10px;}
   #fs-ctrl{gap:22px;}
@@ -3297,16 +3325,42 @@ body.np-fs-final #bar{display:none !important;}
   #fs-btn-play svg{width:19px;height:19px;}
   .fs-btn svg{width:19px;height:19px;}
 
+  /* Seek bar: area sentuh diperbesar & warna biru (var(--green) = #2E7DFF) */
+  #fs-prog-track{
+    height:5px;
+    background:rgba(255,255,255,.25);
+    padding:10px 0;
+    background-clip:content-box;
+    box-sizing:content-box;
+    margin:-10px 0;
+    pointer-events:auto;
+    touch-action:none;
+  }
+  #fs-prog-fill{background:var(--green);background-clip:content-box;}
+
   /* Area lirik mengisi sisa layar di bawah header, dan diberi jarak
      bawah supaya tidak ketutupan kontrol yang sekarang melayang di
      bawah (fixed) */
   #fs-lyr-scroll{padding:6px 6% 130px;}
 
-  /* Ukuran teks lirik dikecilkan khusus tampilan mobile */
-  .fs-ll{font-size:1.05rem;line-height:1.55;padding:5px 0;}
-  .fs-ll.active{font-size:1.25rem;}
+  /* Ukuran teks lirik dibesarkan sedikit khusus tampilan mobile */
+  .fs-ll{font-size:1.15rem;line-height:1.55;padding:5px 0;}
+  .fs-ll.active{font-size:1.35rem;}
 
   #pure-exit-hint{display:none;}
+}
+
+/* ═══════════════════════════════════════════════════════════
+   FULLSCREEN LYRICS — DESKTOP/PC (≥661px)
+   Baris kontrol (prev/play/pause/next + seek bar), foto album,
+   nama artis, dan judul lagu disembunyikan khusus di tampilan PC.
+   Tombol kembali juga disembunyikan (di PC memang sudah default
+   hidden, ini eksplisit supaya konsisten & tidak tertimpa aturan
+   lain di masa depan). Tampilan mobile (≤660px) tidak terpengaruh.
+   ═══════════════════════════════════════════════════════════ */
+@media(min-width:661px){
+  #fs-back{display:none !important;}
+  #fs-bar{display:none !important;}
 }
 </style>
 <style>
@@ -11862,6 +11916,33 @@ document.addEventListener('click', function(e){
   if(menu.contains(e.target) || (btn && btn.contains(e.target))) return;
   closeFSMoreMenu();
 });
+
+// ── Mobile: pindahkan foto album + judul + artis (fs-bar-left) ke baris
+//    nav paling atas, berdampingan dengan tombol kembali & titik tiga.
+//    Di layar besar (desktop), elemen ini dikembalikan ke tempat asalnya
+//    di dalam #fs-bar (di atas kontrol prev/play/next). ──
+function _fsMobileLayout(){
+  const isMobile = window.matchMedia('(max-width:660px)').matches;
+  const nav = document.getElementById('fs-nav');
+  const back = document.getElementById('fs-back');
+  const barLeft = document.getElementById('fs-bar-left');
+  const bar = document.getElementById('fs-bar');
+  if(!nav || !back || !barLeft || !bar) return;
+  if(isMobile){
+    if(barLeft.parentElement !== nav){
+      back.insertAdjacentElement('afterend', barLeft);
+    }
+    barLeft.classList.add('fs-bar-left-in-nav');
+  } else {
+    if(barLeft.parentElement !== bar){
+      bar.insertBefore(barLeft, bar.firstChild);
+    }
+    barLeft.classList.remove('fs-bar-left-in-nav');
+  }
+}
+window.addEventListener('resize', _fsMobileLayout);
+window.addEventListener('orientationchange', _fsMobileLayout);
+_fsMobileLayout();
 
 function toggleFSTranslation() {
   // Reuse the same toggle logic, synced with sidebar button
