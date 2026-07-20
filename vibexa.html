@@ -3880,12 +3880,12 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 
 /* Kutipan pesan yang dibalas, ditampilkan menempel di atas bubble */
 .chat-bubble{cursor:pointer;}
-.chat-bubble-quote{display:flex;align-items:center;gap:7px;padding:6px 10px;border-radius:10px 10px 0 0;margin-bottom:1px;background:rgba(0,0,0,0.18);border-left:3px solid var(--green);cursor:pointer;}
+.chat-bubble-quote{display:flex;align-items:flex-start;gap:7px;padding:6px 10px;border-radius:10px 10px 0 0;margin-bottom:1px;background:rgba(0,0,0,0.18);border-left:3px solid var(--green);cursor:pointer;}
 .chat-bubble-row.them .chat-bubble-quote{background:rgba(255,255,255,0.06);}
 .chat-bubble-quote-body{min-width:0;flex:1;}
 .chat-bubble-quote-name{font-size:.68rem;font-weight:700;color:var(--teal);}
 .chat-bubble-row.me .chat-bubble-quote-name{color:#eaf3ff;}
-.chat-bubble-quote-text{font-size:.72rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.chat-bubble-quote-text{font-size:.72rem;color:var(--sub);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:normal;word-break:break-word;}
 .chat-bubble-row.me .chat-bubble-quote-text{color:rgba(255,255,255,0.75);}
 .chat-bubble-row.me .chat-bubble-quote+.chat-bubble{border-radius:0 0 16px 4px;}
 .chat-bubble-row.them .chat-bubble-quote+.chat-bubble{border-radius:0 0 4px 16px;}
@@ -10371,6 +10371,13 @@ function _renderStreakHeroAnimations(currentStreak){
 function showStreakView(){
   document.getElementById('streak-view').classList.add('show');
   renderStreakView();
+  // Kunci scroll #main (sama seperti pola di openChatOverlay) supaya konten
+  // Home di baliknya tidak ikut ke-scroll saat user scroll di halaman Streak.
+  // Tanpa ini, #main (yang overflow-y:auto) tetap bisa di-scroll di PC/tablet
+  // karena #streak-view cuma position:absolute di dalamnya, bukan fullscreen —
+  // akibatnya halaman Streak "bocor" dan konten Home di belakangnya kelihatan.
+  const mainEl = document.getElementById('main');
+  if (mainEl) { mainEl.scrollTop = 0; mainEl.style.overflow = 'hidden'; }
   // Khusus mobile: sembunyikan mini player (#bar) & buat halaman Streak
   // memenuhi layar penuh tanpa ruang kosong (lihat CSS body.streak-mobile-open).
   if (typeof isMobile === 'function' && isMobile()) document.body.classList.add('streak-mobile-open');
@@ -10378,6 +10385,8 @@ function showStreakView(){
 function hideStreakView(){
   document.getElementById('streak-view').classList.remove('show');
   try{ _streakFlameAnim && _streakFlameAnim.pause(); }catch(e){}
+  const mainEl = document.getElementById('main');
+  if (mainEl) mainEl.style.overflow = '';
   document.body.classList.remove('streak-mobile-open');
 }
 
