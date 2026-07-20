@@ -2263,6 +2263,8 @@ body.np-fs-final #bar{display:none !important;}
 /* Gaya Teks style picker modal */
 #style-picker-modal .modal { width: 320px; }
 .style-picker-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.style-picker-grid.has-3 { grid-template-columns: 1fr 1fr; }
+.style-picker-grid.has-3 .style-picker-item:last-child { grid-column: 1 / -1; }
 .style-picker-item {
   background: var(--card); border: 2px solid var(--border); border-radius: 12px;
   padding: 14px 10px; cursor: pointer; text-align: center; transition: all .2s;
@@ -2280,6 +2282,42 @@ body.np-fs-final #bar{display:none !important;}
   .k-word { font-size: clamp(1.2rem, 6.5vw, 2rem); }
   .k-line.k-prev, .k-line.k-next { font-size: clamp(.8rem, 3vw, 1.1rem); }
   #k-progress-dots { bottom: 120px; }
+}
+
+/* ══════════════════════════════════════════════════════════
+   ALIGHT TYPOGRAPHY MODE — Word-by-word, teks turun ke bawah
+   (mirip mode Kinetic, tapi kata baru muncul ke bawah, bukan
+   ke samping — semua huruf kapital, gaya seperti video Alight Motion)
+══════════════════════════════════════════════════════════ */
+#fs-lyr.alight-mode #fs-lyr-scroll { display: none; }
+#fs-lyr.alight-mode #kinetic-stage { display: flex; }
+
+/* Stage kata jadi kolom vertikal, kata baru menumpuk ke bawah lalu
+   otomatis di-scroll supaya kata aktif selalu berada di tengah. */
+#fs-lyr.alight-mode #k-word-stage {
+  position: absolute; inset: 0; transform: none;
+  flex-direction: column; flex-wrap: nowrap;
+  align-items: center; justify-content: flex-start;
+  gap: 26px;
+  padding: 30vh 6% 30vh;
+  overflow-y: auto; overflow-x: hidden;
+  scrollbar-width: none; -ms-overflow-style: none;
+  pointer-events: none;
+}
+#fs-lyr.alight-mode #k-word-stage::-webkit-scrollbar { display: none; }
+#fs-lyr.alight-mode #k-word-stage.k-stage-enter { animation: none; }
+
+#fs-lyr.alight-mode .k-word {
+  width: 100%; text-align: center;
+  text-transform: uppercase;
+  font-size: clamp(1.8rem, 6.5vw, 3.4rem);
+  letter-spacing: -0.5px;
+}
+#fs-lyr.alight-mode .k-word.k-word-past { color: rgba(255,255,255,0.28); }
+
+@media(max-width:660px){
+  #fs-lyr.alight-mode #k-word-stage { gap: 18px; padding: 22vh 5% 22vh; }
+  #fs-lyr.alight-mode .k-word { font-size: clamp(1.4rem, 8vw, 2.2rem); }
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -5478,7 +5516,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   <div class="modal">
     <h3> Lyrics Text Style</h3>
     <p>Choose the lyrics display style you like</p>
-    <div class="style-picker-grid">
+    <div class="style-picker-grid has-3">
       <div class="style-picker-item selected" id="style-classic" onclick="selectLyrStyle('classic')">
         <div class="style-picker-icon"></div>
         <div class="style-picker-name">Classic</div>
@@ -5488,6 +5526,11 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
         <div class="style-picker-icon"></div>
         <div class="style-picker-name">Kinetic</div>
         <div class="style-picker-desc">Dynamic word-by-word moving text</div>
+      </div>
+      <div class="style-picker-item" id="style-alight" onclick="selectLyrStyle('alight')">
+        <div class="style-picker-icon"></div>
+        <div class="style-picker-name">Alight</div>
+        <div class="style-picker-desc">Word-by-word text that drops downward, all caps</div>
       </div>
     </div>
     <div class="mbtns">
@@ -12147,7 +12190,7 @@ closeFS = function() {
 };
 
 // ─── GAYA TEKS / KINETIC TYPOGRAPHY ──────────────────────
-let _lyrStyle = localStorage.getItem('lyrStyle') || 'classic'; // 'classic' | 'kinetic'
+let _lyrStyle = localStorage.getItem('lyrStyle') || 'classic'; // 'classic' | 'kinetic' | 'alight'
 let _kineticIdx = -1;
 let _kWordTimer = null;
 let _kBeatTimer = null;
@@ -12160,6 +12203,7 @@ function openStylePicker() {
   document.getElementById('style-picker-modal').style.display = 'flex';
   document.getElementById('style-classic').classList.toggle('selected', _lyrStyle === 'classic');
   document.getElementById('style-kinetic').classList.toggle('selected', _lyrStyle === 'kinetic');
+  document.getElementById('style-alight').classList.toggle('selected', _lyrStyle === 'alight');
 }
 function closeStylePicker() {
   document.getElementById('style-picker-modal').style.display = 'none';
@@ -12169,12 +12213,14 @@ function selectLyrStyle(style) {
   localStorage.setItem('lyrStyle', style);
   document.getElementById('style-classic').classList.toggle('selected', style === 'classic');
   document.getElementById('style-kinetic').classList.toggle('selected', style === 'kinetic');
+  document.getElementById('style-alight').classList.toggle('selected', style === 'alight');
   // Update UI
   const fsEl = document.getElementById('fs-lyr');
   const styleBtn = document.getElementById('fs-style-btn');
   const sideBtn = document.getElementById('lyr-style-btn');
-  if (style === 'kinetic') {
-    fsEl.classList.add('kinetic-mode');
+  fsEl.classList.remove('kinetic-mode', 'alight-mode');
+  if (style === 'kinetic' || style === 'alight') {
+    fsEl.classList.add(style === 'kinetic' ? 'kinetic-mode' : 'alight-mode');
     if (styleBtn) styleBtn.classList.add('active');
     if (sideBtn) sideBtn.classList.add('active');
     _kineticIdx = -1;
@@ -12182,7 +12228,6 @@ function selectLyrStyle(style) {
     _kWordTimestamps = [];
     if (lyrs.length) updateKinetic();
   } else {
-    fsEl.classList.remove('kinetic-mode');
     if (styleBtn) styleBtn.classList.remove('active');
     if (sideBtn) sideBtn.classList.remove('active');
     clearKineticTimers();
@@ -12201,7 +12246,7 @@ function clearKineticTimers() {
 // ─── New system: word-by-word sync via requestAnimationFrame ───
 
 function updateKinetic() {
-  if (_lyrStyle !== 'kinetic' || !lyrs.length) return;
+  if ((_lyrStyle !== 'kinetic' && _lyrStyle !== 'alight') || !lyrs.length) return;
   let idx = 0;
   for (let i = 0; i < lyrs.length; i++) { if (cur >= lyrs[i].time) idx = i; else break; }
   if (idx === _kineticIdx) return;
@@ -12288,7 +12333,7 @@ function renderKineticLines(idx) {
 }
 
 function _kRafWordLoop() {
-  if (_lyrStyle !== 'kinetic') return;
+  if (_lyrStyle !== 'kinetic' && _lyrStyle !== 'alight') return;
 
   const nowSec = cur;
 
@@ -12316,6 +12361,12 @@ function _kRafWordLoop() {
           el.classList.remove('k-word-enter');
           el.classList.add('k-word-lit');
         }, 180);
+      }
+
+      // Mode Alight: kata turun ke bawah, jaga kata aktif tetap di tengah layar
+      if (_lyrStyle === 'alight') {
+        const stage = document.getElementById('k-word-stage');
+        if (stage) stage.scrollTo({ top: wt.el.offsetTop - stage.clientHeight / 2 + wt.el.clientHeight / 2, behavior: 'smooth' });
       }
 
       _kWordLitIdx = i;
@@ -12351,7 +12402,7 @@ function updateDot(wordIdx, total) {
 // Hook into existing lyric update loop
 const _origUpdateFSLyr = updateFSLyr;
 updateFSLyr = function() {
-  if (_lyrStyle === 'kinetic') {
+  if (_lyrStyle === 'kinetic' || _lyrStyle === 'alight') {
     updateKinetic();
     updateFSProg(); // keep progress bar updated
     return;
@@ -12366,8 +12417,9 @@ openFS = function() {
   const fsEl = document.getElementById('fs-lyr');
   const styleBtn = document.getElementById('fs-style-btn');
   const sideBtn = document.getElementById('lyr-style-btn');
-  if (_lyrStyle === 'kinetic') {
-    fsEl.classList.add('kinetic-mode');
+  fsEl.classList.remove('kinetic-mode', 'alight-mode');
+  if (_lyrStyle === 'kinetic' || _lyrStyle === 'alight') {
+    fsEl.classList.add(_lyrStyle === 'kinetic' ? 'kinetic-mode' : 'alight-mode');
     if (styleBtn) styleBtn.classList.add('active');
     if (sideBtn) sideBtn.classList.add('active');
     _kineticIdx = -1;
@@ -12375,7 +12427,6 @@ openFS = function() {
     _kWordTimestamps = [];
     if (lyrs.length) updateKinetic();
   } else {
-    fsEl.classList.remove('kinetic-mode');
     if (styleBtn) styleBtn.classList.remove('active');
     if (sideBtn) sideBtn.classList.remove('active');
   }
