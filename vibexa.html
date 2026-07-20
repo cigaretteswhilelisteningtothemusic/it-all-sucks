@@ -1921,7 +1921,7 @@ body.np-fs-final #bar{display:none !important;}
 #fs-lyr{display:none;grid-area:main;position:relative;z-index:5;flex-direction:column;overflow:hidden;transition:background 1.2s ease;border-radius:var(--r);border:1px solid var(--border);}
 #fs-lyr.open{display:flex;}
 #fs-bg{position:absolute;inset:0;background:inherit;filter:blur(0px);transition:background 1.2s ease;z-index:0;}
-#fs-bg::after{content:'';position:absolute;inset:0;background:rgba(0,0,0,0.32);}
+#fs-bg::after{content:'';position:absolute;inset:0;background:rgba(0,0,0,0.14);}
 #fs-nav{position:relative;z-index:2;display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:18px 24px 10px;}
 /* Tombol panah kembali & teks "sedang diputar"/judul lagu disembunyikan; menutup
    halaman lyrics sekarang lewat tombol Home atau menekan tombol Lyrics lagi. */
@@ -3318,11 +3318,9 @@ body.np-fs-final #bar{display:none !important;}
     width:auto;
     max-width:100%;
     background:linear-gradient(to bottom,
-      rgba(0,0,0,0) 0%,
-      rgba(0,0,0,.10) 25%,
-      rgba(0,0,0,.35) 55%,
-      rgba(0,0,0,.62) 80%,
-      rgba(0,0,0,.72) 100%);
+      transparent 0%,
+      var(--fs-bg-color, rgba(16,13,11,.95)) 60%,
+      var(--fs-bg-color, rgba(16,13,11,.95)) 100%);
     border-top:none;
     box-shadow:none;
     padding:90px 20px 26px;
@@ -3373,6 +3371,12 @@ body.np-fs-final #bar{display:none !important;}
 @media(min-width:661px){
   #fs-back{display:none !important;}
   #fs-bar{display:none !important;}
+
+  /* FIX: sama seperti di mobile, #fs-nav dan #fs-lyr-scroll sama-sama
+     z-index:2, dan #fs-lyr-scroll (datang belakangan di DOM) menang
+     menutupi dropdown #fs-more-menu secara klik meski z-index menu
+     itu sendiri tinggi. Menaikkan z-index #fs-nav menyelesaikannya. */
+  #fs-nav{z-index:15;}
 
   /* Gabungkan tombol Terjemahan Lirik / Gaya Teks Lirik / Ubah Background
      jadi satu tombol dropdown "˅" khusus tampilan PC (memakai mekanisme
@@ -11320,8 +11324,8 @@ function _vividizeRGB(r,g,b){
     }
     h*=60; if(h<0)h+=360;
   }
-  const s2=Math.min(1,Math.max(s,0.78));
-  const l2=Math.min(0.26,Math.max(0.12,l));
+  const s2=Math.min(1,Math.max(s,0.72));
+  const l2=Math.min(0.40,Math.max(0.26,l));
   const c=(1-Math.abs(2*l2-1))*s2;
   const x=c*(1-Math.abs((h/60)%2-1));
   const m=l2-c/2;
