@@ -393,6 +393,19 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 #res-section{display:none}
 .s-title{font-size:1rem;font-weight:700;margin-bottom:13px;letter-spacing:-.2px}
 #res-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:12px;margin-bottom:24px}
+/* ── Baris profil artist di paling atas halaman pencarian — foto bulat,
+   nama di bawahnya, bisa discroll ke samping (horizontal scroll) ── */
+#search-artist-section{display:none;margin-bottom:22px;}
+#search-artist-section.show{display:block;}
+.search-artist-row{display:flex;gap:22px;overflow-x:auto;overflow-y:hidden;padding:4px 2px 10px;scrollbar-width:thin;}
+.search-artist-row::-webkit-scrollbar{height:6px;}
+.search-artist-row::-webkit-scrollbar-thumb{background:var(--hover);border-radius:10px;}
+.search-artist-card{display:flex;flex-direction:column;align-items:center;gap:10px;flex:0 0 auto;width:112px;cursor:pointer;text-align:center;padding:8px 4px;border-radius:12px;transition:background .18s,transform .18s;}
+.search-artist-card:hover{background:var(--hover);transform:translateY(-2px);}
+.search-artist-photo-wrap{width:96px;height:96px;border-radius:50%;overflow:hidden;background:var(--card);border:1px solid var(--border);flex-shrink:0;}
+.search-artist-photo-wrap img{width:100%;height:100%;object-fit:cover;display:block;}
+.search-artist-name{font-size:.8rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:108px;}
+.search-artist-label{font-size:.62rem;color:var(--sub);white-space:nowrap;}
 .r-card{background:var(--card);border-radius:var(--r);padding:12px;cursor:pointer;transition:all .22s;border:1px solid transparent;position:relative;overflow:hidden}
 .r-card:hover{background:var(--hover);border-color:var(--border);transform:translateY(-2px);box-shadow:0 10px 30px rgba(0,0,0,.3)}
 .r-img{width:100%;aspect-ratio:1;border-radius:8px;object-fit:cover;margin-bottom:8px;background:var(--hover);display:block}
@@ -4422,6 +4435,12 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
       <button id="btn-search">Search</button>
       <!-- SEARCH SUGGESTIONS DROPDOWN -->
       <div id="search-suggestions"></div>
+    </div>
+
+    <!-- Profil artist hasil pencarian — muncul paling atas di halaman pencarian,
+         foto bulat + nama artist di bawahnya, bisa discroll ke samping -->
+    <div id="search-artist-section">
+      <div class="search-artist-row" id="search-artist-row"></div>
     </div>
 
     <div id="np-hero">
@@ -9962,6 +9981,8 @@ async function doSearch(){
   document.getElementById('btn-search').disabled=true;
   const grid=document.getElementById('res-grid');
   grid.innerHTML=Array(8).fill('<div class="sk-card"><div class="sk sk-img"></div><div class="sk sk-l" style="margin-top:8px"></div><div class="sk sk-l s"></div></div>').join('');
+  renderSearchArtistRow([]); // bersihkan hasil artist pencarian sebelumnya sebelum yang baru datang
+  fetchSearchArtists(q).then(artists=>renderSearchArtistRow(artists)).catch(()=>renderSearchArtistRow([]));
   try{
     // Selalu gabungkan hasil dari storefront ID + US secara paralel — banyak lagu/artis
     // asli (mis. Tame Impala) tidak lengkap di katalog ID meski jumlah hasil ID sudah "cukup"
@@ -10022,6 +10043,48 @@ async function doSearch(){
   }catch(err){
     grid.innerHTML=`<div class="err-box"> ${esc(err.message)}<br><br>Pastikan koneksi internet aktif.</div>`;
   }finally{ document.getElementById('btn-search').disabled=false; }
+}
+
+// ─── Profil artist di paling atas halaman pencarian ──────────────────────
+// Dipanggil bersamaan dengan pencarian lagu (doSearch); mencari artist yang
+// namanya cocok dengan kata kunci lewat Deezer (nama + foto profil).
+async function fetchSearchArtists(q){
+  try{
+    const data = await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(q) + '&limit=10');
+    const ql = q.toLowerCase();
+    return ((data && data.data) || [])
+      .filter(a => (a.name||'').toLowerCase().includes(ql))
+      .slice(0, 10);
+  }catch(e){ return []; }
+}
+
+// Render profil artist (foto bulat + nama di bawahnya) dalam baris yang
+// bisa discroll ke samping, diletakkan paling atas di halaman pencarian.
+function renderSearchArtistRow(artists){
+  const section = document.getElementById('search-artist-section');
+  const row = document.getElementById('search-artist-row');
+  if(!section || !row) return;
+  if(!artists || !artists.length){
+    section.classList.remove('show');
+    row.innerHTML='';
+    return;
+  }
+  const fallbackImg = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect fill=%22%231A2035%22 width=%22100%25%22 height=%22100%25%22/%3E%3Ctext y=%2262%22 x=%2250%25%22 text-anchor=%22middle%22 font-size=%2240%22%3E%F0%9F%8E%A4%3C/text%3E%3C/svg%3E';
+  row.innerHTML = artists.map(a=>{
+    const photo = a.picture_medium || a.picture_big || a.picture || '';
+    return `
+      <div class="search-artist-card" data-artist="${esc(a.name||'')}">
+        <div class="search-artist-photo-wrap">
+          <img src="${esc(photo)}" loading="lazy" alt="${esc(a.name||'')}" onerror="this.src='${fallbackImg}'">
+        </div>
+        <div class="search-artist-name">${esc(a.name||'Unknown')}</div>
+        <div class="search-artist-label">Artist</div>
+      </div>`;
+  }).join('');
+  row.querySelectorAll('.search-artist-card').forEach(card=>{
+    card.addEventListener('click', ()=> openArtistView(card.dataset.artist));
+  });
+  section.classList.add('show');
 }
 
 async function resolveVid(query, _attempt = 0){
