@@ -2307,16 +2307,26 @@ body.np-fs-final #bar{display:none !important;}
 #fs-lyr.alight-mode #k-word-stage::-webkit-scrollbar { display: none; }
 #fs-lyr.alight-mode #k-word-stage.k-stage-enter { animation: none; }
 
+/* Setiap grup kata (minimal 3 kata) dibungkus dalam satu baris (row)
+   supaya tampil sebaris, bukan satu kata per baris. */
+#fs-lyr.alight-mode .k-word-line {
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline;
+  width: 100%; gap: 8px 16px;
+}
 #fs-lyr.alight-mode .k-word {
-  width: 100%; text-align: center;
+  width: auto; text-align: center;
   text-transform: uppercase;
   font-size: clamp(1.8rem, 6.5vw, 3.4rem);
   letter-spacing: -0.5px;
 }
 #fs-lyr.alight-mode .k-word.k-word-past { color: rgba(255,255,255,0.28); }
+/* Kata yang sudah muncul (lit atau past) tidak boleh blur lagi */
+#fs-lyr.alight-mode .k-word.k-word-lit,
+#fs-lyr.alight-mode .k-word.k-word-past { filter: none; }
 
 @media(max-width:660px){
   #fs-lyr.alight-mode #k-word-stage { gap: 18px; padding: 22vh 5% 22vh; }
+  #fs-lyr.alight-mode .k-word-line { gap: 6px 12px; }
   #fs-lyr.alight-mode .k-word { font-size: clamp(1.4rem, 8vw, 2.2rem); }
 }
 
@@ -12329,6 +12339,12 @@ function renderKineticLines(idx) {
     const LEAD  = 0.08;
     const TRAIL = 0.12;
 
+    // Bungkus semua kata dalam grup ini (idx..groupEnd, minimal 3 kata)
+    // ke dalam SATU baris (row) supaya tampil sebaris, bukan 1 kata/baris.
+    const rowEl = document.createElement('div');
+    rowEl.className = 'k-word-line';
+    stage.appendChild(rowEl);
+
     for (let li = idx; li <= groupEnd; li++) {
       const subStart = lyrs[li].time;
       const subEnd   = li < lyrs.length - 1 ? lyrs[li + 1].time : subStart + 4;
@@ -12345,7 +12361,7 @@ function renderKineticLines(idx) {
         const sp = document.createElement('span');
         sp.className = 'k-word';
         sp.textContent = w;
-        stage.appendChild(sp);
+        rowEl.appendChild(sp);
 
         const tWord = subStart + subDur * LEAD + (cumChars / totalChars) * usable;
         _kWordTimestamps.push({ t: tWord, el: sp });
