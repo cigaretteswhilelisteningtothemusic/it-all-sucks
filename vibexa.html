@@ -3867,6 +3867,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 .chat-item-name{font-weight:700;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .chat-item-preview{font-size:.78rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;}
 .chat-item-preview.unread{color:var(--text);font-weight:600;}
+.chat-item-preview.typing{color:var(--green);font-weight:600;display:flex;align-items:center;}
 .chat-item-meta{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;}
 .chat-item-time{font-size:.66rem;color:var(--muted);}
 .chat-unread-badge{min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:var(--green);color:#fff;font-size:.66rem;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 6px rgba(46,125,255,.7);}
@@ -6278,6 +6279,8 @@ let _chatReplyTarget = null;    // pesan yg sedang dibalas: { key, text, from, n
 let _chatOpenActionsKey = null; // key pesan yg menu aksinya (Balas/Hapus) sedang terbuka
 let _chatOpenActionsMode = 'actions'; // 'actions' atau 'confirm-delete'
 let _chatInboxRef = null;       // ref listener inbox
+let _chatTypingListCache = {};  // chatId -> true/false, status "sedang mengetik" tiap chat DI DAFTAR CHAT (bukan cuma yg sedang dibuka)
+let _chatTypingListRefs = {};   // chatId -> ref listener typing masing2 chat di daftar (utk attach/detach dinamis saat daftar berubah)
 let _chatDirRef = null;         // ref listener direktori (live, utk nama/foto terbaru)
 let _chatDirLoaded = false;
 let _chatStatusCache = {};      // cache node "status" (online/offline + last_changed semua user)
@@ -6650,9 +6653,45 @@ function subscribeChatInbox() {
   _chatInboxRef = db.ref('userChats/' + currentUser.uid);
   _chatInboxRef.on('value', snap => {
     _chatInboxData = snap.exists() ? (snap.val() || {}) : {};
+    syncChatListTypingListeners();
     renderChatList();
     updateChatUnreadBadge();
   }, err => console.error('Gagal memuat inbox chat:', err));
+}
+
+// Pasang/lepas listener "sedang mengetik" utk SETIAP chat yg tampil di
+// daftar Chat — bukan cuma percakapan yg sedang dibuka — persis WhatsApp,
+// yang menampilkan "mengetik..." langsung di daftar chat/inbox. Dipanggil
+// setiap kali inbox berubah (chat baru masuk/dihapus), supaya listener
+// selalu sinkron dengan chat yg benar2 sedang ditampilkan (tidak ada
+// listener "menggantung" utk chat yg sudah dihapus dari daftar).
+function syncChatListTypingListeners() {
+  const chatIds = Object.keys(_chatInboxData || {});
+  const wantedSet = new Set(chatIds);
+
+  // Lepas listener utk chat yg sudah tidak ada lagi di inbox.
+  Object.keys(_chatTypingListRefs).forEach(chatId => {
+    if (!wantedSet.has(chatId)) {
+      _chatTypingListRefs[chatId].off();
+      delete _chatTypingListRefs[chatId];
+      delete _chatTypingListCache[chatId];
+    }
+  });
+
+  // Pasang listener baru utk chat yg belum punya listener.
+  chatIds.forEach(chatId => {
+    if (_chatTypingListRefs[chatId]) return; // sudah ada, tidak perlu dipasang ulang
+    const peerUid = (_chatInboxData[chatId] || {}).with;
+    if (!peerUid) return;
+    const ref = db.ref('chats/' + chatId + '/typing/' + peerUid);
+    _chatTypingListRefs[chatId] = ref;
+    ref.on('value', snap => {
+      const typing = snap.exists() && snap.val() === true;
+      if (_chatTypingListCache[chatId] === typing) return; // tidak berubah, tidak perlu render ulang
+      _chatTypingListCache[chatId] = typing;
+      renderChatList();
+    }, err => console.error('Gagal memuat status mengetik (daftar chat):', err));
+  });
 }
 
 function renderChatList() {
@@ -6716,6 +6755,13 @@ function renderChatItemHTML(chatId, c, isRequest) {
   const checkboxHtml = _chatSelectMode
     ? `<div class="chat-checkbox-wrap"><div class="chat-checkbox"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div></div>`
     : '';
+  // Sedang mengetik? Ganti sementara isi preview jadi "Typing..." + titik
+  // berdenyut, ala WhatsApp — berlaku di daftar chat, bukan cuma saat
+  // percakapannya sedang dibuka.
+  const isTyping = !!_chatTypingListCache[chatId];
+  const previewHTML = isTyping
+    ? 'Typing<span class="chat-typing-dots"><span></span><span></span><span></span></span>'
+    : preview;
   return `
     <div class="chat-item${_chatSelectMode ? ' selectable' : ''}${isChecked ? ' checked' : ''}" data-chatid="${esc(chatId)}" data-uid="${esc(c.with)}" data-name="${esc(name)}" data-photo="${esc(photo)}">
       ${checkboxHtml}
@@ -6725,7 +6771,7 @@ function renderChatItemHTML(chatId, c, isRequest) {
       </div>
       <div class="chat-item-info">
         <div class="chat-item-name">${esc(name)}${isRequest ? '<span class="chat-request-tag">Request</span>' : ''}</div>
-        <div class="chat-item-preview${unreadCount > 0 ? ' unread' : ''}">${preview}</div>
+        <div class="chat-item-preview${unreadCount > 0 ? ' unread' : ''}${isTyping ? ' typing' : ''}">${previewHTML}</div>
       </div>
       <div class="chat-item-meta">
         <span class="chat-item-time">${formatChatTime(c.lastMessageAt)}</span>
@@ -17887,6 +17933,23 @@ function startNotifListeners() {
 // ════════════════════════════════════════════════════════════
 
 // ── Image viewer fullscreen ──
+// CATATAN PENTING (fix bug "tombol kembali malah keluar ke home"):
+// Sebelumnya buka/tutup viewer ini murni visual (cuma toggle class "open"),
+// TANPA pernah menambah riwayat (history) browser. Akibatnya saat user
+// menekan tombol "kembali" (hardware back Android / gesture back), browser
+// tidak punya riwayat APAPUN utk di-pop di dalam halaman ini — jadi yang
+// ke-trigger adalah keluar dari seluruh aplikasi (balik ke home screen HP),
+// bukan menutup viewer fotonya saja.
+//
+// Perbaikannya: setiap kali viewer dibuka, kita pushState() satu entri
+// riwayat baru. Sekarang tombol "kembali" akan mengonsumsi entri itu lebih
+// dulu (lewat event "popstate" di bawah) dan HANYA menutup viewer — user
+// tetap berada di halaman Chat, tidak terlempar keluar aplikasi. Menutup
+// viewer lewat tap foto/tombol X pun dibuat konsisten: memanggil
+// history.back() supaya entri riwayat yang tadi ditambahkan ikut "dibuang
+// rapi", bukan menumpuk sehingga user harus menekan kembali 2x nantinya.
+let _imgViewerHistoryPushed = false;
+
 function openImgViewer(src) {
   const v = document.getElementById('img-viewer');
   const img = document.getElementById('img-viewer-img');
@@ -17894,12 +17957,41 @@ function openImgViewer(src) {
   img.src = src;
   v.classList.add('open');
   document.body.style.overflow = 'hidden';
+  history.pushState({ imgViewer: true }, '', location.href);
+  _imgViewerHistoryPushed = true;
 }
+
+// Dipanggil saat user menutup viewer secara manual (tap foto/backdrop,
+// tombol X, atau tombol Escape).
 function closeImgViewer() {
+  const v = document.getElementById('img-viewer');
+  if (!v || !v.classList.contains('open')) return;
+  if (_imgViewerHistoryPushed) {
+    _imgViewerHistoryPushed = false;
+    history.back(); // konsumsi entri riwayat → memicu "popstate" di bawah, yang benar2 menyembunyikan viewer
+  } else {
+    hideImgViewerVisual();
+  }
+}
+
+// Bagian visual murni (sembunyikan overlay) — dipisah dari closeImgViewer()
+// supaya bisa dipanggil dari event "popstate" tanpa memicu history.back() lagi.
+function hideImgViewerVisual() {
   const v = document.getElementById('img-viewer');
   if (v) v.classList.remove('open');
   document.body.style.overflow = '';
 }
+
+// Menangkap tombol "kembali" (hardware/gesture back Android, maupun tombol
+// back di browser). Kalau viewer sedang terbuka, cukup sembunyikan viewer­nya
+// saja — JANGAN biarkan browser lanjut mundur ke luar aplikasi.
+window.addEventListener('popstate', () => {
+  const v = document.getElementById('img-viewer');
+  if (v && v.classList.contains('open')) {
+    _imgViewerHistoryPushed = false;
+    hideImgViewerVisual();
+  }
+});
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeImgViewer(); });
 
 // ── Compress image to base64 (max 800px, quality 0.72) ──
