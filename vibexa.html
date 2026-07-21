@@ -12032,8 +12032,10 @@ async function _updateNPArtistCard(track){
     fansEl.textContent=formatFanCount(_lyrArtistFansCache[key]) + ' monthly listeners';
   } else {
     fansEl.textContent='—';
-    _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(track.artist) + '&limit=1').then(searchData=>{
-      const artist=searchData && searchData.data && searchData.data[0];
+    _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(track.artist) + '&limit=10').then(searchData=>{
+      const results=(searchData && searchData.data) || [];
+      const qNorm=track.artist.trim().toLowerCase();
+      const artist=results.find(a=>(a.name||'').trim().toLowerCase()===qNorm) || results[0];
       if(artist){
         _lyrArtistFansCache[key]=artist.nb_fan || 0;
         if(nameEl.textContent===track.artist) fansEl.textContent=formatFanCount(artist.nb_fan) + ' monthly listeners';
@@ -12068,8 +12070,10 @@ async function _updateNPAlbumsBox(track){
   const myGen=++_npAlbumsReqGen;
   c.innerHTML='<div class="np-albums-loading">Loading albums...</div>';
   try{
-    const searchData=await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(track.artist) + '&limit=1');
-    const artist=searchData && searchData.data && searchData.data[0];
+    const searchData=await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(track.artist) + '&limit=10');
+    const npResults=(searchData && searchData.data) || [];
+    const npQNorm=track.artist.trim().toLowerCase();
+    const artist=npResults.find(a=>(a.name||'').trim().toLowerCase()===npQNorm) || npResults[0];
     if(myGen!==_npAlbumsReqGen || _npAlbumsLastArtist!==key) return;
     if(!artist){ c.innerHTML='<div class="np-albums-empty">Album not found</div>'; return; }
     const albumData=await _deezerJsonp('https://api.deezer.com/artist/' + artist.id + '/albums?limit=20');
@@ -12940,8 +12944,10 @@ async function _updateLyrArtistBox(track) {
   if (albumsScroll) albumsScroll.innerHTML = '<div class="lyr-albums-loading">Loading albums...</div>';
 
   try {
-    const searchData = await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(track.artist) + '&limit=1');
-    const artist = searchData && searchData.data && searchData.data[0];
+    const searchData = await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(track.artist) + '&limit=10');
+    const lyrResults = (searchData && searchData.data) || [];
+    const lyrQNorm = track.artist.trim().toLowerCase();
+    const artist = lyrResults.find(a => (a.name || '').trim().toLowerCase() === lyrQNorm) || lyrResults[0];
     if (myGen !== _lyrArtistReqGen) return;
     if (!artist) {
       if (albumsScroll) albumsScroll.innerHTML = '<div class="lyr-albums-empty">Album not found</div>';
@@ -13075,8 +13081,10 @@ function _queueArtistPhotoFetch(artistName, key) {
   return new Promise((resolveOuter) => {
     const job = async () => {
       try {
-        const data = await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(artistName) + '&limit=1');
-        const a = data && data.data && data.data[0];
+        const data = await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(artistName) + '&limit=10');
+        const qResults = (data && data.data) || [];
+        const qNorm = artistName.trim().toLowerCase();
+        const a = qResults.find(x => (x.name || '').trim().toLowerCase() === qNorm) || qResults[0];
         const pic = a ? (a.picture_xl || a.picture_big || a.picture_medium) : '';
         if (pic) _artistPhotoCache[key] = pic;
         resolveOuter(pic || null);
@@ -13193,8 +13201,15 @@ async function _fetchAllArtistAlbums(artistId) {
 async function loadArtistProfile(artistName) {
   const myGen = ++_artistReqGen;
   try {
-    const searchData = await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(artistName) + '&limit=1');
-    const artist = searchData && searchData.data && searchData.data[0];
+    const searchData = await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(artistName) + '&limit=10');
+    const results = (searchData && searchData.data) || [];
+    const qNorm = artistName.trim().toLowerCase();
+    // Deezer's search endpoint doesn't always put the artist you searched for
+    // first — it sometimes ranks a similarly-named artist (e.g. a tribute /
+    // cover act) above the real one. Prefer an exact (case-insensitive) name
+    // match over just taking result[0], and only fall back to the top result
+    // if nothing matches exactly.
+    const artist = results.find(a => (a.name || '').trim().toLowerCase() === qNorm) || results[0];
     if (myGen !== _artistReqGen) return; // pengguna sudah membuka artis lain sebelum request ini selesai
     if (!artist) {
       document.getElementById('artist-banner-sub').textContent = 'Artist not found';
@@ -13727,8 +13742,10 @@ async function _getMusicBrainzGenreArtists(genreKey) {
 // Ambil top track (Deezer) milik seorang artis berdasarkan namanya
 async function _deezerArtistTopTracksByName(artistName, limit) {
   try {
-    const searchData = await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(artistName) + '&limit=1');
-    const artist = searchData && searchData.data && searchData.data[0];
+    const searchData = await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(artistName) + '&limit=10');
+    const ttResults = (searchData && searchData.data) || [];
+    const ttQNorm = artistName.trim().toLowerCase();
+    const artist = ttResults.find(a => (a.name || '').trim().toLowerCase() === ttQNorm) || ttResults[0];
     if (!artist) return [];
     const topData = await _deezerJsonp('https://api.deezer.com/artist/' + artist.id + '/top?limit=' + (limit || 10));
     return ((topData && topData.data) || []).map(_normalizeDeezerTrack);
@@ -14735,8 +14752,10 @@ async function _ymResolveTrack(artistName, trackTitle) {
 // Tahunan — sesuai permintaan: foto dari artis lagu pertama di playlist.
 async function _ymGetArtistPhoto(artistName) {
   try {
-    const searchData = await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(artistName) + '&limit=1');
-    const a = searchData && searchData.data && searchData.data[0];
+    const searchData = await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(artistName) + '&limit=10');
+    const ymResults = (searchData && searchData.data) || [];
+    const ymQNorm = artistName.trim().toLowerCase();
+    const a = ymResults.find(x => (x.name || '').trim().toLowerCase() === ymQNorm) || ymResults[0];
     return a ? (a.picture_xl || a.picture_big || a.picture_medium || '') : '';
   } catch (e) { return ''; }
 }
@@ -16624,8 +16643,10 @@ async function fetchArtistTopTracks(artistName, limit) {
   if (_artistTopTracksCache[cacheKey]) return _artistTopTracksCache[cacheKey];
   const p = (async () => {
     try {
-      const searchData = await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(artistName) + '&limit=1');
-      const artist = searchData && searchData.data && searchData.data[0];
+      const searchData = await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(artistName) + '&limit=10');
+      const ftResults = (searchData && searchData.data) || [];
+      const ftQNorm = artistName.trim().toLowerCase();
+      const artist = ftResults.find(a => (a.name || '').trim().toLowerCase() === ftQNorm) || ftResults[0];
       if (!artist) return [];
       const topData = await _deezerJsonp('https://api.deezer.com/artist/' + artist.id + '/top?limit=' + limit);
       if (!topData || !topData.data) return [];
