@@ -669,34 +669,6 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
   transform:translateX(-50%) translateY(0);
 }
 
-/* Lyrics timing offset bar */
-#lyr-offset-bar{
-  display:none;
-  align-items:center;
-  gap:8px;
-  padding:8px 14px;
-  background:var(--green-dim);
-  border-bottom:1px solid rgba(46,125,255,0.2);
-  font-size:.72rem;
-  color:var(--sub);
-  flex-shrink:0;
-}
-#lyr-offset-bar.show{display:flex;}
-#lyr-offset-bar label{color:var(--green);font-weight:700;white-space:nowrap;font-size:.7rem;}
-#lyr-offset-slider{
-  flex:1;-webkit-appearance:none;height:3px;
-  background:var(--hover);border-radius:4px;outline:none;cursor:pointer;
-}
-#lyr-offset-slider::-webkit-slider-thumb{
-  -webkit-appearance:none;width:14px;height:14px;
-  background:var(--green);border-radius:50%;cursor:pointer;
-  box-shadow:0 0 6px rgba(46,125,255,0.5);
-}
-#lyr-offset-val{
-  font-family:var(--fm);font-size:.68rem;color:var(--green);
-  font-weight:700;min-width:34px;text-align:right;
-}
-
 /* Instrumental lines */
 .ll.instrumental{display:flex;align-items:center;justify-content:center;gap:8px;padding:6px 0;cursor:default;}
 .ll.instrumental .inst-notes{display:flex;align-items:flex-end;gap:3px;}
@@ -5083,12 +5055,6 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l-6 6 6 6M15 6l6 6-6 6"/></svg>
     </button>
     </div>
-  </div>
-  <!-- Timing offset bar untuk speed up / slowed (dipakai fullscreen lyrics) -->
-  <div id="lyr-offset-bar">
-    <label> Offset Lirik</label>
-    <input type="range" id="lyr-offset-slider" min="-20" max="5" step="0.05" value="0">
-    <span id="lyr-offset-val">0.0s</span>
   </div>
   <div class="lyr-body">
     <!-- Tampilan utama: gambar album + judul songs -->
@@ -9612,21 +9578,6 @@ function _createPlayer(videoId) {
             // Hanya update tot jika durasi valid
             if(newDur > 0) tot = newDur;
 
-            // ── Auto-koreksi offset lirik: bandingkan durasi video YouTube yang
-            // dimuat dengan durasi ASLI lagu (dari metadata track, mis. iTunes/Spotify).
-            // Kalau video jauh lebih panjang (biasanya karena intro logo/animasi
-            // sebelum lagu resmi mulai), itu artinya vokal beneran mulai LEBIH LAMBAT
-            // dari yang diasumsikan timestamp .lrc — jadi lirik perlu ditunda otomatis
-            // sejumlah selisihnya, tanpa user perlu geser slider manual.
-            if(!_lyrAutoOffsetDone && newDur > 0 && curTrack && curTrack.duration > 30){
-              _lyrAutoOffsetDone = true;
-              const diff = newDur - curTrack.duration; // detik ekstra di video vs lagu asli
-              if(diff > 1.5 && diff < 20){
-                const _songKey = curTrack ? (curTrack.artist + '|' + curTrack.title) : '';
-                _applyLyrOffset(-diff, { toastMsg: ` Lirik disesuaikan otomatis (video +${diff.toFixed(1)}s intro)` });
-                _saveLyrOffsetForSong(_songKey, _lyrOffset);
-              }
-            }
             // Update _playStartWall & _playStartPos hanya jika:
             // 1. Ini memang awal songs baru (cur == 0 dan posisi YTP juga 0), ATAU
             // 2. Posisi YTP valid dan berbeda signifikan dari estimasi wall-clock kita
@@ -10825,27 +10776,6 @@ async function loadPlay(track, fromPlId){
   const searchQ=`${track.artist} ${track.title} lyrics`; toast(' Searching video...');
   // Deteksi apakah songs ini speed up atau slowed, lalu sesuaikan timing lirik
   _curSpeedFactor = detectSpeedFactor(track.title);
-  _lyrOffset = 0;
-  _lyrAutoOffsetDone = false;
-  // Kalau lagu ini sudah pernah "diajarkan" offsetnya (otomatis atau manual)
-  // di sesi/pemutaran sebelumnya, langsung pakai lagi — user tidak perlu
-  // menunggu deteksi otomatis maupun mengatur ulang secara manual.
-  const _savedOffset = _getSavedLyrOffset(track.artist + '|' + track.title);
-  if(_savedOffset !== null){
-    _lyrOffset = _savedOffset;
-    _lyrAutoOffsetDone = true; // sudah ada nilai terpercaya, jangan ditimpa deteksi durasi lagi
-  }
-  // Tampilkan/sembunyikan offset bar
-  const _offsetBar = document.getElementById('lyr-offset-bar');
-  const _offsetSlider = document.getElementById('lyr-offset-slider');
-  const _offsetVal = document.getElementById('lyr-offset-val');
-  // Offset bar selalu ditampilkan (bukan cuma utk lagu yang terdeteksi sped-up/slowed),
-  // karena desync antara lirik (.lrc) & audio/video yang diputar bisa terjadi di lagu
-  // manapun — terutama saat masih instrumen sebelum vokal masuk — jadi user perlu akses
-  // ke slider koreksi manual kapan pun dibutuhkan.
-  if(_offsetBar) _offsetBar.classList.add('show');
-  if(_offsetSlider){ _offsetSlider.value = _lyrOffset; }
-  if(_offsetVal){ const sign = _lyrOffset > 0 ? '+' : ''; _offsetVal.textContent = sign + _lyrOffset.toFixed(1) + 's'; }
   const cl=cleanT(track.title);
   const [videoId,lines]=await Promise.all([resolveVid(searchQ),fetchLyr(cl,track.artist)]);
   if(videoId){
@@ -10886,62 +10816,6 @@ function detectSpeedFactor(title){
 
 // Faktor kecepatan songs yang sedang diputar (global)
 let _curSpeedFactor = 1.0;
-// Offset manual lirik dalam detik.
-// adjustedCt = ct + offset, lalu dibandingkan ke timestamp lirik.
-// → offset POSITIF = lirik tampil LEBIH CEPAT/maju (idx naik lebih awal)
-// → offset NEGATIF = lirik tampil LEBIH LAMBAT/mundur (menunda lirik)
-// Jadi kalau lirik kedahuluan (muncul sebelum vokal), turunkan slider ke arah negatif.
-let _lyrOffset = 0;
-// Sudah menjalankan deteksi otomatis (selisih durasi video vs durasi asli lagu)
-// untuk track yang sedang diputar? Direset tiap ganti lagu di loadPlay().
-let _lyrAutoOffsetDone = false;
-// Posisi playback yang SUDAH dikoreksi offset — dipakai oleh SEMUA mode
-// (classic sidebar, classic fullscreen, kinetic, alight) supaya slider
-// offset konsisten di mana pun, bukan cuma di sidebar classic.
-function _lyrCur(){ return cur + (_lyrOffset||0); }
-
-// Terapkan offset baru (dari deteksi otomatis ATAU manual) + sinkronkan UI slider,
-// label detik, dan re-render lirik saat ini juga supaya perubahan langsung terasa.
-// ── "Ingatan" offset lirik per lagu ─────────────────────────
-// Begitu offset sebuah lagu pernah dikoreksi (baik lewat deteksi otomatis
-// selisih durasi, maupun lewat slider manual), nilainya disimpan di localStorage
-// per lagu (kunci: artis|judul). Lain kali lagu yang sama diputar, offset itu
-// langsung dipakai lagi otomatis — user idealnya cuma perlu koreksi sekali
-// per lagu (kalaupun perlu), setelah itu app "ingat" selamanya.
-const LYR_OFFSET_STORE_KEY = 'vibexa_lyr_offsets';
-function _lyrOffsetStoreGet(){
-  try{ return JSON.parse(localStorage.getItem(LYR_OFFSET_STORE_KEY) || '{}'); }catch(e){ return {}; }
-}
-function _getSavedLyrOffset(songKey){
-  const store = _lyrOffsetStoreGet();
-  return (songKey && typeof store[songKey] === 'number') ? store[songKey] : null;
-}
-function _saveLyrOffsetForSong(songKey, offset){
-  if(!songKey) return;
-  try{
-    const store = _lyrOffsetStoreGet();
-    store[songKey] = offset;
-    localStorage.setItem(LYR_OFFSET_STORE_KEY, JSON.stringify(store));
-  }catch(e){}
-}
-
-function _applyLyrOffset(newOffset, opts){
-  opts = opts || {};
-  const min = -20, max = 5;
-  _lyrOffset = Math.max(min, Math.min(max, newOffset));
-  const slider = document.getElementById('lyr-offset-slider');
-  const val = document.getElementById('lyr-offset-val');
-  if(slider) slider.value = _lyrOffset;
-  if(val){ const sign = _lyrOffset > 0 ? '+' : ''; val.textContent = sign + _lyrOffset.toFixed(1) + 's'; }
-  if(opts.toastMsg) toast(opts.toastMsg);
-  if(lyrs.length){
-    try{
-      const ct = (YTP && typeof YTP.getCurrentTime === 'function') ? YTP.getCurrentTime() : cur;
-      syncLyr(ct);
-      updateFSLyr();
-    }catch(e){}
-  }
-}
 
 function cleanT(t){
   return t
@@ -11137,10 +11011,8 @@ function applyTranslationsToDOM() {
 // ── END TRANSLATION SYSTEM ────────────────────────────────
 function syncLyr(ct){
   const el=document.getElementById('lyr-lines'); if(!el||!lyrs.length)return;
-  // Terapkan offset manual dari slider
-  const adjustedCt = ct + (_lyrOffset||0);
   let idx=0;
-  for(let i=0;i<lyrs.length;i++){if(adjustedCt>=lyrs[i].time)idx=i;else break;}
+  for(let i=0;i<lyrs.length;i++){if(ct>=lyrs[i].time)idx=i;else break;}
   el.innerHTML='';
   // Apply show-translation class if enabled
   if (_translationEnabled) el.classList.add('show-translation');
@@ -11206,25 +11078,6 @@ function setFSNowPlayingInfo(t){
 
 // ─── Controls ─────────────────────────────────────────────
 document.getElementById('btn-search').addEventListener('click',doSearch);
-
-// ─── Lyrics offset slider ─────────────────────────────────
-(function initOffsetSlider(){
-  const slider = document.getElementById('lyr-offset-slider');
-  const val = document.getElementById('lyr-offset-val');
-  if(!slider||!val) return;
-  slider.addEventListener('input', function(){
-    _lyrAutoOffsetDone = true; // user menyesuaikan manual, jangan ditimpa deteksi otomatis lagi
-    _lyrOffset = parseFloat(this.value);
-    const sign = _lyrOffset > 0 ? '+' : '';
-    val.textContent = sign + _lyrOffset.toFixed(1) + 's';
-    // Ingat pilihan user untuk lagu ini supaya lain kali otomatis terpakai lagi
-    if(curTrack) _saveLyrOffsetForSong(curTrack.artist + '|' + curTrack.title, _lyrOffset);
-    // Re-sync lirik langsung dengan posisi saat ini
-    if(lyrs.length && YTP && typeof YTP.getCurrentTime === 'function'){
-      try{ syncLyr(YTP.getCurrentTime()); updateFSLyr(); }catch(e){}
-    }
-  });
-})();
 
 // ─── SEARCH SUGGESTIONS (dipakai untuk kotak search utama & kotak search Home) ───
 function initSearchSuggestions(inputId, boxId, onQuerySelect){
@@ -12313,9 +12166,8 @@ let _fsLyrTransSig = null;
 function updateFSLyr(){
   const el=document.getElementById('fs-lyr-scroll');
   if(!lyrs.length){el.innerHTML='<div class="lyr-empty" style="color:rgba(255,255,255,0.4);padding-top:80px"><i></i>Lyrics not available</div>';_fsLyrBuiltFor=null;return;}
-  const adjCur=_lyrCur();
   let idx=0;
-  for(let i=0;i<lyrs.length;i++){if(adjCur>=lyrs[i].time)idx=i;else break;}
+  for(let i=0;i<lyrs.length;i++){if(cur>=lyrs[i].time)idx=i;else break;}
 
   const songKey = _currentSongKeyForTranslation;
   const transSig = songKey+'|'+(_translationEnabled?1:0)+'|'+(_translationCache[songKey]?1:0);
@@ -12590,9 +12442,8 @@ function clearKineticTimers() {
 
 function updateKinetic() {
   if ((_lyrStyle !== 'kinetic' && _lyrStyle !== 'alight') || !lyrs.length) return;
-  const adjCur = _lyrCur();
   let idx = 0;
-  for (let i = 0; i < lyrs.length; i++) { if (adjCur >= lyrs[i].time) idx = i; else break; }
+  for (let i = 0; i < lyrs.length; i++) { if (cur >= lyrs[i].time) idx = i; else break; }
   if (idx === _kineticIdx) return;
   _kineticIdx = idx;
   renderKineticLines(idx);
@@ -12747,7 +12598,7 @@ function renderKineticLines(idx) {
 function _kRafWordLoop() {
   if (_lyrStyle !== 'kinetic' && _lyrStyle !== 'alight') return;
 
-  const nowSec = _lyrCur();
+  const nowSec = cur;
 
   for (let i = 0; i < _kWordTimestamps.length; i++) {
     const wt = _kWordTimestamps[i];
