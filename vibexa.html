@@ -9951,10 +9951,10 @@ async function _prefetchNext(){
   if(!next || _prefetchCache[next._query] || _prefetching.has(next._query)) return;
   _prefetching.add(next._query);
   try{
-    const searchQ = `${next.artist} ${next.title} official audio`;
+    const searchQ = `${next.artist} ${next.title} lyrics`;
     const cl = cleanT(next.title);
     const [videoId, lines] = await Promise.all([
-      resolveVid(searchQ).then(v => v || resolveVid(`${next.artist} ${next.title}`)),
+      resolveVid(searchQ).then(v => v || resolveVid(`${next.artist} ${next.title} official audio`)).then(v => v || resolveVid(`${next.artist} ${next.title}`)),
       fetchLyr(cl, next.artist)
     ]);
     _prefetchCache[next._query] = { videoId: videoId||null, lyrs: lines||[] };
@@ -10034,10 +10034,10 @@ function playNext(){
     if(_pendingNext) return; // sudah ada proses fetch berjalan
     _pendingNext = true;
     const myGen = _playGen;
-    const searchQ = `${next.artist} ${next.title} official audio`;
+    const searchQ = `${next.artist} ${next.title} lyrics`;
     const cl = cleanT(next.title);
     Promise.all([
-      resolveVid(searchQ).then(v => v || resolveVid(`${next.artist} ${next.title}`)),
+      resolveVid(searchQ).then(v => v || resolveVid(`${next.artist} ${next.title} official audio`)).then(v => v || resolveVid(`${next.artist} ${next.title}`)),
       fetchLyr(cl, next.artist)
     ]).then(([videoId, lines]) => {
       // Batalkan jika generasi sudah berganti (user memilih songs lain)
@@ -10815,7 +10815,14 @@ async function loadPlay(track, fromPlId){
   // Lirik fullscreen tetap bisa dibuka lewat tombol "Show Lyrics" di halaman Now Playing.
   openNP(track);
 
-  const searchQ=`${track.artist} ${track.title} official audio`; toast(' Searching video...');
+  // Prioritaskan video "lyrics" (bukan "official audio"/"official video") sebagai
+  // sumber pemutaran. Player YouTube di sini disembunyikan (1x1px, lihat _createPlayer),
+  // jadi cuma dipakai sebagai sumber AUDIO — video tidak pernah ditampilkan ke user.
+  // Upload bertipe "lyrics video" hampir selalu memakai rilisan audio standar apa
+  // adanya (tanpa intro logo/animasi tambahan seperti pada video musik resmi), sehingga
+  // durasinya jauh lebih konsisten dengan timestamp .lrc → lirik lebih seirama dengan
+  // musik tanpa perlu koreksi offset sama sekali.
+  const searchQ=`${track.artist} ${track.title} lyrics`; toast(' Searching video...');
   // Deteksi apakah songs ini speed up atau slowed, lalu sesuaikan timing lirik
   _curSpeedFactor = detectSpeedFactor(track.title);
   _lyrOffset = 0;
@@ -10846,7 +10853,11 @@ async function loadPlay(track, fromPlId){
     await initPlayer(videoId).then(()=>_addRecentlyPlayed(track)).catch(e=>{console.error('initPlayer error:',e);toast(' Failed to load video, coba songs lain');_nextGuarded=false;});
   }else{
     toast(' Mencoba fallback...');
-    const fallbackId=await resolveVid(`${track.artist} ${track.title}`);
+    // Fallback 1: coba "official audio" — biasanya masih lebih rapi durasinya
+    // dibanding video musik resmi yang penuh embel-embel.
+    let fallbackId=await resolveVid(`${track.artist} ${track.title} official audio`);
+    // Fallback 2: judul + artis polos, sebagai jaring pengaman terakhir.
+    if(!fallbackId) fallbackId=await resolveVid(`${track.artist} ${track.title}`);
     if(fallbackId){ await initPlayer(fallbackId).then(()=>_addRecentlyPlayed(track)).catch(()=>{toast(' Failed to load video');_nextGuarded=false;}); }
     else{ toast(' Video not found. Try another song.'); _nextGuarded=false; }
   }
