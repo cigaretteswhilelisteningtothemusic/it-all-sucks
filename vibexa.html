@@ -1931,6 +1931,11 @@ body.np-fs-final #bar{display:none !important;}
 .fs-ll.active{color:#fff;font-size:2.1rem;text-shadow:0 2px 20px rgba(0,0,0,0.4);}
 .fs-ll.past{color:rgba(255,255,255,0.18);}
 .fs-ll:hover{color:rgba(255,255,255,0.7);}
+/* ── Karaoke per-kata (mode Classic): kata berubah dari abu-abu ke putih
+   mengikuti waktu lagu, transisi warna halus tanpa efek berkedip/berlebihan ── */
+.fs-word{color:inherit;transition:color .5s ease;}
+.fs-ll.active .fs-word{color:rgba(255,255,255,0.38);}
+.fs-ll.active .fs-word.fs-word-sung{color:#fff;}
 #fs-bar{position:absolute;bottom:0;left:0;right:0;z-index:3;background:linear-gradient(to top,rgba(0,0,0,0.7) 80%,transparent);padding:16px 28px 28px;}
 #fs-prog-wrap{display:flex;align-items:center;gap:10px;margin-bottom:14px}
 #fs-prog-track{flex:1;height:4px;background:rgba(255,255,255,0.25);border-radius:4px;cursor:pointer;position:relative;overflow:hidden;transition:height .15s;}
@@ -12163,6 +12168,70 @@ function _renderNPNextUp(){
 function _fsInstHTML(){return'<span class="inst-notes"><span style="height:8px"></span><span style="height:18px"></span><span style="height:10px"></span><span style="height:20px"></span><span style="height:12px"></span></span>';}
 let _fsLyrBuiltFor = null;
 let _fsLyrTransSig = null;
+
+// ── Karaoke per-kata untuk mode Classic ───────────────────────────────────
+// Karena data lirik cuma punya timestamp per-baris (bukan per-kata), waktu
+// tiap kata diperkirakan (proporsional terhadap panjang karakter kata di
+// dalam rentang waktu barisnya) — pendekatan yang sama seperti dipakai mode
+// Kinetic. Kata yang belum "dinyanyikan" tetap abu-abu, lalu bertransisi
+// halus ke putih begitu waktu lagu melewati perkiraan waktu kata tsb.
+let _fsWordTimestamps = []; // index sejajar dengan `lyrs`; tiap isi: [{t, el}] atau null
+let _fsKaraokeLastIdx = -1;
+
+function _fsComputeWordTimings(text, lineStart, lineEnd){
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if(!words.length) return [];
+  const LEAD = 0.08, TRAIL = 0.12;
+  const lineDur = Math.max(lineEnd - lineStart, 0.5);
+  const usable  = lineDur * (1 - LEAD - TRAIL);
+  const charLens = words.map(w => Math.max(w.replace(/\W/g,'').length, 1));
+  const totalChars = charLens.reduce((a,b)=>a+b, 0);
+  let cumChars = 0;
+  return words.map((w,i)=>{
+    const t = lineStart + lineDur*LEAD + (cumChars/totalChars)*usable;
+    cumChars += charLens[i];
+    return {word:w, t};
+  });
+}
+
+// Bangun <span class="fs-word"> per kata di dalam elemen baris `d`, sekaligus
+// menyimpan perkiraan waktunya ke _fsWordTimestamps[i] supaya bisa dicek tiap
+// frame tanpa perlu menghitung ulang.
+function _fsBuildWordSpans(d, i, text, lineStart, lineEnd){
+  const timings = _fsComputeWordTimings(text, lineStart, lineEnd);
+  const tsArr = [];
+  timings.forEach((wt, wi)=>{
+    const sp = document.createElement('span');
+    sp.className = 'fs-word';
+    sp.textContent = wt.word;
+    d.appendChild(sp);
+    tsArr.push({t:wt.t, el:sp});
+    if(wi < timings.length - 1) d.appendChild(document.createTextNode(' '));
+  });
+  _fsWordTimestamps[i] = tsArr;
+}
+
+// Terapkan status karaoke (abu-abu → putih) sesuai waktu lagu saat ini.
+// Reset massal (baris sebelum idx = penuh putih, baris setelah idx = abu-abu
+// lagi) hanya dilakukan saat baris aktif berpindah, supaya ringan dipanggil
+// tiap frame lewat requestAnimationFrame.
+function _fsSyncWordKaraoke(idx, ct){
+  if(idx !== _fsKaraokeLastIdx){
+    _fsWordTimestamps.forEach((tsArr, i)=>{
+      if(!tsArr) return;
+      if(i < idx) tsArr.forEach(w=>w.el.classList.add('fs-word-sung'));
+      else if(i > idx) tsArr.forEach(w=>w.el.classList.remove('fs-word-sung'));
+    });
+    _fsKaraokeLastIdx = idx;
+  }
+  const active = _fsWordTimestamps[idx];
+  if(active){
+    active.forEach(w=>{
+      if(ct >= w.t) w.el.classList.add('fs-word-sung');
+      else w.el.classList.remove('fs-word-sung');
+    });
+  }
+}
 function updateFSLyr(){
   const el=document.getElementById('fs-lyr-scroll');
   if(!lyrs.length){el.innerHTML='<div class="lyr-empty" style="color:rgba(255,255,255,0.4);padding-top:80px"><i></i>Lyrics not available</div>';_fsLyrBuiltFor=null;return;}
@@ -12201,6 +12270,8 @@ function _buildFSLyr(idx, songKey){
 
   const translations = _translationCache[songKey] || null;
 
+  _fsWordTimestamps = [];
+
   lyrs.forEach((l,i)=>{
     const wrap=document.createElement('div');
     wrap.className='fs-ll-wrap';
@@ -12212,7 +12283,9 @@ function _buildFSLyr(idx, songKey){
       d.innerHTML=_fsInstHTML();
     } else {
       d.className='fs-ll '+(i===idx?'active':i<idx?'past':'');
-      d.textContent=l.text;
+      const lineStart = l.time;
+      const lineEnd = i < lyrs.length-1 ? lyrs[i+1].time : lineStart+4;
+      _fsBuildWordSpans(d, i, l.text, lineStart, lineEnd);
       d.addEventListener('click',()=>{if(YTP)YTP.seekTo(l.time);});
     }
     wrap.appendChild(d);
@@ -12225,6 +12298,8 @@ function _buildFSLyr(idx, songKey){
 
     el.appendChild(wrap);
   });
+  _fsKaraokeLastIdx = -1;
+  _fsSyncWordKaraoke(idx, cur);
   _scrollFSLyrToActive(idx);
 }
 function _updateFSLyrActiveState(idx){
@@ -12236,6 +12311,7 @@ function _updateFSLyrActiveState(idx){
     d.classList.toggle('active', i===idx);
     d.classList.toggle('past', i<idx);
   });
+  _fsSyncWordKaraoke(idx, cur);
   _scrollFSLyrToActive(idx);
 }
 let _fsLyrLastScrolledIdx = null;
