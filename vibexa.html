@@ -11163,7 +11163,10 @@ function syncLyr(ct){
   const el=document.getElementById('lyr-lines'); if(!el||!lyrs.length)return;
   // Terapkan offset manual dari slider
   const adjustedCt = ct + (_lyrOffset||0);
-  let idx=0;
+  // PENTING: idx harus mulai dari -1 (belum ada baris aktif), BUKAN 0 — kalau
+  // mulai dari 0, baris lirik pertama langsung ditandai "aktif" sejak detik ke-0
+  // (selama masih instrumen, sebelum vokal muncul), padahal waktunya belum sampai.
+  let idx=-1;
   for(let i=0;i<lyrs.length;i++){if(adjustedCt>=lyrs[i].time)idx=i;else break;}
   el.innerHTML='';
   // Apply show-translation class if enabled
@@ -12334,8 +12337,13 @@ let _fsLyrTransSig = null;
 function updateFSLyr(){
   const el=document.getElementById('fs-lyr-scroll');
   if(!lyrs.length){el.innerHTML='<div class="lyr-empty" style="color:rgba(255,255,255,0.4);padding-top:80px"><i></i>Lyrics not available</div>';_fsLyrBuiltFor=null;return;}
-  let idx=0;
-  for(let i=0;i<lyrs.length;i++){if(cur>=lyrs[i].time)idx=i;else break;}
+  // Terapkan offset yang sama dengan lirik non-fullscreen — sebelumnya fungsi
+  // ini pakai `cur` mentah tanpa offset, jadi lirik fullscreen bisa beda posisi
+  // dari lirik biasa. idx mulai dari -1 supaya baris pertama tidak ditandai
+  // aktif sebelum waktunya (misal saat masih instrumen sebelum vokal muncul).
+  const adjustedCt = cur + (_lyrOffset||0);
+  let idx=-1;
+  for(let i=0;i<lyrs.length;i++){if(adjustedCt>=lyrs[i].time)idx=i;else break;}
 
   const songKey = _currentSongKeyForTranslation;
   const transSig = songKey+'|'+(_translationEnabled?1:0)+'|'+(_translationCache[songKey]?1:0);
@@ -12610,10 +12618,14 @@ function clearKineticTimers() {
 
 function updateKinetic() {
   if ((_lyrStyle !== 'kinetic' && _lyrStyle !== 'alight') || !lyrs.length) return;
-  let idx = 0;
-  for (let i = 0; i < lyrs.length; i++) { if (cur >= lyrs[i].time) idx = i; else break; }
+  // Sama seperti syncLyr/updateFSLyr: terapkan _lyrOffset, dan idx mulai dari -1
+  // supaya baris pertama tidak dianggap aktif sebelum waktunya.
+  const adjustedCt = cur + (_lyrOffset||0);
+  let idx = -1;
+  for (let i = 0; i < lyrs.length; i++) { if (adjustedCt >= lyrs[i].time) idx = i; else break; }
   if (idx === _kineticIdx) return;
   _kineticIdx = idx;
+  if (idx === -1) return; // belum ada baris aktif (masih instrumen sebelum lirik pertama) — jangan render apa pun dulu
   renderKineticLines(idx);
 }
 
