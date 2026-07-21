@@ -3421,8 +3421,18 @@ body.np-fs-final #bar{display:none !important;}
    lain di masa depan). Tampilan mobile (≤660px) tidak terpengaruh.
    ═══════════════════════════════════════════════════════════ */
 @media(min-width:661px){
-  #fs-back{display:none !important;}
   #fs-bar{display:none !important;}
+
+  /* Tombol kembali PC: memakai gaya lingkaran yang sama seperti tombol
+     opsi (dulu berbentuk "˅"), diletakkan di kiri baris nav. */
+  #fs-back{
+    display:flex;background:rgba(0,0,0,0.3);border:none;border-radius:50%;
+    width:38px;height:38px;align-items:center;justify-content:center;
+    cursor:pointer;color:#fff;transition:background .2s;flex-shrink:0;
+  }
+  #fs-back:hover{background:rgba(0,0,0,0.5);}
+  .fs-back-icon{display:block;}
+  .fs-back-icon-mobile{display:none;}
 
   /* FIX: sama seperti di mobile, #fs-nav dan #fs-lyr-scroll sama-sama
      z-index:2, dan #fs-lyr-scroll (datang belakangan di DOM) menang
@@ -3442,8 +3452,8 @@ body.np-fs-final #bar{display:none !important;}
     cursor:pointer;color:#fff;transition:background .2s;flex-shrink:0;
   }
   #fs-more-btn:hover{background:rgba(0,0,0,0.5);}
-  .fs-more-icon-dots{display:none;}
-  .fs-more-icon-chevron{display:block;width:20px;height:20px;}
+  .fs-more-icon-dots{display:block;width:19px;height:19px;}
+  .fs-more-icon-chevron{display:none;}
 
   #fs-more-menu{
     display:none;
@@ -9934,15 +9944,44 @@ async function _playNextFromTopSongs(){
   _nextGuarded = true;
   loadPlay(_topSongToTrack(nextRaw), null);
 }
+// Ubah 1 hasil fetchArtistTopTracks() (format Deezer yang sudah dinormalisasi)
+// jadi format track yang dipakai loadPlay()/curTrack di seluruh aplikasi.
+function _artistTopTrackToTrack(t){
+  return {
+    title: t.title, artist: t.artist, thumb: t.thumb || '', preview: t.preview || null,
+    videoId: null, photo: null, duration: t.duration, _query: `${t.artist}|||${t.title}|||${t.id}`
+  };
+}
+// Dipakai saat sebuah lagu ATAU playlist/queue benar-benar habis: lanjutkan
+// otomatis dengan lagu-lagu TOP dari ARTIS yang TERAKHIR diputar (bukan lagi
+// Top Songs global), berurutan mulai dari lagu setelah lagu yang baru
+// selesai (kalau lagu itu kebetulan ada di daftar top artis tsb), lalu
+// begitu sampai akhir daftar, otomatis kembali (loop) ke lagu top #1 artis
+// yang sama. Kalau nama artis tidak diketahui atau daftar top-nya gagal
+// diambil, fallback ke Top Songs global seperti sebelumnya.
+async function _playNextFromArtistTopSongs(){
+  const artistName = curTrack && curTrack.artist;
+  if(!artistName){ _playNextFromTopSongs(); return; }
+  let raw = [];
+  try{ raw = await fetchArtistTopTracks(artistName, 50); }catch(e){}
+  if(!raw || !raw.length){ _playNextFromTopSongs(); return; }
+  const list = raw.map(_artistTopTrackToTrack);
+  let idx = -1;
+  if(curTrack) idx = list.findIndex(t => t._query === curTrack._query);
+  const next = list[idx === -1 ? 0 : (idx + 1) % list.length];
+  if(!next) return;
+  _nextGuarded = true;
+  loadPlay(next, null);
+}
 function playNext(){
-  if(!curQueue.length){ _playNextFromTopSongs(); return; }
+  if(!curQueue.length){ _playNextFromArtistTopSongs(); return; }
   const i = _qIdx();
   // Kalau lagu yang baru selesai adalah lagu TERAKHIR di playlist/queue dan
   // Repeat All tidak aktif, jangan wrap-around ke awal playlist — lanjutkan
-  // otomatis dengan Top Songs peringkat 1–99 (sama seperti saat user hanya
-  // memutar 1 lagu saja).
+  // otomatis dengan lagu-lagu TOP dari artis yang terakhir diputar (sama
+  // seperti saat user hanya memutar 1 lagu saja).
   if(i !== -1 && i === curQueue.length - 1 && _repeatMode !== 'all'){
-    _playNextFromTopSongs();
+    _playNextFromArtistTopSongs();
     return;
   }
   const next = curQueue[i===-1 ? 0 : (i+1) % curQueue.length];
