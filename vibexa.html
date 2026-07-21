@@ -10831,7 +10831,7 @@ async function loadPlay(track, fromPlId){
   // (3) mendeteksi selisih tetap (constant offset) akibat intro/outro tambahan
   // di video — ini penyebab paling umum lirik "meleset dari awal" pada lagu
   // normal (bukan sped-up/slowed).
-  const vidDuration = await _waitForVidDuration(3000);
+  const vidDuration = await _waitForVidDuration(4000);
   const ch = pickBestLyricCandidate(lyrCandidates, vidDuration);
 
   // Durasi ASLI/kanonik lagu — utamakan dari metadata iTunes/Deezer (track.duration,
@@ -10844,15 +10844,21 @@ async function loadPlay(track, fromPlId){
   let autoOffset = 0;
   if(origDuration>0 && vidDuration>0){
     const ratio = origDuration/vidDuration;
-    if(ratio>1.03 || ratio<0.97){
+    // Toleransi dilonggarkan ke ±5% (dari ±3%) supaya noise kecil dari
+    // pembacaan durasi tidak salah dianggap sebagai speed up/slowed sungguhan.
+    if(ratio>1.05 || ratio<0.95){
       // Selisih durasi proporsional besar → beneran speed up/slowed di seluruh lagu.
       finalSpeedFactor = ratio;
     } else {
-      // Rasio dekat 1.0 tapi masih ada selisih detik → kemungkinan besar cuma
-      // ada intro/outro tambahan di video, bukan speed change. Selisihnya
-      // dipakai langsung sebagai offset konstan.
-      const diff = vidDuration - origDuration; // >0 = video lebih panjang dari lagu asli (kemungkinan ada intro)
-      if(Math.abs(diff) >= 1.5 && Math.abs(diff) <= 45){
+      // Rasio dekat 1.0 tapi masih ada selisih detik → kemungkinan ada
+      // intro/outro tambahan di video, bukan speed change.
+      const diff = vidDuration - origDuration; // >0 = video lebih panjang dari lagu asli
+      // HANYA percaya kalau video LEBIH PANJANG (indikasi ada intro tambahan
+      // di depan). Kalau video lebih PENDEK dari durasi asli, itu lebih
+      // mungkin cuma noise pembacaan durasi (bukan video yang beneran
+      // dipotong) — kalau tetap dipaksa jadi offset, lirik malah bisa
+      // berjalan LEBIH CEPAT dari vokal, jadi sengaja tidak dikoreksi.
+      if(diff >= 1.5 && diff <= 45){
         autoOffset = -diff;
       }
     }
@@ -10973,18 +10979,24 @@ function pickBestLyricCandidate(candidates, targetDuration){
   return withLyrics.find(c=>c.syncedLyrics) || withLyrics.find(c=>c.plainLyrics) || withLyrics[0];
 }
 
-// Tunggu sebentar sampai durasi video dari player YouTube tersedia (biasanya
-// langsung ada begitu video mulai diputar, tapi kadang butuh sepersekian
-// detik sebelum metadata-nya siap). maxWaitMs membatasi berapa lama nunggu
-// supaya loading songs tidak jadi lambat kalau durasinya nggak kunjung ada.
+// Tunggu sebentar sampai durasi video dari player YouTube tersedia DAN STABIL
+// (dua kali pembacaan berturut-turut sama) — biasanya langsung ada begitu
+// video mulai diputar, tapi kadang beberapa pembacaan pertama masih berupa
+// angka sementara/belum lengkap selama metadata masih dimuat. Kalau kita
+// percaya begitu saja pada pembacaan pertama, hasil hitungan offset otomatis
+// bisa salah arah. maxWaitMs membatasi berapa lama nunggu supaya loading
+// songs tidak jadi lambat kalau durasinya nggak kunjung stabil.
 function _waitForVidDuration(maxWaitMs){
   return new Promise(resolve=>{
     const start=Date.now();
+    let lastD=0;
     (function poll(){
       let d=0;
       try{ if(YTP && typeof YTP.getDuration==='function') d=YTP.getDuration()||0; }catch(e){}
-      if(d>0 || Date.now()-start>=maxWaitMs){ resolve(d); }
-      else setTimeout(poll,200);
+      const stable = d>0 && Math.abs(d-lastD)<0.3;
+      lastD=d;
+      if(stable || Date.now()-start>=maxWaitMs){ resolve(stable?d:lastD); }
+      else setTimeout(poll,250);
     })();
   });
 }
