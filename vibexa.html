@@ -10827,28 +10827,59 @@ async function loadPlay(track, fromPlId){
 
   // Setelah video siap, tunggu sebentar sampai durasinya diketahui. Dengan itu
   // kita bisa (1) pilih versi lirik yang durasinya paling cocok dengan video
-  // yang sedang diputar, dan (2) hitung otomatis faktor speed-up/slowed dari
-  // SELISIH DURASI — lebih akurat daripada cuma menebak dari kata di judul.
+  // yang sedang diputar, (2) hitung otomatis faktor speed-up/slowed, dan
+  // (3) mendeteksi selisih tetap (constant offset) akibat intro/outro tambahan
+  // di video — ini penyebab paling umum lirik "meleset dari awal" pada lagu
+  // normal (bukan sped-up/slowed).
   const vidDuration = await _waitForVidDuration(3000);
   const ch = pickBestLyricCandidate(lyrCandidates, vidDuration);
+
+  // Durasi ASLI/kanonik lagu — utamakan dari metadata iTunes/Deezer (track.duration,
+  // sudah kita punya sejak lagu dicari), baru fallback ke field duration dari LRCLIB
+  // kalau metadata itu tidak tersedia.
+  const origDuration = (track.duration && track.duration>0) ? track.duration
+    : ((ch && ch.duration) ? ch.duration : 0);
+
   let finalSpeedFactor = _titleFallbackFactor;
-  if(ch && ch.duration && vidDuration>0){
-    const ratio = ch.duration/vidDuration;
-    // Toleransi ±3% supaya perbedaan durasi wajar (silence di awal/akhir dsb)
-    // tidak dianggap perubahan speed.
-    if(ratio>1.03 || ratio<0.97) finalSpeedFactor = ratio;
+  let autoOffset = 0;
+  if(origDuration>0 && vidDuration>0){
+    const ratio = origDuration/vidDuration;
+    if(ratio>1.03 || ratio<0.97){
+      // Selisih durasi proporsional besar → beneran speed up/slowed di seluruh lagu.
+      finalSpeedFactor = ratio;
+    } else {
+      // Rasio dekat 1.0 tapi masih ada selisih detik → kemungkinan besar cuma
+      // ada intro/outro tambahan di video, bukan speed change. Selisihnya
+      // dipakai langsung sebagai offset konstan.
+      const diff = vidDuration - origDuration; // >0 = video lebih panjang dari lagu asli (kemungkinan ada intro)
+      if(Math.abs(diff) >= 1.5 && Math.abs(diff) <= 45){
+        autoOffset = -diff;
+      }
+    }
   }
   _curSpeedFactor = finalSpeedFactor;
+  _lyrOffset = autoOffset;
   let lines=[];
   if(ch){
     if(ch.syncedLyrics) lines = pSynced(ch.syncedLyrics, finalSpeedFactor);
     else if(ch.plainLyrics) lines = pPlain(ch.plainLyrics, finalSpeedFactor);
   }
-  // Slider offset manual tetap ditampilkan kalau ada faktor speed terdeteksi
-  // (baik dari judul maupun otomatis dari durasi) — berguna sebagai penyesuaian
-  // halus terakhir kalau masih ada sedikit selisih.
-  if(finalSpeedFactor !== 1.0){
+  // Tampilkan slider offset kalau ada penyesuaian otomatis apa pun (speed
+  // factor atau constant offset) — supaya tetap bisa di-fine-tune manual kalau
+  // masih ada sedikit selisih. Lebarkan rentang slider kalau offset otomatis
+  // yang terdeteksi lebih besar dari rentang default (±5 detik).
+  if(finalSpeedFactor !== 1.0 || autoOffset !== 0){
     if(_offsetBar) _offsetBar.classList.add('show');
+    if(_offsetSlider){
+      const need = Math.ceil(Math.abs(autoOffset)) + 3;
+      const range = Math.max(5, need);
+      _offsetSlider.min = -range; _offsetSlider.max = range;
+      _offsetSlider.value = autoOffset;
+    }
+    if(_offsetVal){
+      const sign = autoOffset > 0 ? '+' : '';
+      _offsetVal.textContent = sign + autoOffset.toFixed(1) + 's';
+    }
   } else {
     if(_offsetBar) _offsetBar.classList.remove('show');
   }
