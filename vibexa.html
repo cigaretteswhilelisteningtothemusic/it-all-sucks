@@ -6631,6 +6631,14 @@ document.addEventListener('click', function(e) {
   if (overlay.contains(e.target)) return; // klik di dalam Chat sendiri, biarkan
   if (e.target.closest('#side-btn-chat, #mob-btn-chat')) return; // tombol Chat sendiri
   if (e.target.closest('#lib-collapse-btn')) return; // tombol expand/collapse Your Library — bukan navigasi halaman, jangan tutup Chat
+  // Viewer foto/GIF fullscreen (#img-viewer) SENGAJA ditaruh di luar
+  // #chat-overlay di DOM (supaya bisa dipakai ulang di halaman lain juga,
+  // mis. foto komentar) — tapi ini menyebabkan bug: tap foto utk MENUTUP
+  // viewer-nya (dari dalam Chat) ikut kebaca sebagai "klik di luar Chat",
+  // sehingga bukan cuma viewer yang tertutup, halaman Chat-nya pun ikut
+  // tertutup/ter-exit. Dikecualikan di sini supaya menutup viewer foto TIDAK
+  // pernah ikut menutup Chat.
+  if (e.target.closest('#img-viewer')) return;
   closeChatOverlay();
 });
 function showChatSubview(id) {
