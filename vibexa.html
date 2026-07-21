@@ -9622,7 +9622,9 @@ function _createPlayer(videoId) {
               _lyrAutoOffsetDone = true;
               const diff = newDur - curTrack.duration; // detik ekstra di video vs lagu asli
               if(diff > 1.5 && diff < 20){
+                const _songKey = curTrack ? (curTrack.artist + '|' + curTrack.title) : '';
                 _applyLyrOffset(-diff, { toastMsg: ` Lirik disesuaikan otomatis (video +${diff.toFixed(1)}s intro)` });
+                _saveLyrOffsetForSong(_songKey, _lyrOffset);
               }
             }
             // Update _playStartWall & _playStartPos hanya jika:
@@ -10818,6 +10820,14 @@ async function loadPlay(track, fromPlId){
   _curSpeedFactor = detectSpeedFactor(track.title);
   _lyrOffset = 0;
   _lyrAutoOffsetDone = false;
+  // Kalau lagu ini sudah pernah "diajarkan" offsetnya (otomatis atau manual)
+  // di sesi/pemutaran sebelumnya, langsung pakai lagi — user tidak perlu
+  // menunggu deteksi otomatis maupun mengatur ulang secara manual.
+  const _savedOffset = _getSavedLyrOffset(track.artist + '|' + track.title);
+  if(_savedOffset !== null){
+    _lyrOffset = _savedOffset;
+    _lyrAutoOffsetDone = true; // sudah ada nilai terpercaya, jangan ditimpa deteksi durasi lagi
+  }
   // Tampilkan/sembunyikan offset bar
   const _offsetBar = document.getElementById('lyr-offset-bar');
   const _offsetSlider = document.getElementById('lyr-offset-slider');
@@ -10827,8 +10837,8 @@ async function loadPlay(track, fromPlId){
   // manapun — terutama saat masih instrumen sebelum vokal masuk — jadi user perlu akses
   // ke slider koreksi manual kapan pun dibutuhkan.
   if(_offsetBar) _offsetBar.classList.add('show');
-  if(_offsetSlider){ _offsetSlider.value = 0; }
-  if(_offsetVal) _offsetVal.textContent = '0.0s';
+  if(_offsetSlider){ _offsetSlider.value = _lyrOffset; }
+  if(_offsetVal){ const sign = _lyrOffset > 0 ? '+' : ''; _offsetVal.textContent = sign + _lyrOffset.toFixed(1) + 's'; }
   const cl=cleanT(track.title);
   const [videoId,lines]=await Promise.all([resolveVid(searchQ),fetchLyr(cl,track.artist)]);
   if(videoId){
@@ -10881,6 +10891,29 @@ function _lyrCur(){ return cur + (_lyrOffset||0); }
 
 // Terapkan offset baru (dari deteksi otomatis ATAU manual) + sinkronkan UI slider,
 // label detik, dan re-render lirik saat ini juga supaya perubahan langsung terasa.
+// ── "Ingatan" offset lirik per lagu ─────────────────────────
+// Begitu offset sebuah lagu pernah dikoreksi (baik lewat deteksi otomatis
+// selisih durasi, maupun lewat slider manual), nilainya disimpan di localStorage
+// per lagu (kunci: artis|judul). Lain kali lagu yang sama diputar, offset itu
+// langsung dipakai lagi otomatis — user idealnya cuma perlu koreksi sekali
+// per lagu (kalaupun perlu), setelah itu app "ingat" selamanya.
+const LYR_OFFSET_STORE_KEY = 'vibexa_lyr_offsets';
+function _lyrOffsetStoreGet(){
+  try{ return JSON.parse(localStorage.getItem(LYR_OFFSET_STORE_KEY) || '{}'); }catch(e){ return {}; }
+}
+function _getSavedLyrOffset(songKey){
+  const store = _lyrOffsetStoreGet();
+  return (songKey && typeof store[songKey] === 'number') ? store[songKey] : null;
+}
+function _saveLyrOffsetForSong(songKey, offset){
+  if(!songKey) return;
+  try{
+    const store = _lyrOffsetStoreGet();
+    store[songKey] = offset;
+    localStorage.setItem(LYR_OFFSET_STORE_KEY, JSON.stringify(store));
+  }catch(e){}
+}
+
 function _applyLyrOffset(newOffset, opts){
   opts = opts || {};
   const min = -20, max = 5;
@@ -11173,6 +11206,8 @@ document.getElementById('btn-search').addEventListener('click',doSearch);
     _lyrOffset = parseFloat(this.value);
     const sign = _lyrOffset > 0 ? '+' : '';
     val.textContent = sign + _lyrOffset.toFixed(1) + 's';
+    // Ingat pilihan user untuk lagu ini supaya lain kali otomatis terpakai lagi
+    if(curTrack) _saveLyrOffsetForSong(curTrack.artist + '|' + curTrack.title, _lyrOffset);
     // Re-sync lirik langsung dengan posisi saat ini
     if(lyrs.length && YTP && typeof YTP.getCurrentTime === 'function'){
       try{ syncLyr(YTP.getCurrentTime()); updateFSLyr(); }catch(e){}
