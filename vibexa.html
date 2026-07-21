@@ -631,7 +631,7 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 }
 .show-translation .ll-translation{
   opacity:.75;
-  max-height:60px;
+  max-height:300px;
 }
 .ll.active + .ll-translation,
 .ll-wrap:has(.ll.active) .ll-translation{
@@ -2133,7 +2133,7 @@ body.np-fs-final #bar{display:none !important;}
   overflow: hidden;
   transition: opacity .3s ease, max-height .3s ease;
 }
-#fs-lyr-scroll.show-translation .fs-ll-translation { opacity: 1; max-height: 60px; }
+#fs-lyr-scroll.show-translation .fs-ll-translation { opacity: 1; max-height: 300px; }
 .fs-ll.active ~ .fs-ll-translation,
 .fs-ll-wrap:has(.fs-ll.active) .fs-ll-translation { color: rgba(255,255,255,0.55); }
 .fs-ll-wrap { display: flex; flex-direction: column; }
@@ -3909,6 +3909,13 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 .chat-conv-namewrap{display:flex;flex-direction:column;min-width:0;}
 .chat-conv-status{font-size:.72rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}
 .chat-conv-status.online{color:var(--green);font-weight:600;}
+/* Indikator "Mengetik..." ala WhatsApp: label hijau + 3 titik berdenyut bergantian */
+.chat-conv-status.typing{display:flex;align-items:center;gap:3px;}
+.chat-typing-dots{display:inline-flex;align-items:center;gap:2px;margin-left:1px;}
+.chat-typing-dots span{width:3.5px;height:3.5px;border-radius:50%;background:var(--green);opacity:.35;animation:chatTypingBlink 1.2s infinite ease-in-out;}
+.chat-typing-dots span:nth-child(2){animation-delay:.2s;}
+.chat-typing-dots span:nth-child(3){animation-delay:.4s;}
+@keyframes chatTypingBlink{0%,80%,100%{opacity:.3;transform:translateY(0);}40%{opacity:1;transform:translateY(-2px);}}
 
 
 .chat-messages{flex:1;overflow-y:auto;overflow-x:hidden;padding:20px 22px;display:flex;flex-direction:column;gap:9px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
@@ -5000,7 +5007,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
         </button>
         <button class="chat-gif-btn" id="chat-gif-btn" onclick="toggleGifPicker()" title="Send GIF">GIF</button>
-        <input type="text" id="chat-input" placeholder="Write a message..." autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();sendChatMessage();}">
+        <input type="text" id="chat-input" placeholder="Write a message..." autocomplete="off" oninput="onChatInputTyping()" onkeydown="if(event.key==='Enter'){event.preventDefault();sendChatMessage();}">
         <button class="chat-send-btn" onclick="sendChatMessage()" title="Send">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
         </button>
@@ -6180,6 +6187,11 @@ function loadHomeProfileButtonPhoto(user) {
 //                                 (daftar/inbox chat milik masing2 user)
 //   chats/{chatId}/participants/{uid} → true
 //   chats/{chatId}/messages/{pushId}  → { from, text, ts }
+//   chats/{chatId}/typing/{uid}       → true (indikator "Sedang mengetik...",
+//                                        ala WhatsApp — dihapus otomatis saat
+//                                        idle/pesan terkirim/putus koneksi;
+//                                        sudah tercakup rules "chats" di bawah,
+//                                        tidak perlu rules tambahan)
 //
 // chatId dibentuk dari kedua uid yang diurutkan lalu digabung dengan "_"
 // supaya selalu sama untuk pasangan pengguna yang sama, siapapun yang
@@ -6270,6 +6282,13 @@ let _chatDirRef = null;         // ref listener direktori (live, utk nama/foto t
 let _chatDirLoaded = false;
 let _chatStatusCache = {};      // cache node "status" (online/offline + last_changed semua user)
 let _chatStatusRef = null;      // ref listener node "status"
+
+// ── Indikator "Sedang mengetik..." ala WhatsApp ─────────────────────────
+let _chatTypingRef = null;      // ref listener typing milik LAWAN BICARA di percakapan yg sedang dibuka
+let _peerIsTyping = false;      // status terbaru lawan bicara: sedang mengetik atau tidak
+let _chatMyTypingRef = null;    // ref node typing milik SAYA di percakapan yg sedang dibuka
+let _chatMyTypingState = false; // apakah saat ini saya sudah menandai diri "sedang mengetik" (hindari write berulang)
+let _chatTypingStopTimer = null;// timer utk otomatis menandai "berhenti mengetik" setelah beberapa detik idle
 
 // ── Kirim Foto/Video di Chat (Cloudinary, unsigned upload preset) ──────
 // Cloud name & upload preset akun Cloudinary Vibexa. Aman ditaruh di
@@ -7021,6 +7040,25 @@ function openConversation(chatId, peerUid, peerName, peerPhoto) {
     if (currentUser) markChatSeen(chatId, currentUser.uid);
   }, err => console.error('Gagal memuat pesan:', err));
 
+  // Dengarkan status "sedang mengetik" milik lawan bicara secara real-time,
+  // persis seperti WhatsApp — label "Online"/"Terakhir dilihat..." di header
+  // sementara diganti jadi "Mengetik..." selama node ini bernilai true.
+  _peerIsTyping = false;
+  _chatTypingRef = db.ref('chats/' + chatId + '/typing/' + peerUid);
+  _chatTypingRef.on('value', snap => {
+    _peerIsTyping = snap.exists() && snap.val() === true;
+    renderConvStatusUI(peerUid);
+  }, err => console.error('Gagal memuat status mengetik:', err));
+
+  // Siapkan node typing milik SAYA di percakapan ini: kalau koneksi putus
+  // tiba-tiba (tutup tab, internet mati), server otomatis menghapusnya —
+  // sama seperti mekanisme onDisconnect() pada status online/offline.
+  if (currentUser) {
+    _chatMyTypingRef = db.ref('chats/' + chatId + '/typing/' + currentUser.uid);
+    _chatMyTypingRef.onDisconnect().remove();
+  }
+  _chatMyTypingState = false;
+
   setTimeout(() => document.getElementById('chat-input')?.focus(), 150);
 }
 
@@ -7028,6 +7066,46 @@ function openConversation(chatId, peerUid, peerName, peerPhoto) {
 // Dibaca oleh lawan bicara utk menampilkan status "Dibaca · jam" ala Instagram.
 function markChatSeen(chatId, uid) {
   db.ref('chats/' + chatId + '/seen/' + uid).set(Date.now()).catch(() => {});
+}
+
+// ── Kirim status "Sedang mengetik..." ke lawan bicara (ala WhatsApp) ───
+// Dipanggil setiap kali saya mengetik di kolom pesan. Supaya tidak menulis
+// ke database di SETIAP ketikan huruf (boros write), node "typing" hanya
+// ditulis SEKALI saat mulai mengetik (true), lalu otomatis dihapus lagi
+// setelah user berhenti mengetik selama beberapa detik (idle timeout) —
+// atau segera setelah pesan benar-benar terkirim.
+const CHAT_TYPING_IDLE_MS = 2500;
+
+function onChatInputTyping() {
+  if (!_chatMyTypingRef || !_chatCurrentPeer) return;
+  const inputEl = document.getElementById('chat-input');
+  const hasText = !!(inputEl && inputEl.value.trim().length > 0);
+
+  clearTimeout(_chatTypingStopTimer);
+
+  if (hasText) {
+    if (!_chatMyTypingState) {
+      _chatMyTypingState = true;
+      _chatMyTypingRef.set(true).catch(err => console.error('Gagal mengirim status mengetik:', err));
+    }
+    // Reset hitung mundur setiap kali user masih mengetik — status baru
+    // dihapus kalau benar-benar berhenti (idle) selama CHAT_TYPING_IDLE_MS.
+    _chatTypingStopTimer = setTimeout(stopChatTyping, CHAT_TYPING_IDLE_MS);
+  } else {
+    // Kolom pesan dikosongkan (mis. dihapus semua) → langsung tandai berhenti.
+    stopChatTyping();
+  }
+}
+
+// Menandai diri "berhenti mengetik" — dipanggil saat idle timeout, saat
+// pesan terkirim, atau saat percakapan ditutup/dipindah.
+function stopChatTyping() {
+  clearTimeout(_chatTypingStopTimer);
+  _chatTypingStopTimer = null;
+  if (_chatMyTypingState && _chatMyTypingRef) {
+    _chatMyTypingState = false;
+    _chatMyTypingRef.remove().catch(() => {});
+  }
 }
 
 // Menekan foto profil / nama lawan bicara di header percakapan → buka
@@ -7040,6 +7118,18 @@ function goToPeerProfile() {
 function detachChatMessagesListener() {
   if (_chatMsgsRef) { _chatMsgsRef.off(); _chatMsgsRef = null; }
   if (_chatSeenRef) { _chatSeenRef.off(); _chatSeenRef = null; }
+  if (_chatTypingRef) { _chatTypingRef.off(); _chatTypingRef = null; }
+  // Saya pindah/tutup percakapan → langsung bersihkan status "mengetik" milik
+  // saya sendiri di percakapan ini, supaya tidak "nyangkut" jadi true selamanya.
+  clearTimeout(_chatTypingStopTimer);
+  _chatTypingStopTimer = null;
+  if (_chatMyTypingRef) {
+    _chatMyTypingRef.onDisconnect().cancel();
+    if (_chatMyTypingState) _chatMyTypingRef.remove().catch(() => {});
+    _chatMyTypingRef = null;
+  }
+  _chatMyTypingState = false;
+  _peerIsTyping = false;
   _chatCurrentPeer = null;
   _chatPeerSeenAt = 0;
   _chatCurrentMessages = {};
@@ -7077,6 +7167,9 @@ function refreshOpenConversationHeader() {
 }
 
 // Set titik online + label "Online" / "Terakhir dilihat ..." di header percakapan.
+// Kalau lawan bicara sedang mengetik, label ini diganti sementara jadi
+// "Mengetik..." dengan titik-titik berdenyut, persis ala WhatsApp — dan
+// akan kembali sendiri ke label online/last-seen begitu berhenti mengetik.
 function renderConvStatusUI(uid) {
   const dotEl = document.getElementById('chat-conv-dot');
   const statusEl = document.getElementById('chat-conv-status');
@@ -7084,6 +7177,13 @@ function renderConvStatusUI(uid) {
   const s = _chatStatusCache[uid];
   const online = !!(s && s.state === 'online');
   dotEl.style.display = online ? '' : 'none';
+
+  if (_chatCurrentPeer && _chatCurrentPeer.uid === uid && _peerIsTyping) {
+    statusEl.innerHTML = 'Typing<span class="chat-typing-dots"><span></span><span></span><span></span></span>';
+    statusEl.classList.add('online', 'typing');
+    return;
+  }
+  statusEl.classList.remove('typing');
   statusEl.textContent = formatPeerStatusLabel(uid);
   statusEl.classList.toggle('online', online);
 }
@@ -7399,6 +7499,7 @@ async function sendChatMessage() {
   }
 
   input.value = '';
+  stopChatTyping(); // pesan sudah terkirim → indikator "mengetik" langsung berhenti
 
   const myUid = currentUser.uid;
   const chatId = peer.chatId;
@@ -7560,6 +7661,8 @@ async function sendChatMediaMessage() {
     toast(permCheck.message);
     return;
   }
+
+  stopChatTyping(); // pesan (media) sedang dikirim → indikator "mengetik" langsung berhenti
 
   const file = _chatPendingMediaFile;
   const mediaType = _chatPendingMediaType;
@@ -7759,6 +7862,7 @@ async function sendGifMessage(gifUrl, width, height) {
   const caption = (input.value || '').trim();
   input.value = '';
   closeGifPicker();
+  stopChatTyping(); // pesan (GIF) sedang dikirim → indikator "mengetik" langsung berhenti
 
   const myUid = currentUser.uid;
   const chatId = peer.chatId;
