@@ -5739,6 +5739,7 @@ const WORKER = 'https://fancy-band-d65b.alpinofficial26.workers.dev';
 let YTP = null;
 let playing = false, cur = 0, tot = 0, raf = null;
 let lyrCache = {}, lyrs = [], curTrack = null;
+let lyrRawCache = {}; // cache daftar kandidat mentah dari LRCLIB (belum dipilih versi mana yang dipakai)
 let curQueue = []; // songs yang sedang dalam antrian putar
 // Cache daftar lagu di section "Top Songs" (home), dipakai sebagai lanjutan
 // otomatis kalau user memutar 1 lagu saja (bukan dari playlist/queue apa pun)
@@ -10800,22 +10801,20 @@ async function loadPlay(track, fromPlId){
   openNP(track);
 
   const searchQ=`${track.artist} ${track.title} official audio`; toast(' Searching video...');
-  // Deteksi apakah songs ini speed up atau slowed, lalu sesuaikan timing lirik
-  _curSpeedFactor = detectSpeedFactor(track.title);
+  // Fallback awal dari judul — dipakai kalau nanti data durasi dari LRCLIB
+  // tidak tersedia sama sekali untuk lagu ini.
+  const _titleFallbackFactor = detectSpeedFactor(track.title);
+  _curSpeedFactor = _titleFallbackFactor;
   _lyrOffset = 0;
-  // Tampilkan/sembunyikan offset bar
   const _offsetBar = document.getElementById('lyr-offset-bar');
   const _offsetSlider = document.getElementById('lyr-offset-slider');
   const _offsetVal = document.getElementById('lyr-offset-val');
-  if(_curSpeedFactor !== 1.0){
-    if(_offsetBar) _offsetBar.classList.add('show');
-    if(_offsetSlider){ _offsetSlider.value = 0; }
-    if(_offsetVal) _offsetVal.textContent = '0.0s';
-  } else {
-    if(_offsetBar) _offsetBar.classList.remove('show');
-  }
+  if(_offsetSlider){ _offsetSlider.value = 0; }
+  if(_offsetVal) _offsetVal.textContent = '0.0s';
+  if(_offsetBar) _offsetBar.classList.remove('show'); // ditentukan ulang di bawah, setelah faktor speed final diketahui
+
   const cl=cleanT(track.title);
-  const [videoId,lines]=await Promise.all([resolveVid(searchQ),fetchLyr(cl,track.artist)]);
+  const [videoId,lyrCandidates]=await Promise.all([resolveVid(searchQ),fetchLyrCandidates(cl,track.artist)]);
   if(videoId){
     toast(' Memutar songs...');
     await initPlayer(videoId).then(()=>_addRecentlyPlayed(track)).catch(e=>{console.error('initPlayer error:',e);toast(' Failed to load video, coba songs lain');_nextGuarded=false;});
@@ -10825,6 +10824,35 @@ async function loadPlay(track, fromPlId){
     if(fallbackId){ await initPlayer(fallbackId).then(()=>_addRecentlyPlayed(track)).catch(()=>{toast(' Failed to load video');_nextGuarded=false;}); }
     else{ toast(' Video not found. Try another song.'); _nextGuarded=false; }
   }
+
+  // Setelah video siap, tunggu sebentar sampai durasinya diketahui. Dengan itu
+  // kita bisa (1) pilih versi lirik yang durasinya paling cocok dengan video
+  // yang sedang diputar, dan (2) hitung otomatis faktor speed-up/slowed dari
+  // SELISIH DURASI — lebih akurat daripada cuma menebak dari kata di judul.
+  const vidDuration = await _waitForVidDuration(3000);
+  const ch = pickBestLyricCandidate(lyrCandidates, vidDuration);
+  let finalSpeedFactor = _titleFallbackFactor;
+  if(ch && ch.duration && vidDuration>0){
+    const ratio = ch.duration/vidDuration;
+    // Toleransi ±3% supaya perbedaan durasi wajar (silence di awal/akhir dsb)
+    // tidak dianggap perubahan speed.
+    if(ratio>1.03 || ratio<0.97) finalSpeedFactor = ratio;
+  }
+  _curSpeedFactor = finalSpeedFactor;
+  let lines=[];
+  if(ch){
+    if(ch.syncedLyrics) lines = pSynced(ch.syncedLyrics, finalSpeedFactor);
+    else if(ch.plainLyrics) lines = pPlain(ch.plainLyrics, finalSpeedFactor);
+  }
+  // Slider offset manual tetap ditampilkan kalau ada faktor speed terdeteksi
+  // (baik dari judul maupun otomatis dari durasi) — berguna sebagai penyesuaian
+  // halus terakhir kalau masih ada sedikit selisih.
+  if(finalSpeedFactor !== 1.0){
+    if(_offsetBar) _offsetBar.classList.add('show');
+  } else {
+    if(_offsetBar) _offsetBar.classList.remove('show');
+  }
+
   lyrs=lines||[];
   // Set song key for translation
   _currentSongKeyForTranslation = track.artist + '|' + track.title;
@@ -10866,9 +10894,12 @@ function cleanT(t){
     .replace(/\s+/g,' ').trim();
 }
 
-async function fetchLyr(title, artist){
+// Ambil daftar MENTAH semua kandidat lirik dari LRCLIB (belum dipilih versi mana
+// yang dipakai) — dipisah dari pemilihan supaya bisa dipilih ulang begitu kita
+// tahu durasi video yang benar-benar diputar.
+async function fetchLyrCandidates(title, artist){
   const k = title+'|'+artist;
-  if(lyrCache[k] !== undefined) return lyrCache[k];
+  if(lyrRawCache[k] !== undefined) return lyrRawCache[k];
   try{
     // Percobaan 1: judul + artis lengkap
     let data = null;
@@ -10881,14 +10912,66 @@ async function fetchLyr(title, artist){
       if(res2.ok) data = await res2.json();
     }
 
-    if(!data || !data.length){ lyrCache[k]=[]; return []; }
+    data = data || [];
+    lyrRawCache[k] = data;
+    return data;
+  }catch(e){ lyrRawCache[k] = []; return []; }
+}
 
-    const ch = data.find(r=>r.syncedLyrics) || data.find(r=>r.plainLyrics) || data[0];
-    let p = [];
-    if(ch.syncedLyrics) p = pSynced(ch.syncedLyrics, _curSpeedFactor);
-    else if(ch.plainLyrics) p = pPlain(ch.plainLyrics, _curSpeedFactor);
-    lyrCache[k] = p; return p;
-  }catch(e){ lyrCache[k]=[]; return []; }
+// Pilih kandidat lirik terbaik dari daftar hasil LRCLIB.
+// Kalau targetDuration (durasi video/audio yang benar-benar diputar, dalam
+// detik) diketahui, utamakan kandidat yang field `duration`-nya PALING DEKAT
+// dengan itu — supaya bukan lirik dari versi lain (live/radio edit/extended/
+// remix) yang timestamp-nya memang tidak nyambung dengan audio yang diputar.
+// Kalau info durasi tidak tersedia sama sekali, fallback ke perilaku lama:
+// utamakan yang synced, baru plain.
+function pickBestLyricCandidate(candidates, targetDuration){
+  if(!candidates || !candidates.length) return null;
+  const withLyrics = candidates.filter(c=>c.syncedLyrics||c.plainLyrics);
+  if(!withLyrics.length) return null;
+  if(targetDuration && targetDuration>0){
+    let best=null, bestDiff=Infinity;
+    withLyrics.forEach(c=>{
+      if(c.duration){
+        const diff=Math.abs(c.duration-targetDuration);
+        if(diff<bestDiff){ bestDiff=diff; best=c; }
+      }
+    });
+    if(best) return best;
+  }
+  return withLyrics.find(c=>c.syncedLyrics) || withLyrics.find(c=>c.plainLyrics) || withLyrics[0];
+}
+
+// Tunggu sebentar sampai durasi video dari player YouTube tersedia (biasanya
+// langsung ada begitu video mulai diputar, tapi kadang butuh sepersekian
+// detik sebelum metadata-nya siap). maxWaitMs membatasi berapa lama nunggu
+// supaya loading songs tidak jadi lambat kalau durasinya nggak kunjung ada.
+function _waitForVidDuration(maxWaitMs){
+  return new Promise(resolve=>{
+    const start=Date.now();
+    (function poll(){
+      let d=0;
+      try{ if(YTP && typeof YTP.getDuration==='function') d=YTP.getDuration()||0; }catch(e){}
+      if(d>0 || Date.now()-start>=maxWaitMs){ resolve(d); }
+      else setTimeout(poll,200);
+    })();
+  });
+}
+
+// Versi lama — dipertahankan untuk jalur prefetch & pergantian songs di
+// background (belum tahu durasi video songs berikutnya sebelum benar-benar
+// diputar), jadi tetap mengandalkan deteksi faktor speed dari judul saja.
+async function fetchLyr(title, artist, speedFactor){
+  const sf = speedFactor !== undefined ? speedFactor : _curSpeedFactor;
+  const k = title+'|'+artist;
+  if(lyrCache[k] !== undefined) return lyrCache[k];
+  const candidates = await fetchLyrCandidates(title, artist);
+  const ch = pickBestLyricCandidate(candidates, null);
+  if(!ch){ lyrCache[k]=[]; return []; }
+  let p = [];
+  if(ch.syncedLyrics) p = pSynced(ch.syncedLyrics, sf);
+  else if(ch.plainLyrics) p = pPlain(ch.plainLyrics, sf);
+  lyrCache[k] = p; return p;
 }
 function pSynced(raw, speedFactor){
   // speedFactor > 1 = speed up (lirik muncul lebih awal)
