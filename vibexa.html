@@ -10907,29 +10907,63 @@ function cleanT(t){
     .replace(/\s+/g,' ').trim();
 }
 
+// Ambil array hasil pencarian lirik dari satu endpoint tertentu.
+// Mengembalikan null (bukan []) kalau request-nya sendiri gagal (network/CORS/HTTP error),
+// supaya fetchLyr tahu harus lanjut ke sumber berikutnya alih-alih menganggap "tidak ada lirik".
+async function _lyrTryEndpoint(url, label){
+  try{
+    const res = await fetch(url);
+    if(!res.ok){
+      console.warn(`[lyrics] ${label} responded with HTTP ${res.status} for`, url);
+      return null;
+    }
+    const data = await res.json();
+    if(!Array.isArray(data)){
+      console.warn(`[lyrics] ${label} returned unexpected payload:`, data);
+      return null;
+    }
+    return data; // bisa array kosong kalau memang tidak ketemu — itu valid
+  }catch(e){
+    // Ini biasanya CORS, worker mati, atau timeout jaringan.
+    console.warn(`[lyrics] ${label} request failed (network/CORS?):`, e.message||e);
+    return null;
+  }
+}
+
 async function fetchLyr(title, artist){
   const k = title+'|'+artist;
   if(lyrCache[k] !== undefined) return lyrCache[k];
-  try{
-    // Percobaan 1: judul + artis lengkap
-    let data = null;
-    const res = await fetch(`${WORKER}/?artist=${encodeURIComponent(artist)}&title=${encodeURIComponent(title)}`);
-    if(res.ok) data = await res.json();
 
-    // Percobaan 2: tanpa artis (lebih toleran)
-    if(!data || !data.length){
-      const res2 = await fetch(`${WORKER}/?artist=&title=${encodeURIComponent(title)}`);
-      if(res2.ok) data = await res2.json();
-    }
+  let data = null;
 
-    if(!data || !data.length){ lyrCache[k]=[]; return []; }
+  // Sumber 1: worker pribadi (judul + artis lengkap)
+  data = await _lyrTryEndpoint(`${WORKER}/?artist=${encodeURIComponent(artist)}&title=${encodeURIComponent(title)}`, 'primary worker (artist+title)');
 
-    const ch = data.find(r=>r.syncedLyrics) || data.find(r=>r.plainLyrics) || data[0];
-    let p = [];
-    if(ch.syncedLyrics) p = pSynced(ch.syncedLyrics, _curSpeedFactor);
-    else if(ch.plainLyrics) p = pPlain(ch.plainLyrics, _curSpeedFactor);
-    lyrCache[k] = p; return p;
-  }catch(e){ lyrCache[k]=[]; return []; }
+  // Sumber 2: worker pribadi tanpa artis (lebih toleran)
+  if(!data || !data.length){
+    const data2 = await _lyrTryEndpoint(`${WORKER}/?artist=&title=${encodeURIComponent(title)}`, 'primary worker (title only)');
+    if(data2 && data2.length) data = data2;
+  }
+
+  // Sumber 3 (fallback): panggil lrclib.net langsung dari browser.
+  // Ini jaring pengaman kalau worker pribadi sedang down/error/kena limit —
+  // lrclib.net API publik ini bisa diakses langsung tanpa proxy.
+  if(!data || !data.length){
+    const lrclibUrl = `https://lrclib.net/api/search?track_name=${encodeURIComponent(title)}&artist_name=${encodeURIComponent(artist)}`;
+    const data3 = await _lyrTryEndpoint(lrclibUrl, 'lrclib.net fallback');
+    if(data3 && data3.length) data = data3;
+  }
+
+  if(!data || !data.length){
+    console.info(`[lyrics] No lyrics found anywhere for "${title}" by "${artist}". If this keeps happening for songs that should have lyrics, check the warnings above — that's the actual cause (worker down, CORS, etc), not a missing lyrics database.`);
+    lyrCache[k]=[]; return [];
+  }
+
+  const ch = data.find(r=>r.syncedLyrics) || data.find(r=>r.plainLyrics) || data[0];
+  let p = [];
+  if(ch.syncedLyrics) p = pSynced(ch.syncedLyrics, _curSpeedFactor);
+  else if(ch.plainLyrics) p = pPlain(ch.plainLyrics, _curSpeedFactor);
+  lyrCache[k] = p; return p;
 }
 function pSynced(raw, speedFactor){
   // speedFactor > 1 = speed up (lirik muncul lebih awal)
