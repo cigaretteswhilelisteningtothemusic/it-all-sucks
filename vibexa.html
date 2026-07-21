@@ -9570,24 +9570,7 @@ window.onYouTubeIframeAPIReady = function() {
 };
 
 function _createPlayer(videoId) {
-  // Reuse the existing player instance whenever possible instead of
-  // destroy()-ing it and building a brand new <iframe> from scratch for
-  // every single song. Destroy+recreate forces YouTube to redo its full
-  // load (new iframe, new widget script handshake) every time a song is
-  // played, which is the main reason songs took a long time to start —
-  // and it's also what caused the leftover old iframe to fire the
-  // "Failed to execute 'postMessage'... target origin ('https://www.youtube.com')
-  // does not match..." warning in the console (its handshake messages
-  // arrive after the frame has already been torn down/replaced).
-  if (YTP && typeof YTP.loadVideoById === 'function') {
-    try {
-      YTP.loadVideoById({ videoId, suggestedQuality: 'small' });
-      return;
-    } catch(e) {
-      try { YTP.destroy(); } catch(e2){}
-      YTP = null;
-    }
-  }
+  if (YTP) { try { YTP.destroy(); } catch(e){} YTP = null; }
   document.getElementById('yt-player').innerHTML = '';
   YTP = new YT.Player('yt-player', {
     width:'1', height:'1', videoId,
@@ -10833,53 +10816,32 @@ async function loadPlay(track, fromPlId){
   // Deteksi apakah songs ini speed up atau slowed, lalu sesuaikan timing lirik
   _curSpeedFactor = detectSpeedFactor(track.title);
   const cl=cleanT(track.title);
-  // Guard generasi: kalau user pindah ke songs lain sebelum lirik/video ini
-  // selesai dimuat, hasil yang telat datang ini harus dibuang (bukan malah
-  // menimpa songs yang sedang diputar sekarang).
-  const myGen=_playGen;
-
-  // PENTING: video & lirik dicari paralel, TAPI player TIDAK menunggu lirik
-  // selesai. Sebelumnya keduanya di-await bareng lewat Promise.all, jadi
-  // kalau server lirik lambat/timeout, audio ikut telat mulai walau video
-  // sudah ketemu dari awal. Sekarang audio langsung diputar begitu video ID
-  // didapat, lirik menyusul & merender belakangan begitu siap.
-  const videoReady = resolveVid(searchQ).then(async videoId=>{
-    if(myGen!==_playGen) return; // songs sudah diganti, batalkan
-    if(videoId){
-      toast(' Memutar songs...');
-      await initPlayer(videoId).then(()=>_addRecentlyPlayed(track)).catch(e=>{console.error('initPlayer error:',e);toast(' Failed to load video, coba songs lain');_nextGuarded=false;});
-    }else{
-      toast(' Mencoba fallback...');
-      // Fallback 1: coba "official audio" — biasanya masih lebih rapi durasinya
-      // dibanding video musik resmi yang penuh embel-embel.
-      let fallbackId=await resolveVid(`${track.artist} ${track.title} official audio`);
-      if(myGen!==_playGen) return;
-      // Fallback 2: judul + artis polos, sebagai jaring pengaman terakhir.
-      if(!fallbackId) fallbackId=await resolveVid(`${track.artist} ${track.title}`);
-      if(myGen!==_playGen) return;
-      if(fallbackId){ await initPlayer(fallbackId).then(()=>_addRecentlyPlayed(track)).catch(()=>{toast(' Failed to load video');_nextGuarded=false;}); }
-      else{ toast(' Video not found. Try another song.'); _nextGuarded=false; }
+  const [videoId,lines]=await Promise.all([resolveVid(searchQ),fetchLyr(cl,track.artist)]);
+  if(videoId){
+    toast(' Memutar songs...');
+    await initPlayer(videoId).then(()=>_addRecentlyPlayed(track)).catch(e=>{console.error('initPlayer error:',e);toast(' Failed to load video, coba songs lain');_nextGuarded=false;});
+  }else{
+    toast(' Mencoba fallback...');
+    // Fallback 1: coba "official audio" — biasanya masih lebih rapi durasinya
+    // dibanding video musik resmi yang penuh embel-embel.
+    let fallbackId=await resolveVid(`${track.artist} ${track.title} official audio`);
+    // Fallback 2: judul + artis polos, sebagai jaring pengaman terakhir.
+    if(!fallbackId) fallbackId=await resolveVid(`${track.artist} ${track.title}`);
+    if(fallbackId){ await initPlayer(fallbackId).then(()=>_addRecentlyPlayed(track)).catch(()=>{toast(' Failed to load video');_nextGuarded=false;}); }
+    else{ toast(' Video not found. Try another song.'); _nextGuarded=false; }
+  }
+  lyrs=lines||[];
+  // Set song key for translation
+  _currentSongKeyForTranslation = track.artist + '|' + track.title;
+  document.getElementById('lyr-lines').innerHTML=lyrs.length?'':'<div class="lyr-empty"><i></i>Lyrics not available</div>';
+  if(lyrs.length){
+    syncLyr(0);
+    // Auto-fetch translation if enabled
+    if(_translationEnabled && !_translationCache[_currentSongKeyForTranslation]) {
+      fetchTranslations();
     }
-  });
-  const lyrReady = fetchLyr(cl,track.artist);
-
-  await videoReady; // audio dimulai secepat mungkin
-
-  lyrReady.then(lines=>{
-    if(myGen!==_playGen) return; // songs sudah diganti, buang hasil lirik yang telat
-    lyrs=lines||[];
-    // Set song key for translation
-    _currentSongKeyForTranslation = track.artist + '|' + track.title;
-    document.getElementById('lyr-lines').innerHTML=lyrs.length?'':'<div class="lyr-empty"><i></i>Lyrics not available</div>';
-    if(lyrs.length){
-      syncLyr(0);
-      // Auto-fetch translation if enabled
-      if(_translationEnabled && !_translationCache[_currentSongKeyForTranslation]) {
-        fetchTranslations();
-      }
-    }
-    updateFSLyr();
-  });
+  }
+  updateFSLyr();
 }
 
 // ── Deteksi faktor kecepatan dari judul songs ──────────────
@@ -10907,63 +10869,29 @@ function cleanT(t){
     .replace(/\s+/g,' ').trim();
 }
 
-// Ambil array hasil pencarian lirik dari satu endpoint tertentu.
-// Mengembalikan null (bukan []) kalau request-nya sendiri gagal (network/CORS/HTTP error),
-// supaya fetchLyr tahu harus lanjut ke sumber berikutnya alih-alih menganggap "tidak ada lirik".
-async function _lyrTryEndpoint(url, label){
-  try{
-    const res = await fetch(url);
-    if(!res.ok){
-      console.warn(`[lyrics] ${label} responded with HTTP ${res.status} for`, url);
-      return null;
-    }
-    const data = await res.json();
-    if(!Array.isArray(data)){
-      console.warn(`[lyrics] ${label} returned unexpected payload:`, data);
-      return null;
-    }
-    return data; // bisa array kosong kalau memang tidak ketemu — itu valid
-  }catch(e){
-    // Ini biasanya CORS, worker mati, atau timeout jaringan.
-    console.warn(`[lyrics] ${label} request failed (network/CORS?):`, e.message||e);
-    return null;
-  }
-}
-
 async function fetchLyr(title, artist){
   const k = title+'|'+artist;
   if(lyrCache[k] !== undefined) return lyrCache[k];
+  try{
+    // Percobaan 1: judul + artis lengkap
+    let data = null;
+    const res = await fetch(`${WORKER}/?artist=${encodeURIComponent(artist)}&title=${encodeURIComponent(title)}`);
+    if(res.ok) data = await res.json();
 
-  let data = null;
+    // Percobaan 2: tanpa artis (lebih toleran)
+    if(!data || !data.length){
+      const res2 = await fetch(`${WORKER}/?artist=&title=${encodeURIComponent(title)}`);
+      if(res2.ok) data = await res2.json();
+    }
 
-  // Sumber 1: worker pribadi (judul + artis lengkap)
-  data = await _lyrTryEndpoint(`${WORKER}/?artist=${encodeURIComponent(artist)}&title=${encodeURIComponent(title)}`, 'primary worker (artist+title)');
+    if(!data || !data.length){ lyrCache[k]=[]; return []; }
 
-  // Sumber 2: worker pribadi tanpa artis (lebih toleran)
-  if(!data || !data.length){
-    const data2 = await _lyrTryEndpoint(`${WORKER}/?artist=&title=${encodeURIComponent(title)}`, 'primary worker (title only)');
-    if(data2 && data2.length) data = data2;
-  }
-
-  // Sumber 3 (fallback): panggil lrclib.net langsung dari browser.
-  // Ini jaring pengaman kalau worker pribadi sedang down/error/kena limit —
-  // lrclib.net API publik ini bisa diakses langsung tanpa proxy.
-  if(!data || !data.length){
-    const lrclibUrl = `https://lrclib.net/api/search?track_name=${encodeURIComponent(title)}&artist_name=${encodeURIComponent(artist)}`;
-    const data3 = await _lyrTryEndpoint(lrclibUrl, 'lrclib.net fallback');
-    if(data3 && data3.length) data = data3;
-  }
-
-  if(!data || !data.length){
-    console.info(`[lyrics] No lyrics found anywhere for "${title}" by "${artist}". If this keeps happening for songs that should have lyrics, check the warnings above — that's the actual cause (worker down, CORS, etc), not a missing lyrics database.`);
-    lyrCache[k]=[]; return [];
-  }
-
-  const ch = data.find(r=>r.syncedLyrics) || data.find(r=>r.plainLyrics) || data[0];
-  let p = [];
-  if(ch.syncedLyrics) p = pSynced(ch.syncedLyrics, _curSpeedFactor);
-  else if(ch.plainLyrics) p = pPlain(ch.plainLyrics, _curSpeedFactor);
-  lyrCache[k] = p; return p;
+    const ch = data.find(r=>r.syncedLyrics) || data.find(r=>r.plainLyrics) || data[0];
+    let p = [];
+    if(ch.syncedLyrics) p = pSynced(ch.syncedLyrics, _curSpeedFactor);
+    else if(ch.plainLyrics) p = pPlain(ch.plainLyrics, _curSpeedFactor);
+    lyrCache[k] = p; return p;
+  }catch(e){ lyrCache[k]=[]; return []; }
 }
 function pSynced(raw, speedFactor){
   // speedFactor > 1 = speed up (lirik muncul lebih awal)
