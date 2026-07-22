@@ -9645,7 +9645,11 @@ function setPB(p){
   document.getElementById('ico-pause').style.display=p?'block':'none';
   updateFSPB(p);
   updateNPMobPB(p);
-  if('mediaSession' in navigator) navigator.mediaSession.playbackState = p ? 'playing' : 'paused';
+  // DINONAKTIFKAN: navigator.mediaSession di parent frame dimatikan total (lihat
+  // _setupMediaSession di bawah) supaya Chrome memakai sesi media NATIVE dari
+  // iframe YouTube (persis seperti alvinfn) — notifikasi & tombol resume di lockscreen
+  // jadi tetap ada & berfungsi walau lagu di-pause otomatis saat app di-background.
+  // if('mediaSession' in navigator) navigator.mediaSession.playbackState = p ? 'playing' : 'paused';
   // Musik dipause: kalau sedang immersive otomatis, keluar dulu. Musik play
   // lagi: mulai hitung ulang idle timer immersive dari 0.
   if(typeof _npArmIdleTimer==='function'){
@@ -9874,7 +9878,23 @@ function tick(){
 }
 
 // ─── Media Session API (kontrol dari notifikasi OS / lockscreen) ──────────────
+// DINONAKTIFKAN (sengaja jadi no-op). Alasannya: audio asli diputar di dalam
+// iframe YouTube (cross-origin), bukan di halaman utama (parent) ini. Kalau
+// parent mendeklarasikan sesi media sendiri padahal tidak punya elemen audio
+// nyata yang sedang berbunyi di frame-nya sendiri, begitu video di iframe
+// berhenti (misal kena batasan autoplay saat app dibackground), Chrome tidak
+// bisa memvalidasi sesi custom ini dan malah MEMBUANG TOTAL notifikasinya
+// (bukan menjadikannya "paused" yang bisa di-resume).
+//
+// Dengan fungsi ini dimatikan, kita membiarkan Chrome memakai sesi media
+// NATIVE bawaan dari iframe YouTube itu sendiri — persis seperti alvinfn.
+// Konsekuensi: notifikasi jadi tampilan bawaan YouTube (bukan judul/artist
+// custom, tombol next/prev custom hilang), TAPI notifikasi tetap muncul &
+// tetap bisa dipakai resume walau lagu sempat berhenti di background.
 function _setupMediaSession(track){
+  return;
+  /* ── kode asli disimpan, tinggal hapus baris "return;" di atas untuk
+     mengaktifkan lagi kalau suatu saat mau dipakai ──
   if(!('mediaSession' in navigator)) return;
   navigator.mediaSession.metadata = new MediaMetadata({
     title: track.title||'',
@@ -9890,6 +9910,7 @@ function _setupMediaSession(track){
   navigator.mediaSession.setActionHandler('nexttrack', ()=>{ playNext(); });
   navigator.mediaSession.setActionHandler('previoustrack', ()=>{ playPrev(); });
   navigator.mediaSession.setActionHandler('seekto', (d)=>{ if(YTP&&d.seekTime!=null){ YTP.seekTo(d.seekTime,true); cur=d.seekTime; _armSongTimer(); } });
+  */
 }
 
 function ft(s){ if(!s||isNaN(s))return'0:00'; return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0'); }
