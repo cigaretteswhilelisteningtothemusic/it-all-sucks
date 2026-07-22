@@ -9583,7 +9583,6 @@ function _createPlayer(videoId) {
       onStateChange(e){
         if(e.data===YT.PlayerState.PLAYING){
           playing=true; setPB(true);
-          _userPaused=false; _resumeRetry=0;
           // Songs baru sudah pasti berjalan — baru di sini guard boleh dilepas
           _nextGuarded=false;
           try{
@@ -9621,22 +9620,7 @@ function _createPlayer(videoId) {
           // Pre-fetch songs berikutnya sesegera mungkin (foreground maupun background)
           setTimeout(_prefetchNext, 500);
         }
-        else if(e.data===YT.PlayerState.PAUSED){
-          // Kalau pause ini BUKAN dari user (mis. iframe YouTube auto-pause sendiri
-          // karena app diminimize/screen dikunci), jangan anggap lagu berhenti —
-          // paksa play lagi supaya musik tetap jalan di background.
-          if(!_userPaused && playing && !_nextGuarded && _resumeRetry < 8){
-            _resumeRetry++;
-            try{ YTP.playVideo(); }catch(ex){}
-            setTimeout(()=>{ // jaga-jaga kalau playVideo() butuh sedikit waktu / diblokir sesaat
-              const st = _ytSafe(()=>YTP?YTP.getPlayerState():-1,-1);
-              if(st===2 && !_userPaused && playing) try{ YTP.playVideo(); }catch(ex){}
-            }, 300);
-            return;
-          }
-          _resumeRetry = 0;
-          playing=false; setPB(false); cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer();
-        }
+        else if(e.data===YT.PlayerState.PAUSED){ playing=false; setPB(false); cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer(); }
         else if(e.data===YT.PlayerState.ENDED){
           playing=false; setPB(false); cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer();
           if(!_nextGuarded){ _nextGuarded=true; _handleSongEnded(); }
@@ -9690,8 +9674,16 @@ function _ensureAudioCtx(){
   }
   try{
     _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    // Buffer sunyi 3 detik, loop terus — cukup untuk mencegah tab dibekukan
+    // Buffer 3 detik, loop terus — cukup untuk mencegah tab dibekukan.
     const buf = _audioCtx.createBuffer(1, _audioCtx.sampleRate * 3, _audioCtx.sampleRate);
+    // PENTING: isi buffer dengan noise SANGAT pelan (bukan 0/hening total).
+    // Chrome tidak menganggap tab "sedang main audio" kalau buffernya
+    // benar-benar sunyi total, sehingga trik silent-buffer polos gagal
+    // memberi tab izin tetap hidup di background. Volume di sini ~ -60dB,
+    // praktis tidak terdengar telinga manusia, apalagi tertutup suara
+    // lagu asli dari iframe YouTube.
+    const data = buf.getChannelData(0);
+    for(let i=0;i<data.length;i++){ data[i] = (Math.random()*2-1) * 0.001; }
     _silentSrc = _audioCtx.createBufferSource();
     _silentSrc.buffer = buf;
     _silentSrc.loop = true;
@@ -9717,11 +9709,6 @@ let _bgInterval    = null;  // interval cadangan
 let _nextGuarded   = false; // cegah playNext() ganda dalam satu siklus
 let _pendingNext   = false; // songs sudah selesai di background, tunggu foreground untuk lanjut
 let _playGen       = 0;     // generasi pemutaran — naik setiap loadPlay/playNext baru; timer hanya valid jika cocok
-let _userPaused    = false; // true HANYA kalau user sendiri yang menekan tombol pause.
-                             // Dipakai untuk membedakan pause asli dari pause otomatis yang
-                             // dipicu YouTube iframe sendiri saat app diminimize di HP (Android/iOS) —
-                             // supaya kita bisa paksa play lagi kalau itu bukan kemauan user.
-let _resumeRetry   = 0;     // hitung percobaan force-resume, biar tidak infinite loop kalau memang gagal
 
 function _clearSongTimer(){ if(_songTimer){ clearTimeout(_songTimer); _songTimer=null; } }
 
@@ -9802,12 +9789,6 @@ function _startBgInterval(){
     // JANGAN reset _playStartWall di sini — timer wall-clock harus tetap berjalan
     // dari titik awal agar remaining bisa habis secara alami
     const state = _ytSafe(()=>YTP ? YTP.getPlayerState() : -1, -1);
-    // Watchdog cadangan: kalau state ternyata PAUSED (2) padahal seharusnya masih
-    // playing dan bukan user yang pause — ini iframe YouTube auto-pause karena
-    // app di background. Paksa resume. (Backup untuk onStateChange yang mungkin telat.)
-    if(state === 2 && !_userPaused && !_nextGuarded){
-      try{ YTP.playVideo(); }catch(ex){}
-    }
     if(state === 0 && !_nextGuarded){
       _nextGuarded = true;
       _stopBgInterval(); _clearSongTimer();
@@ -9904,8 +9885,8 @@ function _setupMediaSession(track){
       return url ? [{src:url,sizes:'300x300',type:'image/jpeg'}] : [];
     })()
   });
-  navigator.mediaSession.setActionHandler('play', ()=>{ if(YTP){ _userPaused=false; _resumeRetry=0; YTP.playVideo(); playing=true; setPB(true); tick(); _armSongTimer(); } else if(curTrack){ loadPlay(curTrack); } });
-  navigator.mediaSession.setActionHandler('pause', ()=>{ if(YTP){ _userPaused=true; YTP.pauseVideo(); playing=false; setPB(false); cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer(); } });
+  navigator.mediaSession.setActionHandler('play', ()=>{ if(YTP){ YTP.playVideo(); playing=true; setPB(true); tick(); _armSongTimer(); } else if(curTrack){ loadPlay(curTrack); } });
+  navigator.mediaSession.setActionHandler('pause', ()=>{ if(YTP){ YTP.pauseVideo(); playing=false; setPB(false); cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer(); } });
   navigator.mediaSession.setActionHandler('nexttrack', ()=>{ playNext(); });
   navigator.mediaSession.setActionHandler('previoustrack', ()=>{ playPrev(); });
   navigator.mediaSession.setActionHandler('seekto', (d)=>{ if(YTP&&d.seekTime!=null){ YTP.seekTo(d.seekTime,true); cur=d.seekTime; _armSongTimer(); } });
@@ -11523,8 +11504,8 @@ function _togglePlayPause(){
     return;
   }
   try{
-    if(playing){ _userPaused=true; YTP.pauseVideo(); }
-    else { _userPaused=false; _resumeRetry=0; YTP.playVideo(); _playStartWall=Date.now(); _playStartPos=cur; }
+    if(playing){ YTP.pauseVideo(); }
+    else { YTP.playVideo(); _playStartWall=Date.now(); _playStartPos=cur; }
   }catch(e){}
 }
 document.getElementById('btn-play').addEventListener('click', _togglePlayPause);
@@ -12416,8 +12397,8 @@ document.getElementById('fs-btn-play')?.addEventListener('click',()=>{
   _ensureAudioCtx(); _resumeAudioCtx();
   if(!curTrack||!YTP)return;
   try{
-    if(playing){ _userPaused=true; YTP.pauseVideo(); }
-    else { _userPaused=false; _resumeRetry=0; YTP.playVideo(); _playStartWall=Date.now(); _playStartPos=cur; }
+    if(playing){ YTP.pauseVideo(); }
+    else { YTP.playVideo(); _playStartWall=Date.now(); _playStartPos=cur; }
   }catch(e){}
 });
 document.getElementById('fs-btn-next')?.addEventListener('click',playNext);
