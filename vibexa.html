@@ -4225,6 +4225,20 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
       <div class="fav-artist-grid" id="fav-artist-grid"></div>
     </div>
 
+    <!-- RECENTLY PLAYED (hanya songs yang diputar FULL, bukan preview 30 detik) -->
+    <div class="pub-section" id="recently-played-section">
+      <div class="pub-section-header">
+        <div class="pub-section-title">
+           Recently Played
+        </div>
+        <button class="home-new-pl-btn" onclick="showRecentlyPlayedFullView()" style="background:none;border:1px solid var(--border);color:var(--sub);">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+          Show All
+        </button>
+      </div>
+      <div class="recent-grid" id="recently-played-grid"></div>
+    </div>
+
     <!-- PLAYLIST BERDASARKAN WAKTU (8 playlist x 15 lagu trending saat ini,
          judul & isi playlist berubah otomatis tergantung jam saat ini di
          device user: 04:00-16:59 = teks "pagi/siang", 17:00-03:59 = teks
@@ -4380,7 +4394,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
     <div class="pub-section" id="for-you-section" style="display:none;">
       <div class="pub-section-header">
         <div class="pub-section-title">
-           I think you're gonna love it
+           THIS IS!!
         </div>
       </div>
       <div class="fy-grid" id="for-you-grid"></div>
@@ -4395,20 +4409,6 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
         </div>
       </div>
       <div class="dm-grid" id="sad-playlist-grid"></div>
-    </div>
-
-    <!-- RECENTLY PLAYED (hanya songs yang diputar FULL, bukan preview 30 detik) -->
-    <div class="pub-section" id="recently-played-section">
-      <div class="pub-section-header">
-        <div class="pub-section-title">
-           Recently Played
-        </div>
-        <button class="home-new-pl-btn" onclick="showRecentlyPlayedFullView()" style="background:none;border:1px solid var(--border);color:var(--sub);">
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
-          Show All
-        </button>
-      </div>
-      <div class="recent-grid" id="recently-played-grid"></div>
     </div>
 
     <!-- FOOTER: credit sumber data + copyright, di paling bawah halaman Home -->
@@ -15164,7 +15164,7 @@ async function loadForYouPlaylists(force) {
         const photo = r.artist.photo || (r.tracks[0] && r.tracks[0].thumb) || '';
         return {
           id: 'fy_' + r.artist.name.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
-          label: "I think you're gonna love it",
+          label: "THIS IS!!",
           title: r.artist.name,
           cover: photo,
           artistPhoto: photo,
