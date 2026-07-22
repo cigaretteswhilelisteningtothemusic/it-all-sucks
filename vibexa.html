@@ -13233,7 +13233,10 @@ async function loadArtistProfile(artistName) {
     // cover act) above the real one. Prefer an exact (case-insensitive) name
     // match over just taking result[0], and only fall back to the top result
     // if nothing matches exactly.
-    const artist = results.find(a => (a.name || '').trim().toLowerCase() === qNorm) || results[0];
+    const exactMatches = results.filter(a => (a.name || '').trim().toLowerCase() === qNorm);
+    const artist = (exactMatches.length
+      ? exactMatches.reduce((best, a) => (a.nb_fan || 0) > (best.nb_fan || 0) ? a : best)
+      : results[0]);
     if (myGen !== _artistReqGen) return; // pengguna sudah membuka artis lain sebelum request ini selesai
     if (!artist) {
       document.getElementById('artist-banner-sub').textContent = 'Artist not found';
