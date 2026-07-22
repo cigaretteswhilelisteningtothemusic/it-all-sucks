@@ -5712,9 +5712,12 @@ let _streakCache = null; // {currentStreak, longestStreak, lastCompletedDate, co
 
 // ─── State ────────────────────────────────────────────────
 const WORKER = 'https://fancy-band-d65b.alpinofficial26.workers.dev';
+const WORKER2 = 'https://morning-tooth-9544.efotbalakun70.workers.dev'; // worker cadangan — dipakai otomatis kalau WORKER utama gagal (502/503/504/timeout)
+const WORKERS = [WORKER, WORKER2];
 let YTP = null;
 let playing = false, cur = 0, tot = 0, raf = null;
 let lyrCache = {}, lyrs = [], curTrack = null;
+let vidCache = {}; // cache hasil resolveVid (query -> videoId) agar songs yg sama tidak fetch ulang ke worker
 let curQueue = []; // songs yang sedang dalam antrian putar
 // Cache daftar lagu di section "Top Songs" (home), dipakai sebagai lanjutan
 // otomatis kalau user memutar 1 lagu saja (bukan dari playlist/queue apa pun)
@@ -10251,30 +10254,36 @@ function renderSearchArtistRow(artists){
   section.classList.add('show');
 }
 
-async function resolveVid(query, _attempt = 0){
-  const MAX_RETRY = 2; // total 3x percobaan: 0,1,2
+// Coba resolve video lewat SATU worker tertentu (1x percobaan, tanpa retry —
+// retry-nya dilakukan lewat lompat ke worker berikutnya di WORKERS, bukan
+// mengulang worker yang sama, supaya total waktu tunggu tetap singkat).
+async function _resolveVidFrom(workerBase, query){
   try{
-    const url=`${WORKER}/search?q=${encodeURIComponent(query)}`;
-    const res=await fetch(url,{signal:AbortSignal.timeout(10000)});
+    const url=`${workerBase}/search?q=${encodeURIComponent(query)}`;
+    const res=await fetch(url,{signal:AbortSignal.timeout(7000)});
     if(!res.ok){
-      // 502/503/504 biasanya error sementara di worker (cold start / upstream down) — coba lagi
-      if((res.status===502||res.status===503||res.status===504) && _attempt<MAX_RETRY){
-        await new Promise(r=>setTimeout(r, 400*(_attempt+1))); // backoff: 400ms, 800ms
-        return resolveVid(query, _attempt+1);
-      }
-      console.warn('resolveVid gagal:', res.status, query);
+      console.warn('resolveVid gagal:', workerBase, res.status, query);
       return null;
     }
-    const data=await res.json(); return data.videoId||null;
+    const data=await res.json();
+    return data.videoId||null;
   }catch(e){
-    // Timeout / network error — juga layak dicoba ulang sebelum menyerah
-    if(_attempt<MAX_RETRY){
-      await new Promise(r=>setTimeout(r, 400*(_attempt+1)));
-      return resolveVid(query, _attempt+1);
-    }
-    console.warn('resolveVid error:', e, query);
+    console.warn('resolveVid error:', workerBase, e, query);
     return null;
   }
+}
+
+async function resolveVid(query){
+  // Cek cache dulu — songs yg sudah pernah berhasil di-resolve tidak perlu
+  // fetch ulang ke worker manapun.
+  if(vidCache[query]!==undefined) return vidCache[query];
+  // Coba tiap worker di WORKERS secara berurutan (utama dulu, lalu cadangan)
+  // sampai salah satu berhasil kasih videoId.
+  for(const base of WORKERS){
+    const vid = await _resolveVidFrom(base, query);
+    if(vid){ vidCache[query]=vid; return vid; } // hanya cache hasil sukses
+  }
+  return null;
 }
 
 // Perbarui tombol "Tambah ke Playlist" di hero (search view) — selalu ikon "+"
@@ -10869,29 +10878,44 @@ function cleanT(t){
     .replace(/\s+/g,' ').trim();
 }
 
+// Coba ambil lirik dari SATU worker tertentu (judul+artis, lalu judul saja
+// kalau kosong). Return null kalau worker ini sama sekali tidak dapat apa-apa
+// (baik karena error maupun memang tidak ada lirik cocok), supaya fetchLyr()
+// tahu harus lanjut coba worker berikutnya di WORKERS.
+async function _fetchLyrFrom(workerBase, title, artist){
+  try{
+    let data = null;
+    const res = await fetch(`${workerBase}/?artist=${encodeURIComponent(artist)}&title=${encodeURIComponent(title)}`,{signal:AbortSignal.timeout(7000)});
+    if(res.ok) data = await res.json();
+
+    if(!data || !data.length){
+      const res2 = await fetch(`${workerBase}/?artist=&title=${encodeURIComponent(title)}`,{signal:AbortSignal.timeout(7000)});
+      if(res2.ok) data = await res2.json();
+    }
+    return (data && data.length) ? data : null;
+  }catch(e){
+    console.warn('fetchLyr error:', workerBase, e);
+    return null;
+  }
+}
+
 async function fetchLyr(title, artist){
   const k = title+'|'+artist;
   if(lyrCache[k] !== undefined) return lyrCache[k];
-  try{
-    // Percobaan 1: judul + artis lengkap
-    let data = null;
-    const res = await fetch(`${WORKER}/?artist=${encodeURIComponent(artist)}&title=${encodeURIComponent(title)}`);
-    if(res.ok) data = await res.json();
 
-    // Percobaan 2: tanpa artis (lebih toleran)
-    if(!data || !data.length){
-      const res2 = await fetch(`${WORKER}/?artist=&title=${encodeURIComponent(title)}`);
-      if(res2.ok) data = await res2.json();
-    }
+  let data = null;
+  for(const base of WORKERS){
+    data = await _fetchLyrFrom(base, title, artist);
+    if(data) break; // worker ini berhasil dapat lirik, tidak perlu coba worker lain
+  }
 
-    if(!data || !data.length){ lyrCache[k]=[]; return []; }
+  if(!data){ lyrCache[k]=[]; return []; }
 
-    const ch = data.find(r=>r.syncedLyrics) || data.find(r=>r.plainLyrics) || data[0];
-    let p = [];
-    if(ch.syncedLyrics) p = pSynced(ch.syncedLyrics, _curSpeedFactor);
-    else if(ch.plainLyrics) p = pPlain(ch.plainLyrics, _curSpeedFactor);
-    lyrCache[k] = p; return p;
-  }catch(e){ lyrCache[k]=[]; return []; }
+  const ch = data.find(r=>r.syncedLyrics) || data.find(r=>r.plainLyrics) || data[0];
+  let p = [];
+  if(ch.syncedLyrics) p = pSynced(ch.syncedLyrics, _curSpeedFactor);
+  else if(ch.plainLyrics) p = pPlain(ch.plainLyrics, _curSpeedFactor);
+  lyrCache[k] = p; return p;
 }
 function pSynced(raw, speedFactor){
   // speedFactor > 1 = speed up (lirik muncul lebih awal)
