@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test Player Minimal</title>
+<style>
+  body{font-family:sans-serif;background:#111;color:#fff;padding:20px;text-align:center}
+  button{font-size:18px;padding:12px 24px;margin-top:20px;border-radius:8px;border:none;background:#1db954;color:#fff}
+</style>
+</head>
+<body>
+<h2>Test Player Minimal (tanpa manifest/SW/FCM)</h2>
+<p>Videonya lagu apa saja, cuma buat tes background playback.</p>
+<button onclick="startTest()">▶️ Putar</button>
+<div id="yt-player" style="width:1px;height:1px;overflow:hidden;position:fixed;bottom:-9999px"></div>
+
+<script>
+// TIDAK ADA: manifest.json, service worker, FCM push, AudioContext,
+// navigator.mediaSession manual, visibilitychange, timer wall-clock apapun.
+// Persis sesederhana alvinfn — cuma iframe YouTube polos.
+
+let YTP = null;
+const TEST_VIDEO_ID = "dQw4w9WgXcQ"; // ganti sesuka hati
+
+(function loadYTApi() {
+  const tag = document.createElement('script');
+  tag.src = 'https://www.youtube.com/iframe_api';
+  document.head.appendChild(tag);
+})();
+
+window.onYouTubeIframeAPIReady = function() {
+  window._ytApiReady = true;
+};
+
+function startTest(){
+  if(window._ytApiReady && window.YT && window.YT.Player){
+    createPlayer();
+  } else {
+    const check = setInterval(()=>{
+      if(window._ytApiReady){ clearInterval(check); createPlayer(); }
+    }, 100);
+  }
+}
+
+function createPlayer(){
+  if(YTP){ try{ YTP.destroy(); }catch(e){} YTP=null; }
+  document.getElementById('yt-player').innerHTML = '';
+  YTP = new YT.Player('yt-player', {
+    width:'1', height:'1', videoId: TEST_VIDEO_ID,
+    playerVars:{ autoplay:1, controls:0, playsinline:1 },
+    events:{
+      onReady(e){ e.target.playVideo(); }
+    }
+  });
+}
+</script>
+</body>
+</html>
