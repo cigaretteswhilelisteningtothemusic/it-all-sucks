@@ -9929,17 +9929,28 @@ function _setupMediaSession(track){
       return url ? [{src:url,sizes:'300x300',type:'image/jpeg'}] : [];
     })()
   });
-  navigator.mediaSession.setActionHandler('play', ()=>{ if(YTP){ YTP.playVideo(); playing=true; setPB(true); tick(); _armSongTimer(); } else if(curTrack){ loadPlay(curTrack); } });
-  navigator.mediaSession.setActionHandler('pause', ()=>{ if(YTP){ YTP.pauseVideo(); playing=false; setPB(false); cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer(); } });
-  navigator.mediaSession.setActionHandler('nexttrack', ()=>{ playNext(); });
-  navigator.mediaSession.setActionHandler('previoustrack', ()=>{ playPrev(); });
-  navigator.mediaSession.setActionHandler('seekto', (d)=>{ if(YTP&&d.seekTime!=null){ YTP.seekTo(d.seekTime,true); cur=d.seekTime; _armSongTimer(); } });
+  // CATATAN PENTING: 'play'/'pause'/'stop' SENGAJA TIDAK didaftarkan sebagai
+  // action handler kustom. Saat app di-background, Android sering memanggil
+  // handler 'pause' secara otomatis untuk melepas audio focus — kalau handler
+  // itu memanggil YTP.pauseVideo() (postMessage ke iframe yang saat itu juga
+  // sedang backgrounded) dan gagal/nyangkut, Chrome bisa langsung menutup
+  // notifikasi alih-alih sekadar menandainya paused. Dengan TIDAK didaftarkan,
+  // Chrome jatuh ke kontrol bawaan yang bekerja langsung di level browser ke
+  // elemen video di dalam iframe (tanpa bergantung JS kita jalan duluan) —
+  // ini juga yang membuat alvinfn.html lebih tahan banting.
   try{
-    navigator.mediaSession.setActionHandler('stop', ()=>{
-      if(YTP){ try{ YTP.pauseVideo(); }catch(e){} }
-      playing=false; setPB(false); cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer();
-    });
-  }catch(e){ /* beberapa browser lama belum dukung action 'stop' */ }
+    navigator.mediaSession.setActionHandler('nexttrack', ()=>{ try{ playNext(); }catch(e){} });
+  }catch(e){}
+  try{
+    navigator.mediaSession.setActionHandler('previoustrack', ()=>{ try{ playPrev(); }catch(e){} });
+  }catch(e){}
+  try{
+    navigator.mediaSession.setActionHandler('seekto', (d)=>{ try{ if(YTP&&d.seekTime!=null){ YTP.seekTo(d.seekTime,true); cur=d.seekTime; _armSongTimer(); } }catch(e){} });
+  }catch(e){}
+  // Lepas handler play/pause/stop lama jika sempat terdaftar di sesi sebelumnya
+  try{ navigator.mediaSession.setActionHandler('play', null); }catch(e){}
+  try{ navigator.mediaSession.setActionHandler('pause', null); }catch(e){}
+  try{ navigator.mediaSession.setActionHandler('stop', null); }catch(e){}
 }
 
 function ft(s){ if(!s||isNaN(s))return'0:00'; return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0'); }
