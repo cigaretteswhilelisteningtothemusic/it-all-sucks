@@ -18733,9 +18733,15 @@ showApp = function(user) {
   setTimeout(() => startNotifListeners(), 1500);
 };
 
+// ─── SEMENTARA DINONAKTIFKAN untuk tes diagnosis background audio ───────────
+// Tujuannya: memastikan apakah service worker (sw.js, yang memuat Firebase
+// Messaging) benar penyebab notifikasi media hilang saat di-background.
+// Setelah tes selesai, kembalikan blok if di bawah ini (hapus /* dan */).
+/*
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(console.error);
 }
+*/
 
 // ══════════════════════════════════════════════════════════
 // PWA INSTALL — dipicu dari tombol "Download" di notifikasi lonceng
