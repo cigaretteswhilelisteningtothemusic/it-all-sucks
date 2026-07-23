@@ -9792,6 +9792,62 @@ function _startBgInterval(){
 
 function _stopBgInterval(){ if(_bgInterval){ clearInterval(_bgInterval); _bgInterval=null; } }
 
+// ─── DEBUG SEMENTARA: pelacak "apakah JS/tab dibekukan saat di-background?" ───
+// Mencatat setiap 2 detik: jam berapa, apakah tab hidden, status player YouTube.
+// Begitu app kembali ke depan, tampilkan ringkasan via toast + console.log.
+// Cara baca hasil:
+//  - Kalau "jeda terbesar" MENDEKATI durasi kamu keluar app (mis. kamu keluar
+//    30 detik lalu jeda terbesar ~30 detik) => JS/tab BENAR-BENAR DIBEKUKAN
+//    oleh Android/Chrome (bukan soal kode player, tapi OS mematikan tab).
+//  - Kalau "jeda terbesar" tetap kecil (~2-3 detik terus) tapi status player
+//    berubah jadi "paused"/"ended" di tengah => berarti JS tetap hidup, TAPI
+//    ada sesuatu yang secara aktif menghentikan videonya.
+(function(){
+  const DBG_KEY = '_vbx_bg_debug_log';
+  const STATE_NAMES = {'-1':'unstarted','0':'ended','1':'playing','2':'paused','3':'buffering','5':'cued'};
+  function dbgTick(){
+    try{
+      const log = JSON.parse(localStorage.getItem(DBG_KEY) || '[]');
+      let state = 'no-player';
+      try{ if(YTP) state = STATE_NAMES[String(YTP.getPlayerState())] || ('code:'+YTP.getPlayerState()); }catch(e){ state='error:'+e.message; }
+      log.push({ t: Date.now(), hidden: document.hidden, state, playing: !!playing, mobile: (typeof isMobile==='function'?isMobile():null) });
+      if(log.length > 300) log.splice(0, log.length-300);
+      localStorage.setItem(DBG_KEY, JSON.stringify(log));
+    }catch(e){}
+  }
+  setInterval(dbgTick, 2000);
+  dbgTick();
+  window._vbxShowBgLog = function(){
+    try{
+      const log = JSON.parse(localStorage.getItem(DBG_KEY) || '[]');
+      console.log('VBX_BG_DEBUG_LOG', log);
+      return log;
+    }catch(e){ return []; }
+  };
+  document.addEventListener('visibilitychange', ()=>{
+    dbgTick();
+    if(!document.hidden){
+      try{
+        const log = JSON.parse(localStorage.getItem(DBG_KEY) || '[]');
+        const recent = log.slice(-60);
+        if(recent.length >= 2){
+          let maxGap = 0, maxGapAt = null;
+          for(let i=1;i<recent.length;i++){
+            const gap=(recent[i].t-recent[i-1].t)/1000;
+            if(gap>maxGap){ maxGap=gap; maxGapAt=recent[i-1]; }
+          }
+          const hiddenEntries = recent.filter(e=>e.hidden);
+          const lastHiddenState = hiddenEntries.length ? hiddenEntries[hiddenEntries.length-1].state : '-';
+          const modeNow = (typeof isMobile==='function' && isMobile()) ? 'MOBILE' : 'DESKTOP';
+          const summary = `[DEBUG BG] mode=${modeNow} | jeda_terbesar=${maxGap.toFixed(1)}s | entri_hidden=${hiddenEntries.length} | state_terakhir_saat_hidden=${lastHiddenState}`;
+          console.log(summary, {maxGapAt, recent});
+          if(typeof toast === 'function') toast(summary, 8000);
+        }
+      }catch(e){}
+    }
+  });
+})();
+
 // ─── FIX: kurangi beban tab saat di-background agar tidak cepat dibekukan/
 // dimatikan Android (yang bikin audio YouTube + notifikasi media ikut mati).
 // Vibexa punya banyak listener realtime Firebase (chat, status, typing,
