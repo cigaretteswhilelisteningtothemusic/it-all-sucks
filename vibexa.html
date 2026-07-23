@@ -9657,37 +9657,13 @@ function updateNPMobPB(p){
   if(b) b.style.display=p?'block':'none';
 }
 
-// ─── Web Audio "keep-alive" agar tab tidak dibekukan browser ─────────────────
-let _audioCtx = null;
-let _silentSrc = null;
-function _ensureAudioCtx(){
-  // Jika sudah ada dan berjalan, cukup resume jika suspended
-  if(_audioCtx && _audioCtx.state !== 'closed'){
-    if(_audioCtx.state === 'suspended'){
-      try{ _audioCtx.resume(); }catch(e){}
-    }
-    // Jika silent source sudah berhenti (tidak loop), buat ulang
-    return;
-  }
-  try{
-    _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    // Buffer sunyi 3 detik, loop terus — cukup untuk mencegah tab dibekukan
-    const buf = _audioCtx.createBuffer(1, _audioCtx.sampleRate * 3, _audioCtx.sampleRate);
-    _silentSrc = _audioCtx.createBufferSource();
-    _silentSrc.buffer = buf;
-    _silentSrc.loop = true;
-    _silentSrc.connect(_audioCtx.destination);
-    _silentSrc.start(0);
-    // Jika suspended (sebelum user gesture), resume segera
-    if(_audioCtx.state === 'suspended') _audioCtx.resume().catch(()=>{});
-  }catch(e){}
-}
-function _resumeAudioCtx(){
-  try{
-    if(_audioCtx && _audioCtx.state==='suspended') _audioCtx.resume();
-    else _ensureAudioCtx();
-  }catch(e){}
-}
+// ─── (dihapus) Web Audio "keep-alive" — trik silent-audio ini justru membuat
+// Chrome mencabut izin background-audio untuk seluruh tab, sehingga media
+// notification langsung hilang saat keluar dari Chrome. Dihapus supaya
+// perilaku playback background sama seperti web referensi (alvinfn), yang
+// hanya mengandalkan iframe YouTube apa adanya tanpa trik ini.
+function _ensureAudioCtx(){}
+function _resumeAudioCtx(){}
 
 // ─── Timer songs berbasis setTimeout — tidak bergantung iframe sama sekali ───────
 // setTimeout() tetap jalan di background meski rAF & iframe dibekukan browser
