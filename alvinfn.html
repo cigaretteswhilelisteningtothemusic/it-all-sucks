@@ -691,34 +691,32 @@ auth.onAuthStateChanged(user => {
     showApp(user);
     loadAllPlaylistsFromCloud();
   } else {
-    showAuthWall();
+    // Tidak ada user yang login -> masuk otomatis sebagai tamu (anonymous),
+    // supaya siapa pun bisa langsung pakai web ini tanpa perlu membuat akun.
+    signInAsGuest();
   }
 });
+
+function signInAsGuest() {
+  const overlay = document.getElementById('auth-overlay');
+  const p = overlay.querySelector('.auth-box p');
+  if (p) p.textContent = 'Menyiapkan sesi tamu...';
+  auth.signInAnonymously().catch(err => {
+    console.error('Anonymous sign-in gagal:', err);
+    // Fallback: tetap buka aplikasinya walau tanpa sinkronisasi cloud,
+    // supaya user tidak terkunci di belakang layar login.
+    showApp(null);
+  });
+}
 
 function showApp(user) {
   const overlay = document.getElementById('auth-overlay');
   overlay.style.opacity = '0';
   overlay.style.transition = 'opacity .4s';
   setTimeout(() => overlay.style.display = 'none', 400);
-  const name = user.displayName || user.email.split('@')[0];
+  const name = user ? (user.displayName || (user.email ? user.email.split('@')[0] : 'Tamu')) : 'Tamu';
   document.getElementById('home-greeting').textContent = 'Halo, ' + name + ' 👋';
-  setCloudStatus('synced', 'Tersimpan · ' + name);
-}
-
-function showAuthWall() {
-  const overlay = document.getElementById('auth-overlay');
-  overlay.innerHTML = `
-    <div class="auth-box">
-      <div style="font-size:2.5rem;margin-bottom:12px">🔒</div>
-      <h2>Login Diperlukan</h2>
-      <p>Kamu harus login dengan akun ALVIN untuk mengakses Music Player dan menyimpan playlist kamu.</p>
-      <div class="auth-btns">
-        <a class="btn-login" href="index.html">Login / Daftar</a>
-        <a class="btn-back" href="reels.html">Kembali</a>
-      </div>
-    </div>`;
-  overlay.style.display = 'flex';
-  overlay.style.opacity = '1';
+  setCloudStatus(user ? 'synced' : '', user ? ('Tersimpan · ' + name) : 'Mode tamu (tidak tersinkron)');
 }
 
 function setCloudStatus(state, text) {
