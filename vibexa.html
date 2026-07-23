@@ -9642,7 +9642,7 @@ function setPB(p){
   document.getElementById('ico-pause').style.display=p?'block':'none';
   updateFSPB(p);
   updateNPMobPB(p);
-  if('mediaSession' in navigator) navigator.mediaSession.playbackState = p ? 'playing' : 'paused';
+  // (dihapus) navigator.mediaSession.playbackState — lihat catatan di _setupMediaSession
   // Musik dipause: kalau sedang immersive otomatis, keluar dulu. Musik play
   // lagi: mulai hitung ulang idle timer immersive dari 0.
   if(typeof _npArmIdleTimer==='function'){
@@ -9798,24 +9798,18 @@ function tick(){
   })();
 }
 
-// ─── Media Session API (kontrol dari notifikasi OS / lockscreen) ──────────────
-function _setupMediaSession(track){
-  if(!('mediaSession' in navigator)) return;
-  navigator.mediaSession.metadata = new MediaMetadata({
-    title: track.title||'',
-    artist: track.artist||'',
-    album: '',
-    artwork: (()=>{
-      const url = track.artworkUrl||track.img||track.cover||'';
-      return url ? [{src:url,sizes:'300x300',type:'image/jpeg'}] : [];
-    })()
-  });
-  navigator.mediaSession.setActionHandler('play', ()=>{ if(YTP){ YTP.playVideo(); playing=true; setPB(true); tick(); _armSongTimer(); } else if(curTrack){ loadPlay(curTrack); } });
-  navigator.mediaSession.setActionHandler('pause', ()=>{ if(YTP){ YTP.pauseVideo(); playing=false; setPB(false); cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer(); } });
-  navigator.mediaSession.setActionHandler('nexttrack', ()=>{ playNext(); });
-  navigator.mediaSession.setActionHandler('previoustrack', ()=>{ playPrev(); });
-  navigator.mediaSession.setActionHandler('seekto', (d)=>{ if(YTP&&d.seekTime!=null){ YTP.seekTo(d.seekTime,true); cur=d.seekTime; _armSongTimer(); } });
-}
+// ─── Media Session API (dinonaktifkan) ─────────────────────────────────────
+// Top-level document ini mengklaim MediaSession-nya sendiri (metadata +
+// actionHandlers + playbackState) padahal audio yang benar-benar diputar
+// berasal dari iframe YouTube cross-origin (yt-player), bukan dari frame ini.
+// Karena frame ini sendiri tidak "audible", Chrome menilai sesi ini tidak
+// benar-benar memutar audio dan langsung menutup notification + mencabut izin
+// background audio begitu tab masuk background — sesi bawaan milik iframe
+// YouTube (yang justru audible) jadi ikut tertutupi. alvinfn.html sama sekali
+// tidak menyentuh navigator.mediaSession, sehingga Chrome memakai sesi bawaan
+// otomatis dari iframe YouTube itu sendiri, dan notification tetap muncul.
+// Fungsi ini dikosongkan agar perilakunya sama dengan alvinfn.
+function _setupMediaSession(track){}
 
 function ft(s){ if(!s||isNaN(s))return'0:00'; return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0'); }
 function updProg(){
