@@ -9620,9 +9620,9 @@ function _createPlayer(videoId) {
           // Pre-fetch songs berikutnya sesegera mungkin (foreground maupun background)
           setTimeout(_prefetchNext, 500);
         }
-        else if(e.data===YT.PlayerState.PAUSED){ playing=false; setPB(false); cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer(); }
+        else if(e.data===YT.PlayerState.PAUSED){ playing=false; setPB(false); cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer(); _suspendAudioCtx(); }
         else if(e.data===YT.PlayerState.ENDED){
-          playing=false; setPB(false); cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer();
+          playing=false; setPB(false); cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer(); _suspendAudioCtx();
           if(!_nextGuarded){ _nextGuarded=true; _handleSongEnded(); }
         }
       },
@@ -9646,6 +9646,7 @@ function setPB(p){
   updateFSPB(p);
   updateNPMobPB(p);
   if('mediaSession' in navigator) navigator.mediaSession.playbackState = p ? 'playing' : 'paused';
+  if(!p) _suspendAudioCtx();
   // Musik dipause: kalau sedang immersive otomatis, keluar dulu. Musik play
   // lagi: mulai hitung ulang idle timer immersive dari 0.
   if(typeof _npArmIdleTimer==='function'){
@@ -9690,6 +9691,14 @@ function _resumeAudioCtx(){
     if(_audioCtx && _audioCtx.state==='suspended') _audioCtx.resume();
     else _ensureAudioCtx();
   }catch(e){}
+}
+// Dipanggil saat playback benar-benar berhenti (pause/ended). Sebelumnya
+// AudioContext silent ini terus berjalan tanpa batas setelah dibuat, padahal
+// hanya perlu aktif SELAMA video benar-benar sedang main di background.
+// Dibiarkan menyala terus = beban baterai/CPU percuma yang membuat OS lebih
+// agresif men-discard tab (yang ikut menghapus notifikasi media session).
+function _suspendAudioCtx(){
+  try{ if(_audioCtx && _audioCtx.state==='running') _audioCtx.suspend(); }catch(e){}
 }
 
 // ─── Timer songs berbasis setTimeout — tidak bergantung iframe sama sekali ───────
@@ -9802,51 +9811,12 @@ function _stopBgInterval(){ if(_bgInterval){ clearInterval(_bgInterval); _bgInte
 //  - Kalau "jeda terbesar" tetap kecil (~2-3 detik terus) tapi status player
 //    berubah jadi "paused"/"ended" di tengah => berarti JS tetap hidup, TAPI
 //    ada sesuatu yang secara aktif menghentikan videonya.
-(function(){
-  const DBG_KEY = '_vbx_bg_debug_log';
-  const STATE_NAMES = {'-1':'unstarted','0':'ended','1':'playing','2':'paused','3':'buffering','5':'cued'};
-  function dbgTick(){
-    try{
-      const log = JSON.parse(localStorage.getItem(DBG_KEY) || '[]');
-      let state = 'no-player';
-      try{ if(YTP) state = STATE_NAMES[String(YTP.getPlayerState())] || ('code:'+YTP.getPlayerState()); }catch(e){ state='error:'+e.message; }
-      log.push({ t: Date.now(), hidden: document.hidden, state, playing: !!playing, mobile: (typeof isMobile==='function'?isMobile():null) });
-      if(log.length > 300) log.splice(0, log.length-300);
-      localStorage.setItem(DBG_KEY, JSON.stringify(log));
-    }catch(e){}
-  }
-  setInterval(dbgTick, 2000);
-  dbgTick();
-  window._vbxShowBgLog = function(){
-    try{
-      const log = JSON.parse(localStorage.getItem(DBG_KEY) || '[]');
-      console.log('VBX_BG_DEBUG_LOG', log);
-      return log;
-    }catch(e){ return []; }
-  };
-  document.addEventListener('visibilitychange', ()=>{
-    dbgTick();
-    if(!document.hidden){
-      try{
-        const log = JSON.parse(localStorage.getItem(DBG_KEY) || '[]');
-        const recent = log.slice(-60);
-        if(recent.length >= 2){
-          let maxGap = 0, maxGapAt = null;
-          for(let i=1;i<recent.length;i++){
-            const gap=(recent[i].t-recent[i-1].t)/1000;
-            if(gap>maxGap){ maxGap=gap; maxGapAt=recent[i-1]; }
-          }
-          const hiddenEntries = recent.filter(e=>e.hidden);
-          const lastHiddenState = hiddenEntries.length ? hiddenEntries[hiddenEntries.length-1].state : '-';
-          const modeNow = (typeof isMobile==='function' && isMobile()) ? 'MOBILE' : 'DESKTOP';
-          const summary = `[DEBUG BG] mode=${modeNow} | jeda_terbesar=${maxGap.toFixed(1)}s | entri_hidden=${hiddenEntries.length} | state_terakhir_saat_hidden=${lastHiddenState}`;
-          console.log(summary, {maxGapAt, recent});
-          if(typeof toast === 'function') toast(summary, 8000);
-        }
-      }catch(e){}
-    }
-  });
-})();
+// DEBUG BG LOGGER DINONAKTIFKAN (sudah tidak diperlukan setelah diagnosis selesai).
+// Logger ini SEBELUMNYA nulis ke localStorage tiap 2 detik termasuk saat tab
+// background — beban ini justru berkontribusi membuat Android lebih cepat
+// men-discard tab di background. Dibiarkan sebagai no-op agar pemanggil lama
+// (jika ada) tidak error.
+window._vbxShowBgLog = function(){ return []; };
 
 // ─── FIX: kurangi beban tab saat di-background agar tidak cepat dibekukan/
 // dimatikan Android (yang bikin audio YouTube + notifikasi media ikut mati).
@@ -9861,10 +9831,13 @@ function _stopBgInterval(){ if(_bgInterval){ clearInterval(_bgInterval); _bgInte
 let _dbOfflineTimer = null;
 document.addEventListener('visibilitychange', ()=>{
   if(document.hidden){
+    // Dipersingkat dari 15s -> 5s: makin lama listener Firebase menyala di
+    // background, makin berat tab dipandang OS Android, makin cepat di-discard
+    // (yang ikut menghapus notifikasi media session custom kita).
     _dbOfflineTimer = setTimeout(()=>{
       _dbOfflineTimer = null;
       try{ db.goOffline(); }catch(e){}
-    }, 15000);
+    }, 5000);
   } else {
     if(_dbOfflineTimer){ clearTimeout(_dbOfflineTimer); _dbOfflineTimer = null; }
     try{ db.goOnline(); }catch(e){}
