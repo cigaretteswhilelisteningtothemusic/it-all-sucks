@@ -9839,7 +9839,9 @@ function _stopBgInterval(){ if(_bgInterval){ clearInterval(_bgInterval); _bgInte
           const hiddenEntries = recent.filter(e=>e.hidden);
           const lastHiddenState = hiddenEntries.length ? hiddenEntries[hiddenEntries.length-1].state : '-';
           const modeNow = (typeof isMobile==='function' && isMobile()) ? 'MOBILE' : 'DESKTOP';
-          const summary = `[DEBUG BG] mode=${modeNow} | jeda_terbesar=${maxGap.toFixed(1)}s | entri_hidden=${hiddenEntries.length} | state_terakhir_saat_hidden=${lastHiddenState}`;
+          let msMode = 'custom';
+          try{ msMode = (new URLSearchParams(location.search).get('nomediasession')==='1') ? 'NATIVE(off)' : 'custom'; }catch(e){}
+          const summary = `[DEBUG BG] mode=${modeNow} | mediaSession=${msMode} | jeda_terbesar=${maxGap.toFixed(1)}s | entri_hidden=${hiddenEntries.length} | state_terakhir_saat_hidden=${lastHiddenState}`;
           console.log(summary, {maxGapAt, recent});
           if(typeof toast === 'function') toast(summary, 8000);
         }
@@ -9947,6 +9949,15 @@ function tick(){
 // ─── Media Session API (kontrol dari notifikasi OS / lockscreen) ──────────────
 function _setupMediaSession(track){
   if(!('mediaSession' in navigator)) return;
+  // ─── MODE EKSPERIMEN DEBUG ───────────────────────────────────────────────
+  // Tambahkan ?nomediasession=1 di URL untuk MEMATIKAN TOTAL Media Session
+  // custom (metadata + semua action handler). Kalau notifikasi background
+  // jadi bertahan dengan mode ini aktif, artinya Chrome pakai sesi native
+  // otomatisnya (persis seperti alvinfn) dan akar masalahnya memang di
+  // penggunaan Media Session API custom itu sendiri.
+  try{
+    if(new URLSearchParams(location.search).get('nomediasession')==='1') return;
+  }catch(e){}
   navigator.mediaSession.metadata = new MediaMetadata({
     title: track.title||'',
     artist: track.artist||'',
