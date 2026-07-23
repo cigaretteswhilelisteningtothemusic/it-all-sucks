@@ -9640,12 +9640,18 @@ function initPlayer(videoId) {
   });
 }
 
+// Flag global: kalau true, JANGAN sentuh navigator.mediaSession sama sekali
+// dari mana pun di kode vibexa (dipakai untuk eksperimen ?nomediasession=1
+// dan untuk fix permanennya nanti).
+let _VBX_MS_DISABLED = false;
+try{ _VBX_MS_DISABLED = new URLSearchParams(location.search).get('nomediasession')==='1'; }catch(e){}
+
 function setPB(p){
   document.getElementById('ico-play').style.display=p?'none':'block';
   document.getElementById('ico-pause').style.display=p?'block':'none';
   updateFSPB(p);
   updateNPMobPB(p);
-  if('mediaSession' in navigator) navigator.mediaSession.playbackState = p ? 'playing' : 'paused';
+  if(!_VBX_MS_DISABLED && 'mediaSession' in navigator) navigator.mediaSession.playbackState = p ? 'playing' : 'paused';
   // Musik dipause: kalau sedang immersive otomatis, keluar dulu. Musik play
   // lagi: mulai hitung ulang idle timer immersive dari 0.
   if(typeof _npArmIdleTimer==='function'){
@@ -9839,8 +9845,7 @@ function _stopBgInterval(){ if(_bgInterval){ clearInterval(_bgInterval); _bgInte
           const hiddenEntries = recent.filter(e=>e.hidden);
           const lastHiddenState = hiddenEntries.length ? hiddenEntries[hiddenEntries.length-1].state : '-';
           const modeNow = (typeof isMobile==='function' && isMobile()) ? 'MOBILE' : 'DESKTOP';
-          let msMode = 'custom';
-          try{ msMode = (new URLSearchParams(location.search).get('nomediasession')==='1') ? 'NATIVE(off)' : 'custom'; }catch(e){}
+          const msMode = _VBX_MS_DISABLED ? 'NATIVE(off)' : 'custom';
           const summary = `[DEBUG BG] mode=${modeNow} | mediaSession=${msMode} | jeda_terbesar=${maxGap.toFixed(1)}s | entri_hidden=${hiddenEntries.length} | state_terakhir_saat_hidden=${lastHiddenState}`;
           console.log(summary, {maxGapAt, recent});
           if(typeof toast === 'function') toast(summary, 8000);
@@ -9955,9 +9960,7 @@ function _setupMediaSession(track){
   // jadi bertahan dengan mode ini aktif, artinya Chrome pakai sesi native
   // otomatisnya (persis seperti alvinfn) dan akar masalahnya memang di
   // penggunaan Media Session API custom itu sendiri.
-  try{
-    if(new URLSearchParams(location.search).get('nomediasession')==='1') return;
-  }catch(e){}
+  if(_VBX_MS_DISABLED) return;
   navigator.mediaSession.metadata = new MediaMetadata({
     title: track.title||'',
     artist: track.artist||'',
