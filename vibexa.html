@@ -9577,18 +9577,56 @@ function _createPlayer(videoId) {
   document.getElementById('yt-player').innerHTML = '';
   YTP = new YT.Player('yt-player', {
     width:'1', height:'1', videoId,
-    playerVars:{ autoplay:1, controls:0, playsinline:1, rel:0, modestbranding:1 },
+    playerVars:{ autoplay:1, controls:0, playsinline:1, rel:0, modestbranding:1, enablejsapi:1, origin: window.location.origin },
     events:{
       onReady(e){ e.target.setVolume(parseInt(document.getElementById('vol').value)); e.target.playVideo(); },
       onStateChange(e){
         if(e.data===YT.PlayerState.PLAYING){
-          playing=true; setPB(true); tot=YTP.getDuration(); tick();
+          playing=true; setPB(true);
+          // Songs baru sudah pasti berjalan — baru di sini guard boleh dilepas
+          _nextGuarded=false;
+          try{
+            const newDur = YTP.getDuration();
+            const newCur = YTP.getCurrentTime();
+            // Hanya update tot jika durasi valid
+            if(newDur > 0) tot = newDur;
+
+            // Update _playStartWall & _playStartPos hanya jika:
+            // 1. Ini memang awal songs baru (cur == 0 dan posisi YTP juga 0), ATAU
+            // 2. Posisi YTP valid dan berbeda signifikan dari estimasi wall-clock kita
+            const wallEstimate = _playStartWall > 0 ? _playStartPos + (Date.now() - _playStartWall)/1000 : 0;
+            if(newCur > 0){
+              // Posisi valid — sync jika drift > 2 detik atau belum pernah di-set
+              if(_playStartWall === 0 || Math.abs(newCur - wallEstimate) > 2){
+                cur = newCur;
+                _playStartWall = Date.now();
+                _playStartPos = newCur;
+              }
+            } else if(_playStartWall === 0){
+              // Posisi 0 dan belum pernah di-set (memang awal songs)
+              cur = 0;
+              _playStartWall = Date.now();
+              _playStartPos = 0;
+            }
+            // Jika posisi 0 tapi _playStartWall sudah ada → ini buffering singkat,
+            // jangan reset wall-clock agar timer tidak salah hitung
+          }catch(ex){}
+          tick();
+          _armSongTimer();
+          _stopBgInterval();
+          if(document.hidden) _startBgInterval();
+          // Update UI untuk track yang mungkin diganti lewat loadVideoById (background)
           if(curTrack){ _updateUIForTrack(curTrack); }
+          // Pre-fetch songs berikutnya sesegera mungkin (foreground maupun background)
+          setTimeout(_prefetchNext, 500);
         }
-        else if(e.data===YT.PlayerState.PAUSED){ playing=false; setPB(false); cancelAnimationFrame(raf); }
-        else if(e.data===YT.PlayerState.ENDED){ playing=false; setPB(false); cancelAnimationFrame(raf); _handleSongEnded(); }
+        else if(e.data===YT.PlayerState.PAUSED){ playing=false; setPB(false); cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer(); }
+        else if(e.data===YT.PlayerState.ENDED){
+          playing=false; setPB(false); cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer();
+          if(!_nextGuarded){ _nextGuarded=true; _handleSongEnded(); }
+        }
       },
-      onError(e){ if(e.data===101||e.data===150) toast(' Video blocked, try another song'); }
+      onError(e){ if(e.data===101||e.data===150) toast(' Video blocked, try another song'); _nextGuarded=false; }
     }
   });
 }
@@ -9607,7 +9645,7 @@ function setPB(p){
   document.getElementById('ico-pause').style.display=p?'block':'none';
   updateFSPB(p);
   updateNPMobPB(p);
-  // (dihapus) navigator.mediaSession.playbackState — lihat catatan di _setupMediaSession
+  if('mediaSession' in navigator) navigator.mediaSession.playbackState = p ? 'playing' : 'paused';
   // Musik dipause: kalau sedang immersive otomatis, keluar dulu. Musik play
   // lagi: mulai hitung ulang idle timer immersive dari 0.
   if(typeof _npArmIdleTimer==='function'){
@@ -9622,40 +9660,226 @@ function updateNPMobPB(p){
   if(b) b.style.display=p?'block':'none';
 }
 
-// ─── (dihapus) Web Audio "keep-alive" — trik silent-audio ini justru membuat
-// Chrome mencabut izin background-audio untuk seluruh tab, sehingga media
-// notification langsung hilang saat keluar dari Chrome. Dihapus supaya
-// perilaku playback background sama seperti web referensi (alvinfn), yang
-// hanya mengandalkan iframe YouTube apa adanya tanpa trik ini.
-function _ensureAudioCtx(){}
-function _resumeAudioCtx(){}
+// ─── Web Audio "keep-alive" agar tab tidak dibekukan browser ─────────────────
+let _audioCtx = null;
+let _silentSrc = null;
+function _ensureAudioCtx(){
+  // Jika sudah ada dan berjalan, cukup resume jika suspended
+  if(_audioCtx && _audioCtx.state !== 'closed'){
+    if(_audioCtx.state === 'suspended'){
+      try{ _audioCtx.resume(); }catch(e){}
+    }
+    // Jika silent source sudah berhenti (tidak loop), buat ulang
+    return;
+  }
+  try{
+    _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // Buffer sunyi 3 detik, loop terus — cukup untuk mencegah tab dibekukan
+    const buf = _audioCtx.createBuffer(1, _audioCtx.sampleRate * 3, _audioCtx.sampleRate);
+    _silentSrc = _audioCtx.createBufferSource();
+    _silentSrc.buffer = buf;
+    _silentSrc.loop = true;
+    _silentSrc.connect(_audioCtx.destination);
+    _silentSrc.start(0);
+    // Jika suspended (sebelum user gesture), resume segera
+    if(_audioCtx.state === 'suspended') _audioCtx.resume().catch(()=>{});
+  }catch(e){}
+}
+function _resumeAudioCtx(){
+  try{
+    if(_audioCtx && _audioCtx.state==='suspended') _audioCtx.resume();
+    else _ensureAudioCtx();
+  }catch(e){}
+}
 
-// ─── (dinonaktifkan) Timer wall-clock, bg-interval & visibilitychange khusus
-// background — sistem ini dulu sengaja membuat JS (setTimeout/setInterval)
-// dan bahkan network fetch tetap "aktif mencoba bekerja" saat tab
-// disembunyikan (document.hidden). Diduga kuat inilah yang membuat Chrome
-// menandai tab sebagai "menyalahgunakan" eksekusi background dan mencabut
-// izin audio/notification begitu keluar dari Chrome. alvinfn.html sama
-// sekali tidak punya kode berjalan saat hidden — dia cuma diam dan
-// membiarkan browser yang menentukan nasib playback + notifikasi.
-// Variabel & fungsi di bawah dipertahankan (sebagai no-op) supaya pemanggil
-// lama (seek bar, dll) tidak error, tapi tidak lagi melakukan apa-apa.
-let _songTimer     = null;
-let _playStartWall = 0;
-let _playStartPos  = 0;
-let _bgInterval    = null;
-let _nextGuarded   = false;
-let _pendingNext   = false;
-let _playGen       = 0;
+// ─── Timer songs berbasis setTimeout — tidak bergantung iframe sama sekali ───────
+// setTimeout() tetap jalan di background meski rAF & iframe dibekukan browser
+let _songTimer     = null;  // setTimeout handle
+let _playStartWall = 0;     // Date.now() saat mulai/resume
+let _playStartPos  = 0;     // posisi (detik) saat mulai/resume
+let _bgInterval    = null;  // interval cadangan
+let _nextGuarded   = false; // cegah playNext() ganda dalam satu siklus
+let _pendingNext   = false; // songs sudah selesai di background, tunggu foreground untuk lanjut
+let _playGen       = 0;     // generasi pemutaran — naik setiap loadPlay/playNext baru; timer hanya valid jika cocok
 
-function _clearSongTimer(){}
+function _clearSongTimer(){ if(_songTimer){ clearTimeout(_songTimer); _songTimer=null; } }
+
+// Ambil posisi & durasi dari YTP secara aman (tidak throw)
 function _ytSafe(fn, fallback){ try{ return fn(); }catch(e){ return fallback; } }
-function _armSongTimer(){}
-function _startBgInterval(){}
-function _stopBgInterval(){}
+
+// Pasang timer: setelah (durasi - posisi) detik, panggil playNext()
+function _armSongTimer(){
+  _clearSongTimer();
+  let duration = tot;
+  if((!duration || duration < 1) && curTrack && curTrack.duration) duration = curTrack.duration;
+  // Jika durasi belum diketahui, coba ambil dari YTP
+  if((!duration || duration < 1) && YTP){
+    const d = _ytSafe(()=>YTP.getDuration(), 0);
+    if(d > 0){ tot = d; duration = d; }
+  }
+  // Durasi masih belum ada — bgInterval akan memasang timer begitu durasi tersedia
+  if(!duration || duration < 1) return;
+
+  // Hitung sisa waktu dari wall-clock agar akurat meski tab di-background
+  let elapsed = 0;
+  if(_playStartWall > 0) elapsed = (Date.now() - _playStartWall) / 1000;
+  const posNow = _playStartPos + elapsed;
+  const remaining = Math.max((duration - posNow) * 1000, 500);
+
+  // Tangkap generasi saat ini — timer hanya berlaku untuk songs ini
+  const myGen = _playGen;
+
+  _songTimer = setTimeout(()=>{
+    _songTimer = null;
+    // Batalkan jika generasi sudah berganti (lagu baru sudah dimuat)
+    if(myGen !== _playGen) return;
+    if(!playing || _nextGuarded) return;
+
+    // Cek state YTP jika tersedia (aman di background)
+    const state = _ytSafe(()=> YTP ? YTP.getPlayerState() : -1, -1);
+    if(state === 2){ _nextGuarded = false; return; } // sedang pause, batalkan
+    if(state === 1){
+      // Masih playing — gunakan wall-clock untuk cek posisi real
+      // (YTP.getCurrentTime() bisa frozen saat tab background)
+      const wallElapsed = _playStartWall > 0 ? (Date.now() - _playStartWall) / 1000 : 0;
+      const posNowWall = _playStartPos + wallElapsed;
+      const ytCur = _ytSafe(()=>YTP.getCurrentTime(), posNowWall);
+      const ytDur = _ytSafe(()=>YTP.getDuration(), duration);
+      // Pilih posisi terbesar antara wall-clock dan YTP (salah satu bisa stuck)
+      const bestPos = Math.max(posNowWall, ytCur);
+      // Guard: jangan skip jika posisi masih sangat awal (< 10 detik dari mulai)
+      if(ytDur > 0 && bestPos < 10){ _nextGuarded = false; _armSongTimer(); return; }
+      if(ytDur > 0 && bestPos < ytDur - 8){
+        // Lagu belum selesai (mis. user seek mundur), arm ulang
+        cur = ytCur; tot = ytDur;
+        _playStartWall = Date.now(); _playStartPos = bestPos;
+        _nextGuarded = false;
+        _armSongTimer(); return;
+      }
+    }
+    _nextGuarded = true;
+    playing=false; setPB(false); cancelAnimationFrame(raf); _stopBgInterval();
+    _handleSongEnded();
+  }, remaining);
+}
+
+function _startBgInterval(){
+  if(_bgInterval) return;
+  _resumeAudioCtx();
+  const myGen = _playGen;
+  _bgInterval = setInterval(()=>{
+    // Batalkan interval jika generasi sudah berganti
+    if(myGen !== _playGen){ _stopBgInterval(); return; }
+    if(!playing) return;
+    const ytDur = _ytSafe(()=>YTP ? YTP.getDuration() : 0, 0);
+    // Jika durasi baru tersedia dan belum di-arm, arm sekarang
+    if(ytDur > 0 && (!tot || tot < 1)){
+      tot = ytDur;
+      // Hanya arm jika belum ada timer aktif
+      if(!_songTimer) _armSongTimer();
+    }
+    // JANGAN reset _playStartWall di sini — timer wall-clock harus tetap berjalan
+    // dari titik awal agar remaining bisa habis secara alami
+    const state = _ytSafe(()=>YTP ? YTP.getPlayerState() : -1, -1);
+    if(state === 0 && !_nextGuarded){
+      _nextGuarded = true;
+      _stopBgInterval(); _clearSongTimer();
+      playing=false; setPB(false); cancelAnimationFrame(raf);
+      _handleSongEnded();
+    }
+  }, 1000);
+}
+
+function _stopBgInterval(){ if(_bgInterval){ clearInterval(_bgInterval); _bgInterval=null; } }
+
+// ─── FIX: kurangi beban tab saat di-background agar tidak cepat dibekukan/
+// dimatikan Android (yang bikin audio YouTube + notifikasi media ikut mati).
+// Vibexa punya banyak listener realtime Firebase (chat, status, typing,
+// follow, notifikasi) yang terus aktif — ini bikin tab jadi "berat" di mata
+// OS. Solusinya: putuskan koneksi Firebase (db.goOffline) kalau app memang
+// di-background lebih dari 15 detik (bukan cuma pindah tab sebentar), lalu
+// sambung lagi (db.goOnline) begitu kembali. Ini TIDAK mematikan listener
+// yang sudah terpasang — begitu goOnline() dipanggil, semua otomatis sync
+// ulang tanpa perlu di-setup ulang. Pemutaran musik (YouTube iframe) sama
+// sekali tidak tersentuh oleh ini.
+let _dbOfflineTimer = null;
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden){
+    _dbOfflineTimer = setTimeout(()=>{
+      _dbOfflineTimer = null;
+      try{ db.goOffline(); }catch(e){}
+    }, 15000);
+  } else {
+    if(_dbOfflineTimer){ clearTimeout(_dbOfflineTimer); _dbOfflineTimer = null; }
+    try{ db.goOnline(); }catch(e){}
+  }
+});
+
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden){
+    // Tab masuk background — hentikan rAF, pasang fallback timer & interval
+    cancelAnimationFrame(raf);
+    if(playing){
+      const ytCur = _ytSafe(()=>YTP ? YTP.getCurrentTime() : cur, cur);
+      const ytDur = _ytSafe(()=>YTP ? YTP.getDuration() : tot, tot);
+      if(ytCur > 0) cur = ytCur;
+      if(ytDur > 0) tot = ytDur;
+      _playStartWall = Date.now(); _playStartPos = cur;
+      _ensureAudioCtx();    // pastikan AudioContext tetap hidup
+      _armSongTimer();      // timer berbasis setTimeout
+      _startBgInterval();   // interval cadangan & sinkronisasi posisi
+      // Pastikan cache songs berikutnya sudah siap sebelum songs berakhir
+      _prefetchNext();
+    }
+  } else {
+    // Tab kembali foreground
+    _stopBgInterval();
+    _nextGuarded = false;
+
+    // Jika ada proses fetch background yang sedang berjalan, biarkan selesai
+    // (ditandai _pendingNext=true tapi _playGen masih cocok)
+    // Jika songs sudah selesai di background dan tidak bisa diputar → lanjut sekarang
+    if(_pendingNext){
+      // Cek apakah ini benar-benar stuck (bukan sedang fetch)
+      // Langsung trigger loadPlay untuk songs berikutnya
+      _pendingNext = false;
+      _clearSongTimer();
+      const i = _qIdx();
+      const next = curQueue[i===-1 ? 0 : (i+1) % curQueue.length];
+      if(next) loadPlay(next, currentPlaylistId);
+      return;
+    }
+
+    if(YTP && playing){
+      const state = _ytSafe(()=>YTP.getPlayerState(), -1);
+      if(state === 0){ _clearSongTimer(); playing=false; setPB(false); _handleSongEnded(); return; }
+      if(state === 1 || state === -1){
+        // Cek apakah songs sudah seharusnya selesai berdasarkan wall-clock
+        if(tot > 0 && _playStartWall > 0){
+          const wallElapsed = (Date.now() - _playStartWall) / 1000;
+          const estimatedPos = _playStartPos + wallElapsed;
+          if(estimatedPos >= tot - 1){
+            // Durasi terlampaui — anggap songs sudah selesai
+            _clearSongTimer(); playing=false; setPB(false); cancelAnimationFrame(raf);
+            _handleSongEnded(); return;
+          }
+        }
+        // Sinkronkan posisi kembali lalu restart rAF
+        const ytCur = _ytSafe(()=>YTP.getCurrentTime(), cur);
+        if(ytCur > 0){ cur = ytCur; _playStartWall = Date.now(); _playStartPos = cur; }
+        _clearSongTimer(); // matikan timer lama — tick() akan arm ulang
+        tick();
+        _armSongTimer();
+      }
+    }
+  }
+});
 
 function tick(){
   cancelAnimationFrame(raf);
+  _stopBgInterval();
+  _playStartWall=Date.now();
+  try{ if(YTP){ _playStartPos=YTP.getCurrentTime()||cur; } else { _playStartPos=cur; } }catch(e){ _playStartPos=cur; }
   (function loop(){
     if(!playing||!YTP) return;
     try{ cur=YTP.getCurrentTime()||cur; tot=YTP.getDuration()||tot; }catch(e){}
@@ -9664,18 +9888,30 @@ function tick(){
   })();
 }
 
-// ─── Media Session API (dinonaktifkan) ─────────────────────────────────────
-// Top-level document ini mengklaim MediaSession-nya sendiri (metadata +
-// actionHandlers + playbackState) padahal audio yang benar-benar diputar
-// berasal dari iframe YouTube cross-origin (yt-player), bukan dari frame ini.
-// Karena frame ini sendiri tidak "audible", Chrome menilai sesi ini tidak
-// benar-benar memutar audio dan langsung menutup notification + mencabut izin
-// background audio begitu tab masuk background — sesi bawaan milik iframe
-// YouTube (yang justru audible) jadi ikut tertutupi. alvinfn.html sama sekali
-// tidak menyentuh navigator.mediaSession, sehingga Chrome memakai sesi bawaan
-// otomatis dari iframe YouTube itu sendiri, dan notification tetap muncul.
-// Fungsi ini dikosongkan agar perilakunya sama dengan alvinfn.
-function _setupMediaSession(track){}
+// ─── Media Session API (kontrol dari notifikasi OS / lockscreen) ──────────────
+function _setupMediaSession(track){
+  if(!('mediaSession' in navigator)) return;
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: track.title||'',
+    artist: track.artist||'',
+    album: '',
+    artwork: (()=>{
+      const url = track.artworkUrl||track.img||track.cover||'';
+      return url ? [{src:url,sizes:'300x300',type:'image/jpeg'}] : [];
+    })()
+  });
+  navigator.mediaSession.setActionHandler('play', ()=>{ if(YTP){ YTP.playVideo(); playing=true; setPB(true); tick(); _armSongTimer(); } else if(curTrack){ loadPlay(curTrack); } });
+  navigator.mediaSession.setActionHandler('pause', ()=>{ if(YTP){ YTP.pauseVideo(); playing=false; setPB(false); cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer(); } });
+  navigator.mediaSession.setActionHandler('nexttrack', ()=>{ playNext(); });
+  navigator.mediaSession.setActionHandler('previoustrack', ()=>{ playPrev(); });
+  navigator.mediaSession.setActionHandler('seekto', (d)=>{ if(YTP&&d.seekTime!=null){ YTP.seekTo(d.seekTime,true); cur=d.seekTime; _armSongTimer(); } });
+  try{
+    navigator.mediaSession.setActionHandler('stop', ()=>{
+      if(YTP){ try{ YTP.pauseVideo(); }catch(e){} }
+      playing=false; setPB(false); cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer();
+    });
+  }catch(e){ /* beberapa browser lama belum dukung action 'stop' */ }
+}
 
 function ft(s){ if(!s||isNaN(s))return'0:00'; return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0'); }
 function updProg(){
@@ -9782,11 +10018,79 @@ function playNext(){
   }
   const next = curQueue[i===-1 ? 0 : (i+1) % curQueue.length];
   if(!next) return;
-  // (disederhanakan — dulu ada percabangan khusus "document.hidden" yang
-  // mem-fetch & mengganti lagu lewat loadVideoById saat tab background.
-  // Dihapus supaya perilakunya sama seperti alvinfn: selalu lewat loadPlay()
-  // normal, biarkan browser yang menentukan apakah playback lanjut di
-  // background atau tidak, tanpa campur tangan JS tambahan.)
+  // Kunci guard selama proses pindah songs berlangsung — baru dilepas saat
+  // songs baru benar-benar PLAYING (lihat onStateChange) atau saat loading gagal.
+  // Ini mencegah trigger ganda (event ended asli + timer/interval fallback)
+  // yang nyaris bersamaan dan menyebabkan 1 songs ikut terlewat.
+  _nextGuarded = true;
+
+  // Jika tab background DAN sudah ada cache → pakai loadVideoById (tanpa fetch!)
+  if(document.hidden && _prefetchCache[next._query]){
+    const cached = _prefetchCache[next._query];
+    delete _prefetchCache[next._query];
+    if(cached.videoId && YTP){
+      try{
+        // Reset state
+        cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer();
+        playing=false; cur=0; tot=0;
+        _playGen++;  // invalidasi timer songs sebelumnya
+        _pendingNext=false; // _nextGuarded TETAP true sampai PLAYING dikonfirmasi
+        curTrack = next;
+        lyrs = cached.lyrs || [];
+        _curSpeedFactor = detectSpeedFactor(next.title);
+        _setupMediaSession(next);
+        // Ganti video di player yang sudah ada — TANPA fetch baru
+        YTP.loadVideoById({ videoId: cached.videoId, suggestedQuality: 'small' });
+        // Setelah ganti songs, prefetch songs berikutnya
+        setTimeout(_prefetchNext, 1000);
+        // onStateChange PLAYING akan arm timer & interval otomatis
+        return;
+      } catch(e){}
+    }
+    // videoId tidak ada di cache — coba fetch langsung di background
+  }
+
+  // Jika tab background tapi TIDAK ada cache → fetch di background lalu putar
+  if(document.hidden){
+    // Tandai sedang proses agar tidak ada playNext() ganda
+    if(_pendingNext) return; // sudah ada proses fetch berjalan
+    _pendingNext = true;
+    const myGen = _playGen;
+    const searchQ = `${next.artist} ${next.title} lyrics`;
+    const cl = cleanT(next.title);
+    Promise.all([
+      resolveVid(searchQ).then(v => v || resolveVid(`${next.artist} ${next.title} official audio`)).then(v => v || resolveVid(`${next.artist} ${next.title}`)),
+      fetchLyr(cl, next.artist)
+    ]).then(([videoId, lines]) => {
+      // Batalkan jika generasi sudah berganti (user memilih songs lain)
+      if(myGen !== _playGen) return;
+      if(!_pendingNext) return;
+      _pendingNext = false;
+      if(videoId && YTP){
+        try{
+          cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer();
+          playing=false; cur=0; tot=0;
+          _playGen++;
+          // _nextGuarded TETAP true sampai PLAYING dikonfirmasi (lihat onStateChange)
+          curTrack = next;
+          lyrs = lines || [];
+          _curSpeedFactor = detectSpeedFactor(next.title);
+          _setupMediaSession(next);
+          YTP.loadVideoById({ videoId, suggestedQuality: 'small' });
+          // Prefetch songs setelah ini
+          setTimeout(_prefetchNext, 1000);
+        } catch(e){ _pendingNext = false; _nextGuarded = false; }
+      }
+      // Jika videoId tidak ditemukan, tandai pending agar dilanjut saat foreground
+      else { _pendingNext = true; _nextGuarded = false; }
+    }).catch(() => {
+      if(myGen === _playGen){ _pendingNext = true; _nextGuarded = false; }
+    });
+    return;
+  }
+
+  // Foreground: loadPlay normal
+  _pendingNext = false;
   loadPlay(next, currentPlaylistId);
 }
 function playPrev(){
