@@ -9640,18 +9640,12 @@ function initPlayer(videoId) {
   });
 }
 
-// Flag global: kalau true, JANGAN sentuh navigator.mediaSession sama sekali
-// dari mana pun di kode vibexa (dipakai untuk eksperimen ?nomediasession=1
-// dan untuk fix permanennya nanti).
-let _VBX_MS_DISABLED = false;
-try{ _VBX_MS_DISABLED = new URLSearchParams(location.search).get('nomediasession')==='1'; }catch(e){}
-
 function setPB(p){
   document.getElementById('ico-play').style.display=p?'none':'block';
   document.getElementById('ico-pause').style.display=p?'block':'none';
   updateFSPB(p);
   updateNPMobPB(p);
-  if(!_VBX_MS_DISABLED && 'mediaSession' in navigator) navigator.mediaSession.playbackState = p ? 'playing' : 'paused';
+  if('mediaSession' in navigator) navigator.mediaSession.playbackState = p ? 'playing' : 'paused';
   // Musik dipause: kalau sedang immersive otomatis, keluar dulu. Musik play
   // lagi: mulai hitung ulang idle timer immersive dari 0.
   if(typeof _npArmIdleTimer==='function'){
@@ -9798,86 +9792,6 @@ function _startBgInterval(){
 
 function _stopBgInterval(){ if(_bgInterval){ clearInterval(_bgInterval); _bgInterval=null; } }
 
-// ─── DEBUG SEMENTARA: pelacak "apakah JS/tab dibekukan saat di-background?" ───
-// Mencatat setiap 2 detik: jam berapa, apakah tab hidden, status player YouTube.
-// Begitu app kembali ke depan, tampilkan ringkasan via toast + console.log.
-// Cara baca hasil:
-//  - Kalau "jeda terbesar" MENDEKATI durasi kamu keluar app (mis. kamu keluar
-//    30 detik lalu jeda terbesar ~30 detik) => JS/tab BENAR-BENAR DIBEKUKAN
-//    oleh Android/Chrome (bukan soal kode player, tapi OS mematikan tab).
-//  - Kalau "jeda terbesar" tetap kecil (~2-3 detik terus) tapi status player
-//    berubah jadi "paused"/"ended" di tengah => berarti JS tetap hidup, TAPI
-//    ada sesuatu yang secara aktif menghentikan videonya.
-(function(){
-  const DBG_KEY = '_vbx_bg_debug_log';
-  const STATE_NAMES = {'-1':'unstarted','0':'ended','1':'playing','2':'paused','3':'buffering','5':'cued'};
-  function dbgTick(){
-    try{
-      const log = JSON.parse(localStorage.getItem(DBG_KEY) || '[]');
-      let state = 'no-player';
-      try{ if(YTP) state = STATE_NAMES[String(YTP.getPlayerState())] || ('code:'+YTP.getPlayerState()); }catch(e){ state='error:'+e.message; }
-      log.push({ t: Date.now(), hidden: document.hidden, state, playing: !!playing, mobile: (typeof isMobile==='function'?isMobile():null) });
-      if(log.length > 300) log.splice(0, log.length-300);
-      localStorage.setItem(DBG_KEY, JSON.stringify(log));
-    }catch(e){}
-  }
-  setInterval(dbgTick, 2000);
-  dbgTick();
-  window._vbxShowBgLog = function(){
-    try{
-      const log = JSON.parse(localStorage.getItem(DBG_KEY) || '[]');
-      console.log('VBX_BG_DEBUG_LOG', log);
-      return log;
-    }catch(e){ return []; }
-  };
-  document.addEventListener('visibilitychange', ()=>{
-    dbgTick();
-    if(!document.hidden){
-      try{
-        const log = JSON.parse(localStorage.getItem(DBG_KEY) || '[]');
-        const recent = log.slice(-60);
-        if(recent.length >= 2){
-          let maxGap = 0, maxGapAt = null;
-          for(let i=1;i<recent.length;i++){
-            const gap=(recent[i].t-recent[i-1].t)/1000;
-            if(gap>maxGap){ maxGap=gap; maxGapAt=recent[i-1]; }
-          }
-          const hiddenEntries = recent.filter(e=>e.hidden);
-          const lastHiddenState = hiddenEntries.length ? hiddenEntries[hiddenEntries.length-1].state : '-';
-          const modeNow = (typeof isMobile==='function' && isMobile()) ? 'MOBILE' : 'DESKTOP';
-          const msMode = _VBX_MS_DISABLED ? 'NATIVE(off)' : 'custom';
-          const summary = `[DEBUG BG] mode=${modeNow} | mediaSession=${msMode} | jeda_terbesar=${maxGap.toFixed(1)}s | entri_hidden=${hiddenEntries.length} | state_terakhir_saat_hidden=${lastHiddenState}`;
-          console.log(summary, {maxGapAt, recent});
-          if(typeof toast === 'function') toast(summary, 8000);
-        }
-      }catch(e){}
-    }
-  });
-})();
-
-// ─── FIX: kurangi beban tab saat di-background agar tidak cepat dibekukan/
-// dimatikan Android (yang bikin audio YouTube + notifikasi media ikut mati).
-// Vibexa punya banyak listener realtime Firebase (chat, status, typing,
-// follow, notifikasi) yang terus aktif — ini bikin tab jadi "berat" di mata
-// OS. Solusinya: putuskan koneksi Firebase (db.goOffline) kalau app memang
-// di-background lebih dari 15 detik (bukan cuma pindah tab sebentar), lalu
-// sambung lagi (db.goOnline) begitu kembali. Ini TIDAK mematikan listener
-// yang sudah terpasang — begitu goOnline() dipanggil, semua otomatis sync
-// ulang tanpa perlu di-setup ulang. Pemutaran musik (YouTube iframe) sama
-// sekali tidak tersentuh oleh ini.
-let _dbOfflineTimer = null;
-document.addEventListener('visibilitychange', ()=>{
-  if(document.hidden){
-    _dbOfflineTimer = setTimeout(()=>{
-      _dbOfflineTimer = null;
-      try{ db.goOffline(); }catch(e){}
-    }, 15000);
-  } else {
-    if(_dbOfflineTimer){ clearTimeout(_dbOfflineTimer); _dbOfflineTimer = null; }
-    try{ db.goOnline(); }catch(e){}
-  }
-});
-
 document.addEventListener('visibilitychange', ()=>{
   if(document.hidden){
     // Tab masuk background — hentikan rAF, pasang fallback timer & interval
@@ -9954,13 +9868,6 @@ function tick(){
 // ─── Media Session API (kontrol dari notifikasi OS / lockscreen) ──────────────
 function _setupMediaSession(track){
   if(!('mediaSession' in navigator)) return;
-  // ─── MODE EKSPERIMEN DEBUG ───────────────────────────────────────────────
-  // Tambahkan ?nomediasession=1 di URL untuk MEMATIKAN TOTAL Media Session
-  // custom (metadata + semua action handler). Kalau notifikasi background
-  // jadi bertahan dengan mode ini aktif, artinya Chrome pakai sesi native
-  // otomatisnya (persis seperti alvinfn) dan akar masalahnya memang di
-  // penggunaan Media Session API custom itu sendiri.
-  if(_VBX_MS_DISABLED) return;
   navigator.mediaSession.metadata = new MediaMetadata({
     title: track.title||'',
     artist: track.artist||'',
@@ -9970,26 +9877,11 @@ function _setupMediaSession(track){
       return url ? [{src:url,sizes:'300x300',type:'image/jpeg'}] : [];
     })()
   });
-  // CATATAN PENTING (hasil diagnosa background-play, Juli 2026):
-  // Handler 'play'/'pause' custom SENGAJA TIDAK didaftarkan di sini.
-  // Kalau didaftarkan, tombol play di notifikasi akan memanggil YTP.playVideo()
-  // lewat postMessage ke iframe YouTube — perintah ini tetap melewati skrip
-  // internal YouTube yang membatasi background-play di mobile, sehingga resume
-  // bisa gagal diam-diam & notifikasi akhirnya hilang.
-  // Dengan TIDAK mendaftarkan handler ini, Chrome jatuh balik ke kontrol native
-  // bawaannya (langsung ke elemen <video> di dalam iframe di level browser),
-  // yang terbukti bisa bypass pembatasan tsb — persis seperti perilaku alvinfn.
-  try{ navigator.mediaSession.setActionHandler('play', null); }catch(e){}
-  try{ navigator.mediaSession.setActionHandler('pause', null); }catch(e){}
+  navigator.mediaSession.setActionHandler('play', ()=>{ if(YTP){ YTP.playVideo(); playing=true; setPB(true); tick(); _armSongTimer(); } else if(curTrack){ loadPlay(curTrack); } });
+  navigator.mediaSession.setActionHandler('pause', ()=>{ if(YTP){ YTP.pauseVideo(); playing=false; setPB(false); cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer(); } });
   navigator.mediaSession.setActionHandler('nexttrack', ()=>{ playNext(); });
   navigator.mediaSession.setActionHandler('previoustrack', ()=>{ playPrev(); });
   navigator.mediaSession.setActionHandler('seekto', (d)=>{ if(YTP&&d.seekTime!=null){ YTP.seekTo(d.seekTime,true); cur=d.seekTime; _armSongTimer(); } });
-  try{
-    navigator.mediaSession.setActionHandler('stop', ()=>{
-      if(YTP){ try{ YTP.pauseVideo(); }catch(e){} }
-      playing=false; setPB(false); cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer();
-    });
-  }catch(e){ /* beberapa browser lama belum dukung action 'stop' */ }
 }
 
 function ft(s){ if(!s||isNaN(s))return'0:00'; return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0'); }
