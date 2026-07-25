@@ -424,7 +424,7 @@
     // GANTI INI DENGAN API KEY DARI RAPIDAPI
     // https://rapidapi.com/ytjar/api/youtube-mp36
     // ============================================================
-    var RAPIDAPI_KEY = " 44a6176a94msh92d99842860f494p1ff229jsndf24d7c1ac22 ";
+    var RAPIDAPI_KEY = "44a6176a94msh92d99842860f494p1ff229jsndf24d7c1ac22";
     var API_HOST = "youtube-mp36.p.rapidapi.com";
     // ============================================================
 
@@ -485,12 +485,31 @@
         }
     }
 
-    // ── Auto-paste link dari clipboard + auto-konversi ────────────────────
-    // Dipanggil saat halaman selesai dimuat. Membaca isi clipboard user
-    // (biasanya sudah berisi link YouTube yang disalin dari halaman Now
-    // Playing Vibexa), menempelkannya ke kolom input, lalu langsung memulai
-    // proses konversi TANPA user perlu menekan tombol "Konversi".
+    // ── Auto-paste + auto-konversi ─────────────────────────────────────────
+    // Dipanggil saat halaman selesai dimuat. Prioritas sumber link:
+    //   1) Parameter URL ?url=... (dikirim langsung oleh tombol "Ambil Link
+    //      Lagu" di Vibexa) — cara ini SELALU berhasil, tidak bergantung izin
+    //      apapun dari browser.
+    //   2) Clipboard (navigator.clipboard.readText) — dipakai sebagai
+    //      cadangan kalau halaman ini dibuka tanpa parameter URL. Cara ini
+    //      bisa gagal di beberapa browser karena butuh izin/klik user.
+    // Begitu link didapat, langsung ditempel ke kolom input dan proses
+    // konversi otomatis berjalan TANPA user perlu menekan tombol "Konversi".
     async function autoPasteAndConvert() {
+        // 1) Coba dari parameter URL dulu
+        try {
+            var params = new URLSearchParams(window.location.search);
+            var urlFromParam = (params.get("url") || "").trim();
+            if (urlFromParam && extractVideoId(urlFromParam)) {
+                document.getElementById("ytUrl").value = urlFromParam;
+                startConvert();
+                return;
+            }
+        } catch (e) {
+            console.warn("Gagal membaca parameter URL:", e);
+        }
+
+        // 2) Fallback ke clipboard
         try {
             if (!navigator.clipboard || !navigator.clipboard.readText) {
                 throw new Error("Clipboard API tidak didukung browser ini");
@@ -500,12 +519,82 @@
                 throw new Error("Isi clipboard bukan link YouTube yang valid");
             }
             document.getElementById("ytUrl").value = text;
-            startConvert(); // otomatis, tanpa klik tombol Konversi
-        } catch (e) {
-            console.warn("Auto-paste dari clipboard gagal:", e.message);
-            // Fallback: fokuskan kolom input supaya user tinggal Ctrl+V manual
+            startConvert();
+        } catch (e2) {
+            console.warn("Auto-paste dari clipboard gagal:", e2.message);
+            // Fallback terakhir: fokuskan kolom input supaya user tinggal Ctrl+V manual
             var input = document.getElementById("ytUrl");
             if (input) input.focus();
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // SIMPAN OTOMATIS KE "UNDUHAN OFFLINE" VIBEXA (IndexedDB bersama)
+    // ══════════════════════════════════════════════════════════════════
+    // Vibexa menyimpan lagu offline di IndexedDB bernama "vibexaOfflineDB"
+    // (object store "downloads"). Selama stansa.html dan vibexa.html
+    // dibuka dari ORIGIN yang SAMA (domain/host/port sama — misalnya sama-
+    // sama di https://situskamu.com/...), IndexedDB ini otomatis TERSAMBUNG
+    // ke database yang sama, sehingga file yang disimpan di sini langsung
+    // muncul di halaman "Unduhan Offline" Vibexa tanpa perlu impor manual.
+    //
+    // CATATAN: kalau kedua file dibuka langsung dari file lokal (file://)
+    // atau dari domain BERBEDA, penyimpanan bersama ini TIDAK akan bekerja
+    // (browser mengisolasi IndexedDB per origin) — dalam kondisi ini,
+    // fungsi akan otomatis jatuh ke unduhan biasa lewat browser.
+    var DL_DB_NAME = "vibexaOfflineDB";
+    var DL_DB_VERSION = 1;
+    var DL_STORE = "downloads";
+    var _dlDB = null;
+
+    function _dlOpenDB() {
+        return new Promise(function(resolve, reject) {
+            if (_dlDB) { resolve(_dlDB); return; }
+            var req = indexedDB.open(DL_DB_NAME, DL_DB_VERSION);
+            req.onupgradeneeded = function(e) {
+                var db = e.target.result;
+                if (!db.objectStoreNames.contains(DL_STORE)) {
+                    var store = db.createObjectStore(DL_STORE, { keyPath: "id" });
+                    store.createIndex("addedAt", "addedAt", { unique: false });
+                }
+            };
+            req.onsuccess = function(e) { _dlDB = e.target.result; resolve(_dlDB); };
+            req.onerror = function(e) { reject(e.target.error); };
+        });
+    }
+
+    function _dlSaveBlob(name, blob) {
+        return _dlOpenDB().then(function(db) {
+            return new Promise(function(resolve, reject) {
+                var id = "dl_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+                var record = { id: id, name: name, size: blob.size, addedAt: Date.now(), blob: blob };
+                var tx = db.transaction(DL_STORE, "readwrite");
+                tx.objectStore(DL_STORE).add(record);
+                tx.oncomplete = function() { resolve(record); };
+                tx.onerror = function(e) { reject(e.target.error); };
+            });
+        });
+    }
+
+    // Coba unduh file MP3 sebagai Blob lewat fetch() lalu simpan LANGSUNG ke
+    // IndexedDB "Unduhan Offline" Vibexa. Kalau gagal (mis. server MP3 tidak
+    // mengizinkan CORS untuk fetch), otomatis jatuh ke unduhan biasa lewat
+    // browser (triggerAutoDownload) sebagai cadangan.
+    async function saveToOfflineLibraryOrDownload(mp3Url, filenameBase) {
+        var filename = (filenameBase || "audio").replace(/[\\/:*?"<>|]/g, "") + ".mp3";
+        try {
+            setProgress(100, "Menyimpan ke Unduhan Offline...", "Mengunduh data audio...");
+            var res = await fetch(mp3Url);
+            if (!res.ok) throw new Error("HTTP " + res.status);
+            var blob = await res.blob();
+            await _dlSaveBlob(filenameBase || "audio", blob);
+            setProgress(100, "Tersimpan!", "Lagu berhasil disimpan ke Unduhan Offline Vibexa \u2014 bisa diputar offline.");
+            return true;
+        } catch (e) {
+            console.warn("Gagal menyimpan otomatis ke Unduhan Offline, fallback ke unduhan browser biasa:", e);
+            triggerAutoDownload(mp3Url, filename);
+            setProgress(100, "Diunduh ke perangkat", "Buka halaman \"Unduhan Offline\" di Vibexa lalu tekan \"Tambah MP3\" untuk memutarnya offline.");
+            return false;
         }
     }
 
@@ -544,7 +633,7 @@
             return;
         }
 
-        if (RAPIDAPI_KEY === " 44a6176a94msh92d99842860f494p1ff229jsndf24d7c1ac22") {
+        if (!RAPIDAPI_KEY || !RAPIDAPI_KEY.trim()) {
             showError("API Key belum diisi! Baca petunjuk setup di bagian atas.");
             return;
         }
@@ -592,12 +681,15 @@
             var dlBtn = document.getElementById("downloadBtn");
             dlBtn.href = finalData.link;
 
+            document.getElementById("progressContainer").classList.remove("show");
+            document.getElementById("downloadArea").classList.add("show");
+            // Simpan otomatis ke "Unduhan Offline" Vibexa (IndexedDB bersama).
+            // Kalau gagal (mis. CORS), otomatis jatuh ke unduhan browser biasa.
+            document.getElementById("progressContainer").classList.add("show");
+            await saveToOfflineLibraryOrDownload(finalData.link, finalData.title || document.getElementById("videoTitle").textContent);
             setTimeout(function() {
                 document.getElementById("progressContainer").classList.remove("show");
-                document.getElementById("downloadArea").classList.add("show");
-                // Langsung unduh otomatis, user tidak perlu menekan tombol Download
-                triggerAutoDownload(finalData.link, (finalData.title || "audio") + ".mp3");
-            }, 800);
+            }, 1600);
 
         } catch (err) {
             console.error(err);

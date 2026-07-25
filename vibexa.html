@@ -10189,9 +10189,15 @@ async function copySongLink(){
   if(!url && curTrack.videoId) url = 'https://www.youtube.com/watch?v=' + curTrack.videoId;
   if(!url){ toast(' Link lagu belum tersedia, coba lagi sebentar'); return; }
   await _copyTextToClipboard(url);
-  // Arahkan user ke halaman stansa.html (file terpisah, satu folder dengan vibexa.html)
+  // Arahkan user ke stansa.html sambil MENYERTAKAN link & judul lewat parameter
+  // URL (?url=...&title=...). Ini dipakai (bukan cuma clipboard) karena browser
+  // biasanya MEMBLOKIR pembacaan clipboard otomatis kalau tidak dipicu langsung
+  // oleh klik user — lewat parameter URL, auto-paste & auto-convert di stansa.html
+  // jadi selalu berhasil tanpa perlu izin clipboard sama sekali.
+  const title = (curTrack.title || '') + (curTrack.artist ? (' - ' + curTrack.artist) : '');
+  const params = new URLSearchParams({ url, title });
   // Jeda sebentar supaya toast "Link lagu disalin!" sempat terlihat sebelum pindah halaman.
-  setTimeout(() => { window.location.href = 'stansa.html'; }, 500);
+  setTimeout(() => { window.location.href = 'stansa.html?' + params.toString(); }, 500);
 }
 
 // Helper salin teks ke clipboard dengan fallback untuk browser/konteks lama
