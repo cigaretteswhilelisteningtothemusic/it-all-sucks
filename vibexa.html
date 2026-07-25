@@ -3866,13 +3866,31 @@ textarea.sugg-form-input{resize:vertical;}
 .dl-card:hover .dl-card-del{opacity:1;}
 .dl-card-del:hover{background:#ff5555;}
 .dl-card-del svg{width:13px;height:13px;}
-.dl-card-cover-btn{position:absolute;top:8px;left:8px;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.55);border:none;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:opacity .15s;}
-.dl-card:hover .dl-card-cover-btn{opacity:1;}
-.dl-card-cover-btn:hover{background:var(--green);}
-.dl-card-cover-btn svg{width:13px;height:13px;}
+/* Tombol "Tambah ke Playlist" di pojok kiri-atas tiap kartu lagu offline
+   (mirror dari tombol hapus di pojok kanan-atas). ── */
+.dl-card-addpl{position:absolute;top:8px;left:8px;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.55);border:none;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:opacity .15s;}
+.dl-card:hover .dl-card-addpl{opacity:1;}
+.dl-card-addpl:hover{background:var(--green);}
+.dl-card-addpl svg{width:13px;height:13px;}
+
+/* ── Tab "Semua Lagu" / "Playlist" di halaman Unduhan Offline ── */
+.dl-tabs{display:flex;gap:6px;padding:0 26px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.dl-tab{background:none;border:none;color:var(--sub);font-family:var(--f);font-size:.82rem;font-weight:600;cursor:pointer;padding:12px 6px;margin-bottom:-1px;border-bottom:2px solid transparent;transition:all .18s;}
+.dl-tab:hover{color:var(--text);}
+.dl-tab.active{color:var(--text);border-bottom-color:var(--green);}
+.dl-tabpanel{display:none;}
+.dl-tabpanel.active{display:block;}
+.dl-pl-toolbar{display:flex;justify-content:flex-end;margin-bottom:16px;}
+
+/* ── Halaman detail Playlist Offline — overlay penuh di dalam #downloads-view,
+   memakai ulang gaya .pv-* milik playlist online supaya konsisten. ── */
+#dl-plview{position:absolute;inset:0;background:var(--bg);z-index:5;display:none;flex-direction:column;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
+#dl-plview.show{display:flex;}
+#dl-plview .pv-cover,#dl-plview .pv-cover-ph{width:160px;height:160px;border-radius:12px;background:var(--hover);display:flex;align-items:center;justify-content:center;font-size:3.5rem;box-shadow:0 12px 40px rgba(0,0,0,.6);overflow:hidden;}
 @media (max-width:900px){
   #downloads-view .aall-header{padding:14px 16px;flex-wrap:wrap;}
   #downloads-view .aall-body{padding:16px;}
+  #downloads-view .dl-tabs{padding:0 16px;}
   .dl-player-info{width:110px;}
 }
 
@@ -4806,14 +4824,96 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
         <span>Tambah MP3</span>
       </button>
       <input type="file" id="dl-file-input" accept="audio/mpeg,audio/mp3,.mp3" multiple style="display:none" onchange="handleDownloadFilesPicked(event)">
-      <input type="file" id="dl-cover-input" accept="image/*" style="display:none" onchange="handleCoverFilePicked(event)">
+    </div>
+    <div class="dl-tabs">
+      <button class="dl-tab active" id="dl-tab-btn-all" onclick="switchDlTab('all')">Semua Lagu</button>
+      <button class="dl-tab" id="dl-tab-btn-pl" onclick="switchDlTab('playlists')">Playlist</button>
     </div>
     <div class="aall-body">
-      <div class="dl-empty" id="dl-empty-state">
-        <span>🎧</span>
-        <p>Belum ada lagu offline.<br>Tekan "Tambah MP3" lalu pilih file MP3 hasil unduhan kamu (mis. dari halaman konverter) supaya bisa diputar di sini tanpa internet.</p>
+      <div class="dl-tabpanel active" id="dl-panel-all">
+        <div class="dl-empty" id="dl-empty-state">
+          <span>🎧</span>
+          <p>Belum ada lagu offline.<br>Tekan "Tambah MP3" lalu pilih file MP3 hasil unduhan kamu (mis. dari halaman konverter) supaya bisa diputar di sini tanpa internet.</p>
+        </div>
+        <div class="dl-grid" id="dl-grid"></div>
       </div>
-      <div class="dl-grid" id="dl-grid"></div>
+      <div class="dl-tabpanel" id="dl-panel-pl">
+        <div class="dl-pl-toolbar">
+          <button class="dl-add-btn" onclick="openDlNewPlaylistModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            <span>Buat Playlist</span>
+          </button>
+        </div>
+        <div class="dl-empty" id="dl-pl-empty-state">
+          <span>📂</span>
+          <p>Belum ada playlist offline.<br>Buat playlist untuk mengelompokkan lagu yang sudah kamu unduh dan atur sendiri urutan pemutarannya.</p>
+        </div>
+        <div class="dl-grid" id="dl-pl-grid"></div>
+      </div>
+    </div>
+
+    <!-- Halaman detail Playlist Offline (daftar lagu di dalam 1 playlist offline,
+         bisa diputar berurutan, diatur ulang urutannya, & dihapus lagunya) -->
+    <div id="dl-plview">
+      <button class="pv-back" onclick="closeOfflinePlaylistView()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        Back
+      </button>
+      <div class="pv-header">
+        <div class="pv-top">
+          <div class="pv-cover-wrap">
+            <div class="pv-cover-ph" id="dl-plview-cover">📂</div>
+          </div>
+          <div class="pv-meta">
+            <div class="pv-type">Playlist Offline</div>
+            <div class="pv-title" id="dl-plview-title">—</div>
+            <div class="pv-sub" id="dl-plview-sub">0 lagu</div>
+          </div>
+        </div>
+      </div>
+      <div class="pv-actions">
+        <button class="pv-play-btn" onclick="playOfflinePlaylistFromStart()" title="Putar Playlist">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <button class="pv-reorder-btn" id="dl-plview-reorder-btn" onclick="toggleDlReorderMode()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><circle cx="8" cy="9" r="1.5" fill="currentColor" stroke="none"/><circle cx="8" cy="15" r="1.5" fill="currentColor" stroke="none"/></svg>
+          Atur Urutan
+        </button>
+        <button class="pv-action-btn" onclick="renameOfflinePlaylistPrompt()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Ubah Nama
+        </button>
+        <button class="pv-action-btn" onclick="deleteOfflinePlaylistPrompt()" style="color:#ff6b6b;border-color:rgba(255,107,107,.3);margin-left:auto;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+          Hapus Playlist
+        </button>
+      </div>
+      <div class="pv-tracks" id="dl-plview-tracks"></div>
+    </div>
+
+    <!-- Modal: Buat Playlist Offline baru -->
+    <div id="dl-new-pl-modal" class="modal-bg" style="display:none">
+      <div class="modal">
+        <h3>Buat Playlist Offline</h3>
+        <p>Beri nama playlist untuk lagu-lagu offline kamu</p>
+        <input type="text" class="modal-input" id="dl-new-pl-name" placeholder="Nama playlist..." maxlength="40">
+        <div class="mbtns">
+          <button class="btn-s" onclick="closeDlNewPlaylistModal()">Batal</button>
+          <button class="btn-p" onclick="dlCreatePlaylist()">Buat</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Tambah lagu offline ke playlist -->
+    <div id="dl-add-pl-modal" class="modal-bg" style="display:none">
+      <div class="modal">
+        <h3>Tambah ke Playlist</h3>
+        <p>Pilih playlist tujuan</p>
+        <div class="modal-pl-list" id="dl-add-pl-list"></div>
+        <div class="mbtns">
+          <button class="btn-s" onclick="closeDlAddToPlaylistModal()">Tutup</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -11789,6 +11889,7 @@ document.getElementById('h-add-pl').addEventListener('click',(e)=>{
 
 // New Playlist modal Enter key
 document.getElementById('new-pl-name').addEventListener('keydown', e => { if(e.key==='Enter') createPlaylist(); });
+document.getElementById('dl-new-pl-name').addEventListener('keydown', e => { if(e.key==='Enter') dlCreatePlaylist(); });
 document.getElementById('rename-input').addEventListener('keydown', e => { if(e.key==='Enter') saveRename(); });
 document.getElementById('new-pl-modal').addEventListener('click', e => { if(e.target===document.getElementById('new-pl-modal')) closeNewPlaylistModal(); });
 document.getElementById('add-song-modal').addEventListener('click', e => { if(e.target===document.getElementById('add-song-modal')) closeAddSongModal(); });
@@ -20107,8 +20208,9 @@ _setupSpTouchControl();
 // dan hanya terlihat di browser/perangkat yang sama tempat file diimpor.
 
 const DL_DB_NAME = 'vibexaOfflineDB';
-const DL_DB_VERSION = 1;
+const DL_DB_VERSION = 2;
 const DL_STORE = 'downloads';
+const DL_PL_STORE = 'dlPlaylists';   // playlist offline: {id, name, trackIds:[...], createdAt}
 let _dlDB = null;
 let _dlList = [];              // cache metadata (tanpa blob audio) utk render grid
 let _dlCurrentId = null;       // id lagu offline yang sedang diputar
@@ -20116,6 +20218,20 @@ let _dlCurrentObjectUrl = null;
 let _dlCurrentArtUrl = null;   // object URL foto album lagu offline yang sedang diputar
 let _dlArtUrls = {};           // id -> object URL foto album, dipakai untuk grid daftar unduhan
 let _dlPlayerObj = null;       // wrapper "YTP palsu" yang membungkus elemen <audio> offline
+
+// ── State Playlist Offline ──────────────────────────────────────────────
+let _dlPlaylists = [];             // cache metadata semua playlist offline
+let _dlCurrentPlaylistId = null;   // id playlist offline yang sedang dibuka (halaman detail)
+// Konteks pemutaran: kalau lagu offline sedang diputar DARI dalam sebuah
+// playlist, next/prev mengikuti urutan playlist tsb (bukan seluruh daftar
+// unduhan) — termasuk saat app diminimize/di luar layar, karena mekanismenya
+// murni event 'ended' pada elemen <audio> (lihat _dlPlayAdjacent di bawah).
+let _dlActivePlaylistId = null;
+let _dlActiveQueue = [];           // urutan id lagu di playlist yang sedang aktif diputar
+let _dlReorderMode = false;
+let _dlDragSrcIdx = null;
+let _dlTouchGhost = null;
+let _dlTouchDragIdx = null;
 
 // ── Ambil foto sampul album yang sudah tertanam di dalam file MP3 (ID3v2 APIC) ──
 // Supaya lagu yang diimpor otomatis punya cover tanpa perlu user cari sendiri.
@@ -20211,6 +20327,10 @@ function _dlOpenDB() {
         const store = db.createObjectStore(DL_STORE, { keyPath: 'id' });
         store.createIndex('addedAt', 'addedAt', { unique: false });
       }
+      if (!db.objectStoreNames.contains(DL_PL_STORE)) {
+        const plStore = db.createObjectStore(DL_PL_STORE, { keyPath: 'id' });
+        plStore.createIndex('createdAt', 'createdAt', { unique: false });
+      }
     };
     req.onsuccess = (e) => { _dlDB = e.target.result; resolve(_dlDB); };
     req.onerror = (e) => reject(e.target.error);
@@ -20238,25 +20358,6 @@ async function _dlAddFile(file) {
     tx.oncomplete = () => resolve(record);
     tx.onerror = (e) => reject(e.target.error);
   });
-}
-
-// Ganti/tambahkan cover album secara manual (dipakai saat auto-extract dari
-// ID3 gagal/tidak ada, lewat tombol "Ganti sampul" di kartu lagu offline).
-function _dlUpdateArt(id, artBlob) {
-  return _dlOpenDB().then(db => new Promise((resolve, reject) => {
-    const tx = db.transaction(DL_STORE, 'readwrite');
-    const store = tx.objectStore(DL_STORE);
-    const req = store.get(id);
-    req.onsuccess = () => {
-      const rec = req.result;
-      if (!rec) { reject(new Error('Lagu tidak ditemukan')); return; }
-      rec.art = artBlob;
-      store.put(rec);
-    };
-    req.onerror = (e) => reject(e.target.error);
-    tx.oncomplete = () => resolve();
-    tx.onerror = (e) => reject(e.target.error);
-  }));
 }
 
 function _dlGetAllMeta() {
@@ -20293,6 +20394,411 @@ function _dlDeleteRecord(id) {
   }));
 }
 
+// ── Playlist Offline: CRUD di IndexedDB (object store terpisah, hanya
+// menyimpan metadata + urutan id lagu — bukan blob audio, karena blob
+// audio-nya sudah tersimpan di object store `downloads`). ──────────────
+function _dlPlGetAll() {
+  return _dlOpenDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(DL_PL_STORE, 'readonly');
+    const req = tx.objectStore(DL_PL_STORE).getAll();
+    req.onsuccess = () => {
+      const list = req.result || [];
+      list.sort((a, b) => b.createdAt - a.createdAt);
+      resolve(list);
+    };
+    req.onerror = (e) => reject(e.target.error);
+  }));
+}
+function _dlPlGet(id) {
+  return _dlOpenDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(DL_PL_STORE, 'readonly');
+    const req = tx.objectStore(DL_PL_STORE).get(id);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = (e) => reject(e.target.error);
+  }));
+}
+function _dlPlSave(pl) {
+  return _dlOpenDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(DL_PL_STORE, 'readwrite');
+    tx.objectStore(DL_PL_STORE).put(pl);
+    tx.oncomplete = () => resolve(pl);
+    tx.onerror = (e) => reject(e.target.error);
+  }));
+}
+function _dlPlDelete(id) {
+  return _dlOpenDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(DL_PL_STORE, 'readwrite');
+    tx.objectStore(DL_PL_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = (e) => reject(e.target.error);
+  }));
+}
+
+// ── Tab "Semua Lagu" / "Playlist" ────────────────────────────────────────
+function switchDlTab(tab) {
+  const btnAll = document.getElementById('dl-tab-btn-all');
+  const btnPl = document.getElementById('dl-tab-btn-pl');
+  const panelAll = document.getElementById('dl-panel-all');
+  const panelPl = document.getElementById('dl-panel-pl');
+  if (!btnAll || !btnPl || !panelAll || !panelPl) return;
+  if (tab === 'playlists') {
+    btnAll.classList.remove('active'); btnPl.classList.add('active');
+    panelAll.classList.remove('active'); panelPl.classList.add('active');
+    refreshDlPlaylistsGrid();
+  } else {
+    btnPl.classList.remove('active'); btnAll.classList.add('active');
+    panelPl.classList.remove('active'); panelAll.classList.add('active');
+  }
+}
+
+// ── Modal: Buat Playlist Offline baru ────────────────────────────────────
+function openDlNewPlaylistModal() {
+  document.getElementById('dl-new-pl-name').value = '';
+  document.getElementById('dl-new-pl-modal').style.display = 'flex';
+  setTimeout(() => document.getElementById('dl-new-pl-name').focus(), 100);
+}
+function closeDlNewPlaylistModal() {
+  document.getElementById('dl-new-pl-modal').style.display = 'none';
+}
+async function dlCreatePlaylist() {
+  const nameInput = document.getElementById('dl-new-pl-name');
+  const name = (nameInput.value || '').trim();
+  if (!name) { toast(' Masukkan nama playlist'); return; }
+  const pl = { id: 'dlpl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8), name, trackIds: [], createdAt: Date.now() };
+  try { await _dlPlSave(pl); } catch (e) { console.error(e); toast(' Gagal membuat playlist'); return; }
+  closeDlNewPlaylistModal();
+  toast(' Playlist "' + name + '" dibuat');
+  await refreshDlPlaylistsGrid();
+  openOfflinePlaylistView(pl.id);
+}
+
+// ── Modal: Tambah lagu offline ke playlist ───────────────────────────────
+let _dlPendingAddTrackId = null;
+async function openDlAddToPlaylistModal(trackId) {
+  _dlPendingAddTrackId = trackId;
+  try { _dlPlaylists = await _dlPlGetAll(); } catch (e) { _dlPlaylists = []; }
+  renderDlAddToPlaylistList();
+  document.getElementById('dl-add-pl-modal').style.display = 'flex';
+}
+function closeDlAddToPlaylistModal() {
+  document.getElementById('dl-add-pl-modal').style.display = 'none';
+  _dlPendingAddTrackId = null;
+}
+function renderDlAddToPlaylistList() {
+  const c = document.getElementById('dl-add-pl-list');
+  if (!c) return;
+  if (!_dlPlaylists.length) {
+    c.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:.8rem;padding:14px">Belum ada playlist.<br><button onclick="closeDlAddToPlaylistModal();openDlNewPlaylistModal();" style="margin-top:8px;background:var(--green);border:none;border-radius:50px;padding:6px 16px;color:#fff;font-family:var(--f);font-size:.78rem;cursor:pointer;">+ Buat Playlist</button></div>';
+    return;
+  }
+  c.innerHTML = '';
+  _dlPlaylists.forEach(pl => {
+    const already = pl.trackIds.includes(_dlPendingAddTrackId);
+    const d = document.createElement('div');
+    d.className = 'modal-pl-item' + (already ? ' selected' : '');
+    d.innerHTML = `
+      <div class="modal-pl-icon">📂</div>
+      <div style="flex:1;min-width:0;"><div class="modal-pl-name">${esc(pl.name)}</div><div class="modal-pl-count">${pl.trackIds.length} lagu</div></div>
+      ${already ? '<span style="color:var(--green);font-size:.68rem;font-weight:700;white-space:nowrap;">✓ Ditambahkan</span>' : ''}
+    `;
+    d.onclick = async () => {
+      if (already) { toast(' Lagu sudah ada di playlist ini'); return; }
+      pl.trackIds.push(_dlPendingAddTrackId);
+      try { await _dlPlSave(pl); } catch (e) { console.error(e); toast(' Gagal menyimpan'); return; }
+      toast(' Ditambahkan ke "' + pl.name + '"');
+      closeDlAddToPlaylistModal();
+      refreshDlPlaylistsGrid();
+    };
+    c.appendChild(d);
+  });
+}
+
+// ── Grid daftar playlist offline (tab "Playlist") ────────────────────────
+async function refreshDlPlaylistsGrid() {
+  try { _dlPlaylists = await _dlPlGetAll(); } catch (e) { console.error(e); _dlPlaylists = []; }
+  const grid = document.getElementById('dl-pl-grid');
+  const empty = document.getElementById('dl-pl-empty-state');
+  if (!grid || !empty) return;
+  if (!_dlList.length) { try { _dlList = await _dlGetAllMeta(); } catch (e) {} }
+  if (!_dlPlaylists.length) { grid.innerHTML = ''; empty.style.display = 'flex'; return; }
+  empty.style.display = 'none';
+  grid.innerHTML = _dlPlaylists.map(pl => {
+    const validCount = pl.trackIds.filter(id => _dlList.some(t => t.id === id)).length;
+    let coverHtml = '📂';
+    const firstWithArt = pl.trackIds.map(id => _dlList.find(t => t.id === id)).find(t => t && t.art);
+    if (firstWithArt) {
+      let url = _dlArtUrls[firstWithArt.id];
+      if (!url) { try { url = URL.createObjectURL(firstWithArt.art); _dlArtUrls[firstWithArt.id] = url; } catch (e) {} }
+      if (url) coverHtml = `<img src="${url}" alt="" style="width:100%;height:100%;object-fit:cover;">`;
+    }
+    return `
+      <div class="dl-card" data-plid="${pl.id}" onclick="openOfflinePlaylistView('${pl.id}')">
+        <div class="dl-card-cover">
+          ${coverHtml}
+          <div class="dl-card-play-ov">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          </div>
+        </div>
+        <div class="dl-card-name" title="${esc(pl.name)}">${esc(pl.name)}</div>
+        <div class="dl-card-meta">${validCount} lagu</div>
+        <button class="dl-card-del" title="Hapus Playlist" onclick="event.stopPropagation();deleteOfflinePlaylistConfirm('${pl.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+    `;
+  }).join('');
+}
+
+async function deleteOfflinePlaylistConfirm(plId) {
+  const pl = _dlPlaylists.find(p => p.id === plId);
+  const name = pl ? pl.name : 'ini';
+  if (!confirm('Hapus playlist "' + name + '"? Lagu offline yang ada di dalamnya tidak ikut terhapus.')) return;
+  try { await _dlPlDelete(plId); } catch (e) { console.error(e); toast(' Gagal menghapus playlist'); return; }
+  if (_dlActivePlaylistId === plId) { _dlActivePlaylistId = null; _dlActiveQueue = []; }
+  if (_dlCurrentPlaylistId === plId) closeOfflinePlaylistView();
+  toast(' Playlist dihapus');
+  refreshDlPlaylistsGrid();
+}
+function deleteOfflinePlaylistPrompt() {
+  if (!_dlCurrentPlaylistId) return;
+  deleteOfflinePlaylistConfirm(_dlCurrentPlaylistId);
+}
+function renameOfflinePlaylistPrompt() {
+  if (!_dlCurrentPlaylistId) return;
+  const pl = _dlPlaylists.find(p => p.id === _dlCurrentPlaylistId);
+  const newName = prompt('Nama baru untuk playlist:', pl ? pl.name : '');
+  if (newName === null) return;
+  const trimmed = newName.trim();
+  if (!trimmed) { toast(' Nama tidak boleh kosong'); return; }
+  renameOfflinePlaylist(_dlCurrentPlaylistId, trimmed);
+}
+async function renameOfflinePlaylist(plId, newName) {
+  let pl;
+  try { pl = await _dlPlGet(plId); } catch (e) { return; }
+  if (!pl) return;
+  pl.name = newName;
+  try { await _dlPlSave(pl); } catch (e) { console.error(e); toast(' Gagal menyimpan nama'); return; }
+  toast(' Nama diubah menjadi "' + newName + '"');
+  renderOfflinePlaylistView(plId);
+  refreshDlPlaylistsGrid();
+}
+
+// ── Buka / tutup halaman detail Playlist Offline ─────────────────────────
+async function openOfflinePlaylistView(plId) {
+  _dlCurrentPlaylistId = plId;
+  _dlReorderMode = false;
+  await renderOfflinePlaylistView(plId);
+  document.getElementById('dl-plview').classList.add('show');
+}
+function closeOfflinePlaylistView() {
+  const el = document.getElementById('dl-plview');
+  if (el) el.classList.remove('show');
+  _dlCurrentPlaylistId = null;
+  _dlReorderMode = false;
+}
+
+// ── Render halaman detail Playlist Offline, termasuk mode Atur Urutan
+// (drag desktop + touch-drag mobile, memakai ulang gaya .track-row/.pv-*
+// milik playlist online supaya konsisten secara visual). ──────────────────
+async function renderOfflinePlaylistView(plId) {
+  let pl;
+  try { pl = await _dlPlGet(plId); } catch (e) { toast(' Playlist tidak ditemukan'); closeOfflinePlaylistView(); return; }
+  if (!pl) { toast(' Playlist tidak ditemukan'); closeOfflinePlaylistView(); return; }
+  if (!_dlList.length) { try { _dlList = await _dlGetAllMeta(); } catch (e) {} }
+
+  // Buang id lagu yang sudah tidak ada lagi di penyimpanan offline (mis. sudah dihapus)
+  const validIds = pl.trackIds.filter(id => _dlList.some(t => t.id === id));
+  if (validIds.length !== pl.trackIds.length) {
+    pl.trackIds = validIds;
+    try { await _dlPlSave(pl); } catch (e) {}
+  }
+
+  document.getElementById('dl-plview-title').textContent = pl.name;
+  document.getElementById('dl-plview-sub').textContent = validIds.length + ' lagu';
+
+  const coverEl = document.getElementById('dl-plview-cover');
+  const firstWithArt = validIds.map(id => _dlList.find(t => t.id === id)).find(t => t && t.art);
+  if (firstWithArt) {
+    let url = _dlArtUrls[firstWithArt.id];
+    if (!url) { try { url = URL.createObjectURL(firstWithArt.art); _dlArtUrls[firstWithArt.id] = url; } catch (e) {} }
+    coverEl.innerHTML = url ? `<img src="${url}" alt="" style="width:100%;height:100%;object-fit:cover;">` : '📂';
+  } else {
+    coverEl.innerHTML = '📂';
+  }
+
+  const reorderBtn = document.getElementById('dl-plview-reorder-btn');
+  if (reorderBtn) reorderBtn.classList.toggle('active', _dlReorderMode);
+
+  const c = document.getElementById('dl-plview-tracks');
+  if (!validIds.length) {
+    _dlReorderMode = false;
+    if (reorderBtn) reorderBtn.classList.remove('active');
+    c.classList.remove('reorder-mode');
+    c.innerHTML = `<div class="pv-empty"><div class="pv-empty-icon">🎧</div>Belum ada lagu di playlist ini.<br>Buka tab "Semua Lagu", lalu tekan tombol + pada lagu untuk menambahkannya ke sini.</div>`;
+    return;
+  }
+
+  c.classList.toggle('reorder-mode', _dlReorderMode);
+  c.innerHTML = `
+    <div class="track-list-header">
+      <div class="tl-h">#</div>
+      <div class="tl-h">Judul</div>
+      <div class="tl-h r">${_dlReorderMode ? '<span style="color:var(--green);font-size:.65rem">SERET UNTUK URUTKAN</span>' : 'Hapus'}</div>
+    </div>
+    <div class="reorder-hint"> Tahan &amp; seret baris untuk mengubah urutan</div>`;
+
+  validIds.forEach((id, i) => {
+    const meta = _dlList.find(t => t.id === id);
+    if (!meta) return;
+    const isPlaying = curTrack && curTrack.offline && curTrack.id === id;
+    const row = document.createElement('div');
+    row.className = 'track-row' + (isPlaying ? ' playing' : '');
+    row.dataset.idx = i;
+    row.draggable = _dlReorderMode;
+    const artUrl = _dlArtUrls[id];
+    row.innerHTML = `
+      <div class="tr-num">${isPlaying ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="var(--green)"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3z"/></svg>' : (i + 1)}</div>
+      <div class="tr-info">
+        ${artUrl ? `<img class="tr-thumb" src="${artUrl}" onerror="this.style.display='none'">` : `<div class="tr-thumb-ph">🎵</div>`}
+        <div class="tr-text"><div class="tr-title">${esc(meta.name)}</div></div>
+      </div>
+      <div class="tr-dur" style="display:flex;align-items:center;justify-content:flex-end;gap:4px;">
+        ${_dlReorderMode
+          ? `<button class="tr-drag" title="Seret untuk urutkan"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 15h18v-2H3v2zm0 4h18v-2H3v2zm0-8h18V9H3v2zm0-6v2h18V5H3z"/></svg></button>`
+          : `<button class="tr-del" title="Hapus dari playlist"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>`}
+      </div>
+    `;
+
+    row.addEventListener('click', (e) => {
+      if (_dlReorderMode) return;
+      if (e.target.closest('.tr-del')) return;
+      playOfflineTrack(id, plId);
+    });
+
+    const delBtn = row.querySelector('.tr-del');
+    if (delBtn) {
+      delBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        pl.trackIds = pl.trackIds.filter(x => x !== id);
+        try { await _dlPlSave(pl); } catch (err) {}
+        if (_dlActivePlaylistId === plId) _dlActiveQueue = _dlActiveQueue.filter(x => x !== id);
+        toast(' Lagu dihapus dari playlist');
+        renderOfflinePlaylistView(plId);
+        refreshDlPlaylistsGrid();
+      });
+    }
+
+    // ── Desktop Drag ──
+    if (_dlReorderMode) {
+      row.addEventListener('dragstart', (e) => {
+        _dlDragSrcIdx = i;
+        row.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', i);
+      });
+      row.addEventListener('dragend', () => {
+        row.classList.remove('dragging');
+        c.querySelectorAll('.track-row').forEach(r => r.classList.remove('drag-over'));
+      });
+      row.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        c.querySelectorAll('.track-row').forEach(r => r.classList.remove('drag-over'));
+        row.classList.add('drag-over');
+      });
+      row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+      row.addEventListener('drop', (e) => {
+        e.preventDefault();
+        row.classList.remove('drag-over');
+        const srcIdx = _dlDragSrcIdx;
+        const dstIdx = parseInt(row.dataset.idx);
+        if (srcIdx === null || srcIdx === dstIdx) return;
+        _dlReorderPlaylistTrack(plId, srcIdx, dstIdx);
+      });
+
+      // ── Touch Drag (mobile) ──
+      row.addEventListener('touchstart', (e) => {
+        _dlTouchDragIdx = i;
+        const touch = e.touches[0];
+        if (!_dlTouchGhost) {
+          _dlTouchGhost = document.createElement('div');
+          _dlTouchGhost.className = 'touch-drag-ghost';
+          document.body.appendChild(_dlTouchGhost);
+        }
+        _dlTouchGhost.textContent = ' ' + meta.name;
+        _dlTouchGhost.style.display = 'block';
+        _dlTouchGhost.style.left = (touch.clientX + 14) + 'px';
+        _dlTouchGhost.style.top = (touch.clientY - 20) + 'px';
+        row.classList.add('dragging');
+      }, {passive: true});
+      row.addEventListener('touchmove', (e) => {
+        if (_dlTouchDragIdx === null) return;
+        const touch = e.touches[0];
+        if (_dlTouchGhost) {
+          _dlTouchGhost.style.left = (touch.clientX + 14) + 'px';
+          _dlTouchGhost.style.top = (touch.clientY - 20) + 'px';
+        }
+        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+        const targetRow = el ? el.closest('.track-row') : null;
+        c.querySelectorAll('.track-row').forEach(r => r.classList.remove('drag-over'));
+        if (targetRow) targetRow.classList.add('drag-over');
+      }, {passive: true});
+      row.addEventListener('touchend', (e) => {
+        if (_dlTouchDragIdx === null) return;
+        c.querySelectorAll('.track-row').forEach(r => r.classList.remove('dragging', 'drag-over'));
+        if (_dlTouchGhost) _dlTouchGhost.style.display = 'none';
+        const touch = e.changedTouches[0];
+        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+        const targetRow = el ? el.closest('.track-row') : null;
+        if (targetRow && targetRow.dataset.idx !== undefined) {
+          const dstIdx = parseInt(targetRow.dataset.idx);
+          if (_dlTouchDragIdx !== dstIdx) _dlReorderPlaylistTrack(plId, _dlTouchDragIdx, dstIdx);
+        }
+        _dlTouchDragIdx = null;
+      }, {passive: true});
+    }
+
+    c.appendChild(row);
+  });
+}
+
+function toggleDlReorderMode() {
+  _dlReorderMode = !_dlReorderMode;
+  const btn = document.getElementById('dl-plview-reorder-btn');
+  if (btn) btn.classList.toggle('active', _dlReorderMode);
+  toast(_dlReorderMode ? ' Mode urutkan aktif — seret lagu untuk mengubah urutan' : ' Urutan lagu disimpan');
+  if (_dlCurrentPlaylistId) renderOfflinePlaylistView(_dlCurrentPlaylistId);
+}
+
+async function _dlReorderPlaylistTrack(plId, fromIdx, toIdx) {
+  let pl;
+  try { pl = await _dlPlGet(plId); } catch (e) { return; }
+  if (!pl) return;
+  const ids = pl.trackIds;
+  if (fromIdx < 0 || fromIdx >= ids.length || toIdx < 0 || toIdx >= ids.length) return;
+  const [moved] = ids.splice(fromIdx, 1);
+  ids.splice(toIdx, 0, moved);
+  try { await _dlPlSave(pl); } catch (e) { console.error(e); }
+  if (_dlActivePlaylistId === plId) _dlActiveQueue = ids.slice();
+  renderOfflinePlaylistView(plId);
+  toast('↕ Urutan lagu diperbarui');
+}
+
+// ── Putar 1 playlist offline dari lagu pertama ───────────────────────────
+function playOfflinePlaylistFromStart() {
+  if (!_dlCurrentPlaylistId) return;
+  playOfflinePlaylistById(_dlCurrentPlaylistId);
+}
+async function playOfflinePlaylistById(plId) {
+  let pl;
+  try { pl = await _dlPlGet(plId); } catch (e) { toast(' Playlist tidak ditemukan'); return; }
+  if (!pl || !pl.trackIds.length) { toast(' Playlist offline ini masih kosong'); return; }
+  if (!_dlList.length) { try { _dlList = await _dlGetAllMeta(); } catch (e) {} }
+  const validIds = pl.trackIds.filter(id => _dlList.some(t => t.id === id));
+  if (!validIds.length) { toast(' Semua lagu di playlist ini sudah tidak tersedia'); return; }
+  playOfflineTrack(validIds[0], plId);
+}
+
 function _dlFormatSize(bytes) {
   if (!bytes) return '';
   const mb = bytes / (1024 * 1024);
@@ -20303,6 +20809,8 @@ function _dlFormatSize(bytes) {
 function openDownloadsView() {
   document.getElementById('downloads-view').classList.add('show');
   refreshDownloadsList();
+  switchDlTab('all');
+  closeOfflinePlaylistView();
   // Kunci scroll #main (sama seperti pola di showStreakView) supaya konten
   // Home di baliknya tidak ikut ke-scroll saat user scroll di halaman
   // Unduhan Offline (di PC/tablet, #downloads-view cuma position:absolute
@@ -20378,8 +20886,8 @@ async function refreshDownloadsList() {
       </div>
       <div class="dl-card-name" title="${esc(t.name)}">${esc(t.name)}</div>
       <div class="dl-card-meta">${_dlFormatSize(t.size)}</div>
-      <button class="dl-card-cover-btn" title="Ganti sampul album" onclick="event.stopPropagation();changeOfflineTrackCover('${t.id}')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16l4.5-6 3.5 4.5 2.5-3L20 16"/><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="1.5"/></svg>
+      <button class="dl-card-addpl" title="Tambah ke Playlist" onclick="event.stopPropagation();openDlAddToPlaylistModal('${t.id}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
       </button>
       <button class="dl-card-del" title="Hapus" onclick="event.stopPropagation();deleteOfflineTrack('${t.id}')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
@@ -20388,48 +20896,36 @@ async function refreshDownloadsList() {
   `).join('');
 }
 
-// ── Ganti/tambah cover album secara manual ──────────────────────────────
-function changeOfflineTrackCover(id) {
-  const inp = document.getElementById('dl-cover-input');
-  if (!inp) return;
-  inp.dataset.targetId = id;
-  inp.click();
-}
-async function handleCoverFilePicked(event) {
-  const file = event.target.files && event.target.files[0];
-  const id = event.target.dataset.targetId;
-  event.target.value = '';
-  if (!file || !id) return;
-  if (!/^image\//.test(file.type)) { toast(' Pilih file gambar yang valid'); return; }
-  try {
-    await _dlUpdateArt(id, file);
-    toast(' Sampul album diperbarui');
-    // Kalau lagu ini sedang diputar, perbarui juga foto di mini player (#bar)
-    if (_dlCurrentId === id && curTrack && curTrack.offline) {
-      if (_dlCurrentArtUrl) { try { URL.revokeObjectURL(_dlCurrentArtUrl); } catch(e){} }
-      _dlCurrentArtUrl = URL.createObjectURL(file);
-      curTrack.photo = _dlCurrentArtUrl; curTrack.artworkUrl = _dlCurrentArtUrl; curTrack.thumb = _dlCurrentArtUrl;
-      setBarImg(curTrack); setHeroImg(curTrack); setFSNowPlayingImg(curTrack);
-      _setupMediaSession(curTrack);
-      const npArt = document.getElementById('np-art'), npPh = document.getElementById('np-art-ph');
-      if (npArt && document.getElementById('np-view').classList.contains('open')) { npArt.src = _dlCurrentArtUrl; npArt.style.display='block'; if(npPh) npPh.style.display='none'; }
-    }
-    refreshDownloadsList();
-  } catch (e) { console.error(e); toast(' Gagal menyimpan sampul'); }
-}
-
 // ── Putar lagu offline — memakai mini player UTAMA (#bar), SAMA seperti
 // lagu online, bukan mini player terpisah. Caranya: elemen <audio> offline
 // dibungkus jadi objek "YTP palsu" (lihat _getOfflinePlayerObj) lalu
 // dipasang ke variabel global YTP, supaya seluruh mesin pemutaran yang
 // sudah ada (tick(), _armSongTimer(), tombol play/pause/prev/next, progress
 // bar, media session, dst) otomatis jalan untuk lagu offline juga. ──────────
-async function playOfflineTrack(id) {
+async function playOfflineTrack(id, plId) {
   let meta = _dlList.find(t => t.id === id);
   if (!meta) { try { _dlList = await _dlGetAllMeta(); meta = _dlList.find(t => t.id === id); } catch(e){} }
   if (!meta) { toast(' Lagu tidak ditemukan'); return; }
   const blob = await _dlGetBlob(id);
   if (!blob) { toast(' File tidak ditemukan (mungkin sudah dihapus)'); refreshDownloadsList(); return; }
+
+  // Tetapkan konteks playlist offline yang sedang aktif diputar — dipakai
+  // oleh _dlPlayAdjacent() supaya tombol Next/Prev (termasuk saat lagu
+  // berakhir sendiri di background/layar terkunci) mengikuti URUTAN
+  // playlist ini, bukan seluruh daftar Unduhan Offline. Kalau lagu diputar
+  // langsung dari tab "Semua Lagu" (tanpa plId), konteks playlist dilepas
+  // supaya Next/Prev kembali menyusuri seluruh daftar unduhan seperti biasa.
+  if (plId) {
+    let pl = _dlPlaylists.find(p => p.id === plId);
+    if (!pl) { try { pl = await _dlPlGet(plId); } catch (e) { pl = null; } }
+    if (pl) {
+      _dlActivePlaylistId = plId;
+      _dlActiveQueue = pl.trackIds.filter(tid => _dlList.some(t => t.id === tid));
+    }
+  } else {
+    _dlActivePlaylistId = null;
+    _dlActiveQueue = [];
+  }
 
   // Hentikan pemutaran YouTube (online) yang mungkin sedang jalan, lalu reset
   // state timer/progress yang lama — sama seperti awal loadPlay() untuk lagu online.
@@ -20496,12 +20992,32 @@ async function playOfflineTrack(id) {
 
   openNP(curTrack);
   refreshDownloadsList();
+  if (_dlCurrentPlaylistId) renderOfflinePlaylistView(_dlCurrentPlaylistId);
 }
 
-// Navigasi Next/Prev untuk lagu offline: berpindah di dalam daftar Unduhan
-// Offline (diurutkan sama seperti grid-nya), dipanggil dari playNext()/playPrev().
+// Navigasi Next/Prev untuk lagu offline, dipanggil dari playNext()/playPrev()
+// — juga dipanggil otomatis saat sebuah lagu offline SELESAI diputar sendiri
+// (lihat event 'ended' pada elemen #dl-audio di bawah), termasuk ketika app
+// sedang di background / layar terkunci, karena ini murni event native pada
+// elemen <audio> dan tidak butuh tab dalam kondisi aktif/terlihat.
+// Kalau ada playlist offline yang sedang jadi konteks pemutaran
+// (_dlActivePlaylistId), urutan mengikuti playlist tsb; kalau tidak,
+// berpindah di dalam seluruh daftar Unduhan Offline seperti biasa.
 async function _dlPlayAdjacent(dir) {
   try {
+    if (_dlActivePlaylistId) {
+      if (!_dlList.length) { try { _dlList = await _dlGetAllMeta(); } catch (e) {} }
+      const list = _dlActiveQueue.filter(tid => _dlList.some(t => t.id === tid));
+      if (list.length) {
+        const idx = list.indexOf(curTrack && curTrack.id);
+        const nextId = idx === -1 ? list[0] : list[(idx + dir + list.length) % list.length];
+        if (nextId) playOfflineTrack(nextId, _dlActivePlaylistId);
+        return;
+      }
+      // Playlist ternyata kosong/semua lagunya sudah dihapus — lepas konteks
+      // playlist dan lanjut dengan fallback ke seluruh daftar unduhan di bawah.
+      _dlActivePlaylistId = null; _dlActiveQueue = [];
+    }
     const list = await _dlGetAllMeta();
     if (!list.length) return;
     const idx = list.findIndex(t => t.id === (curTrack && curTrack.id));
