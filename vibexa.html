@@ -1330,7 +1330,6 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
     left:0 !important;
     right:0 !important;
     bottom:56px !important;
-    inset:auto !important;
     z-index:2500 !important;
   }
   body:has(#downloads-view.show) .home-topbar,
@@ -10473,7 +10472,21 @@ async function downloadCurrentSongOffline(){
   if(_dlDownloadingIds.has(videoId)){ toast(' Lagu ini sedang diunduh...'); return; }
   _dlDownloadingIds.add(videoId);
 
-  const title = (curTrack.title || 'Audio') + (curTrack.artist ? (' - ' + curTrack.artist) : '');
+  // Ambil "snapshot" lirik yang SEDANG tampil untuk songs ini (kalau ada),
+  // supaya ikut tersimpan bersama file MP3-nya dan bisa muncul lagi saat
+  // diputar offline nanti — timestamp-nya sudah sesuai kecepatan audio video
+  // ini juga (lihat detectSpeedFactor/_curSpeedFactor), jadi tetap sinkron.
+  const lyricsSnapshot = (typeof lyrs !== 'undefined' && lyrs && lyrs.length)
+    ? JSON.parse(JSON.stringify(lyrs))
+    : null;
+
+  // Judul & artis yang benar HARUS berasal dari data katalog lagu (curTrack),
+  // BUKAN dari judul video YouTube (data.title dari API konversi) — judul
+  // video YouTube sering beda format/berantakan (mis. ada "(Official Video)",
+  // "Lyrics", dsb). curTrack.title/curTrack.artist adalah metadata lagu asli
+  // yang sudah ditampilkan di UI now-playing, jadi itu yang disimpan.
+  const properTitle = curTrack.title || 'Audio';
+  const properArtist = curTrack.artist || '';
   const btns = [document.getElementById('np-copy-link-btn')];
   btns.forEach(b => { if (b) b.classList.add('dl-downloading'); });
   toast(' Mengonversi ke MP3...', 5000);
@@ -10506,8 +10519,8 @@ async function downloadCurrentSongOffline(){
       } catch (e) { console.warn('Gagal mengambil foto album asli, fallback ke ID3:', e); }
     }
 
-    await _dlAddRemoteBlob(data.title || title, blob, artBlob);
-    toast(' Lagu tersimpan ke Unduhan Offline');
+    await _dlAddRemoteBlob(properTitle, properArtist, blob, artBlob, lyricsSnapshot);
+    toast(lyricsSnapshot ? ' Lagu + lirik tersimpan ke Unduhan Offline' : ' Lagu tersimpan ke Unduhan Offline');
     try { refreshDownloadsList(); } catch(e){}
   }catch(e){
     console.warn('Gagal mengunduh otomatis ke Unduhan Offline:', e);
@@ -20445,12 +20458,23 @@ async function _dlAddFile(file) {
   // supaya lagu offline otomatis punya foto album tanpa perlu dicari manual.
   let art = null;
   try { art = await _extractID3CoverArt(file); } catch (e) { art = null; }
+
+  // File yang diimpor manual tidak punya metadata katalog, jadi kita coba
+  // tebak judul & artis dari nama filenya kalau mengikuti pola umum
+  // "Artis - Judul.mp3". Kalau tidak cocok pola itu, seluruh nama file
+  // dipakai sebagai judul dan artisnya dikosongkan.
+  const rawName = file.name.replace(/\.mp3$/i, '');
+  const splitM = rawName.match(/^(.+?)\s+-\s+(.+)$/);
+  const fileTitle = splitM ? splitM[2].trim() : rawName;
+  const fileArtist = splitM ? splitM[1].trim() : '';
+
   const db = await _dlOpenDB();
   return new Promise((resolve, reject) => {
     const id = 'dl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
     const record = {
       id,
-      name: file.name.replace(/\.mp3$/i, ''),
+      name: fileTitle,
+      artist: fileArtist,
       size: file.size,
       addedAt: Date.now(),
       blob: file,
@@ -20473,7 +20497,7 @@ async function _dlAddFile(file) {
 // cover — karena cover yang tertanam di file MP3 hasil konversi YouTube
 // (ID3 APIC) biasanya cuma thumbnail video YouTube, BUKAN foto album resmi.
 // Kalau preferredArtBlob tidak ada/gagal, baru fallback ke ekstrak ID3.
-async function _dlAddRemoteBlob(name, blob, preferredArtBlob) {
+async function _dlAddRemoteBlob(title, artist, blob, preferredArtBlob, lyricsData) {
   let art = preferredArtBlob || null;
   if (!art) {
     try { art = await _extractID3CoverArt(blob); } catch (e) { art = null; }
@@ -20483,11 +20507,13 @@ async function _dlAddRemoteBlob(name, blob, preferredArtBlob) {
     const id = 'dl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
     const record = {
       id,
-      name: (name || 'audio').replace(/\.mp3$/i, ''),
+      name: (title || 'audio').replace(/\.mp3$/i, ''), // judul lagu (dari katalog, bukan judul video YouTube)
+      artist: artist || '',                             // nama artis (dari katalog)
       size: blob.size,
       addedAt: Date.now(),
       blob,
-      art: art || null
+      art: art || null,
+      lyrics: (lyricsData && lyricsData.length) ? lyricsData : null // baris lirik (sudah di-parse: {time,text}) supaya ikut tersimpan & bisa diputar offline
     };
     const tx = db.transaction(DL_STORE, 'readwrite');
     tx.objectStore(DL_STORE).add(record);
@@ -20504,7 +20530,7 @@ function _dlGetAllMeta() {
       // Buang field blob AUDIO (besar) supaya list ringan; blob audio diambil
       // terpisah saat diputar. Blob foto album (`art`) tetap disertakan karena
       // jauh lebih kecil dan dibutuhkan untuk render cover di grid.
-      const list = (req.result || []).map(r => ({ id: r.id, name: r.name, size: r.size, addedAt: r.addedAt, art: r.art || null }));
+      const list = (req.result || []).map(r => ({ id: r.id, name: r.name, artist: r.artist || '', size: r.size, addedAt: r.addedAt, art: r.art || null }));
       list.sort((a, b) => b.addedAt - a.addedAt);
       resolve(list);
     };
@@ -20517,6 +20543,18 @@ function _dlGetBlob(id) {
     const tx = db.transaction(DL_STORE, 'readonly');
     const req = tx.objectStore(DL_STORE).get(id);
     req.onsuccess = () => resolve(req.result ? req.result.blob : null);
+    req.onerror = (e) => reject(e.target.error);
+  }));
+}
+
+// Ambil baris lirik (array {time,text}) yang tersimpan bersama lagu offline,
+// atau null kalau lagu ini tidak punya lirik tersimpan (mis. hasil impor
+// manual file MP3, atau saat lirik memang tidak ditemukan waktu diunduh).
+function _dlGetLyrics(id) {
+  return _dlOpenDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(DL_STORE, 'readonly');
+    const req = tx.objectStore(DL_STORE).get(id);
+    req.onsuccess = () => resolve(req.result && req.result.lyrics ? req.result.lyrics : null);
     req.onerror = (e) => reject(e.target.error);
   }));
 }
@@ -20796,7 +20834,7 @@ async function renderOfflinePlaylistView(plId) {
       <div class="tr-num">${isPlaying ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="var(--green)"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3z"/></svg>' : (i + 1)}</div>
       <div class="tr-info">
         ${artUrl ? `<img class="tr-thumb" src="${artUrl}" onerror="this.style.display='none'">` : `<div class="tr-thumb-ph">🎵</div>`}
-        <div class="tr-text"><div class="tr-title">${esc(meta.name)}</div></div>
+        <div class="tr-text"><div class="tr-title">${esc(meta.name)}</div>${meta.artist ? `<div class="tr-artist">${esc(meta.artist)}</div>` : ''}</div>
       </div>
       <div class="tr-dur" style="display:flex;align-items:center;justify-content:flex-end;gap:4px;">
         ${_dlReorderMode
@@ -21021,7 +21059,7 @@ async function refreshDownloadsList() {
         </div>
       </div>
       <div class="dl-card-name" title="${esc(t.name)}">${esc(t.name)}</div>
-      <div class="dl-card-meta">${_dlFormatSize(t.size)}</div>
+      <div class="dl-card-meta" title="${esc(t.artist || '')}">${t.artist ? esc(t.artist) : _dlFormatSize(t.size)}</div>
       <button class="dl-card-addpl" title="Tambah ke Playlist" onclick="event.stopPropagation();openDlAddToPlaylistModal('${t.id}')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
       </button>
@@ -21082,14 +21120,22 @@ async function playOfflineTrack(id, plId) {
 
   curTrack = {
     title: meta.name,
-    artist: 'Diunduh · Offline',
+    artist: meta.artist ? meta.artist : 'Diunduh · Offline',
     photo: _dlCurrentArtUrl || '',
     artworkUrl: _dlCurrentArtUrl || '',
     thumb: _dlCurrentArtUrl || '',
     offline: true,
     id: meta.id
   };
-  lyrs = [];
+  // Ambil lirik yang tersimpan bersama lagu offline ini (kalau ada) — hasil
+  // unduh lewat tombol "Unduh ke Offline" saat lagu sedang diputar akan
+  // menyertakan snapshot liriknya (lihat downloadCurrentSongOffline()).
+  // File yang diimpor manual lewat "Tambah MP3" biasanya tidak punya lirik
+  // tersimpan, jadi lyrs akan tetap kosong untuk kasus itu.
+  let offlineLyrics = null;
+  try { offlineLyrics = await _dlGetLyrics(id); } catch (e) { offlineLyrics = null; }
+  lyrs = offlineLyrics || [];
+  _currentSongKeyForTranslation = 'offline|' + id;
   // Catatan: sengaja TIDAK memanggil _saveLastPlayedTrack() di sini — lagu
   // offline memakai object URL blob yang mati saat halaman di-reload, jadi
   // tidak realistis untuk "dipulihkan" otomatis seperti lagu online.
@@ -21114,14 +21160,21 @@ async function playOfflineTrack(id, plId) {
   document.getElementById('bar-artist').textContent = curTrack.artist;
   setFSNowPlayingImg(curTrack);
 
-  // Lagu offline tidak berasal dari katalog online, jadi like/lirik/queue
-  // (yang butuh data katalog) disembunyikan dulu supaya tidak membingungkan.
+  // Lagu offline tidak berasal dari katalog online, jadi like/queue (yang
+  // butuh data katalog) tetap disembunyikan. Tombol & panel lirik sekarang
+  // ditampilkan JIKA lagu ini punya lirik tersimpan (lihat offlineLyrics di atas).
   const likeBtn = document.getElementById('btn-like');
   if (likeBtn) { likeBtn.disabled = true; likeBtn.classList.remove('liked'); }
   const lyrBtn = document.getElementById('btn-lyrics');
-  if (lyrBtn) lyrBtn.style.display = 'none';
   const lyrLines = document.getElementById('lyr-lines');
-  if (lyrLines) lyrLines.innerHTML = '<div class="lyr-empty"><i></i>Lirik tidak tersedia untuk lagu offline</div>';
+  if (lyrs.length) {
+    if (lyrBtn) lyrBtn.style.display = '';
+    if (lyrLines) syncLyr(0);
+  } else {
+    if (lyrBtn) lyrBtn.style.display = 'none';
+    if (lyrLines) lyrLines.innerHTML = '<div class="lyr-empty"><i></i>Lirik tidak tersedia untuk lagu offline ini</div>';
+  }
+  updateFSLyr();
 
   setPB(false); updProg();
   audio.play().catch(e => console.warn('Gagal memutar file offline:', e));
