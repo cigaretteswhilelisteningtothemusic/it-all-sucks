@@ -461,6 +461,10 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .pv-action-btn{background:none;border:1px solid var(--border);border-radius:50px;padding:6px 16px;color:var(--sub);font-family:var(--f);font-size:.78rem;cursor:pointer;transition:all .18s;display:flex;align-items:center;gap:6px;}
 .pv-action-btn:hover{color:var(--text);border-color:var(--green)}
 .pv-action-btn svg{width:14px;height:14px;}
+.pv-mixlib-btn.added{background:var(--green);border-color:var(--green);color:#fff;}
+.pv-mixlib-btn.added:hover{color:#fff;border-color:var(--green);}
+.pv-mixlib-icon{display:flex;align-items:center;justify-content:center;width:14px;height:14px;}
+.pv-mixlib-icon svg{width:14px;height:14px;}
 
 /* Track list */
 .pv-tracks{padding:0 24px 24px;}
@@ -3931,21 +3935,22 @@ textarea.sugg-form-input{resize:vertical;}
   #downloads-view .aall-subtitle{white-space:normal;}
 
   .dl-grid{
-    grid-template-columns:repeat(3,1fr);
-    gap:8px 10px;
+    grid-template-columns:repeat(2,1fr);
+    gap:20px 14px;
   }
-  .dl-card{padding:8px;border-radius:10px;}
-  .dl-card-cover{border-radius:6px;font-size:1.3rem;margin-bottom:6px;}
-  .dl-card-name{font-size:.7rem;}
-  .dl-card-meta{font-size:.6rem;margin-top:2px;}
+  .dl-card{padding:0;border-radius:0;background:none;}
+  .dl-card:hover{background:none;}
+  .dl-card-cover{border-radius:12px;font-size:2rem;margin-bottom:10px;box-shadow:0 8px 22px rgba(0,0,0,.3);}
+  .dl-card-name{font-size:.85rem;font-weight:700;}
+  .dl-card-meta{font-size:.74rem;margin-top:3px;}
   .dl-card-del,.dl-card-addpl{
-    width:20px;height:20px;
-    top:4px;
+    width:24px;height:24px;
+    top:8px;
     opacity:1; /* selalu tampil di HP karena tidak ada :hover */
   }
-  .dl-card-del{right:4px;}
-  .dl-card-addpl{left:4px;}
-  .dl-card-del svg,.dl-card-addpl svg{width:10px;height:10px;}
+  .dl-card-del{right:8px;}
+  .dl-card-addpl{left:8px;}
+  .dl-card-del svg,.dl-card-addpl svg{width:12px;height:12px;}
 }
 
 /* ── CHAT (Instagram-style DM) ─────────────────────────────── */
@@ -4630,6 +4635,10 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
     <div class="pv-actions">
       <button class="pv-play-btn" onclick="playAllPlaylist()" title="Play All">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+      <button class="pv-action-btn pv-mixlib-btn" id="pv-mixlib-btn" style="display:none;" onclick="handlePvMixLibClick()" title="Add to Library">
+        <span class="pv-mixlib-icon" id="pv-mixlib-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 4v16M4 12h16"/></svg></span>
+        <span id="pv-mixlib-label">Add to Library</span>
       </button>
       <button class="pv-action-btn" onclick="startRenamePlaylist()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -9361,6 +9370,7 @@ function showPlaylistView(plId) {
   document.getElementById('nav-search').classList.remove('on');
   // Restore edit actions for own playlists
   document.querySelectorAll('.pv-action-btn').forEach(b => b.style.display = '');
+  updatePvMixLibBtn(null);
   const pubBtn = document.getElementById('pv-publish-btn');
   if (pubBtn) { pubBtn.style.display = ''; updatePublishBtn(!!pl.public); }
   const reorderBtn = document.getElementById('pv-reorder-btn');
@@ -14812,6 +14822,27 @@ function attachMixLibBtn(div, mix) {
     addMixToLibrary(mix, btn);
   });
 }
+// Tombol "Add to Library" sekarang ditampilkan di halaman detail playlist
+// (dekat tombol "Play All"), bukan lagi di kartu playlist. Fungsi berikut
+// menampilkan/menyembunyikan & memperbarui tombol tsb sesuai mix yang
+// sedang dibuka (lihat openDailyMix, showPlaylistView, openPublicPlaylist).
+function updatePvMixLibBtn(mix) {
+  const btn = document.getElementById('pv-mixlib-btn');
+  if (!btn) return;
+  if (!mix) { btn.style.display = 'none'; return; }
+  btn.style.display = '';
+  const added = isMixInLibrary(mix);
+  btn.classList.toggle('added', added);
+  btn.title = added ? 'Already in library' : 'Add to Library';
+  const iconEl = document.getElementById('pv-mixlib-icon');
+  if (iconEl) iconEl.innerHTML = _mixLibSvg(added);
+  const labelEl = document.getElementById('pv-mixlib-label');
+  if (labelEl) labelEl.textContent = added ? 'Added to Library' : 'Add to Library';
+}
+function handlePvMixLibClick() {
+  if (!_currentDailyMix) return;
+  addMixToLibrary(_currentDailyMix, document.getElementById('pv-mixlib-btn'));
+}
 function addMixToLibrary(mix, btnEl) {
   if (!mix) return;
   if (mix.id && isMixInLibrary(mix)) {
@@ -14838,11 +14869,7 @@ function addMixToLibrary(mix, btnEl) {
   renderSidebarPlaylists();
   renderHomeGrid();
   scheduleSave();
-  if (btnEl) {
-    btnEl.classList.add('added');
-    btnEl.title = 'Already in library';
-    btnEl.innerHTML = _mixLibSvg(true);
-  }
+  updatePvMixLibBtn(mix);
   toast(' "' + (mix.title || 'Playlist') + '" added to Library');
 }
 
@@ -14859,12 +14886,10 @@ function buildDailyMixCardEl(mix, i) {
       </div>
       <div class="dm-badge-mix">Daily Mix</div>
       <div class="dm-badge-num" style="color:${color}">${num}</div>
-      ${mixLibBtnHtml(mix)}
     </div>
     <div class="dm-title">${esc(mix.title)}</div>
   `;
   div.querySelector('.dm-cover-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
-  attachMixLibBtn(div, mix);
   div.addEventListener('click', () => openDailyMix(mix));
   return div;
 }
@@ -15389,11 +15414,9 @@ function buildYearMixCardEl(mix) {
       <div class="dm-cover-ov">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
       </div>
-      ${mixLibBtnHtml(mix)}
     </div>
   `;
   div.querySelector('.dm-cover-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
-  attachMixLibBtn(div, mix);
   div.addEventListener('click', () => openDailyMix(mix));
   return div;
 }
@@ -15524,12 +15547,10 @@ function buildMadeForYouCardEl(mix, i) {
       </div>
       <div class="dm-badge-mix">For You</div>
       <div class="dm-badge-num" style="color:${color}">${num}</div>
-      ${mixLibBtnHtml(mix)}
     </div>
     <div class="dm-title">${esc(mix.title)}</div>
   `;
   div.querySelector('.dm-cover-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
-  attachMixLibBtn(div, mix);
   div.addEventListener('click', () => openDailyMix(mix));
   return div;
 }
@@ -15681,12 +15702,10 @@ function buildForYouCardEl(mix, i) {
         </div>
         <div class="fy-name-below">${esc(mix.title)}</div>
       </div>
-      ${mixLibBtnHtml(mix)}
     </div>
     <div class="fy-title">This Is ${esc(mix.title)}</div>
   `;
   div.querySelector('.fy-photo-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
-  attachMixLibBtn(div, mix);
   div.addEventListener('click', () => openDailyMix(mix));
   return div;
 }
@@ -15826,12 +15845,10 @@ function buildMaybeLikeCardEl(mix, i) {
       </div>
       <div class="dm-badge-mix">For You</div>
       <div class="dm-badge-num" style="color:${color}">${num}</div>
-      ${mixLibBtnHtml(mix)}
     </div>
     <div class="dm-title">${esc(mix.title)}</div>
   `;
   div.querySelector('.dm-cover-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
-  attachMixLibBtn(div, mix);
   div.addEventListener('click', () => openDailyMix(mix));
   return div;
 }
@@ -16142,12 +16159,10 @@ function buildArtistRadioCardEl(mix, i) {
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
       </div>
       <div class="radio-name" style="color:${palette.text};">${esc(mix.title)}</div>
-      ${mixLibBtnHtml(mix)}
     </div>
     ${mix.subtitle ? `<div class="radio-sub">${esc(mix.subtitle)}</div>` : ''}
   `;
   div.querySelector('.radio-cover-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
-  attachMixLibBtn(div, mix);
   div.addEventListener('click', () => openDailyMix(mix));
   return div;
 }
@@ -16360,12 +16375,10 @@ function buildSadPlaylistCardEl(mix, i) {
       </div>
       <div class="dm-badge-mix">Pop</div>
       <div class="dm-badge-num" style="color:${color}">${num}</div>
-      ${mixLibBtnHtml(mix)}
     </div>
     <div class="dm-title">${esc(mix.title)}</div>
   `;
   div.querySelector('.dm-cover-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
-  attachMixLibBtn(div, mix);
   div.addEventListener('click', () => openDailyMix(mix));
   return div;
 }
@@ -16646,12 +16659,10 @@ function buildTimePlaylistCardEl(mix, i) {
       </div>
       <div class="dm-badge-mix">${esc(mix.label || 'Mix')}</div>
       <div class="dm-badge-num" style="color:${color}">${num}</div>
-      ${mixLibBtnHtml(mix)}
     </div>
     <div class="dm-title">${esc(mix.title)}</div>
   `;
   div.querySelector('.dm-cover-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
-  attachMixLibBtn(div, mix);
   div.addEventListener('click', () => openDailyMix(mix));
   return div;
 }
@@ -16893,12 +16904,10 @@ function buildWeekdayPlaylistCardEl(mix, i) {
       </div>
       <div class="dm-badge-mix">Vibes</div>
       <div class="dm-badge-num" style="color:${color}">${num}</div>
-      ${mixLibBtnHtml(mix)}
     </div>
     <div class="dm-title">${esc(mix.title)}</div>
   `;
   div.querySelector('.dm-cover-ov').addEventListener('click', (e) => { e.stopPropagation(); playDailyMix(mix); });
-  attachMixLibBtn(div, mix);
   div.addEventListener('click', () => openDailyMix(mix));
   return div;
 }
@@ -16964,6 +16973,7 @@ function openDailyMix(mix) {
   const oldCard = document.getElementById('pv-owner-card');
   if (oldCard) oldCard.remove();
 
+  updatePvMixLibBtn(mix);
   renderDailyMixTracks(mix);
 }
 
@@ -17526,6 +17536,7 @@ async function openPublicPlaylist(pl) {
   // Hide edit actions for other people's playlists
   const isOwn = pl.ownerUid === currentUser?.uid;
   document.querySelectorAll('.pv-action-btn').forEach(b => b.style.display = isOwn ? '' : 'none');
+  updatePvMixLibBtn(null);
   const pubBtn = document.getElementById('pv-publish-btn');
   if (pubBtn) pubBtn.style.display = 'none';
   const reorderBtn = document.getElementById('pv-reorder-btn');
@@ -21159,6 +21170,10 @@ async function playOfflineTrack(id, plId) {
   document.getElementById('bar-title').textContent = curTrack.title;
   document.getElementById('bar-artist').textContent = curTrack.artist;
   setFSNowPlayingImg(curTrack);
+  // Set background halaman lirik fullscreen ikut warna dominan cover album
+  // lagu offline ini (sama seperti lagu online) — sebelumnya tidak dipanggil
+  // di sini sehingga background lirik lagu offline tetap transparan.
+  pickFSColor();
 
   // Lagu offline tidak berasal dari katalog online, jadi like/queue (yang
   // butuh data katalog) tetap disembunyikan. Tombol & panel lirik sekarang
