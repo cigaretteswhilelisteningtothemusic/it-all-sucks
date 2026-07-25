@@ -10738,7 +10738,7 @@ async function _resolveVidListFrom(workerBase, query, max){
 
 // Ambil daftar kandidat video untuk 1 query, dengan cache per-query (supaya
 // songs yg sama tidak fetch ulang ke worker manapun).
-async function resolveVidList(query, max=8){
+async function resolveVidList(query, max=10){
   if(vidListCache[query]!==undefined) return vidListCache[query];
   for(const base of WORKERS){
     const results = await _resolveVidListFrom(base, query, max);
@@ -10746,6 +10746,18 @@ async function resolveVidList(query, max=8){
   }
   vidListCache[query]=[];
   return [];
+}
+
+// Kata kunci di JUDUL video yang menandakan versi "bukan studio/official" —
+// live, konser, akustik, cover, karaoke, remix, dsb. Video dengan judul yang
+// mengandung salah satu dari ini DIBUANG dari kandidat pencocokan durasi,
+// supaya yang kepilih benar-benar rilisan resmi/studio dari lagu tsb.
+const _DIRTY_TITLE_REGEX = /\b(live|konser|concert|acoustic|akustik|unplugged|cover|karaoke|instrumental|remix|reaction|tutorial|behind[\s_-]?the[\s_-]?scenes?|teaser|trailer|interview|dance\s*practice|piano\s*version|orchestra|symphony|session|mashup|parody|rehearsal)\b/i;
+
+// Buang kandidat yang judulnya mengandung kata kunci "kotor" di atas.
+function _filterCleanVideos(results){
+  if(!results || !results.length) return [];
+  return results.filter(r => !_DIRTY_TITLE_REGEX.test(r.title||''));
 }
 
 // Dari daftar kandidat, pilih videoId yang durasinya PALING DEKAT dengan
@@ -10768,33 +10780,44 @@ function _pickByDuration(results, targetDuration, toleranceSec){
 const VIDEO_DURATION_TOLERANCE = 3;
 
 // ── Strategi pencarian video utama ──────────────────────────────────────
-// 1) Cari video dengan query POLOS (artist + judul, tanpa embel-embel) & ambil
-//    lirik (untuk tahu durasi resmi lagu) SECARA PARALEL.
-// 2) Kalau ada video yang durasinya mendekati durasi lirik → pakai itu langsung.
-// 3) Kalau tidak ada yang cukup dekat → fallback ke query "artist - judul - lyrics"
-//    (upload "lyrics video" biasanya paling konsisten durasinya) dan ambil hasil teratas.
-// 4) Fallback terakhir: "official audio", lalu judul+artis polos apa adanya.
+// 1) Cari video dengan query "judul - artist" (bersih, tanpa embel-embel) &
+//    ambil lirik (untuk tahu durasi resmi lagu) SECARA PARALEL.
+// 2) Buang kandidat yang judulnya mengandung kata "live/konser/acoustic/cover/dll".
+// 3) Dari sisa kandidat yang "bersih", pilih yang durasinya paling dekat dengan
+//    durasi lirik → kalau ketemu, langsung dipakai.
+// 4) Kalau tidak ada kandidat bersih yang durasinya cukup dekat → fallback ke
+//    query "judul - artist - lyrics" (upload "lyrics video" biasanya paling
+//    konsisten durasinya), diutamakan yang judulnya juga bersih.
+// 5) Fallback terakhir: "official audio", lalu kandidat bersih teratas, lalu
+//    kandidat apa adanya (termasuk yang "kotor") sebagai jaring pengaman.
 // Return {videoId, lines} — lines dipakai langsung supaya tidak perlu fetchLyr lagi.
 async function resolveVidByDuration(artist, title, cleanTitleForLyrics){
-  const [plainResults, lyricsData] = await Promise.all([
-    resolveVidList(`${artist} ${title}`),
+  const [rawResults, lyricsData] = await Promise.all([
+    resolveVidList(`${title} ${artist}`),
     fetchLyr(cleanTitleForLyrics, artist)
   ]);
   const lines = (lyricsData && lyricsData.lines) || [];
   const targetDuration = lyricsData && lyricsData.duration;
 
-  let videoId = _pickByDuration(plainResults, targetDuration, VIDEO_DURATION_TOLERANCE);
+  const cleanResults = _filterCleanVideos(rawResults);
+  let videoId = _pickByDuration(cleanResults, targetDuration, VIDEO_DURATION_TOLERANCE);
 
   if(!videoId){
-    const lyricsResults = await resolveVidList(`${artist} ${title} lyrics`);
-    videoId = (lyricsResults && lyricsResults[0] && lyricsResults[0].videoId) || null;
+    const lyricsResults = await resolveVidList(`${title} ${artist} lyrics`);
+    const cleanLyricsResults = _filterCleanVideos(lyricsResults);
+    videoId = (cleanLyricsResults[0] && cleanLyricsResults[0].videoId)
+      || (lyricsResults[0] && lyricsResults[0].videoId)
+      || null;
   }
   if(!videoId){
-    const audioResults = await resolveVidList(`${artist} ${title} official audio`);
+    const audioResults = await resolveVidList(`${title} ${artist} official audio`);
     videoId = (audioResults && audioResults[0] && audioResults[0].videoId) || null;
   }
-  if(!videoId && plainResults && plainResults.length){
-    videoId = plainResults[0].videoId;
+  if(!videoId && cleanResults.length){
+    videoId = cleanResults[0].videoId;
+  }
+  if(!videoId && rawResults.length){
+    videoId = rawResults[0].videoId;
   }
   return { videoId, lines };
 }
