@@ -5764,9 +5764,25 @@ const firebaseConfig = {
   appId: "1:703998258491:web:ea9cceaa10af71db61db1e",
   measurementId: "G-KLZM39SDQR"
 };
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db   = firebase.database();
+// PENTING: firebase-*.js dimuat dari CDN gstatic.com (lihat <script src> di atas).
+// Kalau app dibuka OFFLINE dan file2 itu belum sempat ter-cache oleh service
+// worker, variabel global `firebase` akan undefined dan baris di bawah ini
+// akan melempar error. Sebelumnya error ini menghentikan SELURUH script
+// (termasuk semua fungsi Unduhan Offline yang didefinisikan ratusan/ribuan
+// baris di bawah), jadi seluruh app macet di layar loading & tombol
+// "Unduhan Offline" tidak pernah muncul. Sekarang dibungkus try/catch supaya
+// kalau gagal, app tetap lanjut jalan dalam "mode offline" (lihat
+// _vbxEnterOfflineMode di dekat auth.onAuthStateChanged di bawah).
+let auth = null, db = null;
+window._vbxFirebaseOK = true;
+try {
+  firebase.initializeApp(firebaseConfig);
+  auth = firebase.auth();
+  db   = firebase.database();
+} catch (e) {
+  console.warn('Firebase SDK gagal dimuat (kemungkinan sedang offline & belum ada cache):', e);
+  window._vbxFirebaseOK = false;
+}
 
 // GIF bawaan untuk Home GIF Banner (ukuran 750x224px), dipakai untuk semua
 // user yang belum meng-upload GIF banner miliknya sendiri.
@@ -6000,40 +6016,93 @@ function _cleanupStaleLocalCache() {
 }
 
 
-auth.onAuthStateChanged(user => {
-  if (user && !user.isAnonymous) {
-    currentUser = user;
-    showApp(user);
-    _cleanupStaleLocalCache();
-    loadAllPlaylistsFromCloud();
-    loadFavoriteArtistsFromCloud();
-    loadTimePlaylists();
-    startFriendSuggestionsListener();
-    loadPublicFeed();
-    loadTrendingSongs();
-    loadRecentlyPlayedFromCloud();
-    loadStreakFromCloud();
-    loadDailyMixes();
-    loadYearMixes();
-    loadMadeForYouMixes();
-    loadForYouPlaylists();
-    loadMaybeLikeMixes();
-    loadArtistRadioMixes();
-    loadSadPlaylists();
-    loadWeekdayPlaylists();
-    setupPushNotifications(user);
-    _recentlyPlayedCache = null;
-    _streakCache = null;
-  } else {
-    // Belum login (atau cuma sesi anonim dari halaman publik seperti
-    // vibeprofile-view.html) → langsung tendang ke halaman login,
-    // jangan biarkan masuk ke Home
-    if (user && user.isAnonymous) {
-      auth.signOut().finally(() => window.location.replace('login.html'));
-    } else {
-      window.location.replace('login.html');
-    }
+// ─── Mode Offline ───────────────────────────────────────────────────────
+// Dipanggil kalau: (a) Firebase SDK gagal dimuat sama sekali (lihat try/catch
+// di atas), atau (b) browser sedang offline dan proses login/redirect tidak
+// bisa jalan. Tujuannya: jangan biarkan user terjebak di layar loading atau
+// coba redirect ke login.html (yang butuh internet) — cukup sembunyikan
+// overlay dan buka langsung halaman "Unduhan Offline" supaya lagu yang
+// sudah didownload tetap bisa diputar tanpa koneksi & tanpa login.
+let _vbxOfflineModeActive = false;
+function _vbxEnterOfflineMode() {
+  if (_vbxOfflineModeActive) return;
+  _vbxOfflineModeActive = true;
+  const overlay = document.getElementById('auth-overlay');
+  if (overlay) {
+    overlay.style.opacity = '0';
+    overlay.style.transition = 'opacity .4s';
+    setTimeout(() => { overlay.style.display = 'none'; }, 400);
   }
+  document.body.classList.add('vbx-offline-mode');
+  // Buka langsung halaman Unduhan Offline supaya user tidak perlu mencari-cari
+  try { openDownloadsView(); } catch (e) { console.warn('Gagal membuka halaman Unduhan Offline otomatis:', e); }
+  try { toast(' Kamu sedang offline — hanya lagu yang sudah diunduh yang bisa diputar'); } catch (e) {}
+}
+
+if (window._vbxFirebaseOK && auth) {
+  auth.onAuthStateChanged(user => {
+    if (user && !user.isAnonymous) {
+      currentUser = user;
+      showApp(user);
+      _cleanupStaleLocalCache();
+      loadAllPlaylistsFromCloud();
+      loadFavoriteArtistsFromCloud();
+      loadTimePlaylists();
+      startFriendSuggestionsListener();
+      loadPublicFeed();
+      loadTrendingSongs();
+      loadRecentlyPlayedFromCloud();
+      loadStreakFromCloud();
+      loadDailyMixes();
+      loadYearMixes();
+      loadMadeForYouMixes();
+      loadForYouPlaylists();
+      loadMaybeLikeMixes();
+      loadArtistRadioMixes();
+      loadSadPlaylists();
+      loadWeekdayPlaylists();
+      setupPushNotifications(user);
+      _recentlyPlayedCache = null;
+      _streakCache = null;
+    } else {
+      // Belum login (atau cuma sesi anonim dari halaman publik seperti
+      // vibeprofile-view.html). Kalau sedang offline, jangan coba redirect
+      // ke login.html (percuma, butuh internet) — masuk mode offline saja
+      // supaya lagu yang sudah didownload tetap bisa diakses & diputar.
+      if (!navigator.onLine) {
+        _vbxEnterOfflineMode();
+        return;
+      }
+      if (user && user.isAnonymous) {
+        auth.signOut().finally(() => window.location.replace('login.html'));
+      } else {
+        window.location.replace('login.html');
+      }
+    }
+  });
+} else {
+  // Firebase SDK gagal dimuat total (biasanya karena offline dan file
+  // Firebase dari CDN belum ter-cache) → langsung masuk mode offline.
+  _vbxEnterOfflineMode();
+}
+
+// Jaring pengaman tambahan: kalau untuk alasan apa pun (mis. request ke
+// Firebase menggantung lama saat koneksi lemot/putus-nyambung) overlay
+// loading masih terlihat setelah beberapa detik PADAHAL browser offline,
+// paksa masuk mode offline supaya user tidak terjebak selamanya di layar
+// loading dan tetap bisa membuka Unduhan Offline.
+setTimeout(() => {
+  const overlay = document.getElementById('auth-overlay');
+  const stillLoading = overlay && overlay.style.display !== 'none';
+  if (stillLoading && !navigator.onLine) {
+    _vbxEnterOfflineMode();
+  }
+}, 3000);
+
+// Kalau koneksi terputus SAAT app sudah terbuka (bukan cuma pas awal buka),
+// juga tampilkan info supaya user tahu bisa memutar lagu offline.
+window.addEventListener('offline', () => {
+  try { toast(' Koneksi terputus — kamu masih bisa memutar lagu yang sudah diunduh'); } catch (e) {}
 });
 
 // ─── Push Notification: minta izin & simpan token perangkat ──────────
