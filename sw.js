@@ -19,7 +19,12 @@ const messaging = firebase.messaging();
 
 // ── PWA APP-SHELL CACHING ─────────────────────────────────
 // Bump versi ini setiap kali vibexa.html/asset berubah, supaya user dapat update.
-const CACHE_VERSION = 'vibexa-v4';
+// PENTING: ganti angka ini SETIAP KALI kamu deploy ulang vibexa.html (atau
+// asset lain di APP_SHELL). Kalau tidak diganti, browser menganggap sw.js
+// tidak berubah dan TIDAK akan pernah menginstall ulang / menyegarkan cache
+// — cache lama (termasuk vibexa.html versi lama) akan dipakai selamanya
+// oleh navigasi offline, walau server sudah punya versi terbaru.
+const CACHE_VERSION = 'vibexa-v5';
 const APP_SHELL = [
   './vibexa.html',
   './manifest.json'
@@ -50,8 +55,22 @@ self.addEventListener('fetch', (event) => {
   if (new URL(request.url).origin !== self.location.origin) return;
 
   if (request.mode === 'navigate') {
+    // Network-first, TAPI setiap kali network berhasil, tulis ulang hasilnya
+    // ke cache ('./vibexa.html'). Sebelumnya respons network di sini tidak
+    // pernah disimpan lagi ke cache, jadi versi offline selalu membeku di
+    // versi lama saat pertama kali di-install (fitur baru seperti tombol
+    // "Unduhan Offline" jadi tidak pernah muncul lagi setelah refresh saat
+    // offline, walau sebelumnya sempat online dan lihat versi terbaru).
     event.respondWith(
-      fetch(request).catch(() => caches.match('./vibexa.html'))
+      fetch(request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_VERSION).then((cache) => cache.put('./vibexa.html', clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match('./vibexa.html'))
     );
     return;
   }
