@@ -6010,6 +6010,7 @@ let YTP = null;
 let playing = false, cur = 0, tot = 0, raf = null;
 let lyrCache = {}, lyrs = [], curTrack = null;
 let vidCache = {}; // cache hasil resolveVid (query -> videoId) agar songs yg sama tidak fetch ulang ke worker
+let vidListCache = {}; // cache hasil resolveVidList (query -> [{videoId,title,duration}]) untuk pencocokan durasi
 let curQueue = []; // songs yang sedang dalam antrian putar
 // Cache daftar lagu di section "Top Songs" (home), dipakai sebagai lanjutan
 // otomatis kalau user memutar 1 lagu saja (bukan dari playlist/queue apa pun)
@@ -10272,12 +10273,8 @@ async function _prefetchNext(){
   if(!next || _prefetchCache[next._query] || _prefetching.has(next._query)) return;
   _prefetching.add(next._query);
   try{
-    const searchQ = `${next.artist} ${next.title} lyrics`;
     const cl = cleanT(next.title);
-    const [videoId, lines] = await Promise.all([
-      resolveVid(searchQ).then(v => v || resolveVid(`${next.artist} ${next.title} official audio`)).then(v => v || resolveVid(`${next.artist} ${next.title}`)),
-      fetchLyr(cl, next.artist)
-    ]);
+    const {videoId, lines} = await resolveVidByDuration(next.artist, next.title, cl);
     _prefetchCache[next._query] = { videoId: videoId||null, lyrs: lines||[] };
   } catch(e){}
   _prefetching.delete(next._query);
@@ -10386,12 +10383,8 @@ function playNext(){
     if(_pendingNext) return; // sudah ada proses fetch berjalan
     _pendingNext = true;
     const myGen = _playGen;
-    const searchQ = `${next.artist} ${next.title} lyrics`;
     const cl = cleanT(next.title);
-    Promise.all([
-      resolveVid(searchQ).then(v => v || resolveVid(`${next.artist} ${next.title} official audio`)).then(v => v || resolveVid(`${next.artist} ${next.title}`)),
-      fetchLyr(cl, next.artist)
-    ]).then(([videoId, lines]) => {
+    resolveVidByDuration(next.artist, next.title, cl).then(({videoId, lines}) => {
       // Batalkan jika generasi sudah berganti (user memilih songs lain)
       if(myGen !== _playGen) return;
       if(!_pendingNext) return;
@@ -10720,36 +10713,90 @@ function renderSearchArtistRow(artists){
   section.classList.add('show');
 }
 
-// Coba resolve video lewat SATU worker tertentu (1x percobaan, tanpa retry —
-// retry-nya dilakukan lewat lompat ke worker berikutnya di WORKERS, bukan
-// mengulang worker yang sama, supaya total waktu tunggu tetap singkat).
-async function _resolveVidFrom(workerBase, query){
+// Coba resolve LIST video lewat SATU worker tertentu (1x percobaan, tanpa
+// retry — retry-nya dilakukan lewat lompat ke worker berikutnya di WORKERS,
+// bukan mengulang worker yang sama, supaya total waktu tunggu tetap singkat).
+// Return array [{videoId,title,duration}] atau null kalau gagal total.
+async function _resolveVidListFrom(workerBase, query, max){
   try{
-    const url=`${workerBase}/search?q=${encodeURIComponent(query)}`;
+    const url=`${workerBase}/search?q=${encodeURIComponent(query)}&max=${max}`;
     const res=await fetch(url,{signal:AbortSignal.timeout(7000)});
     if(!res.ok){
-      console.warn('resolveVid gagal:', workerBase, res.status, query);
+      console.warn('resolveVidList gagal:', workerBase, res.status, query);
       return null;
     }
     const data=await res.json();
-    return data.videoId||null;
+    if(Array.isArray(data.results) && data.results.length) return data.results;
+    // Backward-compat: kalau worker lama masih balas {videoId} tunggal saja.
+    if(data.videoId) return [{videoId:data.videoId, title:'', duration:null}];
+    return null;
   }catch(e){
-    console.warn('resolveVid error:', workerBase, e, query);
+    console.warn('resolveVidList error:', workerBase, e, query);
     return null;
   }
 }
 
-async function resolveVid(query){
-  // Cek cache dulu — songs yg sudah pernah berhasil di-resolve tidak perlu
-  // fetch ulang ke worker manapun.
-  if(vidCache[query]!==undefined) return vidCache[query];
-  // Coba tiap worker di WORKERS secara berurutan (utama dulu, lalu cadangan)
-  // sampai salah satu berhasil kasih videoId.
+// Ambil daftar kandidat video untuk 1 query, dengan cache per-query (supaya
+// songs yg sama tidak fetch ulang ke worker manapun).
+async function resolveVidList(query, max=8){
+  if(vidListCache[query]!==undefined) return vidListCache[query];
   for(const base of WORKERS){
-    const vid = await _resolveVidFrom(base, query);
-    if(vid){ vidCache[query]=vid; return vid; } // hanya cache hasil sukses
+    const results = await _resolveVidListFrom(base, query, max);
+    if(results && results.length){ vidListCache[query]=results; return results; }
   }
-  return null;
+  vidListCache[query]=[];
+  return [];
+}
+
+// Dari daftar kandidat, pilih videoId yang durasinya PALING DEKAT dengan
+// target (durasi resmi lagu, dalam detik) — tapi hanya kalau selisihnya
+// masih dalam toleransi. Kalau tidak ada satupun yang cukup dekat, return null
+// (supaya pemanggil tahu harus fallback ke strategi pencarian lain).
+function _pickByDuration(results, targetDuration, toleranceSec){
+  if(!results || !results.length || !targetDuration || targetDuration<=0) return null;
+  let best=null, bestDiff=Infinity;
+  for(const r of results){
+    if(r.duration==null || r.duration<=0) continue;
+    const diff=Math.abs(r.duration-targetDuration);
+    if(diff<bestDiff){ bestDiff=diff; best=r; }
+  }
+  return (best && bestDiff<=toleranceSec) ? best.videoId : null;
+}
+
+// Toleransi selisih durasi video vs durasi resmi lagu (dari data lirik),
+// dalam detik. Contoh dari user: lirik 4:08, video 4:09 → selisih 1 detik → cocok.
+const VIDEO_DURATION_TOLERANCE = 3;
+
+// ── Strategi pencarian video utama ──────────────────────────────────────
+// 1) Cari video dengan query POLOS (artist + judul, tanpa embel-embel) & ambil
+//    lirik (untuk tahu durasi resmi lagu) SECARA PARALEL.
+// 2) Kalau ada video yang durasinya mendekati durasi lirik → pakai itu langsung.
+// 3) Kalau tidak ada yang cukup dekat → fallback ke query "artist - judul - lyrics"
+//    (upload "lyrics video" biasanya paling konsisten durasinya) dan ambil hasil teratas.
+// 4) Fallback terakhir: "official audio", lalu judul+artis polos apa adanya.
+// Return {videoId, lines} — lines dipakai langsung supaya tidak perlu fetchLyr lagi.
+async function resolveVidByDuration(artist, title, cleanTitleForLyrics){
+  const [plainResults, lyricsData] = await Promise.all([
+    resolveVidList(`${artist} ${title}`),
+    fetchLyr(cleanTitleForLyrics, artist)
+  ]);
+  const lines = (lyricsData && lyricsData.lines) || [];
+  const targetDuration = lyricsData && lyricsData.duration;
+
+  let videoId = _pickByDuration(plainResults, targetDuration, VIDEO_DURATION_TOLERANCE);
+
+  if(!videoId){
+    const lyricsResults = await resolveVidList(`${artist} ${title} lyrics`);
+    videoId = (lyricsResults && lyricsResults[0] && lyricsResults[0].videoId) || null;
+  }
+  if(!videoId){
+    const audioResults = await resolveVidList(`${artist} ${title} official audio`);
+    videoId = (audioResults && audioResults[0] && audioResults[0].videoId) || null;
+  }
+  if(!videoId && plainResults && plainResults.length){
+    videoId = plainResults[0].videoId;
+  }
+  return { videoId, lines };
 }
 
 // Perbarui tombol "Tambah ke Playlist" di hero (search view) — selalu ikon "+"
@@ -11303,24 +11350,20 @@ async function loadPlay(track, fromPlId){
   // adanya (tanpa intro logo/animasi tambahan seperti pada video musik resmi), sehingga
   // durasinya jauh lebih konsisten dengan timestamp .lrc → lirik lebih seirama dengan
   // musik tanpa perlu koreksi offset sama sekali.
-  const searchQ=`${track.artist} ${track.title} lyrics`; toast(' Searching video...');
+  toast(' Searching video...');
   // Deteksi apakah songs ini speed up atau slowed, lalu sesuaikan timing lirik
   _curSpeedFactor = detectSpeedFactor(track.title);
   const cl=cleanT(track.title);
-  const [videoId,lines]=await Promise.all([resolveVid(searchQ),fetchLyr(cl,track.artist)]);
+  // resolveVidByDuration mencari video yang durasinya mendekati durasi resmi
+  // lagu (dari data lirik); kalau tidak ada yang cocok, otomatis fallback ke
+  // query "... lyrics" → "... official audio" → judul+artis polos.
+  const {videoId,lines}=await resolveVidByDuration(track.artist, track.title, cl);
   if(videoId){
     toast(' Memutar songs...');
     curTrack.videoId = videoId;
     await initPlayer(videoId).then(()=>_addRecentlyPlayed(track)).catch(e=>{console.error('initPlayer error:',e);toast(' Failed to load video, coba songs lain');_nextGuarded=false;});
   }else{
-    toast(' Mencoba fallback...');
-    // Fallback 1: coba "official audio" — biasanya masih lebih rapi durasinya
-    // dibanding video musik resmi yang penuh embel-embel.
-    let fallbackId=await resolveVid(`${track.artist} ${track.title} official audio`);
-    // Fallback 2: judul + artis polos, sebagai jaring pengaman terakhir.
-    if(!fallbackId) fallbackId=await resolveVid(`${track.artist} ${track.title}`);
-    if(fallbackId){ curTrack.videoId = fallbackId; await initPlayer(fallbackId).then(()=>_addRecentlyPlayed(track)).catch(()=>{toast(' Failed to load video');_nextGuarded=false;}); }
-    else{ toast(' Video not found. Try another song.'); _nextGuarded=false; }
+    toast(' Video not found. Try another song.'); _nextGuarded=false;
   }
   lyrs=lines||[];
   // Set song key for translation
@@ -11392,13 +11435,18 @@ async function fetchLyr(title, artist){
     if(data) break; // worker ini berhasil dapat lirik, tidak perlu coba worker lain
   }
 
-  if(!data){ lyrCache[k]=[]; return []; }
+  if(!data){ const empty={lines:[],duration:null}; lyrCache[k]=empty; return empty; }
 
   const ch = data.find(r=>r.syncedLyrics) || data.find(r=>r.plainLyrics) || data[0];
   let p = [];
   if(ch.syncedLyrics) p = pSynced(ch.syncedLyrics, _curSpeedFactor);
   else if(ch.plainLyrics) p = pPlain(ch.plainLyrics, _curSpeedFactor);
-  lyrCache[k] = p; return p;
+  // lrclib menyertakan field "duration" (detik) di tiap hasil pencarian — ini
+  // durasi RESMI lagu, dipakai untuk mencocokkan durasi video YouTube supaya
+  // video yang dipilih benar-benar sesuai lagu asli (bukan cover/remix/dll).
+  const duration = (ch && typeof ch.duration === 'number' && ch.duration > 0) ? ch.duration : null;
+  const result = { lines: p, duration };
+  lyrCache[k] = result; return result;
 }
 function pSynced(raw, speedFactor){
   // speedFactor > 1 = speed up (lirik muncul lebih awal)
