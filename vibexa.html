@@ -10437,7 +10437,18 @@ async function downloadCurrentSongOffline(){
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const blob = await res.blob();
 
-    await _dlAddRemoteBlob(data.title || title, blob);
+    // Ambil foto album ASLI lagu ini (dari iTunes, sudah tersimpan di
+    // curTrack.thumb) — BUKAN thumbnail video YouTube yang biasanya
+    // tertanam otomatis di ID3 file hasil konversi.
+    let artBlob = null;
+    if (curTrack.thumb) {
+      try {
+        const artRes = await fetch(curTrack.thumb);
+        if (artRes.ok) artBlob = await artRes.blob();
+      } catch (e) { console.warn('Gagal mengambil foto album asli, fallback ke ID3:', e); }
+    }
+
+    await _dlAddRemoteBlob(data.title || title, blob, artBlob);
     toast(' Lagu tersimpan ke Unduhan Offline');
     try { refreshDownloadsList(); } catch(e){}
   }catch(e){
@@ -20398,9 +20409,17 @@ async function _dlAddFile(file) {
 // (mis. hasil konversi YouTube→MP3), bukan File dari <input type="file">
 // lokal. Dipakai oleh downloadCurrentSongOffline() supaya lagu bisa langsung
 // tersimpan ke Unduhan Offline tanpa perlu user mengunduh manual dulu.
-async function _dlAddRemoteBlob(name, blob) {
-  let art = null;
-  try { art = await _extractID3CoverArt(blob); } catch (e) { art = null; }
+//
+// preferredArtBlob (opsional): foto album ASLI lagu tsb (mis. hasil fetch
+// dari curTrack.thumb / iTunes artwork) yang diutamakan dipakai sebagai
+// cover — karena cover yang tertanam di file MP3 hasil konversi YouTube
+// (ID3 APIC) biasanya cuma thumbnail video YouTube, BUKAN foto album resmi.
+// Kalau preferredArtBlob tidak ada/gagal, baru fallback ke ekstrak ID3.
+async function _dlAddRemoteBlob(name, blob, preferredArtBlob) {
+  let art = preferredArtBlob || null;
+  if (!art) {
+    try { art = await _extractID3CoverArt(blob); } catch (e) { art = null; }
+  }
   const db = await _dlOpenDB();
   return new Promise((resolve, reject) => {
     const id = 'dl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
