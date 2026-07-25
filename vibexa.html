@@ -5274,6 +5274,9 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
       </div>
     </div>
     <div id="np-topbar-actions">
+      <button class="np-icon-btn np-fs-hide" id="np-copy-link-btn" onclick="copySongLink()" title="Ambil Link Lagu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      </button>
       <button class="np-icon-btn np-fs-hide" id="np-fs-btn" onclick="toggleNPFullscreen()" title="Fullscreen">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
       </button>
@@ -5298,6 +5301,9 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
           <button class="np-mob-queue-btn" id="np-mob-queue-btn" onclick="goToPlayingPlaylist()" title="Queue" style="display:none">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h10"/><path d="m18 15 3 3-3 3" /></svg>
             <span>Queue</span>
+          </button>
+          <button class="np-mob-add-btn" id="np-mob-link-btn" onclick="event.stopPropagation();copySongLink()" title="Ambil Link Lagu">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
           </button>
           <button class="np-mob-add-btn" id="np-mob-add-btn" onclick="event.stopPropagation();openAddSongModal(curTrack)" title="Add to Playlist">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -10007,6 +10013,7 @@ function playNext(){
         _playGen++;  // invalidasi timer songs sebelumnya
         _pendingNext=false; // _nextGuarded TETAP true sampai PLAYING dikonfirmasi
         curTrack = next;
+        curTrack.videoId = cached.videoId;
         lyrs = cached.lyrs || [];
         _curSpeedFactor = detectSpeedFactor(next.title);
         _setupMediaSession(next);
@@ -10044,6 +10051,7 @@ function playNext(){
           _playGen++;
           // _nextGuarded TETAP true sampai PLAYING dikonfirmasi (lihat onStateChange)
           curTrack = next;
+          curTrack.videoId = videoId;
           lyrs = lines || [];
           _curSpeedFactor = detectSpeedFactor(next.title);
           _setupMediaSession(next);
@@ -10074,6 +10082,51 @@ function playPrev(){
 // ─── Helpers ─────────────────────────────────────────────
 function esc(s){if(!s)return'';const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
 function toast(msg,d=2700){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),d);}
+
+// ── Ambil Link Lagu ─────────────────────────────────────────────────────
+// Mengambil URL YouTube dari video yang sedang diputar (langsung dari player
+// aktif kalau tersedia, dengan fallback ke videoId yang tersimpan di curTrack),
+// lalu menyalinnya ke clipboard supaya user bisa membagikan link songs/video
+// yang sedang didengarkan.
+async function copySongLink(){
+  if(!curTrack){ toast(' Tidak ada songs yang sedang diputar'); return; }
+  let url = '';
+  try{
+    if (YTP && typeof YTP.getVideoUrl === 'function') url = YTP.getVideoUrl() || '';
+  }catch(e){}
+  if(!url && curTrack.videoId) url = 'https://www.youtube.com/watch?v=' + curTrack.videoId;
+  if(!url){ toast(' Link lagu belum tersedia, coba lagi sebentar'); return; }
+  await _copyTextToClipboard(url);
+  // Arahkan user ke halaman stansa.html (file terpisah, satu folder dengan vibexa.html)
+  // Jeda sebentar supaya toast "Link lagu disalin!" sempat terlihat sebelum pindah halaman.
+  setTimeout(() => { window.location.href = 'stansa.html'; }, 500);
+}
+
+// Helper salin teks ke clipboard dengan fallback untuk browser/konteks lama
+// (mis. bukan HTTPS) yang tidak mendukung navigator.clipboard.
+async function _copyTextToClipboard(text){
+  try{
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(text);
+      toast(' Link lagu disalin!');
+      return;
+    }
+    throw new Error('clipboard API unavailable');
+  }catch(e){
+    try{
+      const ta=document.createElement('textarea');
+      ta.value=text;
+      ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta);
+      ta.focus(); ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      toast(' Link lagu disalin!');
+    }catch(e2){
+      toast(' Gagal menyalin link');
+    }
+  }
+}
 
 // ─── SEARCH via iTunes ────────────────────────────────────
 async function fetchItunesResults(q, country, entity, limit){
@@ -10828,6 +10881,7 @@ async function loadPlay(track, fromPlId){
   const [videoId,lines]=await Promise.all([resolveVid(searchQ),fetchLyr(cl,track.artist)]);
   if(videoId){
     toast(' Memutar songs...');
+    curTrack.videoId = videoId;
     await initPlayer(videoId).then(()=>_addRecentlyPlayed(track)).catch(e=>{console.error('initPlayer error:',e);toast(' Failed to load video, coba songs lain');_nextGuarded=false;});
   }else{
     toast(' Mencoba fallback...');
@@ -10836,7 +10890,7 @@ async function loadPlay(track, fromPlId){
     let fallbackId=await resolveVid(`${track.artist} ${track.title} official audio`);
     // Fallback 2: judul + artis polos, sebagai jaring pengaman terakhir.
     if(!fallbackId) fallbackId=await resolveVid(`${track.artist} ${track.title}`);
-    if(fallbackId){ await initPlayer(fallbackId).then(()=>_addRecentlyPlayed(track)).catch(()=>{toast(' Failed to load video');_nextGuarded=false;}); }
+    if(fallbackId){ curTrack.videoId = fallbackId; await initPlayer(fallbackId).then(()=>_addRecentlyPlayed(track)).catch(()=>{toast(' Failed to load video');_nextGuarded=false;}); }
     else{ toast(' Video not found. Try another song.'); _nextGuarded=false; }
   }
   lyrs=lines||[];
