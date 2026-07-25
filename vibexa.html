@@ -1218,7 +1218,7 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
   .mob-nav-btn svg{width:20px;height:20px;transition:all .18s}
   .mob-nav-btn.on{color:var(--green)}
   .mob-nav-btn.on svg{filter:drop-shadow(0 0 6px rgba(46,125,255,.5))}
-  .mob-nav-vibeprofile{position:relative;}
+  .mob-nav-downloads{position:relative;}
   #mob-btn-search{display:none}
   #mob-btn-notif{display:none}
   /* Tombol Profil bawah dihilangkan khusus tampilan mobile (sudah ada akses
@@ -1240,10 +1240,10 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
   .mob-nav-preview-center:active{transform:translateX(-50%) scale(.92)}
   /* Tombol "Temukan" diletakkan berdekatan dengan tombol Home (tanpa jarak
      di antara keduanya). Jarak untuk menghindari lingkaran Preview yang ada
-     persis di tengah dipindah ke SETELAH tombol Temukan (sebelum
-     VibeProfile), bukan lagi di antara Home & Temukan. */
+     persis di tengah dipindah ke SETELAH tombol Temukan (sebelum tombol
+     Unduhan Offline), bukan lagi di antara Home & Temukan. */
   #mob-btn-finder{margin-right:36px}
-  .mob-nav-vibeprofile{margin-left:36px}
+  .mob-nav-downloads{margin-left:36px}
 
   /* ════════════════════════════════
      SONG PREVIEW — mobile full screen
@@ -1307,6 +1307,37 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
     grid-template-areas:"topbar""main""mob-nav" !important;
   }
   body.streak-mobile-open #bar{
+    display:none !important;
+  }
+
+  /* ════════════════════════════════
+     HALAMAN UNDUHAN OFFLINE — mobile full screen
+  ════════════════════════════════ */
+  /* Di PC/tablet #downloads-view dibatasi di dalam #main (lihat deklarasi
+     aslinya) supaya sidebar & panel kanan tetap terlihat. Tapi di mobile
+     tidak ada sidebar/panel kanan, jadi kita kembalikan ke fullscreen sama
+     seperti pola halaman Streak supaya tetap nyaman dipakai satu tangan.
+     Topbar & bottom-nav tetap bisa ditekan di atasnya lewat z-index yang
+     di-boost di bawah ini. */
+  #downloads-view{
+    position:fixed !important;
+    inset:0 !important;
+    z-index:2500 !important;
+  }
+  body:has(#downloads-view.show) .home-topbar,
+  body:has(#downloads-view.show) #mob-nav{
+    position:relative;
+    z-index:3000;
+  }
+  /* Sama seperti pola halaman Streak: sembunyikan mini player utama (#bar)
+     & hapus baris grid "bar" (64px) dari layout supaya tidak menyisakan
+     ruang kosong — halaman Unduhan Offline jadi memenuhi penuh dari bawah
+     topbar sampai tepat di atas navigasi bawah (#mob-nav). */
+  body.downloads-mobile-open{
+    grid-template-rows:60px 1fr 56px !important;
+    grid-template-areas:"topbar""main""mob-nav" !important;
+  }
+  body.downloads-mobile-open #bar{
     display:none !important;
   }
 
@@ -3808,7 +3839,12 @@ textarea.sugg-form-input{resize:vertical;}
    MP3 hasil unduhan (mis. dari stansa.html) secara offline di perangkat.
    File disimpan via IndexedDB (bukan localStorage) supaya bisa menampung
    data biner (Blob) berukuran besar tanpa masalah kuota. ───────────────── */
-#downloads-view{position:fixed;inset:0;z-index:2000;background:var(--bg);display:none;flex-direction:column;}
+/* Sama seperti #streak-view: di PC/tablet halaman Unduhan Offline HANYA
+   menutupi panel #main (position:absolute di dalam #main yang position:relative),
+   sehingga sidebar kiri (#side) & panel kanan (#lyr) tetap terlihat/tidak
+   tertutup. Di mobile, rule khusus di bawah (lihat @media max-width:1050px)
+   akan mengubahnya jadi fixed fullscreen seperti pola halaman Streak. */
+#downloads-view{position:absolute;inset:0;z-index:25;background:var(--bg);display:none;flex-direction:column;}
 #downloads-view.show{display:flex;}
 .dl-add-btn{display:flex;align-items:center;gap:8px;background:var(--green);border:none;border-radius:50px;padding:9px 18px;color:#fff;font-family:var(--f);font-weight:700;font-size:.8rem;cursor:pointer;transition:all .2s;flex-shrink:0;white-space:nowrap;}
 .dl-add-btn:hover{box-shadow:var(--green-glow);transform:translateY(-1px);}
@@ -3830,8 +3866,11 @@ textarea.sugg-form-input{resize:vertical;}
 .dl-card:hover .dl-card-del{opacity:1;}
 .dl-card-del:hover{background:#ff5555;}
 .dl-card-del svg{width:13px;height:13px;}
-.dl-player-bar{display:none;align-items:center;gap:14px;padding:12px 26px;border-top:1px solid var(--border);flex-shrink:0;background:var(--panel);}
+.dl-player-bar{display:none;align-items:center;gap:14px;padding:12px 26px;border-top:1px solid var(--border);flex-shrink:0;background:var(--panel);position:fixed;left:8px;right:8px;bottom:8px;z-index:3010;border-radius:var(--r);border:1px solid var(--border);box-shadow:0 8px 30px rgba(0,0,0,.5);min-height:68px;box-sizing:border-box;}
 .dl-player-bar.show{display:flex;}
+.dl-player-close{background:none;border:none;color:var(--sub);cursor:pointer;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .18s;}
+.dl-player-close:hover{color:var(--text);background:var(--hover);}
+.dl-player-close svg{width:15px;height:15px;}
 .dl-player-art{width:44px;height:44px;border-radius:6px;object-fit:cover;background:var(--card);flex-shrink:0;}
 .dl-player-info{min-width:0;width:180px;flex-shrink:0;}
 .dl-player-title{font-size:.82rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -4170,6 +4209,10 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
           <span>My Profile</span>
         </button>
+        <button class="topbar-profile-menu-item" onclick="closeTopProfileMenu();window.location.href='vibeprofile.html'">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/><path d="M8 12h8M12 8v8"/></svg>
+          <span>VibeProfile</span>
+        </button>
         <button class="topbar-profile-menu-item" id="streak-menu-btn" onclick="closeTopProfileMenu();showStreakView()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c1 3-2 4-2 7a3 3 0 0 0 6 0c0-1-.3-2-1-3 2 1 4 3.5 4 7a7 7 0 1 1-14 0c0-4.5 3-6.5 4-9 1-2 2.3-2.5 3-2z"/></svg>
           <span>Streak</span>
@@ -4218,10 +4261,6 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
     <button class="side-nav-btn" id="side-btn-downloads" onclick="openDownloadsView()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
       <span>Unduhan Offline</span>
-    </button>
-    <button class="side-nav-btn" onclick="window.location.href='vibeprofile.html'">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/><path d="M8 12h8M12 8v8"/></svg>
-      <span>VibeProfile</span>
     </button>
     <button class="side-nav-btn" id="side-btn-chat" onclick="openChatOverlay()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
@@ -4786,24 +4825,6 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
       </div>
       <div class="dl-grid" id="dl-grid"></div>
     </div>
-    <!-- Mini player khusus lagu offline -->
-    <div class="dl-player-bar" id="dl-player-bar">
-      <img class="dl-player-art" id="dl-player-art" src="" alt="" style="display:none" onerror="this.style.display='none'">
-      <div class="dl-player-info">
-        <div class="dl-player-title" id="dl-player-title">—</div>
-        <div class="dl-player-sub">Offline</div>
-      </div>
-      <button class="dl-player-btn" id="dl-player-playpause" onclick="toggleDownloadPlayback()" title="Play/Pause">
-        <svg id="dl-ico-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-        <svg id="dl-ico-pause" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-      </button>
-      <div class="dl-player-prog-wrap">
-        <span id="dl-player-cur">0:00</span>
-        <input type="range" id="dl-player-seek" min="0" max="1000" value="0" oninput="seekDownloadPlayback(this.value)">
-        <span id="dl-player-tot">0:00</span>
-      </div>
-    </div>
-    <audio id="dl-audio" style="display:none"></audio>
   </div>
 
   <!-- ALBUM VIEW (daftar lagu dalam album, bisa diputar) -->
@@ -5263,6 +5284,34 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   </div>
 </div>
 
+
+<!-- MINI PLAYER LAGU OFFLINE — persisten di level atas (seperti #bar) supaya
+     tetap terlihat & berfungsi di halaman manapun, bukan cuma saat halaman
+     "Unduhan Offline" sedang dibuka. Muncul menimpa #bar (posisi fixed di
+     bawah) selama ada lagu offline yang diputar/di-pause; #bar akan otomatis
+     kembali terlihat begitu lagu online mulai diputar (lihat loadPlay()) atau
+     mini player ini ditutup lewat toggleDownloadPlayback saat berhenti. -->
+<div class="dl-player-bar" id="dl-player-bar">
+  <img class="dl-player-art" id="dl-player-art" src="" alt="" style="display:none" onerror="this.style.display='none'">
+  <div class="dl-player-info">
+    <div class="dl-player-title" id="dl-player-title">—</div>
+    <div class="dl-player-sub">Offline</div>
+  </div>
+  <button class="dl-player-btn" id="dl-player-playpause" onclick="toggleDownloadPlayback()" title="Play/Pause">
+    <svg id="dl-ico-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+    <svg id="dl-ico-pause" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+  </button>
+  <div class="dl-player-prog-wrap">
+    <span id="dl-player-cur">0:00</span>
+    <input type="range" id="dl-player-seek" min="0" max="1000" value="0" oninput="seekDownloadPlayback(this.value)">
+    <span id="dl-player-tot">0:00</span>
+  </div>
+  <button class="dl-player-close" id="dl-player-close" onclick="stopOfflinePlayback()" title="Tutup mini player offline">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+  </button>
+</div>
+<audio id="dl-audio" style="display:none"></audio>
+
 <!-- Hidden YT -->
 <div id="yt-wrap" style="position:fixed;bottom:-9999px;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none">
   <div id="yt-player"></div>
@@ -5585,9 +5634,9 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M10 9.2v5.6l4.8-2.8z" fill="currentColor" stroke="none"/></svg>
     <span>View</span>
   </button>
-  <button class="mob-nav-btn mob-nav-vibeprofile" id="mob-btn-vibeprofile" onclick="setMobNavActive('mob-btn-vibeprofile');window.location.href='vibeprofile.html'">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12h8M8 8h5M8 16h4"/><circle cx="17" cy="16" r="2.5" fill="currentColor" stroke="none"/><path d="M17 13.5V12" stroke-width="2"/></svg>
-    VibeProfile
+  <button class="mob-nav-btn mob-nav-downloads" id="mob-btn-downloads" onclick="setMobNavActive('mob-btn-downloads');openDownloadsView()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+    Offline
   </button>
   <button class="mob-nav-btn" id="mob-btn-chat" onclick="setMobNavActive('mob-btn-chat');openChatOverlay()" style="position:relative;">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
@@ -10988,6 +11037,14 @@ function hideStreakCelebration(){
 }
 
 async function loadPlay(track, fromPlId){
+  // Hentikan pemutaran lagu offline (kalau ada) supaya audio tidak tabrakan,
+  // dan sembunyikan mini player offline supaya #bar utama kembali terlihat.
+  try {
+    const dlAudio = document.getElementById('dl-audio');
+    if (dlAudio && !dlAudio.paused) dlAudio.pause();
+    const dlBar = document.getElementById('dl-player-bar');
+    if (dlBar) dlBar.classList.remove('show');
+  } catch (e) {}
   _playGen++;  // invalidasi semua timer/guard dari songs sebelumnya
   _npPlayingPlId = fromPlId || null;
   updateNPMobQueueBtn();
@@ -11772,7 +11829,7 @@ function initMobileNav(){
 // nav bawah (termasuk VibeProfile, Chat, Notif yang sebelumnya tidak pernah
 // ikut berubah warna sama sekali) supaya user langsung dapat feedback visual
 // begitu menekan tombol apa pun.
-const MOB_NAV_BTN_IDS = ['mob-btn-home','mob-btn-search','mob-btn-finder','mob-btn-songpreview','mob-btn-vibeprofile','mob-btn-chat','mob-btn-notif'];
+const MOB_NAV_BTN_IDS = ['mob-btn-home','mob-btn-search','mob-btn-finder','mob-btn-songpreview','mob-btn-downloads','mob-btn-chat','mob-btn-notif'];
 function setMobNavActive(activeId){
   MOB_NAV_BTN_IDS.forEach(id=>{
     const el = document.getElementById(id);
@@ -20152,11 +20209,40 @@ function _dlFormatSize(bytes) {
 function openDownloadsView() {
   document.getElementById('downloads-view').classList.add('show');
   refreshDownloadsList();
+  // Kunci scroll #main (sama seperti pola di showStreakView) supaya konten
+  // Home di baliknya tidak ikut ke-scroll saat user scroll di halaman
+  // Unduhan Offline (di PC/tablet, #downloads-view cuma position:absolute
+  // di dalam #main, bukan fullscreen).
+  const mainEl = document.getElementById('main');
+  if (mainEl) { mainEl.scrollTop = 0; mainEl.style.overflow = 'hidden'; }
+  // Khusus mobile: sembunyikan mini player utama (#bar) & buat halaman
+  // Unduhan Offline memenuhi layar penuh (lihat CSS body.downloads-mobile-open).
+  if (typeof isMobile === 'function' && isMobile()) document.body.classList.add('downloads-mobile-open');
 }
 
 function closeDownloadsView() {
   document.getElementById('downloads-view').classList.remove('show');
+  const mainEl = document.getElementById('main');
+  if (mainEl) mainEl.style.overflow = '';
+  document.body.classList.remove('downloads-mobile-open');
 }
+
+// Saat halaman Unduhan Offline sedang terbuka, kalau user menekan tombol
+// halaman apa pun di luar halaman ini (mis. tombol navigasi di topbar /
+// bottom-nav mobile, sidebar, menu profil, dll), halaman Unduhan Offline
+// akan otomatis tertutup lebih dulu (dijalankan di fase capture, sebelum
+// handler klik tombol tersebut berjalan), lalu aksi tombol yang ditekan
+// tetap berjalan seperti biasa sehingga user langsung berpindah ke halaman
+// yang dituju. Kontrol mini player offline (#dl-player-bar) dikecualikan
+// supaya play/pause/seek/close-nya tidak ikut menutup halaman.
+document.addEventListener('click', function(e){
+  const dlView = document.getElementById('downloads-view');
+  if (!dlView || !dlView.classList.contains('show')) return;
+  if (dlView.contains(e.target)) return; // klik di dalam halaman Unduhan Offline sendiri (mis. tombol Back, Tambah MP3) dibiarkan berjalan normal
+  const dlPlayerBar = document.getElementById('dl-player-bar');
+  if (dlPlayerBar && dlPlayerBar.contains(e.target)) return; // kontrol mini player offline dikecualikan
+  closeDownloadsView();
+}, true);
 
 // ── Import file MP3 dari perangkat ──────────────────────────────────────
 async function handleDownloadFilesPicked(event) {
@@ -20230,6 +20316,18 @@ function toggleDownloadPlayback() {
   if (!audio.src) return;
   if (audio.paused) { audio.play().catch(() => {}); _dlSetPlayIcon(true); }
   else { audio.pause(); _dlSetPlayIcon(false); }
+}
+
+// Tutup mini player offline sepenuhnya (tombol X) — hentikan audio & sembunyikan bar,
+// tapi biarkan file tetap tersimpan (tidak dihapus, cuma berhenti diputar).
+function stopOfflinePlayback() {
+  const audio = document.getElementById('dl-audio');
+  audio.pause();
+  audio.src = '';
+  if (_dlCurrentObjectUrl) { URL.revokeObjectURL(_dlCurrentObjectUrl); _dlCurrentObjectUrl = null; }
+  _dlCurrentId = null;
+  document.getElementById('dl-player-bar').classList.remove('show');
+  refreshDownloadsList();
 }
 
 function _dlSetPlayIcon(playing) {
