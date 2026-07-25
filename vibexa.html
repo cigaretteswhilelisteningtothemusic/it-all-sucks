@@ -1326,7 +1326,11 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
      di-boost di bawah ini. */
   #downloads-view{
     position:fixed !important;
-    inset:0 !important;
+    top:60px !important;
+    left:0 !important;
+    right:0 !important;
+    bottom:56px !important;
+    inset:auto !important;
     z-index:2500 !important;
   }
   body:has(#downloads-view.show) .home-topbar,
@@ -3897,6 +3901,52 @@ textarea.sugg-form-input{resize:vertical;}
   #downloads-view .aall-body{padding:16px;}
   #downloads-view .dl-tabs{padding:0 16px;}
   .dl-player-info{width:110px;}
+}
+
+/* ── Unduhan Offline di HP: kartu lagu dibuat lebih kecil, 3 kartu per
+   baris (sebelumnya 1 kartu per baris karena minmax(180px) terlalu lebar
+   untuk layar HP), dan judul header dibuat 2 baris rapi agar "Back",
+   "Unduhan Offline", subtitle, dan tombol "Tambah MP3" tidak terpotong. ── */
+@media (max-width:660px){
+  #downloads-view .aall-header{
+    padding:12px 14px;
+    gap:8px 10px;
+  }
+  #downloads-view .aall-header .pv-back{
+    order:1;
+    flex:0 0 auto;
+  }
+  #downloads-view .aall-header .dl-add-btn{
+    order:2;
+    flex:0 0 auto;
+    padding:8px 12px;
+    font-size:.74rem;
+  }
+  #downloads-view .aall-header .dl-add-btn svg{width:14px;height:14px;}
+  #downloads-view .aall-header .aall-title-wrap{
+    order:3;
+    flex:1 1 100%;
+    min-width:0;
+  }
+  #downloads-view .aall-title{font-size:.98rem;white-space:normal;}
+  #downloads-view .aall-subtitle{white-space:normal;}
+
+  .dl-grid{
+    grid-template-columns:repeat(3,1fr);
+    gap:8px 10px;
+  }
+  .dl-card{padding:8px;border-radius:10px;}
+  .dl-card-cover{border-radius:6px;font-size:1.3rem;margin-bottom:6px;}
+  .dl-card-name{font-size:.7rem;}
+  .dl-card-meta{font-size:.6rem;margin-top:2px;}
+  .dl-card-del,.dl-card-addpl{
+    width:20px;height:20px;
+    top:4px;
+    opacity:1; /* selalu tampil di HP karena tidak ada :hover */
+  }
+  .dl-card-del{right:4px;}
+  .dl-card-addpl{left:4px;}
+  .dl-card-del svg,.dl-card-addpl svg{width:10px;height:10px;}
 }
 
 /* ── CHAT (Instagram-style DM) ─────────────────────────────── */
