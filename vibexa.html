@@ -3866,24 +3866,13 @@ textarea.sugg-form-input{resize:vertical;}
 .dl-card:hover .dl-card-del{opacity:1;}
 .dl-card-del:hover{background:#ff5555;}
 .dl-card-del svg{width:13px;height:13px;}
-.dl-player-bar{display:none;align-items:center;gap:14px;padding:12px 26px;border-top:1px solid var(--border);flex-shrink:0;background:var(--panel);position:fixed;left:8px;right:8px;bottom:8px;z-index:3010;border-radius:var(--r);border:1px solid var(--border);box-shadow:0 8px 30px rgba(0,0,0,.5);min-height:68px;box-sizing:border-box;}
-.dl-player-bar.show{display:flex;}
-.dl-player-close{background:none;border:none;color:var(--sub);cursor:pointer;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .18s;}
-.dl-player-close:hover{color:var(--text);background:var(--hover);}
-.dl-player-close svg{width:15px;height:15px;}
-.dl-player-art{width:44px;height:44px;border-radius:6px;object-fit:cover;background:var(--card);flex-shrink:0;}
-.dl-player-info{min-width:0;width:180px;flex-shrink:0;}
-.dl-player-title{font-size:.82rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.dl-player-sub{font-size:.68rem;color:var(--green);margin-top:1px;}
-.dl-player-btn{background:#fff;border:none;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;color:#000;}
-.dl-player-btn svg{width:16px;height:16px;}
-.dl-player-prog-wrap{flex:1;display:flex;align-items:center;gap:10px;min-width:0;}
-.dl-player-prog-wrap span{font-size:.68rem;color:var(--sub);font-family:var(--fm);flex-shrink:0;}
-.dl-player-prog-wrap input[type=range]{flex:1;accent-color:var(--green);}
+.dl-card-cover-btn{position:absolute;top:8px;left:8px;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.55);border:none;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:opacity .15s;}
+.dl-card:hover .dl-card-cover-btn{opacity:1;}
+.dl-card-cover-btn:hover{background:var(--green);}
+.dl-card-cover-btn svg{width:13px;height:13px;}
 @media (max-width:900px){
   #downloads-view .aall-header{padding:14px 16px;flex-wrap:wrap;}
   #downloads-view .aall-body{padding:16px;}
-  .dl-player-bar{padding:10px 14px;gap:10px;}
   .dl-player-info{width:110px;}
 }
 
@@ -4817,6 +4806,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
         <span>Tambah MP3</span>
       </button>
       <input type="file" id="dl-file-input" accept="audio/mpeg,audio/mp3,.mp3" multiple style="display:none" onchange="handleDownloadFilesPicked(event)">
+      <input type="file" id="dl-cover-input" accept="image/*" style="display:none" onchange="handleCoverFilePicked(event)">
     </div>
     <div class="aall-body">
       <div class="dl-empty" id="dl-empty-state">
@@ -5285,31 +5275,10 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 </div>
 
 
-<!-- MINI PLAYER LAGU OFFLINE — persisten di level atas (seperti #bar) supaya
-     tetap terlihat & berfungsi di halaman manapun, bukan cuma saat halaman
-     "Unduhan Offline" sedang dibuka. Muncul menimpa #bar (posisi fixed di
-     bawah) selama ada lagu offline yang diputar/di-pause; #bar akan otomatis
-     kembali terlihat begitu lagu online mulai diputar (lihat loadPlay()) atau
-     mini player ini ditutup lewat toggleDownloadPlayback saat berhenti. -->
-<div class="dl-player-bar" id="dl-player-bar">
-  <img class="dl-player-art" id="dl-player-art" src="" alt="" style="display:none" onerror="this.style.display='none'">
-  <div class="dl-player-info">
-    <div class="dl-player-title" id="dl-player-title">—</div>
-    <div class="dl-player-sub">Offline</div>
-  </div>
-  <button class="dl-player-btn" id="dl-player-playpause" onclick="toggleDownloadPlayback()" title="Play/Pause">
-    <svg id="dl-ico-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-    <svg id="dl-ico-pause" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-  </button>
-  <div class="dl-player-prog-wrap">
-    <span id="dl-player-cur">0:00</span>
-    <input type="range" id="dl-player-seek" min="0" max="1000" value="0" oninput="seekDownloadPlayback(this.value)">
-    <span id="dl-player-tot">0:00</span>
-  </div>
-  <button class="dl-player-close" id="dl-player-close" onclick="stopOfflinePlayback()" title="Tutup mini player offline">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-  </button>
-</div>
+<!-- Elemen audio untuk lagu offline (file MP3 yang diimpor manual). Tidak
+     punya UI sendiri — diputar lewat mini player utama (#bar) yang SAMA
+     dipakai lagu online, lihat wrapper _getOfflinePlayerObj() & fungsi
+     playOfflineTrack() di bagian script "UNDUHAN OFFLINE" di bawah. -->
 <audio id="dl-audio" style="display:none"></audio>
 
 <!-- Hidden YT -->
@@ -10093,7 +10062,7 @@ function _setupMediaSession(track){
       return url ? [{src:url,sizes:'300x300',type:'image/jpeg'}] : [];
     })()
   });
-  navigator.mediaSession.setActionHandler('play', ()=>{ if(YTP){ YTP.playVideo(); playing=true; setPB(true); tick(); _armSongTimer(); } else if(curTrack){ loadPlay(curTrack); } });
+  navigator.mediaSession.setActionHandler('play', ()=>{ if(YTP){ YTP.playVideo(); playing=true; setPB(true); tick(); _armSongTimer(); } else if(curTrack){ if(curTrack.offline) playOfflineTrack(curTrack.id); else loadPlay(curTrack); } });
   navigator.mediaSession.setActionHandler('pause', ()=>{ if(YTP){ YTP.pauseVideo(); playing=false; setPB(false); cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer(); } });
   navigator.mediaSession.setActionHandler('nexttrack', ()=>{ playNext(); });
   navigator.mediaSession.setActionHandler('previoustrack', ()=>{ playPrev(); });
@@ -10193,6 +10162,7 @@ async function _playNextFromArtistTopSongs(){
   loadPlay(next, null);
 }
 function playNext(){
+  if(curTrack && curTrack.offline){ _dlPlayAdjacent(1); return; }
   if(!curQueue.length){ _playNextFromArtistTopSongs(); return; }
   const i = _qIdx();
   // Kalau lagu yang baru selesai adalah lagu TERAKHIR di playlist/queue dan
@@ -10283,6 +10253,7 @@ function playNext(){
   loadPlay(next, currentPlaylistId);
 }
 function playPrev(){
+  if(curTrack && curTrack.offline){ _dlPlayAdjacent(-1); return; }
   if(!curQueue.length) return;
   const i = _qIdx();
   const prev = curQueue[i===-1 ? 0 : (i-1+curQueue.length) % curQueue.length];
@@ -11037,14 +11008,22 @@ function hideStreakCelebration(){
 }
 
 async function loadPlay(track, fromPlId){
-  // Hentikan pemutaran lagu offline (kalau ada) supaya audio tidak tabrakan,
-  // dan sembunyikan mini player offline supaya #bar utama kembali terlihat.
+  // Hentikan pemutaran lagu offline (kalau ada) supaya audio tidak tabrakan.
+  // Lagu online & offline memakai mini player (#bar) yang SAMA — tidak ada
+  // bar terpisah lagi yang perlu disembunyikan di sini.
   try {
     const dlAudio = document.getElementById('dl-audio');
     if (dlAudio && !dlAudio.paused) dlAudio.pause();
-    const dlBar = document.getElementById('dl-player-bar');
-    if (dlBar) dlBar.classList.remove('show');
+    if (_dlCurrentObjectUrl) { URL.revokeObjectURL(_dlCurrentObjectUrl); _dlCurrentObjectUrl = null; }
+    if (_dlCurrentArtUrl) { URL.revokeObjectURL(_dlCurrentArtUrl); _dlCurrentArtUrl = null; }
+    _dlCurrentId = null;
   } catch (e) {}
+  // Kembalikan kontrol yang tadi disembunyikan/dinonaktifkan khusus lagu
+  // offline (tombol like & lirik) — lagu online punya keduanya seperti biasa.
+  const _likeBtnReset = document.getElementById('btn-like');
+  if (_likeBtnReset) _likeBtnReset.disabled = false;
+  const _lyrBtnReset = document.getElementById('btn-lyrics');
+  if (_lyrBtnReset) _lyrBtnReset.style.display = '';
   _playGen++;  // invalidasi semua timer/guard dari songs sebelumnya
   _npPlayingPlId = fromPlId || null;
   updateNPMobQueueBtn();
@@ -11768,6 +11747,7 @@ function _togglePlayPause(){
   _ensureAudioCtx(); _resumeAudioCtx();
   if(!curTrack)return;
   if(!YTP){
+    if(curTrack.offline){ playOfflineTrack(curTrack.id); return; }
     // Songs baru dipulihkan tampilannya saja (belum dimuat ke player).
     // Klik pertama ini yang benar-benar memuat & memutar songs.
     loadPlay(curTrack);
@@ -20130,9 +20110,96 @@ const DL_DB_NAME = 'vibexaOfflineDB';
 const DL_DB_VERSION = 1;
 const DL_STORE = 'downloads';
 let _dlDB = null;
-let _dlList = [];              // cache metadata (tanpa blob) utk render grid
+let _dlList = [];              // cache metadata (tanpa blob audio) utk render grid
 let _dlCurrentId = null;       // id lagu offline yang sedang diputar
 let _dlCurrentObjectUrl = null;
+let _dlCurrentArtUrl = null;   // object URL foto album lagu offline yang sedang diputar
+let _dlArtUrls = {};           // id -> object URL foto album, dipakai untuk grid daftar unduhan
+let _dlPlayerObj = null;       // wrapper "YTP palsu" yang membungkus elemen <audio> offline
+
+// ── Ambil foto sampul album yang sudah tertanam di dalam file MP3 (ID3v2 APIC) ──
+// Supaya lagu yang diimpor otomatis punya cover tanpa perlu user cari sendiri.
+// Gambar ini kemudian disimpan sebagai Blob terpisah di IndexedDB (field `art`)
+// bersama file audionya sendiri, jadi tetap tampil meskipun dibuka offline —
+// murni tersimpan di perangkat, tidak butuh internet untuk memuatnya lagi.
+async function _extractID3CoverArt(file) {
+  try {
+    const headBuf = await file.slice(0, 10).arrayBuffer();
+    const head = new Uint8Array(headBuf);
+    if (head[0] !== 0x49 || head[1] !== 0x44 || head[2] !== 0x33) return null; // bukan header "ID3"
+    const verMajor = head[3];
+    const flags = head[5];
+    const tagSize = ((head[6] & 0x7f) << 21) | ((head[7] & 0x7f) << 14) | ((head[8] & 0x7f) << 7) | (head[9] & 0x7f);
+    if (!tagSize || tagSize < 10) return null;
+    let offset = 10;
+    if (flags & 0x40) {
+      // Ada extended header — baca ukurannya lalu lewati
+      const extArr = new Uint8Array(await file.slice(offset, offset + 4).arrayBuffer());
+      let extSize;
+      if (verMajor >= 4) extSize = ((extArr[0] & 0x7f) << 21) | ((extArr[1] & 0x7f) << 14) | ((extArr[2] & 0x7f) << 7) | (extArr[3] & 0x7f);
+      else extSize = (extArr[0] << 24) | (extArr[1] << 16) | (extArr[2] << 8) | extArr[3];
+      offset += extSize;
+    }
+    const tagEnd = 10 + tagSize;
+    const data = new Uint8Array(await file.slice(offset, tagEnd).arrayBuffer());
+    let pos = 0;
+    while (pos + 10 <= data.length) {
+      const id = String.fromCharCode(data[pos], data[pos+1], data[pos+2], data[pos+3]);
+      if (id === '\0\0\0\0') break; // sudah masuk area padding
+      let frameSize;
+      if (verMajor >= 4) frameSize = ((data[pos+4]&0x7f)<<21)|((data[pos+5]&0x7f)<<14)|((data[pos+6]&0x7f)<<7)|(data[pos+7]&0x7f);
+      else frameSize = (data[pos+4]<<24)|(data[pos+5]<<16)|(data[pos+6]<<8)|data[pos+7];
+      const frameStart = pos + 10;
+      if (frameSize <= 0 || frameStart + frameSize > data.length) break;
+      if (id === 'APIC') {
+        let p = frameStart;
+        const enc = data[p]; p += 1;
+        let mimeEnd = p;
+        while (mimeEnd < frameStart + frameSize && data[mimeEnd] !== 0) mimeEnd++;
+        let mime = 'image/jpeg';
+        try { mime = new TextDecoder('latin1').decode(data.slice(p, mimeEnd)) || mime; } catch(e){}
+        p = mimeEnd + 1;
+        p += 1; // lewati byte "picture type"
+        if (enc === 1 || enc === 2) {
+          while (p + 1 < frameStart + frameSize && !(data[p] === 0 && data[p+1] === 0)) p += 2;
+          p += 2;
+        } else {
+          while (p < frameStart + frameSize && data[p] !== 0) p++;
+          p += 1;
+        }
+        const picBytes = data.slice(p, frameStart + frameSize);
+        if (picBytes.length > 100) {
+          return new Blob([picBytes], { type: mime && mime.startsWith('image/') ? mime : 'image/jpeg' });
+        }
+      }
+      pos = frameStart + frameSize;
+    }
+    return null;
+  } catch (e) { console.warn('Gagal membaca cover ID3:', e); return null; }
+}
+
+// ── Wrapper "YTP palsu" yang membungkus elemen <audio> offline ──────────────
+// Meniru API YT.Player (playVideo/pauseVideo/getCurrentTime/getDuration/
+// getPlayerState/seekTo/setVolume/destroy) supaya SELURUH mesin pemutaran
+// yang sudah ada (tick(), _armSongTimer(), media session, tombol play/pause,
+// progress bar, dst — semuanya lewat variabel global YTP) otomatis berfungsi
+// juga untuk lagu offline TANPA duplikasi logic dan TANPA mini player terpisah.
+function _getOfflinePlayerObj(audioEl) {
+  if (_dlPlayerObj) return _dlPlayerObj;
+  _dlPlayerObj = {
+    _offline: true,
+    playVideo(){ audioEl.play().catch(()=>{}); },
+    pauseVideo(){ audioEl.pause(); },
+    getCurrentTime(){ return audioEl.currentTime || 0; },
+    getDuration(){ return audioEl.duration || 0; },
+    getPlayerState(){ if (audioEl.ended) return 0; return audioEl.paused ? 2 : 1; },
+    seekTo(t){ try { audioEl.currentTime = t; } catch(e){} },
+    setVolume(v){ try { audioEl.volume = Math.max(0, Math.min(1, v/100)); } catch(e){} },
+    getVideoUrl(){ return ''; },
+    destroy(){ try { audioEl.pause(); } catch(e){} }
+  };
+  return _dlPlayerObj;
+}
 
 function _dlOpenDB() {
   return new Promise((resolve, reject) => {
@@ -20150,19 +20217,44 @@ function _dlOpenDB() {
   });
 }
 
-function _dlAddFile(file) {
-  return _dlOpenDB().then(db => new Promise((resolve, reject) => {
+async function _dlAddFile(file) {
+  // Coba ambil cover album yang sudah tertanam di file MP3-nya (ID3 APIC)
+  // supaya lagu offline otomatis punya foto album tanpa perlu dicari manual.
+  let art = null;
+  try { art = await _extractID3CoverArt(file); } catch (e) { art = null; }
+  const db = await _dlOpenDB();
+  return new Promise((resolve, reject) => {
     const id = 'dl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
     const record = {
       id,
       name: file.name.replace(/\.mp3$/i, ''),
       size: file.size,
       addedAt: Date.now(),
-      blob: file
+      blob: file,
+      art: art || null   // Blob foto album (atau null kalau tidak ditemukan di file)
     };
     const tx = db.transaction(DL_STORE, 'readwrite');
     tx.objectStore(DL_STORE).add(record);
     tx.oncomplete = () => resolve(record);
+    tx.onerror = (e) => reject(e.target.error);
+  });
+}
+
+// Ganti/tambahkan cover album secara manual (dipakai saat auto-extract dari
+// ID3 gagal/tidak ada, lewat tombol "Ganti sampul" di kartu lagu offline).
+function _dlUpdateArt(id, artBlob) {
+  return _dlOpenDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(DL_STORE, 'readwrite');
+    const store = tx.objectStore(DL_STORE);
+    const req = store.get(id);
+    req.onsuccess = () => {
+      const rec = req.result;
+      if (!rec) { reject(new Error('Lagu tidak ditemukan')); return; }
+      rec.art = artBlob;
+      store.put(rec);
+    };
+    req.onerror = (e) => reject(e.target.error);
+    tx.oncomplete = () => resolve();
     tx.onerror = (e) => reject(e.target.error);
   }));
 }
@@ -20172,8 +20264,10 @@ function _dlGetAllMeta() {
     const tx = db.transaction(DL_STORE, 'readonly');
     const req = tx.objectStore(DL_STORE).getAll();
     req.onsuccess = () => {
-      // Buang field blob supaya list ringan; blob diambil terpisah saat diputar
-      const list = (req.result || []).map(r => ({ id: r.id, name: r.name, size: r.size, addedAt: r.addedAt }));
+      // Buang field blob AUDIO (besar) supaya list ringan; blob audio diambil
+      // terpisah saat diputar. Blob foto album (`art`) tetap disertakan karena
+      // jauh lebih kecil dan dibutuhkan untuk render cover di grid.
+      const list = (req.result || []).map(r => ({ id: r.id, name: r.name, size: r.size, addedAt: r.addedAt, art: r.art || null }));
       list.sort((a, b) => b.addedAt - a.addedAt);
       resolve(list);
     };
@@ -20233,14 +20327,11 @@ function closeDownloadsView() {
 // akan otomatis tertutup lebih dulu (dijalankan di fase capture, sebelum
 // handler klik tombol tersebut berjalan), lalu aksi tombol yang ditekan
 // tetap berjalan seperti biasa sehingga user langsung berpindah ke halaman
-// yang dituju. Kontrol mini player offline (#dl-player-bar) dikecualikan
-// supaya play/pause/seek/close-nya tidak ikut menutup halaman.
+// yang dituju.
 document.addEventListener('click', function(e){
   const dlView = document.getElementById('downloads-view');
   if (!dlView || !dlView.classList.contains('show')) return;
   if (dlView.contains(e.target)) return; // klik di dalam halaman Unduhan Offline sendiri (mis. tombol Back, Tambah MP3) dibiarkan berjalan normal
-  const dlPlayerBar = document.getElementById('dl-player-bar');
-  if (dlPlayerBar && dlPlayerBar.contains(e.target)) return; // kontrol mini player offline dikecualikan
   closeDownloadsView();
 }, true);
 
@@ -20264,6 +20355,13 @@ async function refreshDownloadsList() {
   const subtitle = document.getElementById('dl-subtitle');
   if (!grid || !empty || !subtitle) return;
   subtitle.textContent = _dlList.length + ' lagu tersimpan di perangkat ini';
+
+  // Buat ulang object URL foto album untuk grid — revoke yang lama dulu
+  // supaya tidak bocor memori setiap kali daftar di-refresh.
+  Object.values(_dlArtUrls).forEach(u => { try { URL.revokeObjectURL(u); } catch(e){} });
+  _dlArtUrls = {};
+  _dlList.forEach(t => { if (t.art) { try { _dlArtUrls[t.id] = URL.createObjectURL(t.art); } catch(e){} } });
+
   if (!_dlList.length) {
     grid.innerHTML = '';
     empty.style.display = 'flex';
@@ -20273,13 +20371,16 @@ async function refreshDownloadsList() {
   grid.innerHTML = _dlList.map(t => `
     <div class="dl-card${t.id === _dlCurrentId ? ' playing' : ''}" data-id="${t.id}" onclick="playOfflineTrack('${t.id}')">
       <div class="dl-card-cover">
-        🎵
+        ${_dlArtUrls[t.id] ? `<img src="${_dlArtUrls[t.id]}" alt="" style="width:100%;height:100%;object-fit:cover;">` : '🎵'}
         <div class="dl-card-play-ov">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
         </div>
       </div>
       <div class="dl-card-name" title="${esc(t.name)}">${esc(t.name)}</div>
       <div class="dl-card-meta">${_dlFormatSize(t.size)}</div>
+      <button class="dl-card-cover-btn" title="Ganti sampul album" onclick="event.stopPropagation();changeOfflineTrackCover('${t.id}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16l4.5-6 3.5 4.5 2.5-3L20 16"/><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="1.5"/></svg>
+      </button>
       <button class="dl-card-del" title="Hapus" onclick="event.stopPropagation();deleteOfflineTrack('${t.id}')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
       </button>
@@ -20287,58 +20388,126 @@ async function refreshDownloadsList() {
   `).join('');
 }
 
-// ── Putar lagu offline ───────────────────────────────────────────────────
+// ── Ganti/tambah cover album secara manual ──────────────────────────────
+function changeOfflineTrackCover(id) {
+  const inp = document.getElementById('dl-cover-input');
+  if (!inp) return;
+  inp.dataset.targetId = id;
+  inp.click();
+}
+async function handleCoverFilePicked(event) {
+  const file = event.target.files && event.target.files[0];
+  const id = event.target.dataset.targetId;
+  event.target.value = '';
+  if (!file || !id) return;
+  if (!/^image\//.test(file.type)) { toast(' Pilih file gambar yang valid'); return; }
+  try {
+    await _dlUpdateArt(id, file);
+    toast(' Sampul album diperbarui');
+    // Kalau lagu ini sedang diputar, perbarui juga foto di mini player (#bar)
+    if (_dlCurrentId === id && curTrack && curTrack.offline) {
+      if (_dlCurrentArtUrl) { try { URL.revokeObjectURL(_dlCurrentArtUrl); } catch(e){} }
+      _dlCurrentArtUrl = URL.createObjectURL(file);
+      curTrack.photo = _dlCurrentArtUrl; curTrack.artworkUrl = _dlCurrentArtUrl; curTrack.thumb = _dlCurrentArtUrl;
+      setBarImg(curTrack); setHeroImg(curTrack); setFSNowPlayingImg(curTrack);
+      _setupMediaSession(curTrack);
+      const npArt = document.getElementById('np-art'), npPh = document.getElementById('np-art-ph');
+      if (npArt && document.getElementById('np-view').classList.contains('open')) { npArt.src = _dlCurrentArtUrl; npArt.style.display='block'; if(npPh) npPh.style.display='none'; }
+    }
+    refreshDownloadsList();
+  } catch (e) { console.error(e); toast(' Gagal menyimpan sampul'); }
+}
+
+// ── Putar lagu offline — memakai mini player UTAMA (#bar), SAMA seperti
+// lagu online, bukan mini player terpisah. Caranya: elemen <audio> offline
+// dibungkus jadi objek "YTP palsu" (lihat _getOfflinePlayerObj) lalu
+// dipasang ke variabel global YTP, supaya seluruh mesin pemutaran yang
+// sudah ada (tick(), _armSongTimer(), tombol play/pause/prev/next, progress
+// bar, media session, dst) otomatis jalan untuk lagu offline juga. ──────────
 async function playOfflineTrack(id) {
-  const meta = _dlList.find(t => t.id === id);
-  if (!meta) return;
+  let meta = _dlList.find(t => t.id === id);
+  if (!meta) { try { _dlList = await _dlGetAllMeta(); meta = _dlList.find(t => t.id === id); } catch(e){} }
+  if (!meta) { toast(' Lagu tidak ditemukan'); return; }
   const blob = await _dlGetBlob(id);
   if (!blob) { toast(' File tidak ditemukan (mungkin sudah dihapus)'); refreshDownloadsList(); return; }
 
-  // Hentikan pemutaran YouTube utama (kalau ada) supaya audio tidak tabrakan
+  // Hentikan pemutaran YouTube (online) yang mungkin sedang jalan, lalu reset
+  // state timer/progress yang lama — sama seperti awal loadPlay() untuk lagu online.
   try { if (YTP && typeof YTP.pauseVideo === 'function') YTP.pauseVideo(); } catch (e) {}
+  cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer();
+  _playGen++;
+  playing = false; cur = 0; tot = 0;
+  _nextGuarded = true; _pendingNext = false;
+  _playStartWall = 0; _playStartPos = 0;
+  _npPlayingPlId = null; updateNPMobQueueBtn();
 
   if (_dlCurrentObjectUrl) { URL.revokeObjectURL(_dlCurrentObjectUrl); _dlCurrentObjectUrl = null; }
   _dlCurrentObjectUrl = URL.createObjectURL(blob);
   _dlCurrentId = id;
 
+  if (_dlCurrentArtUrl) { URL.revokeObjectURL(_dlCurrentArtUrl); _dlCurrentArtUrl = null; }
+  if (meta.art) { try { _dlCurrentArtUrl = URL.createObjectURL(meta.art); } catch(e){} }
+
+  curTrack = {
+    title: meta.name,
+    artist: 'Diunduh · Offline',
+    photo: _dlCurrentArtUrl || '',
+    artworkUrl: _dlCurrentArtUrl || '',
+    thumb: _dlCurrentArtUrl || '',
+    offline: true,
+    id: meta.id
+  };
+  lyrs = [];
+  // Catatan: sengaja TIDAK memanggil _saveLastPlayedTrack() di sini — lagu
+  // offline memakai object URL blob yang mati saat halaman di-reload, jadi
+  // tidak realistis untuk "dipulihkan" otomatis seperti lagu online.
+
   const audio = document.getElementById('dl-audio');
   audio.src = _dlCurrentObjectUrl;
+  audio.currentTime = 0;
+  const volEl = document.getElementById('vol');
+  audio.volume = volEl ? (parseInt(volEl.value) || 80) / 100 : 0.8;
+
+  YTP = _getOfflinePlayerObj(audio);
+  _ensureAudioCtx();
+  _setupMediaSession(curTrack);
+
+  // Update UI di mini player (#bar) — bar yang PERSIS sama dengan lagu online
+  document.getElementById('np-hero').style.display = 'block';
+  document.getElementById('h-title').textContent = curTrack.title;
+  document.getElementById('h-artist').textContent = curTrack.artist;
+  setHeroImg(curTrack);
+  setBarImg(curTrack);
+  document.getElementById('bar-title').textContent = curTrack.title;
+  document.getElementById('bar-artist').textContent = curTrack.artist;
+  setFSNowPlayingImg(curTrack);
+
+  // Lagu offline tidak berasal dari katalog online, jadi like/lirik/queue
+  // (yang butuh data katalog) disembunyikan dulu supaya tidak membingungkan.
+  const likeBtn = document.getElementById('btn-like');
+  if (likeBtn) { likeBtn.disabled = true; likeBtn.classList.remove('liked'); }
+  const lyrBtn = document.getElementById('btn-lyrics');
+  if (lyrBtn) lyrBtn.style.display = 'none';
+  const lyrLines = document.getElementById('lyr-lines');
+  if (lyrLines) lyrLines.innerHTML = '<div class="lyr-empty"><i></i>Lirik tidak tersedia untuk lagu offline</div>';
+
+  setPB(false); updProg();
   audio.play().catch(e => console.warn('Gagal memutar file offline:', e));
 
-  document.getElementById('dl-player-title').textContent = meta.name;
-  document.getElementById('dl-player-bar').classList.add('show');
-  _dlSetPlayIcon(true);
+  openNP(curTrack);
   refreshDownloadsList();
 }
 
-function toggleDownloadPlayback() {
-  const audio = document.getElementById('dl-audio');
-  if (!audio.src) return;
-  if (audio.paused) { audio.play().catch(() => {}); _dlSetPlayIcon(true); }
-  else { audio.pause(); _dlSetPlayIcon(false); }
-}
-
-// Tutup mini player offline sepenuhnya (tombol X) — hentikan audio & sembunyikan bar,
-// tapi biarkan file tetap tersimpan (tidak dihapus, cuma berhenti diputar).
-function stopOfflinePlayback() {
-  const audio = document.getElementById('dl-audio');
-  audio.pause();
-  audio.src = '';
-  if (_dlCurrentObjectUrl) { URL.revokeObjectURL(_dlCurrentObjectUrl); _dlCurrentObjectUrl = null; }
-  _dlCurrentId = null;
-  document.getElementById('dl-player-bar').classList.remove('show');
-  refreshDownloadsList();
-}
-
-function _dlSetPlayIcon(playing) {
-  document.getElementById('dl-ico-play').style.display = playing ? 'none' : '';
-  document.getElementById('dl-ico-pause').style.display = playing ? '' : 'none';
-}
-
-function seekDownloadPlayback(val) {
-  const audio = document.getElementById('dl-audio');
-  if (!audio.duration) return;
-  audio.currentTime = (val / 1000) * audio.duration;
+// Navigasi Next/Prev untuk lagu offline: berpindah di dalam daftar Unduhan
+// Offline (diurutkan sama seperti grid-nya), dipanggil dari playNext()/playPrev().
+async function _dlPlayAdjacent(dir) {
+  try {
+    const list = await _dlGetAllMeta();
+    if (!list.length) return;
+    const idx = list.findIndex(t => t.id === (curTrack && curTrack.id));
+    const next = idx === -1 ? list[0] : list[(idx + dir + list.length) % list.length];
+    if (next) playOfflineTrack(next.id);
+  } catch (e) {}
 }
 
 async function deleteOfflineTrack(id) {
@@ -20346,28 +20515,61 @@ async function deleteOfflineTrack(id) {
     const audio = document.getElementById('dl-audio');
     audio.pause(); audio.src = '';
     if (_dlCurrentObjectUrl) { URL.revokeObjectURL(_dlCurrentObjectUrl); _dlCurrentObjectUrl = null; }
+    if (_dlCurrentArtUrl) { URL.revokeObjectURL(_dlCurrentArtUrl); _dlCurrentArtUrl = null; }
     _dlCurrentId = null;
-    document.getElementById('dl-player-bar').classList.remove('show');
+    playing = false; setPB(false); cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer();
+    curTrack = null;
+    document.getElementById('bar-title').textContent = 'No Song Playing';
+    document.getElementById('bar-artist').textContent = '—';
+    const thumbEl = document.getElementById('bar-thumb');
+    if (thumbEl && thumbEl.tagName === 'IMG') thumbEl.outerHTML = '<div class="bar-ph" id="bar-thumb"></div>';
+    const likeBtn = document.getElementById('btn-like');
+    if (likeBtn) { likeBtn.disabled = true; likeBtn.classList.remove('liked'); }
   }
   try { await _dlDeleteRecord(id); } catch (e) { console.error(e); }
   toast(' Lagu offline dihapus');
   refreshDownloadsList();
 }
 
-// Sinkronkan progress bar & waktu mini player offline
+// ── Event elemen <audio> offline — mereplikasi transisi state yang sama
+// dengan onStateChange() milik YouTube player (lihat _createPlayer di atas),
+// supaya tick(), _armSongTimer(), dan media session tetap akurat untuk lagu
+// offline lewat mekanisme YANG SAMA seperti lagu online. ──────────────────
 (function _dlSetupAudioEvents() {
   document.addEventListener('DOMContentLoaded', () => {
     const audio = document.getElementById('dl-audio');
     if (!audio) return;
-    audio.addEventListener('timeupdate', () => {
-      if (!audio.duration) return;
-      document.getElementById('dl-player-cur').textContent = ft(audio.currentTime);
-      document.getElementById('dl-player-tot').textContent = ft(audio.duration);
-      document.getElementById('dl-player-seek').value = (audio.currentTime / audio.duration) * 1000;
+    audio.addEventListener('loadedmetadata', () => {
+      if (!curTrack || !curTrack.offline) return;
+      if (audio.duration > 0) tot = audio.duration;
+      updProg();
     });
-    audio.addEventListener('play', () => _dlSetPlayIcon(true));
-    audio.addEventListener('pause', () => _dlSetPlayIcon(false));
-    audio.addEventListener('ended', () => _dlSetPlayIcon(false));
+    audio.addEventListener('play', () => {
+      if (!curTrack || !curTrack.offline) return;
+      playing = true; setPB(true); _nextGuarded = false;
+      try {
+        if (audio.duration > 0) tot = audio.duration;
+        cur = audio.currentTime || 0;
+        _playStartWall = Date.now(); _playStartPos = cur;
+      } catch(e) {}
+      tick(); _armSongTimer(); _stopBgInterval();
+      if (document.hidden) _startBgInterval();
+    });
+    audio.addEventListener('pause', () => {
+      if (!curTrack || !curTrack.offline || audio.ended) return;
+      playing = false; setPB(false); cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer();
+    });
+    audio.addEventListener('ended', () => {
+      if (!curTrack || !curTrack.offline) return;
+      playing = false; setPB(false); cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer();
+      if (!_nextGuarded) { _nextGuarded = true; _handleSongEnded(); }
+    });
+    audio.addEventListener('timeupdate', () => {
+      if (!curTrack || !curTrack.offline) return;
+      cur = audio.currentTime || 0;
+      if (audio.duration > 0) tot = audio.duration;
+      updProg();
+    });
   });
 })();
 
