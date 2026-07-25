@@ -3804,6 +3804,50 @@ textarea.sugg-form-input{resize:vertical;}
   .aall-body{padding:16px;}
 }
 
+/* ── UNDUHAN OFFLINE (Downloads) — halaman untuk menyimpan & memutar file
+   MP3 hasil unduhan (mis. dari stansa.html) secara offline di perangkat.
+   File disimpan via IndexedDB (bukan localStorage) supaya bisa menampung
+   data biner (Blob) berukuran besar tanpa masalah kuota. ───────────────── */
+#downloads-view{position:fixed;inset:0;z-index:2000;background:var(--bg);display:none;flex-direction:column;}
+#downloads-view.show{display:flex;}
+.dl-add-btn{display:flex;align-items:center;gap:8px;background:var(--green);border:none;border-radius:50px;padding:9px 18px;color:#fff;font-family:var(--f);font-weight:700;font-size:.8rem;cursor:pointer;transition:all .2s;flex-shrink:0;white-space:nowrap;}
+.dl-add-btn:hover{box-shadow:var(--green-glow);transform:translateY(-1px);}
+.dl-add-btn svg{width:16px;height:16px;flex-shrink:0;}
+.dl-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:var(--muted);padding:60px 20px;gap:10px;}
+.dl-empty span{font-size:2.4rem;}
+.dl-empty p{font-size:.86rem;line-height:1.7;max-width:340px;}
+.dl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;}
+.dl-card{background:var(--card);border-radius:var(--r);padding:14px;cursor:pointer;transition:background .18s;position:relative;}
+.dl-card:hover{background:var(--hover);}
+.dl-card.playing{outline:2px solid var(--green);}
+.dl-card-cover{width:100%;aspect-ratio:1/1;border-radius:8px;background:linear-gradient(135deg,#2a2a2a,#141414);display:flex;align-items:center;justify-content:center;font-size:2rem;margin-bottom:10px;position:relative;overflow:hidden;}
+.dl-card-play-ov{position:absolute;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .18s;}
+.dl-card:hover .dl-card-play-ov{opacity:1;}
+.dl-card-play-ov svg{width:34px;height:34px;color:#fff;}
+.dl-card-name{font-size:.83rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.dl-card-meta{font-size:.7rem;color:var(--sub);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.dl-card-del{position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.55);border:none;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:opacity .15s;}
+.dl-card:hover .dl-card-del{opacity:1;}
+.dl-card-del:hover{background:#ff5555;}
+.dl-card-del svg{width:13px;height:13px;}
+.dl-player-bar{display:none;align-items:center;gap:14px;padding:12px 26px;border-top:1px solid var(--border);flex-shrink:0;background:var(--panel);}
+.dl-player-bar.show{display:flex;}
+.dl-player-art{width:44px;height:44px;border-radius:6px;object-fit:cover;background:var(--card);flex-shrink:0;}
+.dl-player-info{min-width:0;width:180px;flex-shrink:0;}
+.dl-player-title{font-size:.82rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.dl-player-sub{font-size:.68rem;color:var(--green);margin-top:1px;}
+.dl-player-btn{background:#fff;border:none;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;color:#000;}
+.dl-player-btn svg{width:16px;height:16px;}
+.dl-player-prog-wrap{flex:1;display:flex;align-items:center;gap:10px;min-width:0;}
+.dl-player-prog-wrap span{font-size:.68rem;color:var(--sub);font-family:var(--fm);flex-shrink:0;}
+.dl-player-prog-wrap input[type=range]{flex:1;accent-color:var(--green);}
+@media (max-width:900px){
+  #downloads-view .aall-header{padding:14px 16px;flex-wrap:wrap;}
+  #downloads-view .aall-body{padding:16px;}
+  .dl-player-bar{padding:10px 14px;gap:10px;}
+  .dl-player-info{width:110px;}
+}
+
 /* ── CHAT (Instagram-style DM) ─────────────────────────────── */
 .side-nav-btn{position:relative;}
 /* Badge notifikasi chat: default-nya mengalir sebagai bagian dari tombol
@@ -4171,6 +4215,10 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
       <div class="cloud-dot" id="cloud-dot"></div>
       <span id="cloud-status">Not connected</span>
     </div>
+    <button class="side-nav-btn" id="side-btn-downloads" onclick="openDownloadsView()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+      <span>Unduhan Offline</span>
+    </button>
     <button class="side-nav-btn" onclick="window.location.href='vibeprofile.html'">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/><path d="M8 12h8M12 8v8"/></svg>
       <span>VibeProfile</span>
@@ -4712,6 +4760,50 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
     <div class="aall-body">
       <div class="aall-grid" id="artist-all-albums-grid"></div>
     </div>
+  </div>
+
+  <!-- UNDUHAN OFFLINE — menyimpan & memutar file MP3 hasil unduhan secara offline -->
+  <div id="downloads-view">
+    <div class="aall-header">
+      <button class="pv-back" onclick="closeDownloadsView()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        Back
+      </button>
+      <div class="aall-title-wrap">
+        <div class="aall-title">Unduhan Offline</div>
+        <div class="aall-subtitle" id="dl-subtitle">0 lagu tersimpan di perangkat ini</div>
+      </div>
+      <button class="dl-add-btn" onclick="document.getElementById('dl-file-input').click()" title="Tambah file MP3">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        <span>Tambah MP3</span>
+      </button>
+      <input type="file" id="dl-file-input" accept="audio/mpeg,audio/mp3,.mp3" multiple style="display:none" onchange="handleDownloadFilesPicked(event)">
+    </div>
+    <div class="aall-body">
+      <div class="dl-empty" id="dl-empty-state">
+        <span>🎧</span>
+        <p>Belum ada lagu offline.<br>Tekan "Tambah MP3" lalu pilih file MP3 hasil unduhan kamu (mis. dari halaman konverter) supaya bisa diputar di sini tanpa internet.</p>
+      </div>
+      <div class="dl-grid" id="dl-grid"></div>
+    </div>
+    <!-- Mini player khusus lagu offline -->
+    <div class="dl-player-bar" id="dl-player-bar">
+      <img class="dl-player-art" id="dl-player-art" src="" alt="" style="display:none" onerror="this.style.display='none'">
+      <div class="dl-player-info">
+        <div class="dl-player-title" id="dl-player-title">—</div>
+        <div class="dl-player-sub">Offline</div>
+      </div>
+      <button class="dl-player-btn" id="dl-player-playpause" onclick="toggleDownloadPlayback()" title="Play/Pause">
+        <svg id="dl-ico-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        <svg id="dl-ico-pause" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+      </button>
+      <div class="dl-player-prog-wrap">
+        <span id="dl-player-cur">0:00</span>
+        <input type="range" id="dl-player-seek" min="0" max="1000" value="0" oninput="seekDownloadPlayback(this.value)">
+        <span id="dl-player-tot">0:00</span>
+      </div>
+    </div>
+    <audio id="dl-audio" style="display:none"></audio>
   </div>
 
   <!-- ALBUM VIEW (daftar lagu dalam album, bisa diputar) -->
@@ -19892,6 +19984,219 @@ document.addEventListener('keydown', (e) => {
 
 _setupSpWheelControl();
 _setupSpTouchControl();
+
+// ══════════════════════════════════════════════════════════════════════
+// UNDUHAN OFFLINE — simpan & putar file MP3 hasil unduhan tanpa internet
+// ══════════════════════════════════════════════════════════════════════
+// File MP3 disimpan sebagai Blob di IndexedDB (bukan localStorage, karena
+// localStorage cuma menampung string dengan kuota kecil ~5-10MB dan tidak
+// cocok untuk file audio). Data ini murni tersimpan di BROWSER perangkat
+// user (tidak diunggah ke server manapun), jadi tetap bisa diputar offline
+// dan hanya terlihat di browser/perangkat yang sama tempat file diimpor.
+
+const DL_DB_NAME = 'vibexaOfflineDB';
+const DL_DB_VERSION = 1;
+const DL_STORE = 'downloads';
+let _dlDB = null;
+let _dlList = [];              // cache metadata (tanpa blob) utk render grid
+let _dlCurrentId = null;       // id lagu offline yang sedang diputar
+let _dlCurrentObjectUrl = null;
+
+function _dlOpenDB() {
+  return new Promise((resolve, reject) => {
+    if (_dlDB) { resolve(_dlDB); return; }
+    const req = indexedDB.open(DL_DB_NAME, DL_DB_VERSION);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(DL_STORE)) {
+        const store = db.createObjectStore(DL_STORE, { keyPath: 'id' });
+        store.createIndex('addedAt', 'addedAt', { unique: false });
+      }
+    };
+    req.onsuccess = (e) => { _dlDB = e.target.result; resolve(_dlDB); };
+    req.onerror = (e) => reject(e.target.error);
+  });
+}
+
+function _dlAddFile(file) {
+  return _dlOpenDB().then(db => new Promise((resolve, reject) => {
+    const id = 'dl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    const record = {
+      id,
+      name: file.name.replace(/\.mp3$/i, ''),
+      size: file.size,
+      addedAt: Date.now(),
+      blob: file
+    };
+    const tx = db.transaction(DL_STORE, 'readwrite');
+    tx.objectStore(DL_STORE).add(record);
+    tx.oncomplete = () => resolve(record);
+    tx.onerror = (e) => reject(e.target.error);
+  }));
+}
+
+function _dlGetAllMeta() {
+  return _dlOpenDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(DL_STORE, 'readonly');
+    const req = tx.objectStore(DL_STORE).getAll();
+    req.onsuccess = () => {
+      // Buang field blob supaya list ringan; blob diambil terpisah saat diputar
+      const list = (req.result || []).map(r => ({ id: r.id, name: r.name, size: r.size, addedAt: r.addedAt }));
+      list.sort((a, b) => b.addedAt - a.addedAt);
+      resolve(list);
+    };
+    req.onerror = (e) => reject(e.target.error);
+  }));
+}
+
+function _dlGetBlob(id) {
+  return _dlOpenDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(DL_STORE, 'readonly');
+    const req = tx.objectStore(DL_STORE).get(id);
+    req.onsuccess = () => resolve(req.result ? req.result.blob : null);
+    req.onerror = (e) => reject(e.target.error);
+  }));
+}
+
+function _dlDeleteRecord(id) {
+  return _dlOpenDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(DL_STORE, 'readwrite');
+    tx.objectStore(DL_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = (e) => reject(e.target.error);
+  }));
+}
+
+function _dlFormatSize(bytes) {
+  if (!bytes) return '';
+  const mb = bytes / (1024 * 1024);
+  return mb >= 1 ? mb.toFixed(1) + ' MB' : Math.round(bytes / 1024) + ' KB';
+}
+
+// ── Buka / tutup halaman ────────────────────────────────────────────────
+function openDownloadsView() {
+  document.getElementById('downloads-view').classList.add('show');
+  refreshDownloadsList();
+}
+
+function closeDownloadsView() {
+  document.getElementById('downloads-view').classList.remove('show');
+}
+
+// ── Import file MP3 dari perangkat ──────────────────────────────────────
+async function handleDownloadFilesPicked(event) {
+  const files = Array.from(event.target.files || []).filter(f => /audio\/mpeg|\.mp3$/i.test(f.type) || /\.mp3$/i.test(f.name));
+  event.target.value = ''; // reset input supaya file yg sama bisa dipilih lagi nanti
+  if (!files.length) { toast(' Pilih file .mp3 yang valid'); return; }
+  for (const f of files) {
+    try { await _dlAddFile(f); } catch (e) { console.error('Gagal simpan file offline:', e); toast(' Gagal menyimpan ' + f.name); }
+  }
+  toast(files.length > 1 ? ' ' + files.length + ' lagu berhasil diimpor' : ' Lagu berhasil diimpor');
+  refreshDownloadsList();
+}
+
+// ── Render grid daftar lagu offline ──────────────────────────────────────
+async function refreshDownloadsList() {
+  try { _dlList = await _dlGetAllMeta(); } catch (e) { console.error(e); _dlList = []; }
+  const grid = document.getElementById('dl-grid');
+  const empty = document.getElementById('dl-empty-state');
+  const subtitle = document.getElementById('dl-subtitle');
+  if (!grid || !empty || !subtitle) return;
+  subtitle.textContent = _dlList.length + ' lagu tersimpan di perangkat ini';
+  if (!_dlList.length) {
+    grid.innerHTML = '';
+    empty.style.display = 'flex';
+    return;
+  }
+  empty.style.display = 'none';
+  grid.innerHTML = _dlList.map(t => `
+    <div class="dl-card${t.id === _dlCurrentId ? ' playing' : ''}" data-id="${t.id}" onclick="playOfflineTrack('${t.id}')">
+      <div class="dl-card-cover">
+        🎵
+        <div class="dl-card-play-ov">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </div>
+      </div>
+      <div class="dl-card-name" title="${esc(t.name)}">${esc(t.name)}</div>
+      <div class="dl-card-meta">${_dlFormatSize(t.size)}</div>
+      <button class="dl-card-del" title="Hapus" onclick="event.stopPropagation();deleteOfflineTrack('${t.id}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+  `).join('');
+}
+
+// ── Putar lagu offline ───────────────────────────────────────────────────
+async function playOfflineTrack(id) {
+  const meta = _dlList.find(t => t.id === id);
+  if (!meta) return;
+  const blob = await _dlGetBlob(id);
+  if (!blob) { toast(' File tidak ditemukan (mungkin sudah dihapus)'); refreshDownloadsList(); return; }
+
+  // Hentikan pemutaran YouTube utama (kalau ada) supaya audio tidak tabrakan
+  try { if (YTP && typeof YTP.pauseVideo === 'function') YTP.pauseVideo(); } catch (e) {}
+
+  if (_dlCurrentObjectUrl) { URL.revokeObjectURL(_dlCurrentObjectUrl); _dlCurrentObjectUrl = null; }
+  _dlCurrentObjectUrl = URL.createObjectURL(blob);
+  _dlCurrentId = id;
+
+  const audio = document.getElementById('dl-audio');
+  audio.src = _dlCurrentObjectUrl;
+  audio.play().catch(e => console.warn('Gagal memutar file offline:', e));
+
+  document.getElementById('dl-player-title').textContent = meta.name;
+  document.getElementById('dl-player-bar').classList.add('show');
+  _dlSetPlayIcon(true);
+  refreshDownloadsList();
+}
+
+function toggleDownloadPlayback() {
+  const audio = document.getElementById('dl-audio');
+  if (!audio.src) return;
+  if (audio.paused) { audio.play().catch(() => {}); _dlSetPlayIcon(true); }
+  else { audio.pause(); _dlSetPlayIcon(false); }
+}
+
+function _dlSetPlayIcon(playing) {
+  document.getElementById('dl-ico-play').style.display = playing ? 'none' : '';
+  document.getElementById('dl-ico-pause').style.display = playing ? '' : 'none';
+}
+
+function seekDownloadPlayback(val) {
+  const audio = document.getElementById('dl-audio');
+  if (!audio.duration) return;
+  audio.currentTime = (val / 1000) * audio.duration;
+}
+
+async function deleteOfflineTrack(id) {
+  if (_dlCurrentId === id) {
+    const audio = document.getElementById('dl-audio');
+    audio.pause(); audio.src = '';
+    if (_dlCurrentObjectUrl) { URL.revokeObjectURL(_dlCurrentObjectUrl); _dlCurrentObjectUrl = null; }
+    _dlCurrentId = null;
+    document.getElementById('dl-player-bar').classList.remove('show');
+  }
+  try { await _dlDeleteRecord(id); } catch (e) { console.error(e); }
+  toast(' Lagu offline dihapus');
+  refreshDownloadsList();
+}
+
+// Sinkronkan progress bar & waktu mini player offline
+(function _dlSetupAudioEvents() {
+  document.addEventListener('DOMContentLoaded', () => {
+    const audio = document.getElementById('dl-audio');
+    if (!audio) return;
+    audio.addEventListener('timeupdate', () => {
+      if (!audio.duration) return;
+      document.getElementById('dl-player-cur').textContent = ft(audio.currentTime);
+      document.getElementById('dl-player-tot').textContent = ft(audio.duration);
+      document.getElementById('dl-player-seek').value = (audio.currentTime / audio.duration) * 1000;
+    });
+    audio.addEventListener('play', () => _dlSetPlayIcon(true));
+    audio.addEventListener('pause', () => _dlSetPlayIcon(false));
+    audio.addEventListener('ended', () => _dlSetPlayIcon(false));
+  });
+})();
 
 </script>
 </body>

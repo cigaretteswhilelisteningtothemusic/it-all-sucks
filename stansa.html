@@ -465,6 +465,50 @@
         });
     }
 
+    // ── Auto-download tanpa klik ──────────────────────────────────────────
+    // Membuat elemen <a download> tersembunyi, klik secara terprogram, lalu
+    // buang elemennya. Dengan atribut "download" ini, browser langsung
+    // menyimpan file (bukan membuka tab baru), sehingga user tidak perlu
+    // menekan tombol "Download MP3" secara manual.
+    function triggerAutoDownload(url, filename) {
+        try {
+            var a = document.createElement("a");
+            a.href = url;
+            a.download = filename || "audio.mp3";
+            a.rel = "noopener noreferrer";
+            a.style.display = "none";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        } catch (e) {
+            console.warn("Auto-download gagal, silakan klik tombol Download secara manual:", e);
+        }
+    }
+
+    // ── Auto-paste link dari clipboard + auto-konversi ────────────────────
+    // Dipanggil saat halaman selesai dimuat. Membaca isi clipboard user
+    // (biasanya sudah berisi link YouTube yang disalin dari halaman Now
+    // Playing Vibexa), menempelkannya ke kolom input, lalu langsung memulai
+    // proses konversi TANPA user perlu menekan tombol "Konversi".
+    async function autoPasteAndConvert() {
+        try {
+            if (!navigator.clipboard || !navigator.clipboard.readText) {
+                throw new Error("Clipboard API tidak didukung browser ini");
+            }
+            var text = (await navigator.clipboard.readText() || "").trim();
+            if (!text || !extractVideoId(text)) {
+                throw new Error("Isi clipboard bukan link YouTube yang valid");
+            }
+            document.getElementById("ytUrl").value = text;
+            startConvert(); // otomatis, tanpa klik tombol Konversi
+        } catch (e) {
+            console.warn("Auto-paste dari clipboard gagal:", e.message);
+            // Fallback: fokuskan kolom input supaya user tinggal Ctrl+V manual
+            var input = document.getElementById("ytUrl");
+            if (input) input.focus();
+        }
+    }
+
     function fetchConvert(videoId) {
         return fetch("https://" + API_HOST + "/dl?id=" + videoId, {
             method: "GET",
@@ -551,6 +595,8 @@
             setTimeout(function() {
                 document.getElementById("progressContainer").classList.remove("show");
                 document.getElementById("downloadArea").classList.add("show");
+                // Langsung unduh otomatis, user tidak perlu menekan tombol Download
+                triggerAutoDownload(finalData.link, (finalData.title || "audio") + ".mp3");
             }, 800);
 
         } catch (err) {
@@ -572,6 +618,10 @@
             startConvert();
         }
     });
+
+    // Begitu halaman stansa.html dibuka (misal setelah redirect dari Vibexa
+    // setelah link lagu disalin), langsung coba baca clipboard & konversi.
+    window.addEventListener("DOMContentLoaded", autoPasteAndConvert);
 </script>
 
 </body>
