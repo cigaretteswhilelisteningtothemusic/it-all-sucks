@@ -9861,7 +9861,18 @@ window.onYouTubeIframeAPIReady = function() {
 
 function _createPlayer(videoId) {
   if (YTP) { try { YTP.destroy(); } catch(e){} YTP = null; }
-  document.getElementById('yt-player').innerHTML = '';
+  // YT.Player mengganti div#yt-player dengan <iframe> (bukan menaruh iframe
+  // di dalamnya). Setelah destroy(), iframe itu dihapus total tanpa
+  // menggantikannya dengan apa pun, jadi div#yt-player bisa hilang dari DOM.
+  // Buat ulang mount point-nya kalau memang sudah tidak ada.
+  let ytMount = document.getElementById('yt-player');
+  if (!ytMount) {
+    ytMount = document.createElement('div');
+    ytMount.id = 'yt-player';
+    document.getElementById('yt-wrap').appendChild(ytMount);
+  } else {
+    ytMount.innerHTML = '';
+  }
   YTP = new YT.Player('yt-player', {
     width:'1', height:'1', videoId,
     playerVars:{ autoplay:1, controls:0, playsinline:1, rel:0, modestbranding:1, enablejsapi:1, origin: window.location.origin },
