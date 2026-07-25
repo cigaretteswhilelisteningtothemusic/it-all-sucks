@@ -614,6 +614,11 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
   flex-shrink:0;
 }
 @keyframes spin{to{transform:rotate(360deg)}}
+/* Indikator visual saat lagu sedang dikonversi & diunduh ke Unduhan Offline
+   (lihat downloadCurrentSongOffline()) — ikon berputar & tombol nonaktif
+   sementara supaya user tidak menekan berkali-kali. */
+.dl-downloading{pointer-events:none;opacity:.6}
+.dl-downloading svg{animation:spin 1s linear infinite}
 
 /* TRANSLATION LINES */
 .ll-wrap{display:flex;flex-direction:column;gap:0px;}
@@ -5484,8 +5489,8 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
       </div>
     </div>
     <div id="np-topbar-actions">
-      <button class="np-icon-btn np-fs-hide" id="np-copy-link-btn" onclick="copySongLink()" title="Ambil Link Lagu">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      <button class="np-icon-btn np-fs-hide" id="np-copy-link-btn" onclick="downloadCurrentSongOffline()" title="Unduh ke Offline">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
       </button>
       <button class="np-icon-btn np-fs-hide" id="np-fs-btn" onclick="toggleNPFullscreen()" title="Fullscreen">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
@@ -5512,8 +5517,8 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h10"/><path d="m18 15 3 3-3 3" /></svg>
             <span>Queue</span>
           </button>
-          <button class="np-mob-add-btn" id="np-mob-link-btn" onclick="event.stopPropagation();copySongLink()" title="Ambil Link Lagu">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <button class="np-mob-add-btn" id="np-mob-link-btn" onclick="event.stopPropagation();downloadCurrentSongOffline()" title="Unduh ke Offline">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
           </button>
           <button class="np-mob-add-btn" id="np-mob-add-btn" onclick="event.stopPropagation();openAddSongModal(curTrack)" title="Add to Playlist">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -10364,54 +10369,83 @@ function playPrev(){
 function esc(s){if(!s)return'';const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
 function toast(msg,d=2700){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),d);}
 
-// ── Ambil Link Lagu ─────────────────────────────────────────────────────
-// Mengambil URL YouTube dari video yang sedang diputar (langsung dari player
-// aktif kalau tersedia, dengan fallback ke videoId yang tersimpan di curTrack),
-// lalu menyalinnya ke clipboard supaya user bisa membagikan link songs/video
-// yang sedang didengarkan.
-async function copySongLink(){
-  if(!curTrack){ toast(' Tidak ada songs yang sedang diputar'); return; }
-  let url = '';
-  try{
-    if (YTP && typeof YTP.getVideoUrl === 'function') url = YTP.getVideoUrl() || '';
-  }catch(e){}
-  if(!url && curTrack.videoId) url = 'https://www.youtube.com/watch?v=' + curTrack.videoId;
-  if(!url){ toast(' Link lagu belum tersedia, coba lagi sebentar'); return; }
-  await _copyTextToClipboard(url);
-  // Arahkan user ke stansa.html sambil MENYERTAKAN link & judul lewat parameter
-  // URL (?url=...&title=...). Ini dipakai (bukan cuma clipboard) karena browser
-  // biasanya MEMBLOKIR pembacaan clipboard otomatis kalau tidak dipicu langsung
-  // oleh klik user — lewat parameter URL, auto-paste & auto-convert di stansa.html
-  // jadi selalu berhasil tanpa perlu izin clipboard sama sekali.
-  const title = (curTrack.title || '') + (curTrack.artist ? (' - ' + curTrack.artist) : '');
-  const params = new URLSearchParams({ url, title });
-  // Jeda sebentar supaya toast "Link lagu disalin!" sempat terlihat sebelum pindah halaman.
-  setTimeout(() => { window.location.href = 'stansa.html?' + params.toString(); }, 500);
+// ── Unduh Lagu ke Offline (LANGSUNG, tanpa redirect ke stansa.html) ─────
+// Dulu tombol ini menyalin link lalu mengarahkan user ke stansa.html untuk
+// dikonversi manual di sana. Sekarang seluruh proses (konversi YouTube→MP3
+// lewat RapidAPI, lalu simpan Blob-nya ke IndexedDB "Unduhan Offline")
+// dilakukan LANGSUNG di halaman ini, di background, tanpa pernah pindah
+// halaman — user cukup tekan tombol dan tunggu toast konfirmasi.
+//
+// Kredensial API SAMA PERSIS dengan yang dipakai stansa.html supaya kalau
+// stansa.html masih dipakai user lain sebagai cara alternatif, keduanya
+// tetap konsisten.
+const YT2MP3_API_KEY = "44a6176a94msh92d99842860f494p1ff229jsndf24d7c1ac22";
+const YT2MP3_API_HOST = "youtube-mp36.p.rapidapi.com";
+
+function _yt2mp3Fetch(videoId){
+  return fetch('https://' + YT2MP3_API_HOST + '/dl?id=' + videoId, {
+    method: 'GET',
+    headers: {
+      'x-rapidapi-key': YT2MP3_API_KEY,
+      'x-rapidapi-host': YT2MP3_API_HOST
+    }
+  }).then(res => {
+    if (!res.ok) throw new Error('HTTP Error: ' + res.status);
+    return res.json();
+  });
 }
 
-// Helper salin teks ke clipboard dengan fallback untuk browser/konteks lama
-// (mis. bukan HTTPS) yang tidak mendukung navigator.clipboard.
-async function _copyTextToClipboard(text){
-  try{
-    if (navigator.clipboard && navigator.clipboard.writeText){
-      await navigator.clipboard.writeText(text);
-      toast(' Link lagu disalin!');
-      return;
-    }
-    throw new Error('clipboard API unavailable');
-  }catch(e){
+function _dlSleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+// Cegah user menekan tombol berkali-kali untuk video yang sama selagi masih diproses.
+let _dlDownloadingIds = new Set();
+
+async function downloadCurrentSongOffline(){
+  if(!curTrack){ toast(' Tidak ada songs yang sedang diputar'); return; }
+  let videoId = curTrack.videoId || '';
+  if (!videoId){
     try{
-      const ta=document.createElement('textarea');
-      ta.value=text;
-      ta.style.position='fixed'; ta.style.opacity='0';
-      document.body.appendChild(ta);
-      ta.focus(); ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      toast(' Link lagu disalin!');
-    }catch(e2){
-      toast(' Gagal menyalin link');
+      if (YTP && typeof YTP.getVideoUrl === 'function'){
+        const m = (YTP.getVideoUrl() || '').match(/[?&]v=([^&]+)/);
+        if (m) videoId = m[1];
+      }
+    }catch(e){}
+  }
+  if(!videoId){ toast(' ID video tidak ditemukan'); return; }
+  if(_dlDownloadingIds.has(videoId)){ toast(' Lagu ini sedang diunduh...'); return; }
+  _dlDownloadingIds.add(videoId);
+
+  const title = (curTrack.title || 'Audio') + (curTrack.artist ? (' - ' + curTrack.artist) : '');
+  const btns = [document.getElementById('np-copy-link-btn'), document.getElementById('np-mob-link-btn')];
+  btns.forEach(b => { if (b) b.classList.add('dl-downloading'); });
+  toast(' Mengonversi ke MP3...', 5000);
+
+  try{
+    if (!YT2MP3_API_KEY || !YT2MP3_API_KEY.trim()) throw new Error('API key belum diisi');
+
+    let data = await _yt2mp3Fetch(videoId);
+    let attempts = 0;
+    while (data && data.status === 'processing' && attempts < 20){
+      attempts++;
+      await _dlSleep(1500);
+      data = await _yt2mp3Fetch(videoId);
     }
+    if (!data || data.status !== 'ok' || !data.link) throw new Error((data && data.msg) || 'Konversi gagal, coba lagi');
+
+    toast(' Mengunduh & menyimpan...', 5000);
+    const res = await fetch(data.link);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const blob = await res.blob();
+
+    await _dlAddRemoteBlob(data.title || title, blob);
+    toast(' Lagu tersimpan ke Unduhan Offline');
+    try { refreshDownloadsList(); } catch(e){}
+  }catch(e){
+    console.warn('Gagal mengunduh otomatis ke Unduhan Offline:', e);
+    toast(' Gagal mengunduh lagu: ' + e.message);
+  }finally{
+    _dlDownloadingIds.delete(videoId);
+    btns.forEach(b => { if (b) b.classList.remove('dl-downloading'); });
   }
 }
 
@@ -20352,6 +20386,31 @@ async function _dlAddFile(file) {
       addedAt: Date.now(),
       blob: file,
       art: art || null   // Blob foto album (atau null kalau tidak ditemukan di file)
+    };
+    const tx = db.transaction(DL_STORE, 'readwrite');
+    tx.objectStore(DL_STORE).add(record);
+    tx.oncomplete = () => resolve(record);
+    tx.onerror = (e) => reject(e.target.error);
+  });
+}
+
+// Sama seperti _dlAddFile, tapi sumbernya Blob hasil fetch() dari internet
+// (mis. hasil konversi YouTube→MP3), bukan File dari <input type="file">
+// lokal. Dipakai oleh downloadCurrentSongOffline() supaya lagu bisa langsung
+// tersimpan ke Unduhan Offline tanpa perlu user mengunduh manual dulu.
+async function _dlAddRemoteBlob(name, blob) {
+  let art = null;
+  try { art = await _extractID3CoverArt(blob); } catch (e) { art = null; }
+  const db = await _dlOpenDB();
+  return new Promise((resolve, reject) => {
+    const id = 'dl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    const record = {
+      id,
+      name: (name || 'audio').replace(/\.mp3$/i, ''),
+      size: blob.size,
+      addedAt: Date.now(),
+      blob,
+      art: art || null
     };
     const tx = db.transaction(DL_STORE, 'readwrite');
     tx.objectStore(DL_STORE).add(record);

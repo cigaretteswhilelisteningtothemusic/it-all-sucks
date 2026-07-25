@@ -543,8 +543,13 @@
     // (browser mengisolasi IndexedDB per origin) — dalam kondisi ini,
     // fungsi akan otomatis jatuh ke unduhan biasa lewat browser.
     var DL_DB_NAME = "vibexaOfflineDB";
-    var DL_DB_VERSION = 1;
+    // HARUS SAMA PERSIS dengan DL_DB_VERSION di vibexa.html. Kalau salah satu
+    // file dinaikkan versinya (mis. nambah object store baru), file satunya
+    // WAJIB ikut diupdate ke angka yang sama, jika tidak IndexedDB akan
+    // menolak permintaan open() dengan versi yang lebih rendah (VersionError).
+    var DL_DB_VERSION = 2;
     var DL_STORE = "downloads";
+    var DL_PL_STORE = "dlPlaylists";
     var _dlDB = null;
 
     function _dlOpenDB() {
@@ -552,10 +557,18 @@
             if (_dlDB) { resolve(_dlDB); return; }
             var req = indexedDB.open(DL_DB_NAME, DL_DB_VERSION);
             req.onupgradeneeded = function(e) {
+                // Skema di sini HARUS identik dengan onupgradeneeded di vibexa.html,
+                // karena kalau stansa.html kebetulan yang PERTAMA kali membuka
+                // database ini di browser user, file inilah yang akan membuat
+                // seluruh object store dari nol (bukan cuma "downloads").
                 var db = e.target.result;
                 if (!db.objectStoreNames.contains(DL_STORE)) {
                     var store = db.createObjectStore(DL_STORE, { keyPath: "id" });
                     store.createIndex("addedAt", "addedAt", { unique: false });
+                }
+                if (!db.objectStoreNames.contains(DL_PL_STORE)) {
+                    var plStore = db.createObjectStore(DL_PL_STORE, { keyPath: "id" });
+                    plStore.createIndex("createdAt", "createdAt", { unique: false });
                 }
             };
             req.onsuccess = function(e) { _dlDB = e.target.result; resolve(_dlDB); };
