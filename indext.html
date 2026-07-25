@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Web Musik</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f0f0f;
+      color: #fff;
+      min-height: 100vh;
+      padding: 30px 20px;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 28px;
+      margin-bottom: 40px;
+      color: #ff4444;
+      letter-spacing: 2px;
+    }
+
+    .song-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 24px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .song-card {
+      background: #1a1a1a;
+      border-radius: 16px;
+      padding: 20px;
+      border: 1px solid #2a2a2a;
+      transition: border-color 0.3s;
+    }
+
+    .song-card:hover {
+      border-color: #ff4444;
+    }
+
+    .song-card h3 {
+      font-size: 16px;
+      margin-bottom: 14px;
+      color: #eee;
+    }
+
+    .song-card iframe {
+      width: 100%;
+      height: 180px;
+      border-radius: 10px;
+      border: none;
+    }
+
+    .card-footer {
+      margin-top: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .now-playing-badge {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #ff4444;
+      font-weight: 600;
+    }
+
+    .now-playing-badge.active {
+      display: inline-flex;
+    }
+
+    .now-playing-badge span {
+      width: 8px;
+      height: 8px;
+      background: #ff4444;
+      border-radius: 50%;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.4; transform: scale(1.4); }
+    }
+
+    .btn-download {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 18px;
+      background: linear-gradient(135deg, #ff4444, #cc0000);
+      color: white;
+      border: none;
+      border-radius: 25px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(255, 68, 68, 0.3);
+    }
+
+    .btn-download.visible {
+      display: inline-flex;
+    }
+
+    .btn-download:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(255, 68, 68, 0.5);
+    }
+
+    .btn-download:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Toast notifikasi */
+    .toast {
+      position: fixed;
+      bottom: 30px;
+      right: 30px;
+      background: #1a1a1a;
+      border: 1px solid #ff4444;
+      color: #fff;
+      padding: 14px 22px;
+      border-radius: 12px;
+      font-size: 14px;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.3s ease;
+      z-index: 9999;
+      pointer-events: none;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🎵 Web Musik</h1>
+
+  <div class="song-grid">
+
+    <!-- ── Card Lagu 1 ── -->
+    <div class="song-card">
+      <h3>Rick Astley — Never Gonna Give You Up</h3>
+      <iframe
+        id="player-dQw4w9WgXcQ"
+        class="yt-player-iframe"
+        data-video-id="dQw4w9WgXcQ"
+        src="https://www.youtube.com/embed/dQw4w9WgXcQ?enablejsapi=1"
+        allowfullscreen>
+      </iframe>
+      <div class="card-footer">
+        <div class="now-playing-badge" id="badge-dQw4w9WgXcQ">
+          <span></span> Sedang Diputar
+        </div>
+        <button
+          class="btn-download"
+          id="btn-dQw4w9WgXcQ"
+          data-video-id="dQw4w9WgXcQ"
+          onclick="convertToMp3('dQw4w9WgXcQ', this)">
+          ⬇ Download MP3
+        </button>
+      </div>
+    </div>
+
+    <!-- ── Card Lagu 2 ── -->
+    <div class="song-card">
+      <h3>Linkin Park — In The End</h3>
+      <iframe
+        id="player-eVTXPUF4Oz4"
+        class="yt-player-iframe"
+        data-video-id="eVTXPUF4Oz4"
+        src="https://www.youtube.com/embed/eVTXPUF4Oz4?enablejsapi=1"
+        allowfullscreen>
+      </iframe>
+      <div class="card-footer">
+        <div class="now-playing-badge" id="badge-eVTXPUF4Oz4">
+          <span></span> Sedang Diputar
+        </div>
+        <button
+          class="btn-download"
+          id="btn-eVTXPUF4Oz4"
+          data-video-id="eVTXPUF4Oz4"
+          onclick="convertToMp3('eVTXPUF4Oz4', this)">
+          ⬇ Download MP3
+        </button>
+      </div>
+    </div>
+
+    <!-- Tambah card lagu lainnya di sini dengan format yang sama -->
+
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ─── YouTube IFrame API ─────────────────────────────────
+    (function loadYTApi() {
+      if (document.getElementById('yt-api-script')) return;
+      const tag = document.createElement('script');
+      tag.id  = 'yt-api-script';
+      tag.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(tag);
+    })();
+
+    // ─── Konfigurasi ────────────────────────────────────────
+    const RAPIDAPI_KEY  = '44a6176a94msh92d99842860f494p1ff229jsndf24d7c1ac22';
+    const RAPIDAPI_HOST = 'youtube-mp36.p.rapidapi.com';
+
+    // ─── Player Manager ─────────────────────────────────────
+    const YTPlayerManager = {
+      players: {},
+
+      register(iframeId, videoId) {
+        this.players[videoId] = new YT.Player(iframeId, {
+          events: {
+            onStateChange: (event) => this.onStateChange(event, videoId)
+          }
+        });
+      },
+
+      onStateChange(event, videoId) {
+        const badge = document.getElementById(`badge-${videoId}`);
+        const btn   = document.getElementById(`btn-${videoId}`);
+
+        if (event.data === YT.PlayerState.PLAYING) {
+          // Reset semua card lain dulu
+          this.resetAll();
+
+          // Aktifkan card yang sedang diputar
+          if (badge) badge.classList.add('active');
+          if (btn)   btn.classList.add('visible');
+        }
+
+        if (event.data === YT.PlayerState.PAUSED ||
+            event.data === YT.PlayerState.ENDED) {
+          if (badge) badge.classList.remove('active');
+        }
+      },
+
+      resetAll() {
+        document.querySelectorAll('.now-playing-badge').forEach(b => b.classList.remove('active'));
+      }
+    };
+
+    // ─── Callback global IFrame API ─────────────────────────
+    function onYouTubeIframeAPIReady() {
+      document.querySelectorAll('.yt-player-iframe').forEach(iframe => {
+        const videoId = iframe.dataset.videoId;
+        if (videoId) YTPlayerManager.register(iframe.id, videoId);
+      });
+    }
+
+    // ─── Konversi & Download MP3 ────────────────────────────
+    async function convertToMp3(videoId, btn) {
+      const originalText = btn.textContent;
+      btn.disabled    = true;
+      btn.textContent = '⏳ Memproses...';
+
+      try {
+        const response = await fetch(
+          `https://${RAPIDAPI_HOST}/dl?id=${videoId}`,
+          {
+            method: 'GET',
+            headers: {
+              'x-rapidapi-key':  RAPIDAPI_KEY,
+              'x-rapidapi-host': RAPIDAPI_HOST
+            }
+          }
+        );
+
+        const data = await response.json();
+        console.log('API Response:', data);
+
+        if (data.status === 'ok' && data.link) {
+          triggerDownload(data.link, data.title || `lagu-${videoId}`);
+          showToast('✅ Download dimulai!');
+          btn.textContent = '✅ Berhasil!';
+
+          setTimeout(() => {
+            btn.textContent = originalText;
+            btn.disabled    = false;
+          }, 3000);
+
+        } else if (data.status === 'processing') {
+          btn.textContent = '⏳ Masih diproses...';
+          showToast('⏳ Server sedang memproses, harap tunggu...');
+
+          // Polling otomatis setiap 3 detik
+          setTimeout(() => {
+            btn.disabled    = false;
+            btn.textContent = originalText;
+            convertToMp3(videoId, btn);
+          }, 3000);
+
+        } else {
+          showToast('❌ Gagal mengkonversi, coba lagi.');
+          btn.textContent = originalText;
+          btn.disabled    = false;
+        }
+
+      } catch (error) {
+        console.error('Error:', error);
+        showToast('❌ Error koneksi ke server.');
+        btn.textContent = originalText;
+        btn.disabled    = false;
+      }
+    }
+
+    // ─── Trigger Download File ──────────────────────────────
+    function triggerDownload(url, filename) {
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `${filename}.mp3`;
+      a.target   = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    // ─── Toast Notifikasi ───────────────────────────────────
+    function showToast(message) {
+      const toast     = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+  </script>
+
+</body>
+</html>
