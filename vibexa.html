@@ -1385,21 +1385,25 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
   }
 
   /* ════════════════════════════════
-     HALAMAN NOW PLAYING — mobile: sembunyikan mini player
+     HALAMAN NOW PLAYING — mobile: sembunyikan mini player & navigasi bawah
   ════════════════════════════════ */
   /* Saat halaman Now Playing (#np-view) dibuka di mobile: sembunyikan kotak
-     mini player (#bar) di bawah, sama seperti pola di atas untuk halaman
-     Chat. Baris grid "bar" (64px) juga dihapus dari layout (bukan cuma
+     mini player (#bar) DAN navigasi bawah (#mob-nav), persis seperti
+     halaman Lyrics — supaya tombol-tombol di bawah tidak mengganggu/
+     menutupi kontrol pemutaran khusus mobile pada halaman Now Playing.
+     Baris grid "bar" & "mob-nav" juga dihapus dari layout (bukan cuma
      disembunyikan elemennya) supaya tidak menyisakan ruang kosong, dan
-     --np-bottom dikecilkan jadi setinggi #mob-nav saja (56px) supaya
-     halaman Now Playing langsung menempel tepat di atas navigasi bawah,
-     tanpa ada celah/box kosong bekas mini player di antaranya. */
+     --np-bottom dijadikan 0 supaya halaman Now Playing memenuhi penuh
+     sampai tepat di bawah topbar tanpa ada celah/box kosong. */
   body.np-mobile-open{
-    grid-template-rows:60px 1fr 56px !important;
-    grid-template-areas:"topbar""main""mob-nav" !important;
-    --np-bottom:56px;
+    grid-template-rows:60px 1fr !important;
+    grid-template-areas:"topbar""main" !important;
+    --np-bottom:0px;
   }
   body.np-mobile-open #bar{
+    display:none !important;
+  }
+  body.np-mobile-open #mob-nav{
     display:none !important;
   }
 
@@ -1745,11 +1749,11 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .np-about-follow.following{border-color:var(--green);color:var(--green);}
 .np-about-bio{font-size:.8rem;line-height:1.65;color:rgba(255,255,255,.82);margin-top:14px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
 .np-right-col{display:flex;flex-direction:column;gap:16px;}
-/* Kotak "Next Up" di halaman Now Playing HANYA dipakai untuk tampilan mobile
-   (lihat media query max-width:660px di bawah yang menampilkannya lagi).
-   Di PC, lagu selanjutnya ditampilkan di panel kanan #lyr (lihat
-   .lyr-nextup-box), bukan di sini. */
-#np-card-nextup{display:none;}
+/* Kotak "Your Playlists" di halaman Now Playing DISEMBUNYIKAN di semua
+   ukuran layar (mobile & PC), dan digantikan oleh kotak "Jelajahi <Artis>"
+   (#np-card-nextup) di posisi yang sama — baik di tampilan mobile maupun PC. */
+#np-card-playlists{display:none;}
+#np-card-nextup{display:flex;flex-direction:column;}
 .np-right-col .np-card{flex:1;display:flex;flex-direction:column;min-height:0;}
 .np-albums-list{display:flex;flex-direction:column;gap:2px;overflow-y:auto;scrollbar-width:none;flex:1;max-height:170px;}
 .np-albums-list::-webkit-scrollbar{display:none}
@@ -1948,10 +1952,10 @@ body.np-fs-final #bar{display:none !important;}
   .np-about-follow{font-size:.62rem;padding:4px 12px;}
   .np-about-bio{font-size:.68rem;line-height:1.45;margin-top:7px;-webkit-line-clamp:2;}
   .np-right-col{display:flex;flex-direction:column;gap:12px;}
-  /* Khusus mobile: tampilkan kotak Next Up (disembunyikan secara default
-     untuk PC di atas), posisinya otomatis paling bawah karena memang
-     ditaruh terakhir di dalam .np-right-col. */
-  #np-card-nextup{display:flex;flex-direction:column;}
+  /* Kotak "Your Playlists" tetap disembunyikan di mobile (sudah
+     disembunyikan secara global di atas); kotak "Jelajahi <Artis>" tetap
+     tampil, posisinya otomatis paling bawah karena memang ditaruh terakhir
+     di dalam .np-right-col. */
   /* Kotak "Albums" & "Playlist" juga dibuat persegi kecil dengan ukuran
      yang sama dengan kotak foto album (.np-art). */
   .np-right-col .np-card{flex:none;height:min(88vw,380px);min-height:0;width:min(88vw,380px);margin:0 auto;overflow:hidden;display:flex;flex-direction:column;}
@@ -10406,12 +10410,12 @@ function _getExploreArtistTracks(artistName){
   return [];
 }
 // Dipanggil saat user menekan salah satu song preview di kotak "Jelajahi
-// <Artis>": jadikan SELURUH daftar lagu artis tsb sebagai antrian (curQueue)
-// yang baru, supaya tombol next/prev & lanjutan otomatis sesudahnya TETAP
-// di artis yang sama — tidak melompat ke lagu artis lain manapun.
+// <Artis>": arahkan ke halaman Song Preview (mode vertikal ala Spotify),
+// TAPI feed-nya HANYA berisi preview 30 detik dari artis yang sama tersebut
+// — bukan dari artis lain manapun — dan bukan memutar lagu secara penuh,
+// melainkan cuplikan singkat seperti di halaman Song Preview pada umumnya.
 function playExploreArtistTrack(track, fullList){
-  curQueue = fullList.slice();
-  loadPlay(track, null);
+  openSongPreviewViewForArtist(track.artist, track.title);
 }
 // Dipakai saat sebuah lagu ATAU playlist/queue benar-benar habis: lanjutkan
 // otomatis dengan lagu-lagu TOP dari ARTIS yang TERAKHIR diputar (bukan lagi
@@ -19929,8 +19933,12 @@ let spNavLocked = false;
 let _spNavLockTimer = null;
 const SP_NAV_COOLDOWN = 480; // ms, sedikit lebih lama dari durasi animasi scroll smooth
 
-function openSongPreviewView() {
-  // Hentikan lagu utama yang sedang diputar & tutup halaman lyrics (kalau sedang terbuka)
+// Bagian UI yang SAMA setiap kali halaman Song Preview dibuka, dari mana pun
+// asalnya (topbar/nav bawah, atau kotak "Jelajahi <Artis>" di Now Playing):
+// hentikan lagu utama yang sedang diputar, tutup halaman lyrics (kalau
+// sedang terbuka), sembunyikan halaman lain, lalu tampilkan #song-preview-view.
+// Tidak memuat daftar lagu apapun — itu tanggung jawab pemanggilnya.
+function _spOpenShell() {
   if (typeof YTP !== 'undefined' && YTP) { try { YTP.pauseVideo(); } catch(e){} }
   if (typeof playing !== 'undefined') { playing = false; }
   if (typeof setPB === 'function') { setPB(false); }
@@ -19953,9 +19961,22 @@ function openSongPreviewView() {
   // mini player bar supaya tidak menutupi tombol menu genre/search milik
   // Song Preview (lihat CSS body.sp-mobile-open di media query 660px).
   if (typeof isMobile === 'function' && isMobile()) document.body.classList.add('sp-mobile-open');
+}
+
+function openSongPreviewView() {
+  _spOpenShell();
   // Default: setiap kali halaman Song Preview dibuka pertama kali (belum ada
   // lagu dimuat), langsung tampilkan genre Pop, bukan mode "Populer" umum.
   if (!spTracks.length) loadSpByGenre('pop');
+}
+
+// Dibuka khusus saat user menekan salah satu song preview di kotak
+// "Jelajahi <Artis>" (halaman Now Playing): feed Song Preview HANYA berisi
+// preview 30 detik dari artis yang sama — bukan dari artis lain manapun —
+// dan TIDAK memutar lagu penuh, persis seperti perilaku preview ala Spotify.
+function openSongPreviewViewForArtist(artistName, focusTitle) {
+  _spOpenShell();
+  loadSpByArtist(artistName, focusTitle);
 }
 
 function closeSongPreviewView() {
@@ -20124,6 +20145,46 @@ async function loadSpByGenre(genreKey) {
   } catch (e) {
     console.error('loadSpByGenre error:', e);
     feed.innerHTML = '<div class="sp-loading">Failed to load ' + esc(def.label) + ' songs, try again.</div>';
+  }
+}
+
+// Muat halaman Song Preview supaya HANYA berisi preview 30 detik dari SATU
+// artis tertentu — dipakai saat dibuka dari kotak "Jelajahi <Artis>" di
+// halaman Now Playing, jadi feed-nya TIDAK dicampur lagu dari artis lain
+// manapun (beda dengan mode genre/populer di atas). Sumbernya sama dengan
+// kotak "Jelajahi" itu sendiri (fetchArtistTopTracks), jadi format datanya
+// sudah kompatibel dan tinggal dipetakan lewat _mapDeezerTrackToSp().
+async function loadSpByArtist(artistName, focusTitle) {
+  if (!artistName) { loadSpPopular(); return; }
+  const feed = document.getElementById('sp-feed');
+  document.getElementById('sp-topbar-title').textContent = artistName;
+  document.getElementById('sp-genre-btn')?.classList.remove('active');
+  _currentSpGenreKey = null;
+  _syncSpGenreChipsActive();
+  feed.innerHTML = spLoadingHtml();
+  try {
+    const raw = await fetchArtistTopTracks(artistName, 50).catch(() => []);
+    let tracks = (raw || [])
+      .filter(t => t && t.preview)
+      .map(t => _mapDeezerTrackToSp(t, artistName));
+    if (!tracks.length) throw new Error('No previews found for ' + artistName);
+
+    // Kalau lagu yang barusan diklik di kotak "Jelajahi" ada di daftar,
+    // taruh di paling depan — feed langsung mulai dari lagu itu (mirip
+    // Spotify: melompat ke lagu yang ditekan), bukan urutan/lagu acak lain.
+    if (focusTitle) {
+      const idx = tracks.findIndex(t => (t.trackName || '').toLowerCase() === focusTitle.toLowerCase());
+      if (idx > 0) {
+        const [picked] = tracks.splice(idx, 1);
+        tracks.unshift(picked);
+      }
+    }
+
+    spTracks = tracks;
+    renderSpSlides();
+  } catch (e) {
+    console.error('loadSpByArtist error:', e);
+    feed.innerHTML = '<div class="sp-loading">Failed to load previews for ' + esc(artistName) + '.</div>';
   }
 }
 
