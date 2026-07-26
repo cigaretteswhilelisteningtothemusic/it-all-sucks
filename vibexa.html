@@ -1753,14 +1753,22 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .np-about-follow:hover{border-color:#fff;transform:scale(1.03)}
 .np-about-follow.following{border-color:var(--green);color:var(--green);}
 .np-about-bio{font-size:.8rem;line-height:1.65;color:rgba(255,255,255,.82);margin-top:14px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
-.np-right-col{display:flex;flex-direction:column;gap:16px;}
+/* FIX: tanpa min-width:0 di sini, kartu "Jelajahi <Artis>" yang scroll
+   menyamping (.expl-row) memaksa kolom kanan ini melebar mengikuti lebar
+   ASLI kontennya (bukan jatah 1fr di grid), sehingga kolom kiri "About the
+   artist" terjepit sampai nyaris tak terlihat. min-width:0 di seluruh
+   rantai grid-item → flex-item di bawah ini mewajibkan kolom kanan taat
+   pada lebar 1fr yang sudah ditentukan .np-grid, jadi kotak Albums &
+   Jelajahi tetap ringkas/persegi dan kotak About the artist tampil penuh. */
+.np-right-col{display:flex;flex-direction:column;gap:16px;min-width:0;}
+.np-about-card-big{min-width:0;}
 /* Kotak "Your Playlists" di halaman Now Playing DISEMBUNYIKAN di semua
    ukuran layar (mobile & PC), dan digantikan oleh kotak "Jelajahi <Artis>"
    (#np-card-nextup) di posisi yang sama — baik di tampilan mobile maupun PC. */
 #np-card-playlists{display:none;}
 #np-card-nextup{display:flex;flex-direction:column;}
-.np-right-col .np-card{flex:1;display:flex;flex-direction:column;min-height:0;}
-.np-albums-list{display:flex;flex-direction:column;gap:2px;overflow-y:auto;scrollbar-width:none;flex:1;max-height:170px;}
+.np-right-col .np-card{flex:1;display:flex;flex-direction:column;min-height:0;min-width:0;}
+.np-albums-list{display:flex;flex-direction:column;gap:2px;overflow-y:auto;scrollbar-width:none;flex:1;max-height:170px;min-width:0;}
 .np-albums-list::-webkit-scrollbar{display:none}
 .np-album-row{display:flex;align-items:center;gap:10px;padding:6px 6px;border-radius:9px;cursor:pointer;transition:background .15s;}
 .np-album-row:hover{background:rgba(255,255,255,.07)}
@@ -1769,16 +1777,17 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .np-album-title{font-size:.8rem;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .np-album-year{font-size:.68rem;color:rgba(255,255,255,.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .np-albums-empty,.np-albums-loading{font-size:.76rem;color:rgba(255,255,255,.5);text-align:center;padding:24px 8px;line-height:1.7;}
-.np-pl-list{display:flex;flex-direction:column;gap:2px;overflow-y:auto;scrollbar-width:none;flex:1;max-height:170px;}
+.np-pl-list{display:flex;flex-direction:column;gap:2px;overflow-y:auto;scrollbar-width:none;flex:1;max-height:170px;min-width:0;}
 /* ── Kotak "Jelajahi <Artis>" (menggantikan kotak "Next Up" lama) — kartu
    menyamping (horizontal scroll) dengan foto lagu & judul lagu ditumpuk di
    atas foto (gaya "Explore <Artist>" ala Spotify), dipakai di kotak mobile
    (#np-card-nextup) MAUPUN panel kanan PC (.lyr-nextup-box), isinya lagu-lagu
    lain dari artis yang SEDANG diputar (bukan lagi antrian/playlist campuran). */
-.expl-row{display:flex;gap:10px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding:2px 2px 4px;flex:1;align-content:flex-start;}
+.expl-row{display:flex;gap:10px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding:2px 2px 4px;flex:1;align-content:flex-start;min-width:0;}
 .expl-row::-webkit-scrollbar{display:none}
 .expl-card{flex:0 0 96px;width:96px;cursor:pointer;}
-.expl-cover-wrap{position:relative;width:100%;aspect-ratio:3/4;border-radius:10px;overflow:hidden;background:var(--hover);box-shadow:0 6px 16px rgba(0,0,0,.3);transition:transform .18s;}
+/* Kartu "Jelajahi <Artis>" dibuat PERSEGI (1:1) — sebelumnya 3:4 (potrait). */
+.expl-cover-wrap{position:relative;width:100%;aspect-ratio:1/1;border-radius:10px;overflow:hidden;background:var(--hover);box-shadow:0 6px 16px rgba(0,0,0,.3);transition:transform .18s;}
 .expl-card:hover .expl-cover-wrap{transform:translateY(-2px);}
 .expl-cover-img{width:100%;height:100%;object-fit:cover;display:block;}
 .expl-overlay{position:absolute;left:0;right:0;bottom:0;padding:8px 7px 9px;background:linear-gradient(180deg,transparent 0%,rgba(0,0,0,.75) 78%);}
@@ -1854,7 +1863,20 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
    (setelah animasi kotak "play" selesai, lihat toggleNPFullscreen() &
    NP_FS_MORPH_MS), animasi menutup laci itu jadi kelihatan penuh dulu,
    baru area itu "diserahkan" ke halaman Now Playing yang sudah melebar. */
-#np-view.np-fs-morphing{z-index:600;}
+/* FIX: sebelumnya bottom:0 hanya dipasang di fase ".np-fullscreen" (akhir),
+   sedangkan di fase transisi ".np-fs-morphing" halaman Now Playing masih
+   berhenti di batas var(--np-bottom) (di atas kotak "play"/#bar). Karena
+   #bar butuh 2.4 detik untuk selesai meluncur turun (lihat aturan
+   "body.np-is-fullscreen #bar" di bawah), selama itu area kotak "bar" yang
+   sudah ditinggalkan #bar (tapi belum ditutupi #np-view) memperlihatkan
+   background <body> yang polos hitam — inilah "kotak hitam kosong" yang
+   sempat terlihat di PC. Solusinya: bottom:0 dipasang SEJAK fase morphing
+   juga (bukan menunggu fase akhir), supaya area itu langsung tertutup oleh
+   background #np-view (#np-bg) yang lebih halus, sementara #bar (diberi
+   z-index lebih tinggi di bawah) tetap terlihat meluncur turun DI ATASNYA —
+   animasi menutup laci #bar tetap kelihatan penuh seperti semula, hanya
+   saja tidak ada lagi celah hitam kosong di baliknya. */
+#np-view.np-fs-morphing{z-index:600;bottom:0 !important;}
 #np-view.np-fullscreen{bottom:0 !important;z-index:600;}
 /* Kotak "play" di bawah (mini player/bar bawah): SELURUH kotak mulai
    meluncur turun sejak awal (tidak diam kosong dulu), sambil isinya
@@ -1879,7 +1901,7 @@ body.np-is-fullscreen #bar>.bar-r{opacity:0;transform:translateY(14px);transitio
    meninggalkan "kotak kosong" yang lama menggantung menunggu isinya
    selesai memudar-masuk. */
 #bar{transition:transform .6s cubic-bezier(.65,0,.35,1) 0s;}
-body.np-is-fullscreen #bar{pointer-events:none;transform:translateY(100%);transition:transform 2.4s cubic-bezier(.45,0,.55,1) 0s;}
+body.np-is-fullscreen #bar{pointer-events:none;transform:translateY(100%);transition:transform 2.4s cubic-bezier(.45,0,.55,1) 0s;z-index:601;}
 body.np-fs-final #bar{display:none !important;}
 @media(max-width:660px){
   #np-view.np-fs-morphing .np-art,#np-view.np-fs-morphing .np-art-ph,
