@@ -2596,6 +2596,48 @@ body.np-fs-final #bar{display:none !important;}
   /* Tombol Song Preview di topbar disembunyikan khusus mobile (sudah ada
      tombol Preview di navigasi bawah) */
   #nav-songpreview{display:none;}
+
+  /* ── MOBILE ONLY: kotak search "memanjang" saat difokus ──────────────
+     Saat user menekan/fokus ke kotak search (#home-q), tombol notifikasi
+     dan tombol streak otomatis disembunyikan (dengan animasi mengecil,
+     bukan langsung hilang) supaya ruang tersebut dipakai oleh kotak
+     search yang otomatis memanjang ke kanan (karena .home-search-wrap
+     memakai flex:1, ia otomatis mengisi ruang kosong begitu elemen di
+     sampingnya mengecil/hilang). Ikon kaca pembesar di dalam kotak search
+     juga ikut menghilang supaya user lebih leluasa mengetik. Semua efek
+     ini HANYA berlaku di mobile karena berada di dalam media query ini. */
+  .home-notif-wrap,
+  .profile-streak-pill-mobile{
+    overflow:hidden;
+    transition:max-width .28s ease,opacity .2s ease,margin .28s ease,padding .28s ease,transform .28s ease;
+    max-width:60px;
+  }
+  .home-topbar.mobile-searching .home-notif-wrap,
+  .home-topbar.mobile-searching .profile-streak-pill-mobile{
+    max-width:0;
+    opacity:0;
+    margin:0;
+    padding-left:0;
+    padding-right:0;
+    border-width:0;
+    pointer-events:none;
+    transform:scale(.85);
+  }
+  /* Ikon search di dalam pill ikut menghilang saat kotak search difokus */
+  #home-btn-search{
+    transition:max-width .2s ease,opacity .15s ease,margin .2s ease,transform .2s ease;
+    max-width:36px;
+  }
+  .home-topbar.mobile-searching #home-btn-search{
+    max-width:0;
+    opacity:0;
+    margin:0;
+    pointer-events:none;
+    transform:scale(.7);
+  }
+  .home-topbar.mobile-searching #home-q{
+    padding-left:14px;
+  }
 }
 
 /* Panel notifikasi */
@@ -12242,6 +12284,27 @@ initSearchSuggestions('home-q', 'home-search-suggestions', (q) => {
 
 document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')doSearch();});
 document.getElementById('home-q').addEventListener('keydown',e=>{if(e.key==='Enter')homeSearchGo();});
+
+/* ── MOBILE ONLY: kotak search memanjang saat difokus ──────────────────
+   Saat kotak search (#home-q) difokus, tambahkan class "mobile-searching"
+   ke .home-topbar. CSS (di dalam media query max-width:660px) akan
+   otomatis menyembunyikan tombol notifikasi & streak serta ikon kaca
+   pembesar di dalam kotak search, sehingga kotak search bisa memanjang
+   ke kanan. Efek ini hanya terlihat di mobile karena CSS-nya dibatasi
+   media query; di desktop class ini ditambahkan/dihapus tapi tidak
+   berpengaruh apa pun secara visual. */
+(function(){
+  const homeQInput = document.getElementById('home-q');
+  const homeTopbarEl = document.querySelector('.home-topbar');
+  if(homeQInput && homeTopbarEl){
+    homeQInput.addEventListener('focus', ()=> homeTopbarEl.classList.add('mobile-searching'));
+    homeQInput.addEventListener('blur', ()=> {
+      // Beri sedikit delay agar tap pada tombol lain di dalam pill (jika ada)
+      // tetap sempat diproses sebelum kotak search mengecil kembali.
+      setTimeout(()=> homeTopbarEl.classList.remove('mobile-searching'), 120);
+    });
+  }
+})();
 // Toggle play/pause — dipakai bareng oleh tombol di #bar (desktop & mini player)
 // dan tombol besar di kontrol khusus mobile pada halaman Now Playing.
 function _togglePlayPause(){
