@@ -1761,6 +1761,20 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .np-album-year{font-size:.68rem;color:rgba(255,255,255,.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .np-albums-empty,.np-albums-loading{font-size:.76rem;color:rgba(255,255,255,.5);text-align:center;padding:24px 8px;line-height:1.7;}
 .np-pl-list{display:flex;flex-direction:column;gap:2px;overflow-y:auto;scrollbar-width:none;flex:1;max-height:170px;}
+/* ── Kotak "Jelajahi <Artis>" (menggantikan kotak "Next Up" lama) — kartu
+   menyamping (horizontal scroll) dengan foto lagu & judul lagu ditumpuk di
+   atas foto (gaya "Explore <Artist>" ala Spotify), dipakai di kotak mobile
+   (#np-card-nextup) MAUPUN panel kanan PC (.lyr-nextup-box), isinya lagu-lagu
+   lain dari artis yang SEDANG diputar (bukan lagi antrian/playlist campuran). */
+.expl-row{display:flex;gap:10px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding:2px 2px 4px;flex:1;align-content:flex-start;}
+.expl-row::-webkit-scrollbar{display:none}
+.expl-card{flex:0 0 96px;width:96px;cursor:pointer;}
+.expl-cover-wrap{position:relative;width:100%;aspect-ratio:3/4;border-radius:10px;overflow:hidden;background:var(--hover);box-shadow:0 6px 16px rgba(0,0,0,.3);transition:transform .18s;}
+.expl-card:hover .expl-cover-wrap{transform:translateY(-2px);}
+.expl-cover-img{width:100%;height:100%;object-fit:cover;display:block;}
+.expl-overlay{position:absolute;left:0;right:0;bottom:0;padding:8px 7px 9px;background:linear-gradient(180deg,transparent 0%,rgba(0,0,0,.75) 78%);}
+.expl-title{font-size:.7rem;font-weight:800;color:#fff;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-shadow:0 1px 4px rgba(0,0,0,.4);}
+.expl-empty{font-size:.76rem;color:rgba(255,255,255,.5);padding:10px 2px;}
 .np-pl-list::-webkit-scrollbar{display:none}
 .np-pl-item{display:flex;align-items:center;gap:10px;padding:6px 6px;border-radius:9px;cursor:pointer;transition:background .15s;}
 .np-pl-item:hover{background:rgba(255,255,255,.07)}
@@ -1925,7 +1939,7 @@ body.np-fs-final #bar{display:none !important;}
   /* Kotak "Tentang Artis" ditampilkan PALING ATAS (di atas Albums/Playlist/
      Next Up) memakai "order", jadi langsung terlihat begitu user scroll
      turun sedikit dari foto album, sebelum kotak Albums/Playlist/Next Up. */
-  .np-about-card-big{order:1;aspect-ratio:1;min-height:0;width:min(250px,62vw);margin:0 auto;}
+  .np-about-card-big{order:1;aspect-ratio:1;min-height:0;width:min(88vw,380px);margin:0 auto;}
   .np-right-col{order:2;}
   .np-card-label{font-size:.8rem;top:12px;left:14px;}
   .np-about-overlay{padding:12px;}
@@ -1940,12 +1954,17 @@ body.np-fs-final #bar{display:none !important;}
   #np-card-nextup{display:flex;flex-direction:column;}
   /* Kotak "Albums" & "Playlist" juga dibuat persegi kecil dengan ukuran
      yang sama dengan kotak foto album (.np-art). */
-  .np-right-col .np-card{flex:none;height:min(280px,68vw);min-height:0;width:min(280px,68vw);margin:0 auto;overflow:hidden;display:flex;flex-direction:column;}
+  .np-right-col .np-card{flex:none;height:min(88vw,380px);min-height:0;width:min(88vw,380px);margin:0 auto;overflow:hidden;display:flex;flex-direction:column;}
   .np-right-col .np-card-head{flex-shrink:0;}
   .np-albums-list,.np-pl-list{flex:1 1 0;max-height:none;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:auto;touch-action:pan-y;}
   .np-album-cover,.np-album-cover-ph,.np-pl-thumb,.np-pl-ph{width:30px;height:30px;}
   .np-album-title,.np-pl-name{font-size:.72rem;}
   .np-album-year,.np-pl-count{font-size:.6rem;}
+  /* Kotak "Jelajahi <Artis>" TIDAK dipaksa persegi seperti Albums/Playlist —
+     tingginya menyesuaikan isi (judul + 1 baris kartu lagu saja). */
+  #np-card-nextup{height:auto;min-height:0;width:min(88vw,380px);}
+  #np-card-nextup .expl-row{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-x;}
+  #np-card-nextup .expl-card{flex:0 0 108px;width:108px;}
   /* Tombol Like di kartu Song Preview TETAP ditampilkan di mobile (dulu
      disembunyikan karena masih berupa tombol titik-3 yang belum berfungsi) */
   /* Khusus mobile: kotak "Tentang Artis" menutup ke BAWAH (translateY),
@@ -5406,8 +5425,8 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
            panel #lyr ini otomatis tersembunyi di tampilan mobile. Bisa
            discroll sama seperti kotak Other Albums di atas. -->
       <div class="lyr-nextup-box" id="lyr-nextup-box">
-        <div class="lyr-albums-label">Next Up</div>
-        <div class="lyr-albums-scroll" id="lyr-nextup-scroll"></div>
+        <div class="lyr-albums-label" id="lyr-nextup-label">Jelajahi Artis</div>
+        <div class="expl-row" id="lyr-nextup-scroll"></div>
       </div>
     </div>
     <!-- Mesin lirik tersinkron tetap berjalan di balik layar, dipakai oleh mode layar penuh -->
@@ -5660,8 +5679,8 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
           <div class="np-pl-list" id="np-pl-list"></div>
         </div>
         <div class="np-card" id="np-card-nextup">
-          <div class="np-card-head"><h4>Next Up</h4></div>
-          <div class="np-albums-list" id="np-nextup-list"></div>
+          <div class="np-card-head"><h4 id="np-nextup-title">Jelajahi Artis</h4></div>
+          <div class="expl-row" id="np-nextup-list"></div>
         </div>
       </div>
     </div>
@@ -10362,6 +10381,38 @@ function _artistTopTrackToTrack(t){
     videoId: null, photo: null, duration: t.duration, _query: `${t.artist}|||${t.title}|||${t.id}`
   };
 }
+// ── Kotak "Jelajahi <Artis>" (dulu bernama "Next Up") — daftar lagu LAIN
+// dari artis yang SEDANG diputar, dipakai di kotak mobile (#np-card-nextup)
+// & panel kanan PC (.lyr-nextup-box). Di-cache per nama artis supaya tidak
+// fetch berulang setiap kali kotak dirender ulang.
+let _npExploreCache = {};    // artistNameLower -> array of track objects
+let _npExplorePromise = {};  // artistNameLower -> promise yang sedang berjalan
+function _getExploreArtistTracks(artistName){
+  if(!artistName) return [];
+  const key = artistName.toLowerCase();
+  if(_npExploreCache[key]) return _npExploreCache[key];
+  if(!_npExplorePromise[key]){
+    _npExplorePromise[key] = fetchArtistTopTracks(artistName, 20).then(raw=>{
+      _npExploreCache[key] = (raw||[]).map(_artistTopTrackToTrack);
+      delete _npExplorePromise[key];
+      // Render ulang begitu data selesai dimuat, TAPI hanya kalau artis yang
+      // sedang diputar masih sama (user mungkin sudah pindah lagu lain).
+      if(curTrack && curTrack.artist && curTrack.artist.toLowerCase()===key){
+        _renderNPNextUp();
+        _renderLyrNextUp();
+      }
+    }).catch(()=>{ delete _npExplorePromise[key]; });
+  }
+  return [];
+}
+// Dipanggil saat user menekan salah satu song preview di kotak "Jelajahi
+// <Artis>": jadikan SELURUH daftar lagu artis tsb sebagai antrian (curQueue)
+// yang baru, supaya tombol next/prev & lanjutan otomatis sesudahnya TETAP
+// di artis yang sama — tidak melompat ke lagu artis lain manapun.
+function playExploreArtistTrack(track, fullList){
+  curQueue = fullList.slice();
+  loadPlay(track, null);
+}
 // Dipakai saat sebuah lagu ATAU playlist/queue benar-benar habis: lanjutkan
 // otomatis dengan lagu-lagu TOP dari ARTIS yang TERAKHIR diputar (bukan lagi
 // Top Songs global), berurutan mulai dari lagu setelah lagu yang baru
@@ -12498,6 +12549,81 @@ function closeNP(){
   _npAutoFS=false;
 }
 
+// ─── Swipe ke bawah untuk MENUTUP halaman (khusus tampilan mobile) ───
+// Meniru gestur Spotify: kalau user sedang berada di paling atas halaman
+// (scroll sudah mentok/belum digeser sama sekali) lalu terus menarik jari
+// ke bawah, halamannya ikut "diseret" turun mengikuti jari sebagai umpan
+// balik visual — begitu tarikannya sudah cukup jauh (atau ditarik cepat/
+// flick walau jaraknya pendek), halaman otomatis tertutup sendiri, tanpa
+// perlu memencet tombol close/panah bawah sama sekali. Kalau tarikannya
+// kurang jauh & dilepas, halaman "memantul" balik ke posisi semula.
+// Dipakai untuk halaman Now Playing (#np-view) & Lyrics fullscreen (#fs-lyr).
+function _setupSwipeDownToClose(viewEl, scrollEl, closeFn){
+  if(!viewEl || !scrollEl) return;
+  let startY=0, startTime=0, dragging=false, atTop=false, curDelta=0;
+  const CLOSE_THRESHOLD=110; // px tarikan minimal supaya dianggap "ditutup", bukan cuma pantulan scroll
+  const FLICK_VELOCITY=0.55; // px/ms — tarikan cepat (flick) tetap menutup walau jaraknya belum jauh
+
+  function releaseVisual(){
+    viewEl.style.transition='';
+    viewEl.style.transform='';
+    viewEl.style.opacity='';
+  }
+  function springBack(){
+    viewEl.style.transition='transform .28s cubic-bezier(.22,1,.36,1),opacity .28s ease';
+    viewEl.style.transform='';
+    viewEl.style.opacity='';
+    setTimeout(()=>{ viewEl.style.transition=''; }, 300);
+  }
+
+  scrollEl.addEventListener('touchstart', (e)=>{
+    if(typeof isMobile==='function' && !isMobile()){ atTop=false; return; }
+    // Jangan aktifkan gestur ini saat mode immersive fullscreen Now Playing
+    // (punya tombol/gestur keluarnya sendiri, biar tidak bentrok).
+    if(viewEl.id==='np-view' && (viewEl.classList.contains('np-fullscreen')||viewEl.classList.contains('np-fs-morphing'))){ atTop=false; return; }
+    startY=e.touches[0].clientY;
+    startTime=Date.now();
+    atTop=scrollEl.scrollTop<=0;
+    dragging=false; curDelta=0;
+  }, {passive:true});
+
+  scrollEl.addEventListener('touchmove', (e)=>{
+    if(!atTop) return;
+    const dy=e.touches[0].clientY-startY;
+    // Jari ditarik ke ATAS (atau belum bergerak sama sekali) → biarkan
+    // scroll biasa berjalan, ini bukan gestur menutup halaman.
+    if(dy<=0 || scrollEl.scrollTop>0){
+      if(dragging) releaseVisual();
+      dragging=false; atTop=false;
+      return;
+    }
+    dragging=true;
+    e.preventDefault(); // cegah efek "karet" bawaan browser supaya seretan terasa nempel di jari
+    curDelta=dy;
+    const damped=Math.min(dy*0.55, window.innerHeight*0.85);
+    viewEl.style.transition='';
+    viewEl.style.transform=`translateY(${damped}px)`;
+    viewEl.style.opacity=String(Math.max(0.35, 1-damped/480));
+  }, {passive:false});
+
+  scrollEl.addEventListener('touchend', ()=>{
+    if(!dragging){ atTop=false; return; }
+    const elapsed=Math.max(1, Date.now()-startTime);
+    const velocity=curDelta/elapsed;
+    if(curDelta>CLOSE_THRESHOLD || velocity>FLICK_VELOCITY){
+      viewEl.style.transition='transform .22s ease,opacity .22s ease';
+      viewEl.style.transform='translateY(100%)';
+      viewEl.style.opacity='0';
+      setTimeout(()=>{ closeFn(); releaseVisual(); }, 200);
+    } else {
+      springBack();
+    }
+    dragging=false; atTop=false;
+  }, {passive:true});
+}
+_setupSwipeDownToClose(document.getElementById('np-view'), document.getElementById('np-scroll'), closeNP);
+_setupSwipeDownToClose(document.getElementById('fs-lyr'), document.getElementById('fs-lyr-scroll'), closeFSLyricsIfOpen);
+
 // ── Animasi berpindah/transisi header saat scroll turun di halaman Now Playing (gaya Spotify) ──
 // Foto album besar + judul memudar & mengecil sedikit, lalu header atas berubah solid
 // dan menampilkan versi mini (thumbnail kecil + judul) begitu user scroll ke bawah.
@@ -12829,21 +12955,26 @@ function _getUpcomingTracks(limit){
 }
 function _renderNPNextUp(){
   const c=document.getElementById('np-nextup-list');
+  const titleEl=document.getElementById('np-nextup-title');
   if(!c) return;
-  const upcoming=_getUpcomingTracks();
-  if(!upcoming.length){ c.innerHTML='<div class="np-albums-empty">No more songs queued</div>'; return; }
+  const artistName=curTrack && curTrack.artist;
+  if(titleEl) titleEl.textContent = artistName ? `Jelajahi ${artistName}` : 'Jelajahi Artis';
+  if(!artistName){ c.innerHTML='<div class="expl-empty">Play a song to see previews</div>'; return; }
+  const full=_getExploreArtistTracks(artistName);
+  // Jangan tampilkan lagu yang SEDANG diputar di dalam daftar preview-nya sendiri.
+  const list=full.filter(t=>!curTrack || t.title.toLowerCase()!==curTrack.title.toLowerCase() || t.artist.toLowerCase()!==curTrack.artist.toLowerCase());
+  if(!list.length){ c.innerHTML='<div class="expl-empty">Loading previews…</div>'; return; }
   c.innerHTML='';
-  upcoming.forEach(t=>{
+  list.forEach(t=>{
     const d=document.createElement('div');
-    d.className='np-album-row';
+    d.className='expl-card';
     d.innerHTML=`
-      ${t.thumb ? `<img class="np-album-cover" src="${esc(t.thumb)}" alt="" loading="lazy" onerror="this.style.display='none'">` : `<div class="np-album-cover-ph"></div>`}
-      <div class="np-album-info">
-        <div class="np-album-title">${esc(t.title)}</div>
-        <div class="np-album-year">${esc(t.artist || '')}</div>
+      <div class="expl-cover-wrap">
+        ${t.thumb ? `<img class="expl-cover-img" src="${esc(t.thumb)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
+        <div class="expl-overlay"><div class="expl-title">${esc(t.title)}</div></div>
       </div>
     `;
-    d.addEventListener('click', (e)=>{ e.stopPropagation(); loadPlay(t, currentPlaylistId); });
+    d.addEventListener('click', (e)=>{ e.stopPropagation(); playExploreArtistTrack(t, full); });
     c.appendChild(d);
   });
 }
@@ -13652,29 +13783,34 @@ function renderLyrAlbumsList(albums) {
   });
 }
 
-// Kotak "Next Up" di panel kanan (khusus PC) — pakai style yang sama dengan
-// kotak "Other Albums" (.lyr-album-item), isinya lagu-lagu setelah lagu yang
-// sedang diputar (lihat _getUpcomingTracks()). Klik salah satu langsung memutarnya.
+// Kotak "Jelajahi <Artis>" di panel kanan (khusus PC) — kartu menyamping
+// (sama persis datanya dengan kotak mobile, lihat _renderNPNextUp()), isinya
+// lagu-lagu LAIN dari artis yang SEDANG diputar. Klik salah satu langsung
+// memutarnya & menjadikan seluruh daftar artis tsb sebagai antrian baru.
 function _renderLyrNextUp() {
   const c = document.getElementById('lyr-nextup-scroll');
+  const labelEl = document.getElementById('lyr-nextup-label');
   if (!c) return;
-  const upcoming = typeof _getUpcomingTracks === 'function' ? _getUpcomingTracks() : [];
-  if (!upcoming.length) {
-    c.innerHTML = '<div class="lyr-albums-empty">No more songs queued</div>';
+  const artistName = curTrack && curTrack.artist;
+  if (labelEl) labelEl.textContent = artistName ? `Jelajahi ${artistName}` : 'Jelajahi Artis';
+  if (!artistName) { c.innerHTML = '<div class="lyr-albums-empty">Play a song to see previews</div>'; return; }
+  const full = _getExploreArtistTracks(artistName);
+  const list = full.filter(t=>!curTrack || t.title.toLowerCase()!==curTrack.title.toLowerCase() || t.artist.toLowerCase()!==curTrack.artist.toLowerCase());
+  if (!list.length) {
+    c.innerHTML = '<div class="lyr-albums-empty">Loading previews…</div>';
     return;
   }
   c.innerHTML = '';
-  upcoming.forEach(t => {
+  list.forEach(t => {
     const div = document.createElement('div');
-    div.className = 'lyr-album-item';
+    div.className = 'expl-card';
     div.innerHTML = `
-      ${t.thumb ? `<img class="lyr-album-item-cover" src="${esc(t.thumb)}" alt="" loading="lazy" onerror="this.style.display='none'">` : `<div class="lyr-album-item-cover"></div>`}
-      <div class="lyr-album-item-info">
-        <div class="lyr-album-item-title">${esc(t.title)}</div>
-        <div class="lyr-album-item-year">${esc(t.artist || '')}</div>
+      <div class="expl-cover-wrap">
+        ${t.thumb ? `<img class="expl-cover-img" src="${esc(t.thumb)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
+        <div class="expl-overlay"><div class="expl-title">${esc(t.title)}</div></div>
       </div>
     `;
-    div.addEventListener('click', (e) => { e.stopPropagation(); loadPlay(t, currentPlaylistId); });
+    div.addEventListener('click', (e) => { e.stopPropagation(); playExploreArtistTrack(t, full); });
     c.appendChild(div);
   });
 }
