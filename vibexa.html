@@ -738,6 +738,11 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 .btn-lyrics-label{display:none;}
 .btn-lyrics-icon{display:block;width:17px;height:17px;}
 
+/* Tombol Repeat & Add to Playlist khusus mobile di halaman Lyrics (lihat
+   markup di dalam #fs-lyr) — default disembunyikan total, hanya ditampilkan
+   & diposisikan lewat media query mobile (≤660px) di bawah. */
+.fs-lyr-mob-repeat-btn,.fs-lyr-mob-add-btn{display:none;}
+
 /* Tombol Repeat & Queue di kotak player desktop — mengikuti logika &
    status yang sama dengan tombol Repeat/Queue di halaman Now Playing mobile
    (lihat .np-mob-repeat-btn / .np-mob-queue-btn di CSS Now Playing), hanya
@@ -3494,6 +3499,28 @@ body.np-fs-final #bar{display:none !important;}
   .fs-ll.active{font-size:1.35rem;}
 
   #pure-exit-hint{display:none;}
+
+  /* Tombol Repeat (kiri-bawah) & Add to Playlist (kanan-bawah) khusus
+     tampilan mobile di halaman Lyrics — melayang (fixed) sejajar dengan
+     baris kontrol prev/play/next di #fs-bar-center, di pojok kiri & kanan
+     layar. Pakai class .np-mob-repeat-btn/.np-mob-add-btn juga supaya ikut
+     ter-update otomatis oleh _updateRepeatBtnUI()/updateNPMobAddBtn() yang
+     sudah ada (status aktif, mode repeat-one, dsb). */
+  .fs-lyr-mob-repeat-btn,.fs-lyr-mob-add-btn{
+    display:flex;align-items:center;justify-content:center;
+    position:fixed;bottom:40px;z-index:17;
+    width:46px;height:46px;border-radius:50%;
+    background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.85);
+    cursor:pointer;transition:all .15s;
+  }
+  .fs-lyr-mob-repeat-btn{left:16px;}
+  .fs-lyr-mob-add-btn{right:16px;}
+  .fs-lyr-mob-repeat-btn:active,.fs-lyr-mob-add-btn:active{transform:scale(.92);background:rgba(255,255,255,.18);}
+  .fs-lyr-mob-repeat-btn svg,.fs-lyr-mob-add-btn svg{width:21px;height:21px;}
+  .fs-lyr-mob-add-btn.active{color:var(--green);}
+  /* Sembunyikan lagi di mode Full Lyrics Mode (pure mode) — sama seperti
+     #fs-nav, karena mode ini memang dimaksudkan tanpa kontrol apapun. */
+  #fs-lyr.pure-mode .fs-lyr-mob-repeat-btn,#fs-lyr.pure-mode .fs-lyr-mob-add-btn{opacity:0;pointer-events:none;transition:opacity .4s;}
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -5794,6 +5821,17 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   <div id="fs-lyr-scroll">
     <div class="lyr-empty" style="color:rgba(255,255,255,0.4)"><i></i>Loading lyrics...</div>
   </div>
+  <!-- Tombol Repeat & Add to Playlist khusus tampilan mobile di halaman Lyrics —
+       ditaruh melayang (fixed) di pojok kiri-bawah (Repeat) dan kanan-bawah
+       (Add to Playlist), sejajar dengan baris kontrol prev/play/next.
+       Disembunyikan total di desktop lewat CSS (lihat media query mobile). -->
+  <button class="fs-lyr-mob-repeat-btn np-mob-repeat-btn" id="fs-lyr-repeat-btn" onclick="toggleRepeatMode()" title="Repeat">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
+    <span class="np-mob-repeat-one-dot">1</span>
+  </button>
+  <button class="fs-lyr-mob-add-btn np-mob-add-btn" id="fs-lyr-add-btn" onclick="event.stopPropagation();openAddSongModal(curTrack)" title="Add to Playlist">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+  </button>
   <!-- Hint keluar pure mode -->
   <div id="pure-exit-hint" onclick="togglePureMode()" title="Exit fullscreen mode">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
@@ -11578,6 +11616,7 @@ async function fetchLyr(title, artist){
   let p = [];
   if(ch.syncedLyrics) p = pSynced(ch.syncedLyrics, _curSpeedFactor);
   else if(ch.plainLyrics) p = pPlain(ch.plainLyrics, _curSpeedFactor);
+  p = _withIntroInstrumental(p);
   // lrclib menyertakan field "duration" (detik) di tiap hasil pencarian — ini
   // durasi RESMI lagu, dipakai untuk mencocokkan durasi video YouTube supaya
   // video yang dipilih benar-benar sesuai lagu asli (bukan cover/remix/dll).
@@ -11600,6 +11639,20 @@ function pSynced(raw, speedFactor){
     if(INST_RE.test(text)) return {time,text:'',instrumental:true};
     return {time,text};
   }).filter(Boolean).filter(l=>l.instrumental||l.text);
+}
+// Kalau baris lirik pertama baru muncul beberapa detik setelah lagu dimulai
+// (intro musik/instrumental sebelum vokal penyanyi masuk) dan baris itu
+// SENDIRI belum ditandai instrumental oleh file LRC-nya, sisipkan baris
+// instrumental buatan di detik 0 supaya halaman Lyrics langsung menampilkan
+// animasi "menunggu vokal" begitu lagu baru dimulai, bukan langsung
+// menyorot baris lirik pertama seolah vokalnya sudah mulai.
+function _withIntroInstrumental(lines){
+  if(!lines || !lines.length) return lines;
+  const first = lines[0];
+  if(!first.instrumental && first.time >= 2){
+    return [{time:0,text:'',instrumental:true}, ...lines];
+  }
+  return lines;
 }
 function pPlain(raw, speedFactor){
   const sf = speedFactor || 1.0;
@@ -11805,6 +11858,11 @@ function setFSNowPlayingInfo(t){
   setFSNowPlayingImg(t);
   const elT=document.getElementById('fs-np-title'); if(elT) elT.textContent=t.title||'—';
   const elA=document.getElementById('fs-np-artist'); if(elA) elA.textContent=t.artist||'—';
+  // Sinkronkan tombol Repeat & Add to Playlist khusus mobile di halaman
+  // Lyrics setiap kali info lagu di halaman ini di-update (lagu baru
+  // dimulai, pindah next/prev, dsb).
+  if(typeof _updateRepeatBtnUI==='function') _updateRepeatBtnUI();
+  if(typeof updateNPMobAddBtn==='function') updateNPMobAddBtn(t);
 }
 
 // ─── Controls ─────────────────────────────────────────────
@@ -12364,7 +12422,7 @@ async function pickFSColor(track){
     } catch(e) { /* gagal ekstrak (mis. CORS) -> tetap pakai warna palet fallback di atas */ }
   }
 }
-function openFS(){if(!curTrack)return;document.getElementById('fs-lyr').classList.add('open');document.getElementById('fs-artist-name').textContent=curTrack.title;setFSNowPlayingInfo(curTrack);updateFSLyr();updateFSProg();updateFSPB(playing);}
+function openFS(){if(!curTrack)return;document.getElementById('fs-lyr').classList.add('open');document.getElementById('fs-artist-name').textContent=curTrack.title;setFSNowPlayingInfo(curTrack);updateFSLyr();updateFSProg();updateFSPB(playing);_updateRepeatBtnUI();updateNPMobAddBtn(curTrack);}
 function closeFS(){document.getElementById('fs-lyr').classList.remove('open');}
 // Tutup halaman lyrics (baik mode biasa maupun fullscreen/pure) kalau sedang terbuka.
 // Dipakai saat user pindah ke halaman lain (Home, Search, Artist, dll) supaya
@@ -12509,9 +12567,10 @@ function openNP(track){
 // Tombol "+" (Add to Playlist) di halaman Now Playing mobile: kasih warna aktif
 // kalau songs ini sudah ada di salah satu playlist milik user (mis. Liked Songs)
 function updateNPMobAddBtn(track){
-  const btn=document.getElementById('np-mob-add-btn');
-  if(!btn) return;
-  btn.classList.toggle('active', !!(track && typeof isTrackLiked==='function' && isTrackLiked(track)));
+  const isLiked = !!(track && typeof isTrackLiked==='function' && isTrackLiked(track));
+  document.querySelectorAll('.np-mob-add-btn').forEach(btn=>{
+    btn.classList.toggle('active', isLiked);
+  });
 }
 
 // Tombol Queue di halaman Now Playing mobile: hanya tampil kalau memang
