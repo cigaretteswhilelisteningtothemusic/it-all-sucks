@@ -32,7 +32,11 @@
   --rs: 9px;
   --f: 'Outfit', sans-serif;
   --fm: 'DM Mono', monospace;
-  --np-bottom: 88px;
+  /* Nilai ini sengaja disamakan persis dengan tinggi kotak "play" (#bar,
+     84px) + celah grid antar baris (8px) = 92px, supaya halaman Now
+     Playing (#np-view, pakai bottom:var(--np-bottom)) berhenti PERSIS di
+     tepi atas kotak play — tidak ada celah hitam kosong yang tersisa. */
+  --np-bottom: 92px;
 }
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;overflow:hidden}
@@ -1159,7 +1163,13 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 ::-webkit-scrollbar{width:4px}
 ::-webkit-scrollbar-thumb{background:var(--hover);border-radius:4px}
 
-@media(max-width:1050px){body{grid-template-columns:var(--side-w) 1fr;grid-template-rows:72px 1fr 88px;grid-template-areas:"topbar topbar""side main""bar bar"}#lyr{display:none}}
+/* FIX: di lebar layar ini kotak "play" (#bar) tingginya 88px, tapi
+   --np-bottom (jarak halaman Now Playing dari bawah) sebelumnya masih
+   memakai nilai bawaan 88px juga — padahal seharusnya 88px + 8px (celah
+   grid antar baris "main" & "bar") = 96px. Selisih 8px yang tidak
+   terhitung inilah yang membuat celah/kotak hitam kosong tampak di antara
+   konten Now Playing dan kotak play. */
+@media(max-width:1050px){body{grid-template-columns:var(--side-w) 1fr;grid-template-rows:72px 1fr 88px;grid-template-areas:"topbar topbar""side main""bar bar";--np-bottom:96px;}#lyr{display:none}}
 /* ═══════════════════════════════════════════════════════
    MOBILE STYLES (≤ 660px)
    ═══════════════════════════════════════════════════════ */
