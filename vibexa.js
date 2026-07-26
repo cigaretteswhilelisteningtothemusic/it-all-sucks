@@ -4388,7 +4388,7 @@ async function _prefetchNext(){
   _prefetching.add(next._query);
   try{
     const cl = cleanT(next.title);
-    const {videoId, lines} = await resolveVidByDuration(next.artist, next.title, cl);
+    const {videoId, lines} = await resolveVidByDuration(next.artist, next.title, cl, next.duration);
     _prefetchCache[next._query] = { videoId: videoId||null, lyrs: lines||[] };
   } catch(e){}
   _prefetching.delete(next._query);
@@ -4530,7 +4530,7 @@ function playNext(){
     _pendingNext = true;
     const myGen = _playGen;
     const cl = cleanT(next.title);
-    resolveVidByDuration(next.artist, next.title, cl).then(({videoId, lines}) => {
+    resolveVidByDuration(next.artist, next.title, cl, next.duration).then(({videoId, lines}) => {
       // Batalkan jika generasi sudah berganti (user memilih songs lain)
       if(myGen !== _playGen) return;
       if(!_pendingNext) return;
@@ -4937,10 +4937,10 @@ const VIDEO_DURATION_TOLERANCE = 3;
 // 5) Fallback terakhir: "official audio", lalu kandidat bersih teratas, lalu
 //    kandidat apa adanya (termasuk yang "kotor") sebagai jaring pengaman.
 // Return {videoId, lines} — lines dipakai langsung supaya tidak perlu fetchLyr lagi.
-async function resolveVidByDuration(artist, title, cleanTitleForLyrics){
+async function resolveVidByDuration(artist, title, cleanTitleForLyrics, knownDuration){
   const [rawResults, lyricsData] = await Promise.all([
     resolveVidList(`${title} ${artist}`),
-    fetchLyr(cleanTitleForLyrics, artist)
+    fetchLyr(cleanTitleForLyrics, artist, knownDuration)
   ]);
   const lines = (lyricsData && lyricsData.lines) || [];
   const targetDuration = lyricsData && lyricsData.duration;
@@ -5529,7 +5529,7 @@ async function loadPlay(track, fromPlId){
   // resolveVidByDuration mencari video yang durasinya mendekati durasi resmi
   // lagu (dari data lirik); kalau tidak ada yang cocok, otomatis fallback ke
   // query "... lyrics" → "... official audio" → judul+artis polos.
-  const {videoId,lines}=await resolveVidByDuration(track.artist, track.title, cl);
+  const {videoId,lines}=await resolveVidByDuration(track.artist, track.title, cl, track.duration);
   if(videoId){
     toast(' Memutar songs...');
     curTrack.videoId = videoId;
@@ -5608,7 +5608,32 @@ function _filterCleanLyricsResults(data){
   return data.filter(r => !_DIRTY_LYRICS_REGEX.test(r.trackName||'') && !_DIRTY_LYRICS_REGEX.test(r.albumName||''));
 }
 
-async function fetchLyr(title, artist){
+// Dari kandidat-kandidat lirik yang tersisa (setelah disaring dari versi
+// live/acoustic/dll), pilih yang durasinya PALING DEKAT dengan durasi resmi
+// lagu (kalau kita tahu durasinya, misal dari metadata iTunes). lrclib kadang
+// punya beberapa entri untuk lagu yang sama (rilisan/upload berbeda) dengan
+// timestamp .lrc yang sedikit berbeda satu sama lain — asal ambil hasil
+// pertama bisa kebetulan dapat entri yang timing-nya meleset (lirik
+// jalan lebih dulu/telat dari vokal asli). Cocokkan ke durasi asli supaya
+// entri yang paling mungkin "seirama" yang kepilih.
+function _pickLyricsCandidate(pool, knownDuration){
+  const synced = pool.filter(r=>r.syncedLyrics);
+  const plain = pool.filter(r=>r.plainLyrics);
+  const pickClosest = (arr) => {
+    if(!arr.length) return null;
+    if(!knownDuration) return arr[0];
+    let best=arr[0], bestDiff=Infinity;
+    for(const r of arr){
+      if(typeof r.duration !== 'number' || r.duration<=0) continue;
+      const diff = Math.abs(r.duration - knownDuration);
+      if(diff < bestDiff){ bestDiff = diff; best = r; }
+    }
+    return best;
+  };
+  return pickClosest(synced) || pickClosest(plain) || pool[0];
+}
+
+async function fetchLyr(title, artist, knownDuration){
   const k = title+'|'+artist;
   if(lyrCache[k] !== undefined) return lyrCache[k];
 
@@ -5626,7 +5651,7 @@ async function fetchLyr(title, artist){
   const clean = _filterCleanLyricsResults(data);
   const pool = clean.length ? clean : data;
 
-  const ch = pool.find(r=>r.syncedLyrics) || pool.find(r=>r.plainLyrics) || pool[0];
+  const ch = _pickLyricsCandidate(pool, knownDuration);
   let p = [];
   if(ch.syncedLyrics) p = pSynced(ch.syncedLyrics, _curSpeedFactor);
   else if(ch.plainLyrics) p = pPlain(ch.plainLyrics, _curSpeedFactor);
