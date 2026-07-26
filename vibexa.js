@@ -5597,6 +5597,17 @@ async function _fetchLyrFrom(workerBase, title, artist){
   }
 }
 
+// Hasil pencarian lirik (dari lrclib) yang trackName/albumName-nya mengandung
+// kata "kotor" seperti live, acoustic, remix, dll DIBUANG — kita hanya mau
+// hasil yang benar-benar cocok dengan "judul lagu - nama artist" polos,
+// bukan versi live/akustik/cover/dsb yang liriknya bisa beda dari rilisan asli.
+const _DIRTY_LYRICS_REGEX = /\b(live|konser|concert|acoustic|akustik|unplugged|cover|karaoke|instrumental|remix|reaction|tutorial|behind[\s_-]?the[\s_-]?scenes?|teaser|trailer|interview|dance\s*practice|piano\s*version|orchestra|symphony|session|mashup|parody|rehearsal|sped\s*up|slowed|8d\s*audio|lofi|bootleg|tribute|edit\b)/i;
+
+function _filterCleanLyricsResults(data){
+  if(!data || !data.length) return [];
+  return data.filter(r => !_DIRTY_LYRICS_REGEX.test(r.trackName||'') && !_DIRTY_LYRICS_REGEX.test(r.albumName||''));
+}
+
 async function fetchLyr(title, artist){
   const k = title+'|'+artist;
   if(lyrCache[k] !== undefined) return lyrCache[k];
@@ -5609,7 +5620,13 @@ async function fetchLyr(title, artist){
 
   if(!data){ const empty={lines:[],duration:null}; lyrCache[k]=empty; return empty; }
 
-  const ch = data.find(r=>r.syncedLyrics) || data.find(r=>r.plainLyrics) || data[0];
+  // Saring dulu hasil yang "kotor" (live/acoustic/remix/dll). Kalau semua
+  // hasil kebetulan kotor (tidak ada versi studio yang ketemu di lrclib),
+  // baru fallback ke daftar aslinya supaya lirik tetap tersedia.
+  const clean = _filterCleanLyricsResults(data);
+  const pool = clean.length ? clean : data;
+
+  const ch = pool.find(r=>r.syncedLyrics) || pool.find(r=>r.plainLyrics) || pool[0];
   let p = [];
   if(ch.syncedLyrics) p = pSynced(ch.syncedLyrics, _curSpeedFactor);
   else if(ch.plainLyrics) p = pPlain(ch.plainLyrics, _curSpeedFactor);
