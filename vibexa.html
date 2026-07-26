@@ -1660,7 +1660,7 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 /* ═══════════ NOW PLAYING VIEW (Spotify-style, opens instead of jumping straight to lyrics) ═══════════ */
 #np-view{display:none;position:fixed;top:0;left:0;right:0;bottom:var(--np-bottom);z-index:400;overflow:hidden;}
 #np-view.open{display:block;}
-#np-bg{position:absolute;inset:0;background:linear-gradient(to bottom, #2b3a5c 0%, var(--bg) 60%);transition:background 1s ease;z-index:0;}
+#np-bg{position:absolute;inset:0;background:#2b3a5c;transition:background 1s ease;z-index:0;}
 #np-bg::after{content:'';position:absolute;inset:0;background:rgba(4,6,12,0.14);}
 #np-topbar{position:relative;z-index:5;display:flex;align-items:center;justify-content:space-between;padding:16px 22px;background:rgba(10,13,22,0);transition:background .3s ease,box-shadow .3s ease;}
 /* Spotify-style: header becomes a solid bar once user scrolls the Now Playing page down */
@@ -6980,6 +6980,9 @@ function openChatOverlay() {
   // Kalau halaman lirik fullscreen sedang terbuka, tutup dulu supaya user
   // langsung diarahkan ke halaman Chat, bukan malah ketutupan lirik.
   if (typeof closeFSLyricsIfOpen === 'function') { closeFSLyricsIfOpen(); }
+  // Tutup halaman Song Preview juga kalau sedang terbuka, supaya tidak
+  // nyangkut di belakang halaman Chat.
+  if (typeof closeSongPreviewIfOpen === 'function') { closeSongPreviewIfOpen(); }
   const mainEl = document.getElementById('main');
   if (mainEl) { mainEl.scrollTop = 0; mainEl.style.overflow = 'hidden'; }
   document.getElementById('chat-overlay').classList.add('show');
@@ -11314,6 +11317,9 @@ function _renderStreakHeroAnimations(currentStreak){
 function showStreakView(){
   document.getElementById('streak-view').classList.add('show');
   renderStreakView();
+  // Tutup halaman Song Preview kalau sedang terbuka, supaya tidak nyangkut
+  // di belakang halaman Streak.
+  if (typeof closeSongPreviewIfOpen === 'function') { closeSongPreviewIfOpen(); }
   // Kunci scroll #main (sama seperti pola di openChatOverlay) supaya konten
   // Home di baliknya tidak ikut ke-scroll saat user scroll di halaman Streak.
   // Tanpa ini, #main (yang overflow-y:auto) tetap bisa di-scroll di PC/tablet
@@ -12369,6 +12375,21 @@ function closeFSLyricsIfOpen(){
   if (fsEl.classList.contains('pure-mode') && typeof togglePureMode === 'function') { togglePureMode(); }
   closeFS();
 }
+// Tutup halaman Song Preview (kalau sedang terbuka) TANPA mengarahkan ke
+// halaman Home — beda dengan closeSongPreviewView() yang memang sengaja
+// balik ke Home. Dipakai di titik-titik "pindah ke halaman lain" (Now
+// Playing, Chat, Streak, Unduhan Offline, Album, dll) yang sebelumnya belum
+// menutup Song Preview, supaya halaman Song Preview (beserta audio preview
+// 30 detik yang sedang jalan) tidak nyangkut/terus terdengar di belakang
+// halaman baru yang dibuka user.
+function closeSongPreviewIfOpen(){
+  const spView = document.getElementById('song-preview-view');
+  if (!spView || spView.style.display !== 'flex') return;
+  spView.style.display = 'none';
+  document.getElementById('nav-songpreview')?.classList.remove('on');
+  document.body.classList.remove('sp-mobile-open');
+  if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
+}
 // Toggle tombol "Lyrics": kalau lyrics sedang terbuka, tutup dan kembali ke tampilan Home;
 // kalau tertutup, tutup dulu halaman Now Playing (kalau sedang terbuka), arahkan ke Home,
 // baru tampilkan lyrics di halaman Home tersebut.
@@ -12418,18 +12439,18 @@ async function pickNPColor(track){
   // supaya warna background halaman Now Playing PERSIS sama dengan warna
   // background halaman Lyrics untuk lagu yang sama, dan tidak perlu ekstrak ulang.
   const key=track ? (track.thumb || track.title || '') : '';
-  // Gradiennya sengaja dibuat warnanya tetap PENUH/tajam (bukan langsung
-  // pudar) sampai 55% dulu, baru berangsur meredup ke var(--bg) di 100% —
-  // supaya seluruh area foto album + judul + kontrol (yang ada di bagian
-  // atas halaman) tetap kelihatan warna album-nya jelas & cerah, persis
-  // seperti warna background di halaman Lyrics, bukan warna gelap.
+  // Warna solid penuh di SELURUH tinggi halaman (TIDAK ada gradien yang
+  // meredup/menggelap ke var(--bg) di bagian bawah) — persis seperti
+  // background halaman Lyrics (#fs-bg), supaya bagian bawah halaman Now
+  // Playing (kotak Albums/Playlist/Jelajahi) tetap terlihat tajam & cerah,
+  // bukan gelap.
   if(key && _fsColorCache[key]){
-    bg.style.background=`linear-gradient(to bottom, ${_fsColorCache[key]} 0%, ${_fsColorCache[key]} 55%, var(--bg) 100%)`;
+    bg.style.background=_fsColorCache[key];
     return;
   }
   _npColorIdx++;
   const fallback=FS_COLORS[_npColorIdx % FS_COLORS.length];
-  bg.style.background=`linear-gradient(to bottom, ${fallback} 0%, ${fallback} 55%, var(--bg) 100%)`;
+  bg.style.background=fallback;
   if(track && track.thumb){
     try{
       // _fsVividColorFromImage: ekstraksi warna dominan yang sama & sudah
@@ -12437,7 +12458,7 @@ async function pickNPColor(track){
       // Lyrics (gaya "Canvas" Spotify), bukan versi lama yang digelapkan.
       const color=await _fsVividColorFromImage(track.thumb);
       if(key) _fsColorCache[key]=color;
-      if(curTrack===track) bg.style.background=`linear-gradient(to bottom, ${color} 0%, ${color} 55%, var(--bg) 100%)`;
+      if(curTrack===track) bg.style.background=color;
     }catch(e){ /* tetap pakai warna palet fallback */ }
   }
 }
@@ -12445,6 +12466,9 @@ async function pickNPColor(track){
 function openNP(track){
   track=track || curTrack;
   if(!track) return;
+  // Tutup halaman Song Preview kalau sedang terbuka, supaya tidak nyangkut
+  // di belakang halaman Now Playing.
+  if (typeof closeSongPreviewIfOpen === 'function') { closeSongPreviewIfOpen(); }
   document.getElementById('np-view').classList.add('open');
   document.getElementById('np-view').classList.remove('np-fullscreen');
   document.getElementById('np-view').classList.remove('np-fs-morphing');
@@ -14191,6 +14215,9 @@ function openAlbumView(albumId, albumTitle) {
   document.getElementById('nav-search').classList.remove('on');
   document.getElementById('nav-finder').classList.remove('on');
   document.getElementById('nav-songpreview')?.classList.remove('on');
+  // Tutup halaman Song Preview kalau sedang terbuka, supaya tidak nyangkut
+  // di belakang halaman Album.
+  if (typeof closeSongPreviewIfOpen === 'function') { closeSongPreviewIfOpen(); }
   const mainEl = document.getElementById('main'); if (mainEl) mainEl.scrollTop = 0;
 
   document.getElementById('album-title').textContent = albumTitle || 'Album';
@@ -19943,6 +19970,11 @@ function _spOpenShell() {
   if (typeof playing !== 'undefined') { playing = false; }
   if (typeof setPB === 'function') { setPB(false); }
   if (typeof closeFSLyricsIfOpen === 'function') { closeFSLyricsIfOpen(); }
+  // Tutup halaman Now Playing kalau sedang terbuka (mis. user menekan salah
+  // satu song preview di kotak "Jelajahi <Artis>") — halaman Now Playing
+  // adalah overlay fullscreen (z-index tinggi) yang akan tetap menutupi
+  // halaman Song Preview di baliknya kalau tidak ditutup dulu di sini.
+  if (typeof closeNP === 'function') { closeNP(); }
   document.getElementById('home-view').classList.remove('active');
   document.getElementById('search-view').classList.remove('active');
   document.getElementById('finder-view').style.display = 'none';
@@ -21328,6 +21360,9 @@ function openDownloadsView() {
   refreshDownloadsList();
   switchDlTab('all');
   closeOfflinePlaylistView();
+  // Tutup halaman Song Preview kalau sedang terbuka, supaya tidak nyangkut
+  // di belakang halaman Unduhan Offline.
+  if (typeof closeSongPreviewIfOpen === 'function') { closeSongPreviewIfOpen(); }
   // Kunci scroll #main (sama seperti pola di showStreakView) supaya konten
   // Home di baliknya tidak ikut ke-scroll saat user scroll di halaman
   // Unduhan Offline (di PC/tablet, #downloads-view cuma position:absolute
