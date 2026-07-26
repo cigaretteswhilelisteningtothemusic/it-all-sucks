@@ -1657,7 +1657,7 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 #np-view{display:none;position:fixed;top:0;left:0;right:0;bottom:var(--np-bottom);z-index:400;overflow:hidden;}
 #np-view.open{display:block;}
 #np-bg{position:absolute;inset:0;background:linear-gradient(to bottom, #2b3a5c 0%, var(--bg) 60%);transition:background 1s ease;z-index:0;}
-#np-bg::after{content:'';position:absolute;inset:0;background:rgba(4,6,12,0.28);}
+#np-bg::after{content:'';position:absolute;inset:0;background:rgba(4,6,12,0.14);}
 #np-topbar{position:relative;z-index:5;display:flex;align-items:center;justify-content:space-between;padding:16px 22px;background:rgba(10,13,22,0);transition:background .3s ease,box-shadow .3s ease;}
 /* Spotify-style: header becomes a solid bar once user scrolls the Now Playing page down */
 #np-topbar.np-scrolled{background:rgba(10,13,22,.92);backdrop-filter:blur(14px);box-shadow:0 2px 18px rgba(0,0,0,.35);}
@@ -1878,14 +1878,14 @@ body.np-fs-final #bar{display:none !important;}
      supaya di layar HP yang pendek (tinggi kecil) fotonya otomatis ikut
      mengecil sedikit, sehingga judul lagu + tombol play/pause/next/prev di
      bawahnya tetap selalu penuh terlihat & tidak pernah ketutupan/terpotong. */
-  .np-art,.np-art-ph{width:min(82vw,350px,45vh);height:min(82vw,350px,45vh);}
+  .np-art,.np-art-ph{width:min(88vw,400px,50vh);height:min(88vw,400px,50vh);}
   /* Tampilkan kontrol pemutaran (play/pause/next/prev/repeat), tombol
      tambah ke playlist, dan tombol Queue — khusus tampilan mobile,
      meniru halaman "Now Playing" Spotify di HP. Ukuran & animasi kotak
      "Tentang Artis"/Album/Playlist di bawahnya (lihat rule2 lain di
      media query ini) TIDAK diubah sama sekali. */
   .np-mob-add-btn{display:flex;}
-  .np-mob-controls{display:flex;margin-top:10px;gap:10px;}
+  .np-mob-controls{display:flex;margin-top:8px;gap:8px;}
   /* Fitur immersive fullscreen (tombol + mode-nya) dimatikan khusus untuk
      tampilan mobile — tombolnya disembunyikan di sini, dan pemicunya
      (klik + idle timer otomatis) juga dinonaktifkan lewat isMobile() di
@@ -1910,8 +1910,8 @@ body.np-fs-final #bar{display:none !important;}
      SEBELUM di-scroll. Ditambah 88px di sini supaya .np-hero benar2
      memenuhi seluruh area yang terlihat, sehingga kotak "About the artist"
      baru kelihatan setelah user scroll, bukan sebelumnya. */
-  .np-hero{padding:10px 0 4px;min-height:calc(100% + 88px);justify-content:center;}
-  .np-track-title{margin-top:8px;}
+  .np-hero{padding:6px 0 4px;min-height:calc(100% + 88px);justify-content:center;}
+  .np-track-title{margin-top:6px;}
   .np-track-artist{margin-top:3px;}
   /* Kotak "Tentang Artis", "Albums" & "Playlist" persegi tapi UKURAN
      DIPERKECIL (menyesuaikan lebar layar hp, tidak memenuhi layar) dan
@@ -1961,10 +1961,10 @@ body.np-fs-final #bar{display:none !important;}
    scroll dulu, sama seperti tombol atas (back/download/fullscreen/minimize)
    yang memang selalu tetap terlihat karena berada di topbar yang fixed. */
 @media(max-width:660px) and (max-height:720px){
-  .np-art,.np-art-ph{width:min(70vw,270px,36vh);height:min(70vw,270px,36vh);}
+  .np-art,.np-art-ph{width:min(80vw,320px,42vh);height:min(80vw,320px,42vh);}
 }
 @media(max-width:660px) and (max-height:600px){
-  .np-art,.np-art-ph{width:min(60vw,220px,30vh);height:min(60vw,220px,30vh);}
+  .np-art,.np-art-ph{width:min(66vw,250px,34vh);height:min(66vw,250px,34vh);}
 }
 
 /* LYRICS (NON-FULLSCREEN) — kini hanya mengisi area 'main' (halaman home),
@@ -12363,13 +12363,18 @@ async function pickNPColor(track){
   // supaya warna background halaman Now Playing PERSIS sama dengan warna
   // background halaman Lyrics untuk lagu yang sama, dan tidak perlu ekstrak ulang.
   const key=track ? (track.thumb || track.title || '') : '';
+  // Gradiennya sengaja dibuat warnanya tetap PENUH/tajam (bukan langsung
+  // pudar) sampai 55% dulu, baru berangsur meredup ke var(--bg) di 100% —
+  // supaya seluruh area foto album + judul + kontrol (yang ada di bagian
+  // atas halaman) tetap kelihatan warna album-nya jelas & cerah, persis
+  // seperti warna background di halaman Lyrics, bukan warna gelap.
   if(key && _fsColorCache[key]){
-    bg.style.background=`linear-gradient(to bottom, ${_fsColorCache[key]} 0%, var(--bg) 62%)`;
+    bg.style.background=`linear-gradient(to bottom, ${_fsColorCache[key]} 0%, ${_fsColorCache[key]} 55%, var(--bg) 100%)`;
     return;
   }
   _npColorIdx++;
   const fallback=FS_COLORS[_npColorIdx % FS_COLORS.length];
-  bg.style.background=`linear-gradient(to bottom, ${fallback} 0%, var(--bg) 62%)`;
+  bg.style.background=`linear-gradient(to bottom, ${fallback} 0%, ${fallback} 55%, var(--bg) 100%)`;
   if(track && track.thumb){
     try{
       // _fsVividColorFromImage: ekstraksi warna dominan yang sama & sudah
@@ -12377,7 +12382,7 @@ async function pickNPColor(track){
       // Lyrics (gaya "Canvas" Spotify), bukan versi lama yang digelapkan.
       const color=await _fsVividColorFromImage(track.thumb);
       if(key) _fsColorCache[key]=color;
-      if(curTrack===track) bg.style.background=`linear-gradient(to bottom, ${color} 0%, var(--bg) 62%)`;
+      if(curTrack===track) bg.style.background=`linear-gradient(to bottom, ${color} 0%, ${color} 55%, var(--bg) 100%)`;
     }catch(e){ /* tetap pakai warna palet fallback */ }
   }
 }
