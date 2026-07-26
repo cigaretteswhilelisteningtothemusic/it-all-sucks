@@ -1872,14 +1872,20 @@ body.np-fs-final #bar{display:none !important;}
 }
 @media(max-width:660px){
   #np-view{bottom:var(--np-bottom);}
-  .np-art,.np-art-ph{width:min(250px,62vw);height:min(250px,62vw);}
+  /* Foto album diperbesar (gaya Spotify/Apple Music di HP: hampir memenuhi
+     lebar layar). Dibatasi 3 cara sekaligus lewat min(): persentase lebar
+     layar (vw), persentase TINGGI layar (vh), dan batas maksimum piksel —
+     supaya di layar HP yang pendek (tinggi kecil) fotonya otomatis ikut
+     mengecil sedikit, sehingga judul lagu + tombol play/pause/next/prev di
+     bawahnya tetap selalu penuh terlihat & tidak pernah ketutupan/terpotong. */
+  .np-art,.np-art-ph{width:min(82vw,350px,45vh);height:min(82vw,350px,45vh);}
   /* Tampilkan kontrol pemutaran (play/pause/next/prev/repeat), tombol
      tambah ke playlist, dan tombol Queue — khusus tampilan mobile,
      meniru halaman "Now Playing" Spotify di HP. Ukuran & animasi kotak
      "Tentang Artis"/Album/Playlist di bawahnya (lihat rule2 lain di
      media query ini) TIDAK diubah sama sekali. */
   .np-mob-add-btn{display:flex;}
-  .np-mob-controls{display:flex;margin-top:14px;gap:14px;}
+  .np-mob-controls{display:flex;margin-top:10px;gap:10px;}
   /* Fitur immersive fullscreen (tombol + mode-nya) dimatikan khusus untuk
      tampilan mobile — tombolnya disembunyikan di sini, dan pemicunya
      (klik + idle timer otomatis) juga dinonaktifkan lewat isMobile() di
@@ -1904,8 +1910,8 @@ body.np-fs-final #bar{display:none !important;}
      SEBELUM di-scroll. Ditambah 88px di sini supaya .np-hero benar2
      memenuhi seluruh area yang terlihat, sehingga kotak "About the artist"
      baru kelihatan setelah user scroll, bukan sebelumnya. */
-  .np-hero{padding-bottom:4px;min-height:calc(100% + 88px);justify-content:center;}
-  .np-track-title{margin-top:12px;}
+  .np-hero{padding:10px 0 4px;min-height:calc(100% + 88px);justify-content:center;}
+  .np-track-title{margin-top:8px;}
   .np-track-artist{margin-top:3px;}
   /* Kotak "Tentang Artis", "Albums" & "Playlist" persegi tapi UKURAN
      DIPERKECIL (menyesuaikan lebar layar hp, tidak memenuhi layar) dan
@@ -1947,6 +1953,18 @@ body.np-fs-final #bar{display:none !important;}
      Next Up di .np-right-col TETAP menutup ke samping seperti biasa —
      override ini hanya menyasar .np-about-card-big. */
   #np-view.np-fs-morphing .np-about-card-big{transform:translateY(120%);}
+}
+/* Khusus HP dengan tinggi layar terbatas (mis. iPhone SE, atau HP dalam
+   posisi terbagi layar/split-screen): foto album di halaman Now Playing
+   dikecilkan sedikit lebih jauh (batas vh diturunkan) supaya baris kontrol
+   play/pause/next/prev di bawahnya tetap penuh kelihatan tanpa perlu
+   scroll dulu, sama seperti tombol atas (back/download/fullscreen/minimize)
+   yang memang selalu tetap terlihat karena berada di topbar yang fixed. */
+@media(max-width:660px) and (max-height:720px){
+  .np-art,.np-art-ph{width:min(70vw,270px,36vh);height:min(70vw,270px,36vh);}
+}
+@media(max-width:660px) and (max-height:600px){
+  .np-art,.np-art-ph{width:min(60vw,220px,30vh);height:min(60vw,220px,30vh);}
 }
 
 /* LYRICS (NON-FULLSCREEN) — kini hanya mengisi area 'main' (halaman home),
@@ -12341,18 +12359,24 @@ function _npAvgColorFromImage(url){
 async function pickNPColor(track){
   const bg=document.getElementById('np-bg');
   if(!bg) return;
+  // Pakai cache warna yang sama dengan halaman lirik fullscreen (_fsColorCache)
+  // supaya warna background halaman Now Playing PERSIS sama dengan warna
+  // background halaman Lyrics untuk lagu yang sama, dan tidak perlu ekstrak ulang.
   const key=track ? (track.thumb || track.title || '') : '';
-  if(key && _npColorCache[key]){
-    bg.style.background=`linear-gradient(to bottom, ${_npColorCache[key]} 0%, var(--bg) 62%)`;
+  if(key && _fsColorCache[key]){
+    bg.style.background=`linear-gradient(to bottom, ${_fsColorCache[key]} 0%, var(--bg) 62%)`;
     return;
   }
   _npColorIdx++;
-  const fallback=NP_COLORS[_npColorIdx % NP_COLORS.length];
+  const fallback=FS_COLORS[_npColorIdx % FS_COLORS.length];
   bg.style.background=`linear-gradient(to bottom, ${fallback} 0%, var(--bg) 62%)`;
   if(track && track.thumb){
     try{
-      const color=await _npAvgColorFromImage(track.thumb);
-      if(key) _npColorCache[key]=color;
+      // _fsVividColorFromImage: ekstraksi warna dominan yang sama & sudah
+      // "divividkan" (cerah/jenuh) seperti dipakai di background halaman
+      // Lyrics (gaya "Canvas" Spotify), bukan versi lama yang digelapkan.
+      const color=await _fsVividColorFromImage(track.thumb);
+      if(key) _fsColorCache[key]=color;
       if(curTrack===track) bg.style.background=`linear-gradient(to bottom, ${color} 0%, var(--bg) 62%)`;
     }catch(e){ /* tetap pakai warna palet fallback */ }
   }
