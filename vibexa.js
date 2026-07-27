@@ -5608,12 +5608,23 @@ async function _fetchLyrFrom(workerBase, title, artist){
   try{
     let data = null;
     const res = await fetch(`${workerBase}/?artist=${encodeURIComponent(artist)}&title=${encodeURIComponent(title)}`,{signal:AbortSignal.timeout(7000)});
-    if(res.ok) data = await res.json();
+    console.log('[LYR DEBUG] worker', workerBase, '(artist+title) status:', res.status, res.ok);
+    if(res.ok){
+      const text = await res.text();
+      try{ data = JSON.parse(text); }
+      catch(parseErr){ console.warn('[LYR DEBUG] worker', workerBase, 'returned non-JSON:', text.slice(0,200)); data = null; }
+    }
 
     if(!data || !data.length){
       const res2 = await fetch(`${workerBase}/?artist=&title=${encodeURIComponent(title)}`,{signal:AbortSignal.timeout(7000)});
-      if(res2.ok) data = await res2.json();
+      console.log('[LYR DEBUG] worker', workerBase, '(title only) status:', res2.status, res2.ok);
+      if(res2.ok){
+        const text2 = await res2.text();
+        try{ data = JSON.parse(text2); }
+        catch(parseErr){ console.warn('[LYR DEBUG] worker', workerBase, 'returned non-JSON (title only):', text2.slice(0,200)); data = null; }
+      }
     }
+    console.log('[LYR DEBUG] worker', workerBase, 'result count:', data ? data.length : 0);
     return (data && data.length) ? data : null;
   }catch(e){
     console.warn('fetchLyr error:', workerBase, e);
@@ -5633,12 +5644,15 @@ async function _fetchLyrFromLrclibDirect(title, artist){
   try{
     let data = null;
     const res = await fetch(`${LRCLIB_DIRECT}?artist_name=${encodeURIComponent(artist)}&track_name=${encodeURIComponent(title)}`,{signal:AbortSignal.timeout(7000)});
+    console.log('[LYR DEBUG] lrclib direct (artist+title) status:', res.status, res.ok);
     if(res.ok) data = await res.json();
 
     if(!data || !data.length){
       const res2 = await fetch(`${LRCLIB_DIRECT}?track_name=${encodeURIComponent(title)}`,{signal:AbortSignal.timeout(7000)});
+      console.log('[LYR DEBUG] lrclib direct (title only) status:', res2.status, res2.ok);
       if(res2.ok) data = await res2.json();
     }
+    console.log('[LYR DEBUG] lrclib direct result count:', data ? data.length : 0);
     return (data && data.length) ? data : null;
   }catch(e){
     console.warn('fetchLyr direct lrclib.net fallback error:', e);
