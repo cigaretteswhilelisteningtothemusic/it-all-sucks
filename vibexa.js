@@ -5718,7 +5718,14 @@ function _pickLyricsCandidate(pool, knownDuration){
     }
     return best;
   };
-  return pickClosest(synced) || pickClosest(plain) || pool[0];
+  // PENTING: jangan fallback ke pool[0] kalau tidak ada SATU PUN kandidat
+  // yang benar-benar punya lirik (syncedLyrics/plainLyrics). Database lrclib
+  // kadang berisi entri sampah (upload spam/troll, instrumental placeholder,
+  // artis palsu) yang lolos filter "kotor" tapi field liriknya kosong — kalau
+  // tetap dipaksa pool[0], hasilnya lirik kosong padahal ada worker/sumber
+  // lain yang bisa kasih hasil asli. Return null di sini artinya "coba
+  // sumber lain", ditangani oleh pemanggil (lihat fetchLyr).
+  return pickClosest(synced) || pickClosest(plain) || null;
 }
 
 // Nama+artis (key sama seperti lyrCache) -> pool kandidat lirik lrclib yang
@@ -5731,41 +5738,51 @@ async function fetchLyr(title, artist, knownDuration){
   const k = title+'|'+artist;
   if(lyrCache[k] !== undefined) return lyrCache[k];
 
-  let data = null;
-  for(const base of WORKERS){
-    data = await _fetchLyrFrom(base, title, artist);
-    if(data) break; // worker ini berhasil dapat lirik, tidak perlu coba worker lain
+  // Coba tiap sumber SATU PER SATU (worker 1 → worker 2 → langsung lrclib.net)
+  // dan baru berhenti begitu ada sumber yang benar-benar menghasilkan lirik
+  // terpakai. Sebelumnya begitu satu worker balas dengan ARRAY (walau isinya
+  // semua sampah/tanpa lirik, mis. flood entri troll di database lrclib),
+  // pencarian langsung berhenti di situ — sumber lain yang sebenarnya punya
+  // data bagus tidak pernah dicoba. Sekarang "berhasil" hanya dihitung kalau
+  // benar-benar dapat baris lirik yang bisa diparse.
+  const sources = [
+    () => _fetchLyrFrom(WORKER, title, artist),
+    () => _fetchLyrFrom(WORKER2, title, artist),
+    () => _fetchLyrFromLrclibDirect(title, artist),
+  ];
+
+  let bestPool = [];
+  for(const getData of sources){
+    const data = await getData();
+    if(!data || !data.length) continue;
+
+    const clean = _filterCleanLyricsResults(data);
+    const pool = clean.length ? clean : data;
+    if(pool.length) bestPool = pool; // simpan pool terakhir yang tidak kosong, buat cadangan _lyrPoolCache
+
+    const ch = _pickLyricsCandidate(pool, knownDuration);
+    console.log('[LYR DEBUG] fetchLyr: source result -> raw', data.length, 'clean', clean.length, 'chosen', ch && {trackName: ch.trackName, artistName: ch.artistName, duration: ch.duration, hasSynced: !!ch.syncedLyrics, hasPlain: !!ch.plainLyrics});
+    if(!ch) continue; // sumber ini semuanya sampah tanpa lirik — lanjut ke sumber berikutnya
+
+    let p = [];
+    if(ch.syncedLyrics) p = pSynced(ch.syncedLyrics, _curSpeedFactor);
+    else if(ch.plainLyrics) p = pPlain(ch.plainLyrics, _curSpeedFactor);
+    if(!p.length) continue; // kandidat ada tapi hasil parse kosong — lanjut ke sumber berikutnya
+
+    p = _withIntroInstrumental(p);
+    _lyrPoolCache[k] = pool;
+    const duration = (typeof ch.duration === 'number' && ch.duration > 0) ? ch.duration : null;
+    const result = { lines: p, duration };
+    lyrCache[k] = result;
+    console.log('[LYR DEBUG] fetchLyr: SUCCESS, parsed line count ->', p.length);
+    return result;
   }
 
-  // Kedua worker custom gagal (down/limit/dsb) — coba jalur langsung ke
-  // lrclib.net sebelum benar-benar menyerah dan menampilkan "Lyrics not available".
-  if(!data){
-    data = await _fetchLyrFromLrclibDirect(title, artist);
-  }
-
-  if(!data){ const empty={lines:[],duration:null}; lyrCache[k]=empty; _lyrPoolCache[k]=[]; console.log('[LYR DEBUG] fetchLyr: no data at all for', k); return empty; }
-
-  // Saring dulu hasil yang "kotor" (live/acoustic/remix/dll). Kalau semua
-  // hasil kebetulan kotor (tidak ada versi studio yang ketemu di lrclib),
-  // baru fallback ke daftar aslinya supaya lirik tetap tersedia.
-  const clean = _filterCleanLyricsResults(data);
-  const pool = clean.length ? clean : data;
-  _lyrPoolCache[k] = pool;
-  console.log('[LYR DEBUG] fetchLyr: raw', data.length, 'clean', clean.length, 'pool used', pool.length, 'knownDuration', knownDuration);
-
-  const ch = _pickLyricsCandidate(pool, knownDuration);
-  console.log('[LYR DEBUG] fetchLyr: chosen candidate ->', ch && {trackName: ch.trackName, artistName: ch.artistName, duration: ch.duration, hasSynced: !!(ch && ch.syncedLyrics), hasPlain: !!(ch && ch.plainLyrics), instrumental: ch && ch.instrumental});
-  let p = [];
-  if(ch.syncedLyrics) p = pSynced(ch.syncedLyrics, _curSpeedFactor);
-  else if(ch.plainLyrics) p = pPlain(ch.plainLyrics, _curSpeedFactor);
-  p = _withIntroInstrumental(p);
-  console.log('[LYR DEBUG] fetchLyr: parsed line count ->', p.length);
-  // lrclib menyertakan field "duration" (detik) di tiap hasil pencarian — ini
-  // durasi RESMI lagu, dipakai untuk mencocokkan durasi video YouTube supaya
-  // video yang dipilih benar-benar sesuai lagu asli (bukan cover/remix/dll).
-  const duration = (ch && typeof ch.duration === 'number' && ch.duration > 0) ? ch.duration : null;
-  const result = { lines: p, duration };
-  lyrCache[k] = result; return result;
+  // Semua sumber gagal kasih lirik yang benar-benar terpakai.
+  const empty={lines:[],duration:null};
+  lyrCache[k]=empty; _lyrPoolCache[k]=bestPool;
+  console.log('[LYR DEBUG] fetchLyr: semua sumber gagal, tidak ada lirik terpakai untuk', k);
+  return empty;
 }
 
 // ── Cocokkan ULANG kandidat lirik berdasarkan durasi ASLI video YouTube ──
