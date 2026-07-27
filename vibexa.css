@@ -1404,20 +1404,6 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
   body.np-mobile-open #mob-nav{
     display:none !important;
   }
-  /* Kalau halaman Now Playing dibuka SAAT masih di atas halaman Unduhan
-     Offline / Streak (topbar-nya sengaja di-boost z-index ke 3000 lewat
-     rule "body:has(#downloads-view.show) .home-topbar" / "#streak-view"
-     supaya bisa ditekan di atas halaman itu), rule boost tsb tetap aktif
-     walau Now Playing sudah terbuka (karena #downloads-view/#streak-view
-     masih berstatus "show" di baliknya) — jadi topbar (z-index 3000)
-     tetap terlihat MENUTUPI Now Playing (z-index 400), sampai user
-     menekan tombol apa pun di Now Playing yang lewat listener klik global
-     otomatis menutup halaman Unduhan Offline/Streak (baru topbar hilang).
-     Paksa topbar langsung disembunyikan sejak Now Playing dibuka supaya
-     tidak perlu menunggu klik berikutnya. */
-  body.np-mobile-open .home-topbar{
-    display:none !important;
-  }
 
   /* ════════════════════════════════
      HOME VIEW
@@ -1792,9 +1778,10 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
    lain dari artis yang SEDANG diputar (bukan lagi antrian/playlist campuran). */
 .expl-row{display:flex;gap:10px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding:2px 2px 4px;flex:1;align-content:flex-start;min-width:0;}
 .expl-row::-webkit-scrollbar{display:none}
-.expl-card{flex:0 0 96px;width:96px;cursor:pointer;}
-/* Kartu "Jelajahi <Artis>" dibuat PERSEGI (1:1) — sebelumnya 3:4 (potrait). */
-.expl-cover-wrap{position:relative;width:100%;aspect-ratio:1/1;border-radius:10px;overflow:hidden;background:var(--hover);box-shadow:0 6px 16px rgba(0,0,0,.3);transition:transform .18s;}
+.expl-card{flex:0 0 110px;width:110px;cursor:pointer;}
+/* Kartu "Jelajahi <Artis>" dibuat PERSEGI PANJANG memanjang ke bawah (potrait,
+   rasio 2:3) — meniru kartu "song preview" ala Spotify, bukan persegi (1:1). */
+.expl-cover-wrap{position:relative;width:100%;aspect-ratio:2/3;border-radius:10px;overflow:hidden;background:var(--hover);box-shadow:0 6px 16px rgba(0,0,0,.3);transition:transform .18s;}
 .expl-card:hover .expl-cover-wrap{transform:translateY(-2px);}
 .expl-cover-img{width:100%;height:100%;object-fit:cover;display:block;}
 .expl-overlay{position:absolute;left:0;right:0;bottom:0;padding:8px 7px 9px;background:linear-gradient(180deg,transparent 0%,rgba(0,0,0,.75) 78%);}
@@ -1885,6 +1872,20 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
    saja tidak ada lagi celah hitam kosong di baliknya. */
 #np-view.np-fs-morphing{z-index:600;bottom:0 !important;}
 #np-view.np-fullscreen{bottom:0 !important;z-index:600;}
+/* FIX: saat KELUAR fullscreen, kotak "play" (#bar) butuh .6s untuk selesai
+   meluncur naik kembali ke posisinya (lihat aturan "#bar{transition:transform
+   .6s ...}" di bawah). Kalau #np-view langsung melepas bottom:0 di frame
+   berikutnya (barengan class ".np-fs-morphing" dilepas), tepi bawah halaman
+   Now Playing langsung naik/menyusut DULUAN sebelum #bar benar2 sampai di
+   posisi akhirnya — sehingga area kotak "play" yang belum ditutupi #bar
+   (yang masih dalam proses naik) sempat memperlihatkan background <body>
+   polos (kotak hitam kosong). Class ".np-fs-closing" ini HANYA menjaga
+   bottom:0 tetap terpasang sedikit lebih lama (lepas dari class
+   ".np-fs-morphing" yang sudah boleh dilepas duluan supaya animasi
+   memudarkan grid/foto album tetap mulai tepat waktu seperti semula), dan
+   baru dilepas oleh JS (lihat toggleNPFullscreen()) setelah #bar selesai
+   naik, sehingga tidak pernah ada celah hitam kosong yang terlihat. */
+#np-view.np-fs-closing{bottom:0 !important;}
 /* Kotak "play" di bawah (mini player/bar bawah): SELURUH kotak mulai
    meluncur turun sejak awal (tidak diam kosong dulu), sambil isinya
    (info lagu → tombol like → kontrol transport → volume) memudar satu
@@ -2008,7 +2009,7 @@ body.np-fs-final #bar{display:none !important;}
      tingginya menyesuaikan isi (judul + 1 baris kartu lagu saja). */
   #np-card-nextup{height:auto;min-height:0;width:min(88vw,380px);}
   #np-card-nextup .expl-row{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-x;}
-  #np-card-nextup .expl-card{flex:0 0 108px;width:108px;}
+  #np-card-nextup .expl-card{flex:0 0 118px;width:118px;}
   /* Tombol Like di kartu Song Preview TETAP ditampilkan di mobile (dulu
      disembunyikan karena masih berupa tombol titik-3 yang belum berfungsi) */
   /* Khusus mobile: kotak "Tentang Artis" menutup ke BAWAH (translateY),

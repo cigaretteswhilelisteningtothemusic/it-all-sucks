@@ -6766,6 +6766,7 @@ function openNP(track){
   document.getElementById('np-view').classList.add('open');
   document.getElementById('np-view').classList.remove('np-fullscreen');
   document.getElementById('np-view').classList.remove('np-fs-morphing');
+  document.getElementById('np-view').classList.remove('np-fs-closing');
   document.body.classList.remove('np-fs-final');
   // Di mobile: sembunyikan kotak mini player (#bar) di bawah selama halaman
   // Now Playing terbuka, dan hapus baris grid-nya supaya tidak ada ruang
@@ -6863,6 +6864,7 @@ function closeNP(){
   document.getElementById('np-view').classList.remove('open');
   document.getElementById('np-view').classList.remove('np-fullscreen');
   document.getElementById('np-view').classList.remove('np-fs-morphing');
+  document.getElementById('np-view').classList.remove('np-fs-closing');
   document.body.classList.remove('np-is-fullscreen');
   document.body.classList.remove('np-fs-final');
   document.body.classList.remove('np-mobile-open');
@@ -7011,8 +7013,13 @@ function toggleNPFullscreen(force){
     // ── KELUAR immersive fullscreen ──
     // Lepas class struktural & mulai class morph DALAM tick yang sama supaya
     // tidak sempat "kelip" ke tampilan penuh sebelum animasi mengecil mulai.
+    // "np-fs-closing" dipasang terpisah dari "np-fs-morphing" supaya
+    // bottom:0 pada #np-view tetap bertahan sedikit LEBIH LAMA — persis
+    // sampai kotak "play" (#bar) selesai meluncur naik kembali (.6s) —
+    // sehingga tidak ada celah hitam kosong yang sempat terlihat di baliknya.
     npView.classList.remove('np-fullscreen');
     npView.classList.add('np-fs-morphing');
+    npView.classList.add('np-fs-closing');
     document.body.classList.remove('np-fs-final');
     requestAnimationFrame(()=>{
       void npView.offsetHeight; // paksa reflow biar transisi dari state morph benar2 kepakai
@@ -7020,6 +7027,15 @@ function toggleNPFullscreen(force){
       document.body.classList.remove('np-is-fullscreen');
     });
     _npClearIdleTimer();
+    // Lepas "np-fs-closing" setelah #bar benar2 selesai naik (.6s + sedikit
+    // buffer) — baru di titik ini #np-view boleh menyusut lagi ke posisi
+    // normal (bottom:var(--np-bottom)), karena #bar sudah pasti menutupi
+    // area itu sepenuhnya, jadi tidak ada lagi kotak hitam kosong terlihat.
+    if(_npFsAnimTimer){ clearTimeout(_npFsAnimTimer); _npFsAnimTimer=null; }
+    _npFsAnimTimer=setTimeout(()=>{
+      npView.classList.remove('np-fs-closing');
+      _npFsAnimTimer=null;
+    }, 650);
   }
   _npArmIdleTimer();
 }
