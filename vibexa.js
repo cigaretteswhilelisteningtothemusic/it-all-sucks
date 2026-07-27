@@ -6768,6 +6768,11 @@ function openNP(track){
   document.getElementById('np-view').classList.remove('np-fs-morphing');
   document.getElementById('np-view').classList.remove('np-fs-closing');
   document.body.classList.remove('np-fs-final');
+  // Selama halaman Now Playing terbuka, kotak "play" (#bar) di bawah dibuat
+  // TRANSPARAN (tanpa background gelap solid-nya sendiri) supaya menyatu
+  // dengan latar halaman Now Playing di baliknya, bukan lagi terlihat
+  // sebagai kotak terpisah — lihat CSS "body.np-page-open #bar".
+  document.body.classList.add('np-page-open');
   // Di mobile: sembunyikan kotak mini player (#bar) di bawah selama halaman
   // Now Playing terbuka, dan hapus baris grid-nya supaya tidak ada ruang
   // kosong (lihat CSS body.np-mobile-open).
@@ -6868,6 +6873,7 @@ function closeNP(){
   document.body.classList.remove('np-is-fullscreen');
   document.body.classList.remove('np-fs-final');
   document.body.classList.remove('np-mobile-open');
+  document.body.classList.remove('np-page-open');
   // Halaman Now Playing ditutup: hentikan idle & morph timer immersive fullscreen
   _npClearIdleTimer();
   if(typeof _npFsAnimTimer!=='undefined' && _npFsAnimTimer){ clearTimeout(_npFsAnimTimer); _npFsAnimTimer=null; }
@@ -7027,15 +7033,17 @@ function toggleNPFullscreen(force){
       document.body.classList.remove('np-is-fullscreen');
     });
     _npClearIdleTimer();
-    // Lepas "np-fs-closing" setelah #bar benar2 selesai naik (.6s + sedikit
-    // buffer) — baru di titik ini #np-view boleh menyusut lagi ke posisi
-    // normal (bottom:var(--np-bottom)), karena #bar sudah pasti menutupi
-    // area itu sepenuhnya, jadi tidak ada lagi kotak hitam kosong terlihat.
+    // Lepas "np-fs-closing" setelah #bar benar2 selesai naik (durasi animasi
+    // naik kotak "play" sekarang 1.4s — lihat "#bar{transition:transform
+    // 1.4s ...}" di CSS — ditambah sedikit buffer) — baru di titik ini
+    // #np-view boleh menyusut lagi ke posisi normal (bottom:var(--np-bottom)),
+    // karena #bar sudah pasti menutupi area itu sepenuhnya, jadi tidak ada
+    // lagi kotak hitam kosong terlihat.
     if(_npFsAnimTimer){ clearTimeout(_npFsAnimTimer); _npFsAnimTimer=null; }
     _npFsAnimTimer=setTimeout(()=>{
       npView.classList.remove('np-fs-closing');
       _npFsAnimTimer=null;
-    }, 650);
+    }, 1450);
   }
   _npArmIdleTimer();
 }

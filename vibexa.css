@@ -703,7 +703,14 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 
 
 /* PLAYER BAR */
-#bar{grid-area:bar;background:rgba(8,11,18,.96);backdrop-filter:blur(20px);display:flex;align-items:center;padding:0 22px;gap:20px;z-index:10}
+#bar{grid-area:bar;background:rgba(8,11,18,.96);backdrop-filter:blur(20px);display:flex;align-items:center;padding:0 22px;gap:20px;z-index:10;transition:background .5s ease,backdrop-filter .5s ease,box-shadow .5s ease,border-color .5s ease;}
+/* Selama halaman Now Playing terbuka (baik tampilan biasa maupun mode
+   fullscreen), kotak "play" ini TIDAK lagi punya background gelap solid-nya
+   sendiri — dibuat transparan supaya menyatu dengan latar halaman Now
+   Playing di baliknya (foto album/gradasi warna lagu), bukan lagi terlihat
+   sebagai kotak/panel terpisah. Di halaman lain (Home, Search, dst) kotak
+   ini tetap memakai background gelap solid seperti semula. */
+body.np-page-open #bar{background:transparent;backdrop-filter:none;box-shadow:none;border-color:transparent;}
 .bar-track{display:flex;align-items:center;gap:12px;width:250px;flex-shrink:0;cursor:pointer;}
 .bar-thumb{width:50px;height:50px;border-radius:8px;object-fit:cover;background:var(--card);flex-shrink:0}
 .bar-ph{width:50px;height:50px;border-radius:8px;background:var(--card);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.25rem}
@@ -1872,43 +1879,54 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
    saja tidak ada lagi celah hitam kosong di baliknya. */
 #np-view.np-fs-morphing{z-index:600;bottom:0 !important;}
 #np-view.np-fullscreen{bottom:0 !important;z-index:600;}
-/* FIX: saat KELUAR fullscreen, kotak "play" (#bar) butuh .6s untuk selesai
-   meluncur naik kembali ke posisinya (lihat aturan "#bar{transition:transform
-   .6s ...}" di bawah). Kalau #np-view langsung melepas bottom:0 di frame
-   berikutnya (barengan class ".np-fs-morphing" dilepas), tepi bawah halaman
-   Now Playing langsung naik/menyusut DULUAN sebelum #bar benar2 sampai di
-   posisi akhirnya — sehingga area kotak "play" yang belum ditutupi #bar
-   (yang masih dalam proses naik) sempat memperlihatkan background <body>
-   polos (kotak hitam kosong). Class ".np-fs-closing" ini HANYA menjaga
-   bottom:0 tetap terpasang sedikit lebih lama (lepas dari class
-   ".np-fs-morphing" yang sudah boleh dilepas duluan supaya animasi
-   memudarkan grid/foto album tetap mulai tepat waktu seperti semula), dan
-   baru dilepas oleh JS (lihat toggleNPFullscreen()) setelah #bar selesai
-   naik, sehingga tidak pernah ada celah hitam kosong yang terlihat. */
+/* FIX: saat KELUAR fullscreen, kotak "play" (#bar) butuh waktu untuk selesai
+   meluncur naik kembali ke posisinya (lihat aturan "body.np-is-fullscreen
+   #bar{transition:transform ...}" di bawah — durasi NP_BAR_OPEN_MS di JS).
+   Kalau #np-view langsung melepas bottom:0 di frame berikutnya (barengan
+   class ".np-fs-morphing" dilepas), tepi bawah halaman Now Playing langsung
+   naik/menyusut DULUAN sebelum #bar benar2 sampai di posisi akhirnya —
+   sehingga area kotak "play" yang belum ditutupi #bar (yang masih dalam
+   proses naik) sempat memperlihatkan background <body> polos (kotak hitam
+   kosong). Class ".np-fs-closing" ini HANYA menjaga bottom:0 tetap
+   terpasang sedikit lebih lama (lepas dari class ".np-fs-morphing" yang
+   sudah boleh dilepas duluan supaya animasi memudarkan grid/foto album
+   tetap mulai tepat waktu seperti semula), dan baru dilepas oleh JS (lihat
+   toggleNPFullscreen()) setelah #bar SELESAI naik, sehingga tidak pernah
+   ada celah hitam kosong yang terlihat. */
 #np-view.np-fs-closing{bottom:0 !important;}
-/* Kotak "play" di bawah (mini player/bar bawah): SELURUH kotak mulai
-   meluncur turun sejak awal (tidak diam kosong dulu), sambil isinya
-   (info lagu → tombol like → kontrol transport → volume) memudar satu
-   per satu mengikuti arah turun itu — jadi terasa seperti kotaknya
-   "tenggelam ke bawah" membawa isinya, bukan mengatup ke atas dan
-   meninggalkan kotak kosong yang masih terlihat. */
+/* Kotak "play" di bawah (mini player/bar bawah).
+   MENUTUP (masuk fullscreen): seluruh kotak mulai meluncur turun sejak
+   awal, sambil isinya (info lagu → tombol like → kontrol transport →
+   volume) memudar SATU PER SATU mengikuti arah turun itu — terasa seperti
+   kotaknya "tenggelam ke bawah" membawa isinya.
+   MEMBUKA KEMBALI (keluar fullscreen): dibuat MIRIP LACI/LEMARI yang
+   dibuka — kotaknya naik pelan (bukan snap instan), dan isinya muncul
+   kembali satu per satu secara BERURUTAN TERBALIK (volume → kontrol →
+   like → info lagu), seolah tiap "sekat lemari" terbuka menyusul yang
+   sebelumnya, persis gaya reveal ala Spotify. */
 #bar>.bar-track,#bar>.bar-like-btn,#bar>.bar-ctrl,#bar>.bar-r{transition:opacity .6s ease,transform .6s ease;}
+/* Urutan MUNCUL (default/keluar-fullscreen) — cepat tapi berjenjang: */
+#bar>.bar-r{transition-delay:0s;}
+#bar>.bar-ctrl{transition-delay:.15s;}
+#bar>.bar-like-btn{transition-delay:.3s;}
+#bar>.bar-track{transition-delay:.45s;}
+/* Urutan MEMUDAR/HILANG (masuk fullscreen) — pelan, jeda lebih panjang,
+   selector lebih spesifik jadi menang atas transition-delay default di
+   atas selama class ini terpasang. */
 body.np-is-fullscreen #bar>.bar-track{opacity:0;transform:translateY(14px);transition-delay:0s;}
 body.np-is-fullscreen #bar>.bar-like-btn{opacity:0;transform:translateY(14px);transition-delay:.5s;}
 body.np-is-fullscreen #bar>.bar-ctrl{opacity:0;transform:translateY(14px);transition-delay:1s;}
 body.np-is-fullscreen #bar>.bar-r{opacity:0;transform:translateY(14px);transition-delay:1.5s;}
-/* Kotak itu sendiri mulai turun BERSAMAAN dengan isinya mulai memudar
-   (delay 0s) — bukan menunggu isinya selesai dulu — supaya tidak pernah
-   ada momen "kotak hitam kosong" yang masih diam terlihat penuh. Durasi
-   dibuat panjang (2.4s) HANYA saat MENUTUP (masuk fullscreen), supaya
-   turunnya terasa pelan & baru benar-benar lepas dari layar setelah semua
-   isinya (bagian terakhir, .bar-r, selesai memudar di detik ke-2.1) sudah
-   tidak terlihat. Saat MEMBUKA KEMBALI (keluar fullscreen), durasinya
-   sengaja jauh lebih cepat (.6s, lihat aturan default di bawah) — supaya
-   begitu kotak play muncul lagi, ia langsung naik cepat & tidak
-   meninggalkan "kotak kosong" yang lama menggantung menunggu isinya
-   selesai memudar-masuk. */
-#bar{transition:transform .6s cubic-bezier(.65,0,.35,1) 0s;}
+/* Kotak itu sendiri: turun BERSAMAAN dengan isinya mulai memudar (delay 0s)
+   saat MENUTUP — durasi panjang (2.4s) supaya baru benar2 lepas dari layar
+   setelah semua isinya (bagian terakhir, .bar-r, selesai memudar di detik
+   ke-2.1) sudah tidak terlihat.
+   Saat MEMBUKA KEMBALI, durasi dibuat LEBIH PANJANG dari sebelumnya (1.4s,
+   bukan lagi .6s) dengan easing "ease-out" yang landai di akhir — supaya
+   naiknya terasa seperti pintu lemari yang membuka pelan²/lega, bukan
+   sekadar snap cepat, sambil isinya (di atas) tetap muncul berjenjang
+   dalam rentang waktu itu. */
+#bar{transition:transform 1.4s cubic-bezier(.16,1,.3,1) 0s;}
 body.np-is-fullscreen #bar{pointer-events:none;transform:translateY(100%);transition:transform 2.4s cubic-bezier(.45,0,.55,1) 0s;z-index:601;}
 body.np-fs-final #bar{display:none !important;}
 @media(max-width:660px){
