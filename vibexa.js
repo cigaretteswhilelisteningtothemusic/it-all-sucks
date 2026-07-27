@@ -5601,11 +5601,31 @@ async function _fetchLyrFrom(workerBase, title, artist){
 // kata "kotor" seperti live, acoustic, remix, dll DIBUANG — kita hanya mau
 // hasil yang benar-benar cocok dengan "judul lagu - nama artist" polos,
 // bukan versi live/akustik/cover/dsb yang liriknya bisa beda dari rilisan asli.
-const _DIRTY_LYRICS_REGEX = /\b(live|konser|concert|acoustic|akustik|unplugged|cover|karaoke|instrumental|remix|reaction|tutorial|behind[\s_-]?the[\s_-]?scenes?|teaser|trailer|interview|dance\s*practice|piano\s*version|orchestra|symphony|session|mashup|parody|rehearsal|sped\s*up|slowed|8d\s*audio|lofi|bootleg|tribute|edit\b)/i;
+const _DIRTY_LYRICS_REGEX = /\b(live|konser|concert|acoustic|akustik|unplugged|cover|karaoke|instrumental|remix|reaction|tutorial|behind[\s_-]?the[\s_-]?scenes?|teaser|trailer|interview|dance\s*practice|piano\s*version|orchestra|symphony|session|mashup|parody|rehearsal|sped\s*up|slowed|8d\s*audio|lofi|bootleg|tribute|dvd|b[\s_-]?sides?|demo|edit\b)/i;
 
 function _filterCleanLyricsResults(data){
   if(!data || !data.length) return [];
-  return data.filter(r => !_DIRTY_LYRICS_REGEX.test(r.trackName||'') && !_DIRTY_LYRICS_REGEX.test(r.albumName||''));
+  // r.instrumental adalah flag boolean asli dari lrclib (lebih pasti
+  // daripada nebak dari teks judul/album) — buang juga versi instrumental.
+  return data.filter(r => !r.instrumental && !_DIRTY_LYRICS_REGEX.test(r.trackName||'') && !_DIRTY_LYRICS_REGEX.test(r.albumName||''));
+}
+
+// Kalau kita TIDAK tahu durasi resmi lagu (mis. metadata iTunes tidak
+// tersedia untuk track ini), tebak durasi "asli" dari klaster durasi
+// terbesar di antara kandidat yang tersisa. Rilisan studio biasanya
+// muncul >1 kali di lrclib (single/album/OST/dll) dengan durasi yang
+// nyaris identik, sedangkan versi live/DVD/bootleg yang lolos filter kata
+// kunci biasanya jadi outlier durasi sendirian. Hanya dipercaya kalau ada
+// minimal 2 entri yang "sepakat" (selisih durasi ≤2 detik).
+function _modeDuration(arr){
+  const durs = arr.map(r=>r.duration).filter(d=>typeof d==='number' && d>0);
+  if(!durs.length) return null;
+  let bestCount=0, bestVal=null;
+  for(const d of durs){
+    const count = durs.filter(x=>Math.abs(x-d)<=2).length;
+    if(count>bestCount){ bestCount=count; bestVal=d; }
+  }
+  return bestCount>=2 ? bestVal : null;
 }
 
 // Dari kandidat-kandidat lirik yang tersisa (setelah disaring dari versi
@@ -5621,11 +5641,12 @@ function _pickLyricsCandidate(pool, knownDuration){
   const plain = pool.filter(r=>r.plainLyrics);
   const pickClosest = (arr) => {
     if(!arr.length) return null;
-    if(!knownDuration) return arr[0];
+    const target = knownDuration || _modeDuration(arr);
+    if(!target) return arr[0];
     let best=arr[0], bestDiff=Infinity;
     for(const r of arr){
       if(typeof r.duration !== 'number' || r.duration<=0) continue;
-      const diff = Math.abs(r.duration - knownDuration);
+      const diff = Math.abs(r.duration - target);
       if(diff < bestDiff){ bestDiff = diff; best = r; }
     }
     return best;
