@@ -4943,6 +4943,7 @@ async function resolveVidByDuration(artist, title, cleanTitleForLyrics, knownDur
     fetchLyr(cleanTitleForLyrics, artist, knownDuration)
   ]);
   let lines = (lyricsData && lyricsData.lines) || [];
+  console.log('[LYR DEBUG] resolveVidByDuration: lines from fetchLyr ->', lines.length);
   const targetDuration = lyricsData && lyricsData.duration;
 
   const cleanResults = _filterCleanVideos(rawResults);
@@ -4983,8 +4984,10 @@ async function resolveVidByDuration(artist, title, cleanTitleForLyrics, knownDur
   if(videoId && pickedFrom && pickedFrom.length){
     const matched = pickedFrom.find(r => r.videoId === videoId);
     const realVideoDuration = matched && matched.duration;
+    console.log('[LYR DEBUG] resolveVidByDuration: matched video duration ->', realVideoDuration);
     if(typeof realVideoDuration === 'number' && realVideoDuration > 0){
       const rematched = _rematchLyricsToVideoDuration(cleanTitleForLyrics, artist, realVideoDuration);
+      console.log('[LYR DEBUG] resolveVidByDuration: rematched lines ->', rematched ? rematched.lines.length : 'null (kept original)');
       if(rematched) lines = rematched.lines;
     }
   }
@@ -5562,6 +5565,7 @@ async function loadPlay(track, fromPlId){
     toast(' Video not found. Try another song.'); _nextGuarded=false;
   }
   lyrs=lines||[];
+  console.log('[LYR DEBUG] final lyrs assigned, length:', lyrs.length, 'for track:', track.title, '-', track.artist);
   // Set song key for translation
   _currentSongKeyForTranslation = track.artist + '|' + track.title;
   document.getElementById('lyr-lines').innerHTML=lyrs.length?'':'<div class="lyr-empty"><i></i>Lyrics not available</div>';
@@ -5739,7 +5743,7 @@ async function fetchLyr(title, artist, knownDuration){
     data = await _fetchLyrFromLrclibDirect(title, artist);
   }
 
-  if(!data){ const empty={lines:[],duration:null}; lyrCache[k]=empty; _lyrPoolCache[k]=[]; return empty; }
+  if(!data){ const empty={lines:[],duration:null}; lyrCache[k]=empty; _lyrPoolCache[k]=[]; console.log('[LYR DEBUG] fetchLyr: no data at all for', k); return empty; }
 
   // Saring dulu hasil yang "kotor" (live/acoustic/remix/dll). Kalau semua
   // hasil kebetulan kotor (tidak ada versi studio yang ketemu di lrclib),
@@ -5747,12 +5751,15 @@ async function fetchLyr(title, artist, knownDuration){
   const clean = _filterCleanLyricsResults(data);
   const pool = clean.length ? clean : data;
   _lyrPoolCache[k] = pool;
+  console.log('[LYR DEBUG] fetchLyr: raw', data.length, 'clean', clean.length, 'pool used', pool.length, 'knownDuration', knownDuration);
 
   const ch = _pickLyricsCandidate(pool, knownDuration);
+  console.log('[LYR DEBUG] fetchLyr: chosen candidate ->', ch && {trackName: ch.trackName, artistName: ch.artistName, duration: ch.duration, hasSynced: !!(ch && ch.syncedLyrics), hasPlain: !!(ch && ch.plainLyrics), instrumental: ch && ch.instrumental});
   let p = [];
   if(ch.syncedLyrics) p = pSynced(ch.syncedLyrics, _curSpeedFactor);
   else if(ch.plainLyrics) p = pPlain(ch.plainLyrics, _curSpeedFactor);
   p = _withIntroInstrumental(p);
+  console.log('[LYR DEBUG] fetchLyr: parsed line count ->', p.length);
   // lrclib menyertakan field "duration" (detik) di tiap hasil pencarian — ini
   // durasi RESMI lagu, dipakai untuk mencocokkan durasi video YouTube supaya
   // video yang dipilih benar-benar sesuai lagu asli (bukan cover/remix/dll).
