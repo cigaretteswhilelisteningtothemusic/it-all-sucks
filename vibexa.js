@@ -4942,11 +4942,14 @@ async function resolveVidByDuration(artist, title, cleanTitleForLyrics, knownDur
     resolveVidList(`${title} ${artist}`),
     fetchLyr(cleanTitleForLyrics, artist, knownDuration)
   ]);
-  const lines = (lyricsData && lyricsData.lines) || [];
+  let lines = (lyricsData && lyricsData.lines) || [];
   const targetDuration = lyricsData && lyricsData.duration;
 
   const cleanResults = _filterCleanVideos(rawResults);
   let videoId = _pickByDuration(cleanResults, targetDuration, VIDEO_DURATION_TOLERANCE);
+  // Simpan dari daftar mana videoId ini berasal, supaya nanti bisa dicari
+  // lagi berapa durasi ASLI video itu (dipakai untuk cocokkan ulang lirik).
+  let pickedFrom = cleanResults;
 
   if(!videoId){
     const lyricsResults = await resolveVidList(`${title} ${artist} lyrics`);
@@ -4954,17 +4957,38 @@ async function resolveVidByDuration(artist, title, cleanTitleForLyrics, knownDur
     videoId = (cleanLyricsResults[0] && cleanLyricsResults[0].videoId)
       || (lyricsResults[0] && lyricsResults[0].videoId)
       || null;
+    pickedFrom = cleanLyricsResults.length ? cleanLyricsResults : lyricsResults;
   }
   if(!videoId){
     const audioResults = await resolveVidList(`${title} ${artist} official audio`);
     videoId = (audioResults && audioResults[0] && audioResults[0].videoId) || null;
+    pickedFrom = audioResults;
   }
   if(!videoId && cleanResults.length){
     videoId = cleanResults[0].videoId;
+    pickedFrom = cleanResults;
   }
   if(!videoId && rawResults.length){
     videoId = rawResults[0].videoId;
+    pickedFrom = rawResults;
   }
+
+  // ── Cocokkan ulang lirik berdasarkan durasi ASLI video yang benar-benar
+  // terpilih di atas (bukan cuma tebakan awal dari metadata iTunes/lrclib).
+  // Video worker kita sertakan field "duration" per kandidat di hasil
+  // pencarian, jadi begitu tahu video mana yang final dipakai, kita tinggal
+  // cari durasinya di daftar tsb lalu pilih ulang kandidat lirik lrclib yang
+  // durasinya paling mendekati durasi video itu (mis. video 2:30, lirik
+  // 2:31 → dipilih karena selisihnya paling kecil).
+  if(videoId && pickedFrom && pickedFrom.length){
+    const matched = pickedFrom.find(r => r.videoId === videoId);
+    const realVideoDuration = matched && matched.duration;
+    if(typeof realVideoDuration === 'number' && realVideoDuration > 0){
+      const rematched = _rematchLyricsToVideoDuration(cleanTitleForLyrics, artist, realVideoDuration);
+      if(rematched) lines = rematched.lines;
+    }
+  }
+
   return { videoId, lines };
 }
 
@@ -5654,6 +5678,12 @@ function _pickLyricsCandidate(pool, knownDuration){
   return pickClosest(synced) || pickClosest(plain) || pool[0];
 }
 
+// Nama+artis (key sama seperti lyrCache) -> pool kandidat lirik lrclib yang
+// sudah disaring (bukan yang final terpilih). Disimpan terpisah supaya nanti
+// begitu durasi ASLI video YouTube-nya sudah diketahui, kita bisa cocokkan
+// ULANG kandidat mana yang paling pas TANPA perlu fetch ke worker lagi.
+let _lyrPoolCache = {};
+
 async function fetchLyr(title, artist, knownDuration){
   const k = title+'|'+artist;
   if(lyrCache[k] !== undefined) return lyrCache[k];
@@ -5664,13 +5694,14 @@ async function fetchLyr(title, artist, knownDuration){
     if(data) break; // worker ini berhasil dapat lirik, tidak perlu coba worker lain
   }
 
-  if(!data){ const empty={lines:[],duration:null}; lyrCache[k]=empty; return empty; }
+  if(!data){ const empty={lines:[],duration:null}; lyrCache[k]=empty; _lyrPoolCache[k]=[]; return empty; }
 
   // Saring dulu hasil yang "kotor" (live/acoustic/remix/dll). Kalau semua
   // hasil kebetulan kotor (tidak ada versi studio yang ketemu di lrclib),
   // baru fallback ke daftar aslinya supaya lirik tetap tersedia.
   const clean = _filterCleanLyricsResults(data);
   const pool = clean.length ? clean : data;
+  _lyrPoolCache[k] = pool;
 
   const ch = _pickLyricsCandidate(pool, knownDuration);
   let p = [];
@@ -5683,6 +5714,37 @@ async function fetchLyr(title, artist, knownDuration){
   const duration = (ch && typeof ch.duration === 'number' && ch.duration > 0) ? ch.duration : null;
   const result = { lines: p, duration };
   lyrCache[k] = result; return result;
+}
+
+// ── Cocokkan ULANG kandidat lirik berdasarkan durasi ASLI video YouTube ──
+// Dipanggil SETELAH video YouTube final berhasil ditentukan (resolveVidByDuration).
+// Kenapa perlu: pemilihan lirik pertama kali (fetchLyr di atas) cuma bisa
+// menebak pakai knownDuration dari metadata iTunes (kalau ada) — itu bisa
+// saja kurang akurat atau tidak tersedia sama sekali. Durasi video YouTube
+// yang BENERAN diputar user adalah acuan paling akurat soal versi lagu mana
+// yang dimaksud, jadi begitu itu sudah diketahui, kita cek ulang pool
+// kandidat lirik lrclib (lagu yang sama sering muncul berkali-kali di
+// lrclib dengan durasi/timing .lrc yang sedikit berbeda-beda) dan pilih yang
+// selisih durasinya PALING KECIL dengan durasi video YouTube tsb — misal
+// video 2:30 dan ada entri lirik 2:31, itu yang dipilih karena paling dekat.
+function _rematchLyricsToVideoDuration(title, artist, videoDuration){
+  const k = title+'|'+artist;
+  const pool = _lyrPoolCache[k];
+  if(!pool || !pool.length || !videoDuration || videoDuration<=0) return null;
+  const ch = _pickLyricsCandidate(pool, videoDuration);
+  if(!ch) return null;
+  const newDuration = (typeof ch.duration === 'number' && ch.duration > 0) ? ch.duration : null;
+  const prev = lyrCache[k];
+  // Kandidat yang kepilih sama persis seperti sebelumnya (durasi sama) —
+  // tidak perlu parse ulang lirik, cukup pakai hasil yang sudah ada di cache.
+  if(prev && prev.duration === newDuration) return prev;
+  let p = [];
+  if(ch.syncedLyrics) p = pSynced(ch.syncedLyrics, _curSpeedFactor);
+  else if(ch.plainLyrics) p = pPlain(ch.plainLyrics, _curSpeedFactor);
+  p = _withIntroInstrumental(p);
+  const result = { lines: p, duration: newDuration };
+  lyrCache[k] = result; // update cache jadi versi paling cocok dengan video
+  return result;
 }
 function pSynced(raw, speedFactor){
   // speedFactor > 1 = speed up (lirik muncul lebih awal)
@@ -6961,7 +7023,19 @@ async function _resolveArtistIdForTrack(artistName, trackTitle){
       const searchData=await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(cleanArtist) + '&limit=10');
       const results=(searchData && searchData.data) || [];
       const qNorm=cleanArtist.trim().toLowerCase();
-      const artist=results.find(a=>(a.name||'').trim().toLowerCase()===qNorm) || results[0];
+      // Bisa saja ada lebih dari satu artis di Deezer dengan nama yang
+      // PERSIS sama (mis. beberapa artis kebetulan bernama "Oasis").
+      // Daripada asal ambil kecocokan nama pertama yang ditemukan (yang
+      // bisa saja artis kecil/tidak relevan), pilih yang jumlah fan-nya
+      // paling banyak di antara semua kecocokan nama persis — jauh lebih
+      // mungkin itu artis yang dimaksud user.
+      const exactMatches=results.filter(a=>(a.name||'').trim().toLowerCase()===qNorm);
+      let artist;
+      if(exactMatches.length){
+        artist=exactMatches.reduce((best,a)=>(a.nb_fan||0) > (best.nb_fan||0) ? a : best, exactMatches[0]);
+      } else {
+        artist=results[0];
+      }
       if(artist) id=artist.id;
     }catch(e){}
   }
