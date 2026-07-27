@@ -4429,12 +4429,12 @@ function _artistTopTrackToTrack(t){
 // fetch berulang setiap kali kotak dirender ulang.
 let _npExploreCache = {};    // artistNameLower -> array of track objects
 let _npExplorePromise = {};  // artistNameLower -> promise yang sedang berjalan
-function _getExploreArtistTracks(artistName){
+function _getExploreArtistTracks(artistName, trackTitle){
   if(!artistName) return [];
   const key = artistName.toLowerCase();
   if(_npExploreCache[key]) return _npExploreCache[key];
   if(!_npExplorePromise[key]){
-    _npExplorePromise[key] = fetchArtistTopTracks(artistName, 20).then(raw=>{
+    _npExplorePromise[key] = fetchArtistTopTracks(artistName, 20, trackTitle).then(raw=>{
       _npExploreCache[key] = (raw||[]).map(_artistTopTrackToTrack);
       delete _npExplorePromise[key];
       // Render ulang begitu data selesai dimuat, TAPI hanya kalau artis yang
@@ -4466,7 +4466,7 @@ async function _playNextFromArtistTopSongs(){
   const artistName = curTrack && curTrack.artist;
   if(!artistName){ _playNextFromTopSongs(); return; }
   let raw = [];
-  try{ raw = await fetchArtistTopTracks(artistName, 50); }catch(e){}
+  try{ raw = await fetchArtistTopTracks(artistName, 50, curTrack && curTrack.title); }catch(e){}
   if(!raw || !raw.length){ _playNextFromTopSongs(); return; }
   const list = raw.map(_artistTopTrackToTrack);
   let idx = -1;
@@ -7092,6 +7092,40 @@ function npGoArtist(){
 // (mis. ada beberapa artis di Deezer bernama "Oasis" — kalau cuma cari
 // nama "Oasis" tanpa konteks judul lagu, bisa kena artis yang salah).
 let _npArtistIdCache={}; // "artis|||judul" (lowercase) -> id artis Deezer (atau 0 kalau gagal)
+// Cache khusus resolusi HANYA berdasarkan nama artis (tanpa konteks judul
+// lagu), dipakai oleh _resolveArtistIdByName di bawah. Dipisah dari
+// _npArtistIdCache supaya tidak tabrakan key.
+let _npArtistIdByNameCache={}; // nama artis (lowercase) -> id artis Deezer (atau 0)
+
+// Resolusi ID artis Deezer HANYA dari nama (tanpa tahu judul lagu tertentu).
+// Dipakai sebagai fallback terakhir oleh _resolveArtistIdForTrack, ATAU oleh
+// fitur lain yang memang tidak punya konteks lagu spesifik (mis. rekomendasi
+// dari daftar artis yang di-follow). Karena banyak artis di Deezer bisa
+// kebetulan berbagi nama yang PERSIS sama (mis. ada beberapa artis bernama
+// "Oasis"), daripada asal ambil hasil pencarian pertama, kita pilih di
+// antara semua kecocokan nama persis yang jumlah fan-nya paling banyak —
+// jauh lebih mungkin itu artis populer yang dimaksud user.
+async function _resolveArtistIdByName(artistName){
+  const cleanArtist=String(artistName).replace(/"/g, '');
+  const key=cleanArtist.trim().toLowerCase();
+  if(_npArtistIdByNameCache[key]!=null) return _npArtistIdByNameCache[key];
+  let id=0;
+  try{
+    const searchData=await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(cleanArtist) + '&limit=10');
+    const results=(searchData && searchData.data) || [];
+    const exactMatches=results.filter(a=>(a.name||'').trim().toLowerCase()===key);
+    let artist;
+    if(exactMatches.length){
+      artist=exactMatches.reduce((best,a)=>(a.nb_fan||0) > (best.nb_fan||0) ? a : best, exactMatches[0]);
+    } else {
+      artist=results[0];
+    }
+    if(artist) id=artist.id;
+  }catch(e){}
+  _npArtistIdByNameCache[key]=id;
+  return id;
+}
+
 async function _resolveArtistIdForTrack(artistName, trackTitle){
   const key=(artistName+'|||'+trackTitle).toLowerCase();
   if(_npArtistIdCache[key]!=null) return _npArtistIdCache[key];
@@ -7112,25 +7146,7 @@ async function _resolveArtistIdForTrack(artistName, trackTitle){
     // Fallback terakhir kalau lagu spesifiknya tidak ketemu di Deezer:
     // pencarian nama artis biasa (bisa saja kurang akurat, tapi lebih
     // baik daripada tidak menampilkan apa-apa).
-    try{
-      const searchData=await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(cleanArtist) + '&limit=10');
-      const results=(searchData && searchData.data) || [];
-      const qNorm=cleanArtist.trim().toLowerCase();
-      // Bisa saja ada lebih dari satu artis di Deezer dengan nama yang
-      // PERSIS sama (mis. beberapa artis kebetulan bernama "Oasis").
-      // Daripada asal ambil kecocokan nama pertama yang ditemukan (yang
-      // bisa saja artis kecil/tidak relevan), pilih yang jumlah fan-nya
-      // paling banyak di antara semua kecocokan nama persis — jauh lebih
-      // mungkin itu artis yang dimaksud user.
-      const exactMatches=results.filter(a=>(a.name||'').trim().toLowerCase()===qNorm);
-      let artist;
-      if(exactMatches.length){
-        artist=exactMatches.reduce((best,a)=>(a.nb_fan||0) > (best.nb_fan||0) ? a : best, exactMatches[0]);
-      } else {
-        artist=results[0];
-      }
-      if(artist) id=artist.id;
-    }catch(e){}
+    id=await _resolveArtistIdByName(cleanArtist);
   }
   _npArtistIdCache[key]=id;
   return id;
@@ -7356,7 +7372,7 @@ function _renderNPNextUp(){
   const artistName=curTrack && curTrack.artist;
   if(titleEl) titleEl.textContent = artistName ? `Jelajahi ${artistName}` : 'Jelajahi Artis';
   if(!artistName){ c.innerHTML='<div class="expl-empty">Play a song to see previews</div>'; return; }
-  const full=_getExploreArtistTracks(artistName);
+  const full=_getExploreArtistTracks(artistName, curTrack && curTrack.title);
   // Jangan tampilkan lagu yang SEDANG diputar di dalam daftar preview-nya sendiri.
   const list=full.filter(t=>!curTrack || t.title.toLowerCase()!==curTrack.title.toLowerCase() || t.artist.toLowerCase()!==curTrack.artist.toLowerCase());
   if(!list.length){ c.innerHTML='<div class="expl-empty">Loading previews…</div>'; return; }
@@ -8115,19 +8131,24 @@ async function _updateLyrArtistBox(track) {
   if (albumsScroll) albumsScroll.innerHTML = '<div class="lyr-albums-loading">Loading albums...</div>';
 
   try {
-    const searchData = await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(track.artist) + '&limit=10');
-    const lyrResults = (searchData && searchData.data) || [];
-    const lyrQNorm = track.artist.trim().toLowerCase();
-    const artist = lyrResults.find(a => (a.name || '').trim().toLowerCase() === lyrQNorm) || lyrResults[0];
+    // PENTING: jangan cari artis cuma berdasarkan nama saja (bisa salah
+    // tangkap artis lain yang kebetulan punya nama sama persis, mis. ada
+    // beberapa artis di Deezer bernama "Oasis"). Pakai resolusi yang sama
+    // dengan kotak "About the artist"/"Albums" Now Playing: cocokkan
+    // artis+judul lagu yang sedang diputar dulu (atau pakai artistId yang
+    // sudah tersimpan di track kalau ada), baru fallback ke nama saja.
+    const artistId = track.artistId || await _resolveArtistIdForTrack(track.artist, track.title);
     if (myGen !== _lyrArtistReqGen) return;
-    if (!artist) {
+    if (!artistId) {
       if (albumsScroll) albumsScroll.innerHTML = '<div class="lyr-albums-empty">Album not found</div>';
       return;
     }
-    _lyrArtistFansCache[key] = artist.nb_fan || 0;
-    if (fansEl && _lyrLastArtist === key) fansEl.textContent = formatFanCount(artist.nb_fan);
+    const artistData = await _deezerJsonp('https://api.deezer.com/artist/' + artistId);
+    if (myGen !== _lyrArtistReqGen) return;
+    _lyrArtistFansCache[key] = (artistData && artistData.nb_fan) || 0;
+    if (fansEl && _lyrLastArtist === key) fansEl.textContent = formatFanCount(artistData && artistData.nb_fan);
 
-    const albumData = await _deezerJsonp('https://api.deezer.com/artist/' + artist.id + '/albums?limit=20');
+    const albumData = await _deezerJsonp('https://api.deezer.com/artist/' + artistId + '/albums?limit=20');
     if (myGen !== _lyrArtistReqGen) return;
     const albums = ((albumData && albumData.data) || []).map(a => ({
       id: a.id,
@@ -8190,7 +8211,7 @@ function _renderLyrNextUp() {
   const artistName = curTrack && curTrack.artist;
   if (labelEl) labelEl.textContent = artistName ? `Jelajahi ${artistName}` : 'Jelajahi Artis';
   if (!artistName) { c.innerHTML = '<div class="lyr-albums-empty">Play a song to see previews</div>'; return; }
-  const full = _getExploreArtistTracks(artistName);
+  const full = _getExploreArtistTracks(artistName, curTrack && curTrack.title);
   const list = full.filter(t=>!curTrack || t.title.toLowerCase()!==curTrack.title.toLowerCase() || t.artist.toLowerCase()!==curTrack.artist.toLowerCase());
   if (!list.length) {
     c.innerHTML = '<div class="lyr-albums-empty">Loading previews…</div>';
@@ -11829,17 +11850,23 @@ let _recommendedSongsCache = null;
 // Deezer supaya lebih jarang timeout saat user follow banyak artis.
 let _artistTopTracksCache = {}; // key: "artis|||limit" -> Promise<track[]>
 
-async function fetchArtistTopTracks(artistName, limit) {
+async function fetchArtistTopTracks(artistName, limit, trackTitle) {
   const cacheKey = artistName.toLowerCase() + '|||' + limit;
   if (_artistTopTracksCache[cacheKey]) return _artistTopTracksCache[cacheKey];
   const p = (async () => {
     try {
-      const searchData = await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(artistName) + '&limit=10');
-      const ftResults = (searchData && searchData.data) || [];
-      const ftQNorm = artistName.trim().toLowerCase();
-      const artist = ftResults.find(a => (a.name || '').trim().toLowerCase() === ftQNorm) || ftResults[0];
-      if (!artist) return [];
-      const topData = await _deezerJsonp('https://api.deezer.com/artist/' + artist.id + '/top?limit=' + limit);
+      // Kalau kita tahu judul lagu yang sedang diputar, pakai resolusi
+      // artis+judul (mencegah salah tangkap artis lain yang kebetulan
+      // punya nama persis sama, mis. beberapa artis bernama "Oasis").
+      // Kalau tidak ada konteks judul (mis. rekomendasi dari artis yang
+      // di-follow), fallback ke resolusi nama saja yang tetap memilih
+      // kecocokan nama persis dengan fan terbanyak, bukan asal hasil
+      // pertama.
+      const artistId = trackTitle
+        ? await _resolveArtistIdForTrack(artistName, trackTitle)
+        : await _resolveArtistIdByName(artistName);
+      if (!artistId) return [];
+      const topData = await _deezerJsonp('https://api.deezer.com/artist/' + artistId + '/top?limit=' + limit);
       if (!topData || !topData.data) return [];
       return topData.data.map(_normalizeDeezerTrack);
     } catch (e) {
@@ -14570,7 +14597,7 @@ async function loadSpByArtist(artistName, focusTitle) {
   _syncSpGenreChipsActive();
   feed.innerHTML = spLoadingHtml();
   try {
-    const raw = await fetchArtistTopTracks(artistName, 50).catch(() => []);
+    const raw = await fetchArtistTopTracks(artistName, 50, focusTitle).catch(() => []);
     let tracks = (raw || [])
       .filter(t => t && t.preview)
       .map(t => _mapDeezerTrackToSp(t, artistName));
