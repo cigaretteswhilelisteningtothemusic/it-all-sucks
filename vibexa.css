@@ -1404,6 +1404,20 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
   body.np-mobile-open #mob-nav{
     display:none !important;
   }
+  /* Kalau halaman Now Playing dibuka SAAT masih di atas halaman Unduhan
+     Offline / Streak (topbar-nya sengaja di-boost z-index ke 3000 lewat
+     rule "body:has(#downloads-view.show) .home-topbar" / "#streak-view"
+     supaya bisa ditekan di atas halaman itu), rule boost tsb tetap aktif
+     walau Now Playing sudah terbuka (karena #downloads-view/#streak-view
+     masih berstatus "show" di baliknya) — jadi topbar (z-index 3000)
+     tetap terlihat MENUTUPI Now Playing (z-index 400), sampai user
+     menekan tombol apa pun di Now Playing yang lewat listener klik global
+     otomatis menutup halaman Unduhan Offline/Streak (baru topbar hilang).
+     Paksa topbar langsung disembunyikan sejak Now Playing dibuka supaya
+     tidak perlu menunggu klik berikutnya. */
+  body.np-mobile-open .home-topbar{
+    display:none !important;
+  }
 
   /* ════════════════════════════════
      HOME VIEW
@@ -1934,13 +1948,12 @@ body.np-fs-final #bar{display:none !important;}
      sampai berada di luar area yang terlihat sebelum di-scroll: .np-hero
      dibuat setinggi penuh area scroll yang tampak (min-height:100%, relatif
      ke tinggi #np-scroll yang sudah pasti/definite lewat calc di atas),
-     lalu isinya (foto album + judul + kontrol) di-center secara vertikal
-     memakai justify-content — BUKAN dengan memperbesar/mengecilkan ukuran
-     foto album atau kontrolnya sendiri. Jadi tidak ada kotak kosong yang
-     "menggantung": ruang ekstra dipakai untuk menengahkan konten secara
-     wajar (persis gaya halaman Now Playing Spotify asli), sekaligus kotak
-     "Tentang Artis" otomatis berada tepat di bawah batas layar & baru
-     kelihatan begitu user scroll ke bawah. */
+     dan isinya (foto album + judul + kontrol) DITEMPELKAN KE ATAS lewat
+     justify-content:flex-start (bukan di-center) — supaya tidak ada ruang
+     kosong menggantung di atas foto album, persis gaya Now Playing Spotify
+     di HP. Kotak "Tentang Artis" otomatis berada tepat di bawah batas layar
+     & baru kelihatan begitu user scroll ke bawah, berkat sisa min-height
+     ekstra yang tidak terpakai oleh konten hero itu sendiri. */
   /* min-height:100% saja tidak cukup: #np-scroll punya padding sendiri
      (8px atas + 80px bawah = 88px) yang termakan oleh box-sizing:border-box,
      jadi tinggi .np-hero jadi lebih pendek dari area yang benar2 terlihat —
@@ -1948,7 +1961,14 @@ body.np-fs-final #bar{display:none !important;}
      SEBELUM di-scroll. Ditambah 88px di sini supaya .np-hero benar2
      memenuhi seluruh area yang terlihat, sehingga kotak "About the artist"
      baru kelihatan setelah user scroll, bukan sebelumnya. */
-  .np-hero{padding:6px 0 4px;min-height:calc(100% + 88px);justify-content:center;}
+  /* Konten hero (foto album + judul + kontrol) DITEMPELKAN KE ATAS
+     (justify-content:flex-start), BUKAN di-center secara vertikal —
+     supaya tidak ada ruang kosong menggantung di atas foto album, persis
+     gaya halaman Now Playing Spotify di HP (foto album mulai tepat di
+     bawah topbar). min-height ekstra (100% + 88px) tetap dipertahankan
+     supaya kotak "Tentang Artis"/Albums/Playlist di bawahnya tetap
+     terdorong ke luar area yang terlihat sebelum di-scroll. */
+  .np-hero{padding:20px 0 4px;min-height:calc(100% + 88px);justify-content:flex-start;}
   .np-track-title{margin-top:6px;}
   .np-track-artist{margin-top:3px;}
   /* Kotak "Tentang Artis", "Albums" & "Playlist" persegi tapi UKURAN

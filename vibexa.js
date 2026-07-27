@@ -6931,6 +6931,44 @@ function npGoArtist(){
   openArtistView(artistName);
 }
 
+// Cari ID artis Deezer yang BENAR utk lagu yang sedang diputar, dengan
+// mencocokkan artis+judul lagu sekaligus (bukan cuma nama artis). Ini
+// mencegah salah tangkap ke artis lain yang kebetulan sama persis namanya
+// (mis. ada beberapa artis di Deezer bernama "Oasis" — kalau cuma cari
+// nama "Oasis" tanpa konteks judul lagu, bisa kena artis yang salah).
+let _npArtistIdCache={}; // "artis|||judul" (lowercase) -> id artis Deezer (atau 0 kalau gagal)
+async function _resolveArtistIdForTrack(artistName, trackTitle){
+  const key=(artistName+'|||'+trackTitle).toLowerCase();
+  if(_npArtistIdCache[key]!=null) return _npArtistIdCache[key];
+  const cleanArtist=String(artistName).replace(/"/g, '');
+  const cleanTitle=String(trackTitle||'').replace(/"/g, '');
+  let id=0;
+  try{
+    const q1='artist:"' + cleanArtist + '" track:"' + cleanTitle + '"';
+    let data=await _deezerJsonp('https://api.deezer.com/search?q=' + encodeURIComponent(q1) + '&limit=1');
+    let hit=data && data.data && data.data[0];
+    if(!hit && cleanTitle){
+      data=await _deezerJsonp('https://api.deezer.com/search?q=' + encodeURIComponent(cleanArtist + ' ' + cleanTitle) + '&order=RANKING&limit=1');
+      hit=data && data.data && data.data[0];
+    }
+    if(hit && hit.artist && hit.artist.id) id=hit.artist.id;
+  }catch(e){ /* jatuh ke fallback pencarian nama di bawah */ }
+  if(!id){
+    // Fallback terakhir kalau lagu spesifiknya tidak ketemu di Deezer:
+    // pencarian nama artis biasa (bisa saja kurang akurat, tapi lebih
+    // baik daripada tidak menampilkan apa-apa).
+    try{
+      const searchData=await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(cleanArtist) + '&limit=10');
+      const results=(searchData && searchData.data) || [];
+      const qNorm=cleanArtist.trim().toLowerCase();
+      const artist=results.find(a=>(a.name||'').trim().toLowerCase()===qNorm) || results[0];
+      if(artist) id=artist.id;
+    }catch(e){}
+  }
+  _npArtistIdCache[key]=id;
+  return id;
+}
+
 // ── Kotak "About the artist" besar (foto latar penuh + bio singkat) ──
 let _npBioCache={}; // nama artis (lowercase) -> teks bio singkat
 let _npBioReqGen=0;
@@ -6939,7 +6977,20 @@ async function _fetchArtistBioShort(name){
   const key=name.toLowerCase();
   if(_npBioCache[key]!=null) return _npBioCache[key];
   try{
-    const res=await fetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(name), {headers:{'Accept':'application/json'}});
+    // Cari dulu lewat search Wikipedia dengan kata kunci tambahan "musician"
+    // supaya artikel band/musisi yang naik ke atas, bukan artikel istilah
+    // umum yang kebetulan sama nama (mis. "Oasis" istilah geografi gurun
+    // vs Oasis band Britpop).
+    let title=name;
+    try{
+      const searchRes=await fetch('https://en.wikipedia.org/w/rest.php/v1/search/page?q=' + encodeURIComponent(name + ' musician') + '&limit=1', {headers:{'Accept':'application/json'}});
+      if(searchRes.ok){
+        const searchData=await searchRes.json();
+        const top=searchData && searchData.pages && searchData.pages[0];
+        if(top && top.key) title=top.key;
+      }
+    }catch(e){ /* pakai nama asli kalau pencarian gagal */ }
+    const res=await fetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(title), {headers:{'Accept':'application/json'}});
     if(!res.ok) throw new Error('bio not found');
     const data=await res.json();
     let extract=(data && data.extract) || '';
@@ -6959,7 +7010,29 @@ async function _updateNPArtistCard(track){
   if(!track || !track.artist){ if(nameEl) nameEl.textContent='—'; if(fansEl) fansEl.textContent=''; if(bioEl) bioEl.textContent=''; return; }
   nameEl.textContent=track.artist;
   bgEl.style.display='none'; bgPhEl.style.display='flex';
-  _loadArtistPhotoInto(bgEl, track.artist).then(pic=>{ if(pic && nameEl.textContent===track.artist){ bgEl.style.display='block'; bgPhEl.style.display='none'; } });
+  const myArtistName=track.artist;
+  // Kalau track sudah bawa artistId dari Deezer (didapat waktu lagu ini
+  // sendiri di-resolve), pakai itu langsung — supaya tidak salah tangkap
+  // artis lain yang kebetulan sama persis namanya. Kalau belum ada,
+  // resolve dulu lewat kombinasi artis+judul lagu.
+  const artistIdPromise = track.artistId ? Promise.resolve(track.artistId) : _resolveArtistIdForTrack(track.artist, track.title);
+  artistIdPromise.then(async id=>{
+    if(nameEl.textContent!==myArtistName) return; // sudah pindah lagu, batalkan
+    if(id){
+      try{
+        const data=await _deezerJsonp('https://api.deezer.com/artist/' + id);
+        if(nameEl.textContent!==myArtistName) return;
+        const pic=data && (data.picture_xl || data.picture_big || data.picture_medium);
+        if(pic){ bgEl.src=pic; bgEl.style.display='block'; bgPhEl.style.display='none'; }
+        const key=myArtistName.toLowerCase();
+        _lyrArtistFansCache[key]=data && data.nb_fan || 0;
+        fansEl.textContent=formatFanCount(data && data.nb_fan) + ' monthly listeners';
+        return;
+      }catch(e){}
+    }
+    // Fallback: pencarian foto berbasis nama seperti biasa.
+    _loadArtistPhotoInto(bgEl, myArtistName).then(pic=>{ if(pic && nameEl.textContent===myArtistName){ bgEl.style.display='block'; bgPhEl.style.display='none'; } });
+  });
   if(followBtn){
     const following=isArtistFavorited(track.artist);
     followBtn.textContent=following ? 'Following' : 'Follow';
@@ -6970,15 +7043,6 @@ async function _updateNPArtistCard(track){
     fansEl.textContent=formatFanCount(_lyrArtistFansCache[key]) + ' monthly listeners';
   } else {
     fansEl.textContent='—';
-    _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(track.artist) + '&limit=10').then(searchData=>{
-      const results=(searchData && searchData.data) || [];
-      const qNorm=track.artist.trim().toLowerCase();
-      const artist=results.find(a=>(a.name||'').trim().toLowerCase()===qNorm) || results[0];
-      if(artist){
-        _lyrArtistFansCache[key]=artist.nb_fan || 0;
-        if(nameEl.textContent===track.artist) fansEl.textContent=formatFanCount(artist.nb_fan) + ' monthly listeners';
-      }
-    }).catch(()=>{});
   }
   const myGen=++_npBioReqGen;
   bioEl.textContent='';
@@ -7008,13 +7072,10 @@ async function _updateNPAlbumsBox(track){
   const myGen=++_npAlbumsReqGen;
   c.innerHTML='<div class="np-albums-loading">Loading albums...</div>';
   try{
-    const searchData=await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(track.artist) + '&limit=10');
-    const npResults=(searchData && searchData.data) || [];
-    const npQNorm=track.artist.trim().toLowerCase();
-    const artist=npResults.find(a=>(a.name||'').trim().toLowerCase()===npQNorm) || npResults[0];
+    const artistId = track.artistId || await _resolveArtistIdForTrack(track.artist, track.title);
     if(myGen!==_npAlbumsReqGen || _npAlbumsLastArtist!==key) return;
-    if(!artist){ c.innerHTML='<div class="np-albums-empty">Album not found</div>'; return; }
-    const albumData=await _deezerJsonp('https://api.deezer.com/artist/' + artist.id + '/albums?limit=20');
+    if(!artistId){ c.innerHTML='<div class="np-albums-empty">Album not found</div>'; return; }
+    const albumData=await _deezerJsonp('https://api.deezer.com/artist/' + artistId + '/albums?limit=20');
     if(myGen!==_npAlbumsReqGen || _npAlbumsLastArtist!==key) return;
     const albums=((albumData && albumData.data) || []).map(a=>({
       id:a.id, title:a.title || 'Unknown',
@@ -8616,6 +8677,15 @@ let _deezerGenreListCache = null;
 function _normalizeDeezerTrack(t) {
   return {
     id: t.id,
+    // Simpan juga ID artis Deezer dari HASIL PENCARIAN LAGU INI SECARA
+    // SPESIFIK (bukan dari pencarian nama artis terpisah belakangan). Ini
+    // penting karena banyak artis di Deezer berbagi nama yang persis sama
+    // (mis. ada beberapa artis bernama "Oasis"). Dengan ID ini tersimpan
+    // dari awal, kartu "About the artist"/"Albums" bisa langsung memakai
+    // artis yang BENAR-BENAR menyanyikan lagu ini, bukan menebak lewat
+    // pencarian nama yang bisa salah tangkap artis lain yang kebetulan
+    // sama nama.
+    artistId: (t.artist && t.artist.id) || 0,
     title: t.title || t.title_short || 'Unknown',
     artist: (t.artist && t.artist.name) || 'Unknown',
     thumb: (t.album && (t.album.cover_xl || t.album.cover_big || t.album.cover_medium)) || '',
