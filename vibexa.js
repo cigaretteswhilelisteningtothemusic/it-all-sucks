@@ -4906,6 +4906,53 @@ function _filterCleanVideos(results){
   return results.filter(r => !_DIRTY_TITLE_REGEX.test(r.title||''));
 }
 
+// ── Filter RELEVANSI judul video ─────────────────────────────────────────
+// BUG NYATA yang diperbaiki lewat filter ini: request lagu "Mockingbird" -
+// "Eminem" pernah kepilih video "ENISA - Mockingbird" (artist SAMA SEKALI
+// beda, cuma kebetulan JUDUL lagunya sama & durasinya kebetulan mirip) —
+// karena sebelumnya kandidat cuma dicocokkan lewat durasi saja, tanpa
+// pernah dicek apakah judul videonya benar2 mengandung nama artist yang
+// diminta. Sekarang tiap kandidat wajib lolos cek kata kunci dulu sebelum
+// masuk ke tahap pencocokan durasi.
+function _relevanceWords(s){
+  return (s||'').toLowerCase().replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(w=>w.length>2);
+}
+function _wordsMostlyIn(text, words){
+  if(!words.length) return true;
+  const hit = words.filter(w=>text.includes(w)).length;
+  return hit >= Math.ceil(words.length*0.6);
+}
+// strict=true: judul video WAJIB memuat kata dari judul lagu MAUPUN nama
+// artist (dipakai duluan, supaya lagu dari artist lain yang judulnya
+// kebetulan sama tidak ikut kepilih). strict=false: cukup judul lagunya
+// saja yang match (dipakai sebagai fallback kalau versi strict nihil, mis.
+// upload "topic channel" yang judulnya cuma judul lagu tanpa nama artist).
+function _isVideoRelevant(videoTitle, artist, title, strict){
+  if(!videoTitle) return false;
+  const vt = videoTitle.toLowerCase();
+  if(!_wordsMostlyIn(vt, _relevanceWords(title))) return false;
+  if(!strict) return true;
+  const artistWords = _relevanceWords(artist);
+  if(!artistWords.length) return true; // nama artist kosong/tak terbaca, jangan filter
+  return artistWords.some(w=>vt.includes(w));
+}
+// Saring daftar kandidat: utamakan yang lolos cek strict (judul lagu +
+// artist match), lalu turun ke versi longgar (judul lagu match saja) kalau
+// versi strict nihil, dan baru daftar mentah (tanpa filter) sebagai jaring
+// pengaman PALING TERAKHIR kalau keduanya nihil juga.
+function _bestRelevantCandidates(results, artist, title){
+  if(!results || !results.length) return results || [];
+  const strict = results.filter(r=>_isVideoRelevant(r.title, artist, title, true));
+  if(strict.length) return strict;
+  const loose = results.filter(r=>_isVideoRelevant(r.title, artist, title, false));
+  if(loose.length){
+    console.warn('[VID DEBUG] tidak ada kandidat dengan nama artist di judul, pakai kecocokan judul lagu saja:', artist, title);
+    return loose;
+  }
+  console.warn('[VID DEBUG] tidak ada kandidat yang judulnya relevan sama sekali, pakai daftar mentah sbg jaring pengaman:', artist, title);
+  return results;
+}
+
 // Dari daftar kandidat, pilih videoId yang durasinya PALING DEKAT dengan
 // target (durasi resmi lagu, dalam detik) — tapi hanya kalau selisihnya
 // masih dalam toleransi. Kalau tidak ada satupun yang cukup dekat, return null
@@ -4929,11 +4976,14 @@ const VIDEO_DURATION_TOLERANCE = 3;
 // 1) Cari video dengan query "judul - artist" (bersih, tanpa embel-embel) &
 //    ambil lirik (untuk tahu durasi resmi lagu) SECARA PARALEL.
 // 2) Buang kandidat yang judulnya mengandung kata "live/konser/acoustic/cover/dll".
-// 3) Dari sisa kandidat yang "bersih", pilih yang durasinya paling dekat dengan
-//    durasi lirik → kalau ketemu, langsung dipakai.
+// 2b) Saring lagi supaya hanya kandidat yang judulnya benar2 relevan (memuat
+//    nama artist yang diminta) yang dipakai — mencegah lagu dari artist LAIN
+//    yang judulnya kebetulan sama ikut kepilih hanya karena durasinya mirip.
+// 3) Dari sisa kandidat yang "bersih & relevan", pilih yang durasinya paling
+//    dekat dengan durasi lirik → kalau ketemu, langsung dipakai.
 // 4) Kalau tidak ada kandidat bersih yang durasinya cukup dekat → fallback ke
 //    query "judul - artist - lyrics" (upload "lyrics video" biasanya paling
-//    konsisten durasinya), diutamakan yang judulnya juga bersih.
+//    konsisten durasinya), diutamakan yang judulnya juga bersih & relevan.
 // 5) Fallback terakhir: "official audio", lalu kandidat bersih teratas, lalu
 //    kandidat apa adanya (termasuk yang "kotor") sebagai jaring pengaman.
 // Return {videoId, lines} — lines dipakai langsung supaya tidak perlu fetchLyr lagi.
@@ -4947,23 +4997,28 @@ async function resolveVidByDuration(artist, title, cleanTitleForLyrics, knownDur
   const targetDuration = lyricsData && lyricsData.duration;
 
   const cleanResults = _filterCleanVideos(rawResults);
-  let videoId = _pickByDuration(cleanResults, targetDuration, VIDEO_DURATION_TOLERANCE);
+  const relevantResults = _bestRelevantCandidates(cleanResults, artist, title);
+  let videoId = _pickByDuration(relevantResults, targetDuration, VIDEO_DURATION_TOLERANCE);
   // Simpan dari daftar mana videoId ini berasal, supaya nanti bisa dicari
   // lagi berapa durasi ASLI video itu (dipakai untuk cocokkan ulang lirik).
-  let pickedFrom = cleanResults;
+  let pickedFrom = relevantResults;
 
   if(!videoId){
     const lyricsResults = await resolveVidList(`${title} ${artist} lyrics`);
     const cleanLyricsResults = _filterCleanVideos(lyricsResults);
-    videoId = (cleanLyricsResults[0] && cleanLyricsResults[0].videoId)
-      || (lyricsResults[0] && lyricsResults[0].videoId)
-      || null;
-    pickedFrom = cleanLyricsResults.length ? cleanLyricsResults : lyricsResults;
+    const relevantLyricsResults = _bestRelevantCandidates(cleanLyricsResults.length ? cleanLyricsResults : lyricsResults, artist, title);
+    videoId = (relevantLyricsResults[0] && relevantLyricsResults[0].videoId) || null;
+    pickedFrom = relevantLyricsResults;
   }
   if(!videoId){
     const audioResults = await resolveVidList(`${title} ${artist} official audio`);
-    videoId = (audioResults && audioResults[0] && audioResults[0].videoId) || null;
-    pickedFrom = audioResults;
+    const relevantAudioResults = _bestRelevantCandidates(audioResults, artist, title);
+    videoId = (relevantAudioResults[0] && relevantAudioResults[0].videoId) || null;
+    pickedFrom = relevantAudioResults;
+  }
+  if(!videoId && relevantResults.length){
+    videoId = relevantResults[0].videoId;
+    pickedFrom = relevantResults;
   }
   if(!videoId && cleanResults.length){
     videoId = cleanResults[0].videoId;

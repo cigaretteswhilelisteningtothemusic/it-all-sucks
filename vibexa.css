@@ -703,14 +703,27 @@ body.side-collapsed.side-hover #side{box-shadow:6px 0 24px rgba(0,0,0,.35);}
 
 
 /* PLAYER BAR */
-#bar{grid-area:bar;background:rgba(8,11,18,.96);backdrop-filter:blur(20px);display:flex;align-items:center;padding:0 22px;gap:20px;z-index:10;transition:background .5s ease,backdrop-filter .5s ease,box-shadow .5s ease,border-color .5s ease;}
+#bar{grid-area:bar;background:rgba(8,11,18,.96);backdrop-filter:blur(20px);display:flex;align-items:center;padding:0 22px;gap:20px;z-index:10;}
 /* Selama halaman Now Playing terbuka (baik tampilan biasa maupun mode
-   fullscreen), kotak "play" ini TIDAK lagi punya background gelap solid-nya
-   sendiri — dibuat transparan supaya menyatu dengan latar halaman Now
-   Playing di baliknya (foto album/gradasi warna lagu), bukan lagi terlihat
-   sebagai kotak/panel terpisah. Di halaman lain (Home, Search, dst) kotak
-   ini tetap memakai background gelap solid seperti semula. */
-body.np-page-open #bar{background:transparent;backdrop-filter:none;box-shadow:none;border-color:transparent;}
+   fullscreen), ada celah/margin hitam polos milik <body> (jarak antar
+   "panel mengambang" ala Spotify — lihat var(--gap) & padding body di atas)
+   yang tersisa di sisi kiri, kanan & bawah kotak "play", DI LUAR kotak itu
+   sendiri — kelihatan janggal karena tidak menyatu dengan latar halaman Now
+   Playing (foto album/gradasi warna lagu) di atasnya. Kotak "play" itu
+   sendiri TETAP memakai background gelap solid seperti biasa (TIDAK
+   dihilangkan) — yang diubah hanya margin-nya: direntangkan (margin
+   negatif) supaya menutupi habis celah hitam kosong itu, jadi kotaknya
+   nempel rata sampai ke tepi kiri/kanan/bawah layar selama halaman Now
+   Playing terbuka. Sudut kotaknya juga diratakan (border-radius:0) di
+   sisi2 yang menempel ke tepi layar itu supaya rapi. Di halaman lain (Home,
+   Search, dst) celah & sudut membulatnya tetap seperti semula. */
+body.np-page-open #bar{
+  margin:0 calc(-1 * var(--gap)) calc(-1 * var(--gap)) calc(-1 * var(--gap));
+  border-radius:0;
+  border-left-color:transparent;
+  border-right-color:transparent;
+  border-bottom-color:transparent;
+}
 .bar-track{display:flex;align-items:center;gap:12px;width:250px;flex-shrink:0;cursor:pointer;}
 .bar-thumb{width:50px;height:50px;border-radius:8px;object-fit:cover;background:var(--card);flex-shrink:0}
 .bar-ph{width:50px;height:50px;border-radius:8px;background:var(--card);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.25rem}
@@ -1926,7 +1939,7 @@ body.np-is-fullscreen #bar>.bar-r{opacity:0;transform:translateY(14px);transitio
    naiknya terasa seperti pintu lemari yang membuka pelan²/lega, bukan
    sekadar snap cepat, sambil isinya (di atas) tetap muncul berjenjang
    dalam rentang waktu itu. */
-#bar{transition:transform 1.4s cubic-bezier(.16,1,.3,1) 0s;}
+#bar{transition:transform 1.4s cubic-bezier(.16,1,.3,1) 0s,margin .4s ease,border-radius .4s ease,border-color .4s ease;}
 body.np-is-fullscreen #bar{pointer-events:none;transform:translateY(100%);transition:transform 2.4s cubic-bezier(.45,0,.55,1) 0s;z-index:601;}
 body.np-fs-final #bar{display:none !important;}
 @media(max-width:660px){
