@@ -5621,6 +5621,31 @@ async function _fetchLyrFrom(workerBase, title, artist){
   }
 }
 
+// ── Jaring pengaman terakhir: kalau KEDUA worker custom (WORKER & WORKER2)
+// gagal total (down, kena limit, atau error lain), coba langsung ke
+// lrclib.net dari browser (tanpa lewat worker). lrclib.net sendiri yang
+// jadi sumber data untuk kedua worker di atas, jadi ini cukup untuk bikin
+// lirik tetap muncul walau worker sedang bermasalah. Dibungkus try/catch
+// supaya kalau ini juga gagal (mis. kena CORS), tidak bikin error — cuma
+// fallback ke pesan "Lyrics not available" seperti biasa.
+const LRCLIB_DIRECT = 'https://lrclib.net/api/search';
+async function _fetchLyrFromLrclibDirect(title, artist){
+  try{
+    let data = null;
+    const res = await fetch(`${LRCLIB_DIRECT}?artist_name=${encodeURIComponent(artist)}&track_name=${encodeURIComponent(title)}`,{signal:AbortSignal.timeout(7000)});
+    if(res.ok) data = await res.json();
+
+    if(!data || !data.length){
+      const res2 = await fetch(`${LRCLIB_DIRECT}?track_name=${encodeURIComponent(title)}`,{signal:AbortSignal.timeout(7000)});
+      if(res2.ok) data = await res2.json();
+    }
+    return (data && data.length) ? data : null;
+  }catch(e){
+    console.warn('fetchLyr direct lrclib.net fallback error:', e);
+    return null;
+  }
+}
+
 // Hasil pencarian lirik (dari lrclib) yang trackName/albumName-nya mengandung
 // kata "kotor" seperti live, acoustic, remix, dll DIBUANG — kita hanya mau
 // hasil yang benar-benar cocok dengan "judul lagu - nama artist" polos,
@@ -5692,6 +5717,12 @@ async function fetchLyr(title, artist, knownDuration){
   for(const base of WORKERS){
     data = await _fetchLyrFrom(base, title, artist);
     if(data) break; // worker ini berhasil dapat lirik, tidak perlu coba worker lain
+  }
+
+  // Kedua worker custom gagal (down/limit/dsb) — coba jalur langsung ke
+  // lrclib.net sebelum benar-benar menyerah dan menampilkan "Lyrics not available".
+  if(!data){
+    data = await _fetchLyrFromLrclibDirect(title, artist);
   }
 
   if(!data){ const empty={lines:[],duration:null}; lyrCache[k]=empty; _lyrPoolCache[k]=[]; return empty; }
