@@ -5647,13 +5647,20 @@ const LRCLIB_DIRECT = 'https://lrclib.net/api/search';
 async function _fetchLyrFromLrclibDirect(title, artist){
   try{
     let data = null;
-    const res = await fetch(`${LRCLIB_DIRECT}?artist_name=${encodeURIComponent(artist)}&track_name=${encodeURIComponent(title)}`,{signal:AbortSignal.timeout(7000)});
-    console.log('[LYR DEBUG] lrclib direct (artist+title) status:', res.status, res.ok);
+    // PENTING: pakai parameter pencarian bebas "q" (judul+artis digabung),
+    // BUKAN artist_name+track_name terpisah. Ternyata /api/search dengan
+    // artist_name+track_name jauh lebih rentan "dibanjiri" entri sampah
+    // (mis. artis palsu hasil upload spam yang kebetulan cocok dengan nama
+    // artis asli) di 20 hasil teratasnya — sedangkan pencarian gabungan "q"
+    // (persis seperti yang dipakai kotak cari di situs lrclib.net sendiri)
+    // memberi hasil yang jauh lebih bersih dan relevan.
+    const res = await fetch(`${LRCLIB_DIRECT}?q=${encodeURIComponent(title + ' ' + artist)}`,{signal:AbortSignal.timeout(7000)});
+    console.log('[LYR DEBUG] lrclib direct (q=title+artist) status:', res.status, res.ok);
     if(res.ok) data = await res.json();
 
     if(!data || !data.length){
-      const res2 = await fetch(`${LRCLIB_DIRECT}?track_name=${encodeURIComponent(title)}`,{signal:AbortSignal.timeout(7000)});
-      console.log('[LYR DEBUG] lrclib direct (title only) status:', res2.status, res2.ok);
+      const res2 = await fetch(`${LRCLIB_DIRECT}?q=${encodeURIComponent(title)}`,{signal:AbortSignal.timeout(7000)});
+      console.log('[LYR DEBUG] lrclib direct (q=title only) status:', res2.status, res2.ok);
       if(res2.ok) data = await res2.json();
     }
     console.log('[LYR DEBUG] lrclib direct result count:', data ? data.length : 0);
@@ -5675,6 +5682,22 @@ function _filterCleanLyricsResults(data){
   // r.instrumental adalah flag boolean asli dari lrclib (lebih pasti
   // daripada nebak dari teks judul/album) — buang juga versi instrumental.
   return data.filter(r => !r.instrumental && !_DIRTY_LYRICS_REGEX.test(r.trackName||'') && !_DIRTY_LYRICS_REGEX.test(r.albumName||''));
+}
+
+// Database lrclib kadang berisi entri spam dengan nama artis "mirip-mirip"
+// (mis. "sia sia sia" ketika yang dicari "Sia") yang bisa membanjiri hasil
+// pencarian dan menutupi entri ASLI yang justru punya lirik. Kalau ada
+// entri yang artistName-nya PERSIS sama (case-insensitive) dengan artis
+// yang dicari, prioritaskan itu — buang dulu yang cuma "mirip"/mengandung
+// kata saja. Kalau tidak ada satupun yang persis sama, baru pakai apa
+// adanya (supaya tetap ada fallback, misal untuk nama artis yang memang
+// ditulis sedikit beda di database).
+function _filterByExactArtist(data, artist){
+  if(!data || !data.length || !artist) return data;
+  const target = artist.trim().toLowerCase();
+  if(!target) return data;
+  const exact = data.filter(r => (r.artistName||'').trim().toLowerCase() === target);
+  return exact.length ? exact : data;
 }
 
 // Kalau kita TIDAK tahu durasi resmi lagu (mis. metadata iTunes tidak
@@ -5756,12 +5779,13 @@ async function fetchLyr(title, artist, knownDuration){
     const data = await getData();
     if(!data || !data.length) continue;
 
-    const clean = _filterCleanLyricsResults(data);
-    const pool = clean.length ? clean : data;
+    const artistMatched = _filterByExactArtist(data, artist);
+    const clean = _filterCleanLyricsResults(artistMatched);
+    const pool = clean.length ? clean : artistMatched;
     if(pool.length) bestPool = pool; // simpan pool terakhir yang tidak kosong, buat cadangan _lyrPoolCache
 
     const ch = _pickLyricsCandidate(pool, knownDuration);
-    console.log('[LYR DEBUG] fetchLyr: source result -> raw', data.length, 'clean', clean.length, 'chosen', ch && {trackName: ch.trackName, artistName: ch.artistName, duration: ch.duration, hasSynced: !!ch.syncedLyrics, hasPlain: !!ch.plainLyrics});
+    console.log('[LYR DEBUG] fetchLyr: source result -> raw', data.length, 'artistMatched', artistMatched.length, 'clean', clean.length, 'chosen', ch && {trackName: ch.trackName, artistName: ch.artistName, duration: ch.duration, hasSynced: !!ch.syncedLyrics, hasPlain: !!ch.plainLyrics});
     if(!ch) continue; // sumber ini semuanya sampah tanpa lirik — lanjut ke sumber berikutnya
 
     let p = [];
