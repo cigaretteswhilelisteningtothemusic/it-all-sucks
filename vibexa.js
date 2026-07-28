@@ -7522,7 +7522,11 @@ function _buildFSLyr(idx, songKey){
     } else {
       d.className='fs-ll '+(i===idx?'active':i<idx?'past':'');
       d.textContent=l.text;
-      d.addEventListener('click',()=>{if(YTP)YTP.seekTo(l.time);});
+      d.dataset.lcIdx=i;
+      d.addEventListener('click',()=>{
+        if(_lcSelecting){ _lcToggleLine(i); return; }
+        if(YTP)YTP.seekTo(l.time);
+      });
     }
     wrap.appendChild(d);
 
@@ -7534,6 +7538,7 @@ function _buildFSLyr(idx, songKey){
 
     el.appendChild(wrap);
   });
+  if(_lcSelecting) _lcRefreshSelectionUI();
   _scrollFSLyrToActive(idx);
 }
 function _updateFSLyrActiveState(idx){
@@ -7559,6 +7564,330 @@ function _scrollFSLyrToActive(idx){
   }
 }
 
+
+// ══════════════════════════════════════════════════════════════════════
+// LYRICS CARD — pilih baris lirik lalu buat kartu (ala Spotify) yang bisa
+// dibagikan ke WhatsApp/Instagram/Facebook atau disimpan sebagai foto.
+// ══════════════════════════════════════════════════════════════════════
+let _lcSelecting = false;      // sedang dalam mode pilih baris lirik?
+let _lcSelectedIdx = [];       // indeks baris (di array `lyrs`) yang dipilih, berurutan & bersambung
+let _lcPrevStyleMode = null;   // 'kinetic'/'alight'/null — dipulihkan saat mode seleksi ditutup
+let _lcCanvasReady = false;
+
+function openLyricsCardSelect(){
+  if(!curTrack) { toast('Putar lagu dulu untuk membuat kartu lirik'); return; }
+  if(!lyrs.length){ toast('Lirik belum tersedia untuk lagu ini'); return; }
+  // Buka halaman lirik fullscreen dulu kalau belum terbuka
+  const fsEl = document.getElementById('fs-lyr');
+  if(!fsEl.classList.contains('open')) openFS();
+  // Paksa tampilan klasik (baris teks) supaya baris bisa ditap satu-satu,
+  // simpan mode gaya sebelumnya untuk dikembalikan lagi nanti.
+  if(fsEl.classList.contains('kinetic-mode')) _lcPrevStyleMode='kinetic';
+  else if(fsEl.classList.contains('alight-mode')) _lcPrevStyleMode='alight';
+  else _lcPrevStyleMode=null;
+  fsEl.classList.remove('kinetic-mode','alight-mode');
+
+  _lcSelecting = true;
+  _lcSelectedIdx = [];
+  fsEl.classList.add('lc-selecting');
+  document.getElementById('fs-lyr-scroll').classList.add('lyr-select-mode');
+  _fsLyrBuiltFor = null; // paksa render ulang baris supaya listener seleksi terpasang
+  updateFSLyr();
+  _lcRefreshSelectionUI();
+}
+
+function closeLyricsCardSelect(){
+  const fsEl = document.getElementById('fs-lyr');
+  _lcSelecting = false;
+  fsEl.classList.remove('lc-selecting');
+  document.getElementById('fs-lyr-scroll').classList.remove('lyr-select-mode');
+  // Kembalikan mode gaya lirik (kinetic/alight) kalau sebelumnya aktif
+  if(_lcPrevStyleMode){ fsEl.classList.add(_lcPrevStyleMode+'-mode'); if(lyrs.length) updateKinetic(); }
+  _fsLyrBuiltFor = null;
+  updateFSLyr();
+}
+
+function _lcToggleLine(i){
+  const l = lyrs[i];
+  if(!l || l.instrumental || !l.text) return;
+  let sel = _lcSelectedIdx.slice();
+  if(sel.includes(i)){
+    if(i===sel[0]) sel.shift();
+    else if(i===sel[sel.length-1]) sel.pop();
+    else sel = []; // tap baris di tengah lagi -> mulai ulang pilihan
+  } else if(sel.length===0){
+    sel = [i];
+  } else {
+    const min=sel[0], max=sel[sel.length-1];
+    if(i===min-1 && sel.length<4) sel=[i,...sel];
+    else if(i===max+1 && sel.length<4) sel=[...sel,i];
+    else sel=[i]; // tidak bersambung atau sudah 4 baris -> mulai ulang dari baris ini
+  }
+  _lcSelectedIdx = sel;
+  _lcRefreshSelectionUI();
+}
+
+function _lcRefreshSelectionUI(){
+  const el = document.getElementById('fs-lyr-scroll');
+  if(el){
+    el.querySelectorAll('.fs-ll').forEach(d=>{
+      const i = Number(d.dataset.lcIdx);
+      d.classList.toggle('lc-selected', _lcSelectedIdx.includes(i));
+    });
+  }
+  const count = _lcSelectedIdx.length;
+  const countEl = document.getElementById('lyr-select-count');
+  if(countEl) countEl.textContent = count+' baris dipilih';
+  const btn = document.getElementById('lyr-select-continue-btn');
+  if(btn) btn.disabled = count===0;
+}
+
+function editLyricsCard(){
+  closeLyricsCardModal();
+  // Buka kembali mode seleksi dengan pilihan yang sama supaya user tinggal ubah
+  const keepSel = _lcSelectedIdx.slice();
+  openLyricsCardSelect();
+  _lcSelectedIdx = keepSel;
+  _lcRefreshSelectionUI();
+}
+
+async function openLyricsCardModal(){
+  if(!_lcSelectedIdx.length) return;
+  closeLyricsCardSelect();
+  document.getElementById('lyrics-card-modal').style.display='flex';
+  const loading = document.getElementById('lc-loading');
+  loading.classList.remove('hide');
+  _lcCanvasReady = false;
+  try{
+    await _lcGenerateCard();
+    _lcCanvasReady = true;
+  }catch(e){
+    console.error('Lyrics card generation failed:', e);
+    toast('Gagal membuat kartu lirik');
+  }
+  loading.classList.add('hide');
+}
+
+function closeLyricsCardModal(){
+  document.getElementById('lyrics-card-modal').style.display='none';
+}
+
+// ── Pembuatan gambar kartu lirik lewat Canvas (tidak butuh library luar) ──
+function _lcLoadImage(url){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.crossOrigin='anonymous';
+    const timer=setTimeout(()=>reject(new Error('timeout')),4000);
+    img.onload=()=>{clearTimeout(timer);resolve(img);};
+    img.onerror=()=>{clearTimeout(timer);reject(new Error('load error'));};
+    img.src=url;
+  });
+}
+function _lcRoundedRectPath(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+function _lcDrawRoundedImage(ctx,img,x,y,w,h,r){
+  ctx.save();
+  _lcRoundedRectPath(ctx,x,y,w,h,r);
+  ctx.clip();
+  // cover-fit
+  const ir = img.width/img.height, tr = w/h;
+  let sw=img.width, sh=img.height, sx=0, sy=0;
+  if(ir>tr){ sw=img.height*tr; sx=(img.width-sw)/2; } else { sh=img.width/tr; sy=(img.height-sh)/2; }
+  ctx.drawImage(img,sx,sy,sw,sh,x,y,w,h);
+  ctx.restore();
+}
+function _lcFillTextClipped(ctx,text,x,y,maxW){
+  let t=text;
+  if(ctx.measureText(t).width<=maxW){ ctx.fillText(t,x,y); return; }
+  while(t.length>1 && ctx.measureText(t+'…').width>maxW){ t=t.slice(0,-1); }
+  ctx.fillText(t+'…',x,y);
+}
+function _lcWrapText(ctx,text,maxW){
+  const words=text.split(/\s+/).filter(Boolean);
+  const out=[]; let line='';
+  words.forEach(w=>{
+    const test=line?line+' '+w:w;
+    if(ctx.measureText(test).width>maxW && line){ out.push(line); line=w; }
+    else line=test;
+  });
+  if(line) out.push(line);
+  return out;
+}
+function _lcDrawLogo(ctx,x,y,size){
+  // Ikon nada musik sederhana sebagai watermark aplikasi
+  ctx.save();
+  ctx.fillStyle='#fff';
+  ctx.beginPath();
+  ctx.arc(x+size*0.18, y+size*0.82, size*0.18, 0, Math.PI*2);
+  ctx.arc(x+size*0.62, y+size*0.72, size*0.18, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillRect(x+size*0.34, y, size*0.06, size*0.78);
+  ctx.fillRect(x+size*0.78, y-size*0.06, size*0.06, size*0.72);
+  ctx.beginPath();
+  ctx.moveTo(x+size*0.34,y);
+  ctx.lineTo(x+size*0.84,y-size*0.06);
+  ctx.lineTo(x+size*0.84,y+size*0.22);
+  ctx.lineTo(x+size*0.34,y+size*0.28);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+async function _lcGenerateCard(){
+  const track = curTrack || {};
+  const canvas = document.getElementById('lyrics-card-canvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  if(document.fonts && document.fonts.ready){ try{ await document.fonts.ready; }catch(e){} }
+
+  const key = track.thumb || track.photo || track.title || '';
+  let baseColor = (key && _fsColorCache[key]) || null;
+  if(!baseColor && track.thumb){
+    try{ baseColor = await _fsVividColorFromImage(track.thumb); if(key) _fsColorCache[key]=baseColor; }catch(e){}
+  }
+  if(!baseColor) baseColor = FS_COLORS[0];
+
+  // Background warna dominan sampul album (senada dgn background halaman Lyrics)
+  ctx.fillStyle = baseColor;
+  ctx.fillRect(0,0,W,H);
+  const grad = ctx.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'rgba(0,0,0,0.18)');
+  grad.addColorStop(0.45,'rgba(0,0,0,0)');
+  grad.addColorStop(1,'rgba(0,0,0,0.32)');
+  ctx.fillStyle = grad; ctx.fillRect(0,0,W,H);
+
+  const pad = 72;
+
+  // Sampul + judul + artis
+  let thumbImg=null;
+  const thumbUrl = track.thumb || track.photo;
+  if(thumbUrl){ try{ thumbImg = await _lcLoadImage(thumbUrl); }catch(e){} }
+  const thumbSize = 100;
+  if(thumbImg){
+    _lcDrawRoundedImage(ctx, thumbImg, pad, pad, thumbSize, thumbSize, 14);
+  } else {
+    ctx.fillStyle='rgba(255,255,255,0.15)';
+    _lcRoundedRectPath(ctx, pad, pad, thumbSize, thumbSize, 14); ctx.fill();
+  }
+  const textX = pad + thumbSize + 24, textMaxW = W - pad*2 - thumbSize - 24;
+  ctx.textBaseline='top';
+  ctx.fillStyle='#fff';
+  ctx.font='700 34px Outfit, sans-serif';
+  _lcFillTextClipped(ctx, track.title || 'Unknown Title', textX, pad+10, textMaxW);
+  ctx.fillStyle='rgba(255,255,255,0.75)';
+  ctx.font='500 26px Outfit, sans-serif';
+  _lcFillTextClipped(ctx, 'Lagu · '+(track.artist || 'Unknown Artist'), textX, pad+56, textMaxW);
+
+  // Baris lirik terpilih
+  const lines = _lcSelectedIdx.map(i=>lyrs[i] && lyrs[i].text).filter(Boolean);
+  ctx.fillStyle='#fff';
+  ctx.font='800 60px Outfit, sans-serif';
+  let wrapped=[];
+  lines.forEach(line=>{ wrapped=wrapped.concat(_lcWrapText(ctx, line, W-pad*2)); });
+  const lineHeight = 74;
+  const totalH = wrapped.length*lineHeight;
+  let y = Math.max(pad+240, (H-totalH)/2-20);
+  wrapped.forEach(w=>{ ctx.fillText(w, pad, y); y+=lineHeight; });
+
+  // Watermark aplikasi
+  _lcDrawLogo(ctx, pad, H-pad-38, 34);
+  ctx.fillStyle='#fff';
+  ctx.font='700 30px Outfit, sans-serif';
+  ctx.fillText('Vibexa', pad+46, H-pad-40);
+
+  return canvas;
+}
+
+function _lcFileName(){
+  const track = curTrack || {};
+  const safe = (track.title||'lirik').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,60) || 'lirik';
+  return 'Vibexa-Lirik-'+safe+'.png';
+}
+function _lcShareCaption(){
+  const track = curTrack || {};
+  const lines = _lcSelectedIdx.map(i=>lyrs[i] && lyrs[i].text).filter(Boolean);
+  const quote = lines.join('\n');
+  return quote + '\n\n' + (track.title||'') + ' · ' + (track.artist||'') + '\nvia Vibexa';
+}
+function _lcCanvasToBlob(){
+  return new Promise(resolve=>{
+    const canvas=document.getElementById('lyrics-card-canvas');
+    canvas.toBlob(blob=>resolve(blob), 'image/png');
+  });
+}
+
+function downloadLyricsCard(){
+  if(!_lcCanvasReady){ toast('Tunggu kartu selesai dibuat...'); return; }
+  _lcCanvasToBlob().then(blob=>{
+    if(!blob){ toast('Gagal menyimpan gambar'); return; }
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=_lcFileName();
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),4000);
+    toast('Kartu lirik disimpan ke perangkat');
+  });
+}
+
+async function shareLyricsCardNative(){
+  if(!_lcCanvasReady){ toast('Tunggu kartu selesai dibuat...'); return; }
+  const blob = await _lcCanvasToBlob();
+  if(!blob) return;
+  const file = new File([blob], _lcFileName(), {type:'image/png'});
+  const shareData = { files:[file], title:(curTrack&&curTrack.title)||'Lirik Lagu', text:_lcShareCaption() };
+  if(navigator.canShare && navigator.canShare({files:[file]})){
+    try{ await navigator.share(shareData); }
+    catch(e){ /* dibatalkan user, tidak apa-apa */ }
+  } else {
+    toast('Perangkat/browser ini belum mendukung berbagi langsung — kartu disimpan, silakan lampirkan manual');
+    downloadLyricsCard();
+  }
+}
+
+// Tombol platform spesifik: kartu selalu disimpan dulu ke perangkat (karena
+// WhatsApp/Instagram/Facebook di web tidak mengizinkan gambar dilampirkan
+// otomatis lewat link), lalu membuka aplikasi/halaman terkait dengan teks
+// kutipan lirik supaya user tinggal melampirkan foto yang baru tersimpan.
+function shareLyricsCardTo(platform){
+  if(!_lcCanvasReady){ toast('Tunggu kartu selesai dibuat...'); return; }
+  // Kalau Web Share API dgn file didukung, coba tawarkan itu dulu — di HP ini
+  // langsung memunculkan pilihan WhatsApp/Instagram/Facebook dari sistem.
+  if(navigator.canShare){
+    _lcCanvasToBlob().then(blob=>{
+      if(!blob) return;
+      const file=new File([blob], _lcFileName(), {type:'image/png'});
+      if(navigator.canShare({files:[file]})){
+        navigator.share({ files:[file], title:(curTrack&&curTrack.title)||'Lirik Lagu', text:_lcShareCaption() }).catch(()=>{});
+        return;
+      }
+      _lcFallbackShare(platform);
+    });
+  } else {
+    _lcFallbackShare(platform);
+  }
+}
+function _lcFallbackShare(platform){
+  const caption = _lcShareCaption();
+  downloadLyricsCard();
+  setTimeout(()=>{
+    if(platform==='whatsapp'){
+      window.open('https://api.whatsapp.com/send?text='+encodeURIComponent(caption), '_blank');
+      toast('Foto kartu lirik tersimpan — lampirkan di chat WhatsApp-mu');
+    } else if(platform==='facebook'){
+      window.open('https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(location.origin)+'&quote='+encodeURIComponent(caption), '_blank');
+      toast('Foto kartu lirik tersimpan — unggah di postingan Facebook-mu');
+    } else if(platform==='instagram'){
+      toast('Foto kartu lirik tersimpan — buka Instagram lalu unggah sebagai Story/Post');
+    }
+  }, 450);
+}
 
 // ── Mobile: menu titik tiga (gabungan Terjemahan/Gaya Teks/Ubah Background) ──
 function toggleFSMoreMenu(e){
