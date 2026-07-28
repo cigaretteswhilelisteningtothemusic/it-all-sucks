@@ -16554,9 +16554,9 @@ async function deleteOfflineTrack(id) {
 // lebih aman, sebaiknya panggilan ke Gemini dipindah lewat backend/
 // proxy kecil (mis. Cloudflare Worker) yang menyimpan key di server.
 // ────────────────────────────────────────────────────────────
-const GEMINI_API_KEY = "AQ.Ab8RN6IVsGDSmj7K8ZQSAWNPOGByP-4XBs4lqTo63fhARC5jHQ";
-const GEMINI_MODEL   = "gemini-2.5-flash";
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+// API key Gemini TIDAK lagi ditaruh di sini — disimpan aman di sisi
+// server (Cloudflare Worker), jadi tidak terlihat di DevTools/source.
+const GEMINI_PROXY_URL = "https://old-wildflower-8457.alvinwahid122.workers.dev";
 
 const AI_SYSTEM_PROMPT = `Kamu adalah "Vibexa AI", asisten musik pintar di dalam aplikasi streaming musik bernama Vibexa. Kamu membantu user lewat obrolan santai seputar musik, memberi rekomendasi lagu, dan membuatkan playlist sesuai permintaan mereka (mirip fitur AI DJ/AI Playlist di Spotify).
 
@@ -16845,7 +16845,7 @@ function _aiSetTyping(on){
 }
 
 async function _aiCallGemini(historyForApi){
-  const res = await fetch(GEMINI_API_URL, {
+  const res = await fetch(GEMINI_PROXY_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
