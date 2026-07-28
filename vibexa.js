@@ -7744,8 +7744,11 @@ async function _lcGenerateCard(){
 
   // ── Layout: kartu membulat dengan bayangan, warnanya senada dengan warna
   //    dominan halaman Lyrics (bukan putih), dikelilingi background dengan
-  //    warna yang sama di luar kartu. Tinggi kartu MENGIKUTI KONTEN persis
-  //    (tidak dipaksa persegi) supaya tidak ada ruang kosong berlebih. ──
+  //    warna yang sama di luar kartu. Kartu berbentuk PERSEGI secara
+  //    default — kalau lirik sedikit/pendek, UKURAN TEKS LIRIK diperbesar
+  //    otomatis supaya memenuhi kartu tanpa ruang kosong (bukan kartunya
+  //    yang dikecilkan). Kalau lirik panjang, teks kembali ke ukuran dasar
+  //    dan kartu baru memanjang ke bawah mengikuti kebutuhan konten. ──
   const margin = 56;          // jarak kartu ke tepi kanvas -> jadi "background di luar kartu"
   const cardR = 28;
   const cardPad = 60;
@@ -7757,38 +7760,57 @@ async function _lcGenerateCard(){
   const artistLineH = 40;
   const headerGap = 12;
   const headerToLyrics = 52;
-  const lyricFont = '800 64px Outfit, sans-serif';
-  const lyricLineH = 80;
 
   const cardW = W - margin*2;
   const headerTextMaxW = cardW - headerTextX - cardPad;
   const headerTextRelX = headerTextX - cardPad;
-
-  // Ukur baris lirik dulu (measureText tidak butuh tinggi canvas final)
-  ctx.font = lyricFont;
-  const lines = _lcSelectedIdx.map(i=>lyrs[i] && lyrs[i].text).filter(Boolean);
-  let wrapped = [];
-  lines.forEach(line=>{ wrapped = wrapped.concat(_lcWrapText(ctx, line, cardW - cardPad*2)); });
-  if(!wrapped.length) wrapped = [''];
-
   const headerBlockH = Math.max(thumbSize, titleLineH+headerGap+artistLineH);
+
+  // Cari ukuran font lirik terbesar yang masih muat dalam kartu PERSEGI
+  // (lebar kartu == tinggi kartu). Dicoba dari besar ke kecil; begitu tinggi
+  // total lirik pada ukuran tsb muat di sisa ruang persegi, ukuran itu
+  // dipakai. Kalau sampai ukuran minimum pun tidak muat (lirik panjang),
+  // ukuran minimum tetap dipakai dan kartu akan memanjang ke bawah.
+  const lyricMaxW = cardW - cardPad*2;
+  const availableForLyrics = cardW - cardPad*2 - headerBlockH - headerToLyrics; // target tinggi lirik supaya kartu tetap persegi
+  const lines = _lcSelectedIdx.map(i=>lyrs[i] && lyrs[i].text).filter(Boolean);
+  const LYRIC_FONT_MAX = 124, LYRIC_FONT_MIN = 56, LYRIC_LINEH_RATIO = 1.2;
+  let lyricFontSize = LYRIC_FONT_MIN, wrapped = [''], lyricLineH = Math.round(LYRIC_FONT_MIN*LYRIC_LINEH_RATIO);
+  for(let size=LYRIC_FONT_MAX; size>=LYRIC_FONT_MIN; size-=2){
+    ctx.font = `800 ${size}px Outfit, sans-serif`;
+    let w = [];
+    lines.forEach(line=>{ w = w.concat(_lcWrapText(ctx, line, lyricMaxW)); });
+    if(!w.length) w = [''];
+    const lineH = Math.round(size*LYRIC_LINEH_RATIO);
+    const totalH = w.length * lineH;
+    if(totalH <= availableForLyrics || size===LYRIC_FONT_MIN){
+      lyricFontSize = size; wrapped = w; lyricLineH = lineH;
+      break;
+    }
+  }
+  const lyricFont = `800 ${lyricFontSize}px Outfit, sans-serif`;
   const lyricsH = wrapped.length * lyricLineH;
-  // Tinggi kartu = pas mengikuti konten (tanpa dipaksa persegi) -> tidak
-  // ada ruang kosong yang tersisa, baik lirik pendek maupun panjang.
-  const cardH = Math.round(cardPad + headerBlockH + headerToLyrics + lyricsH + cardPad);
+
+  const contentH = Math.round(cardPad + headerBlockH + headerToLyrics + lyricsH + cardPad);
+  // Kartu minimal persegi (tinggi kartu = lebar kartu). Karena ukuran teks
+  // lirik sudah disesuaikan di atas supaya mengisi ruang persegi, ruang
+  // kosong seharusnya sudah minimal; kartu baru memanjang melebihi persegi
+  // kalau lirik panjang & font sudah di titik minimum.
+  const cardH = Math.max(cardW, contentH);
 
   const H = cardH + margin*2;
   canvas.width = W; canvas.height = H;
 
   // ── Background DI LUAR kartu: warna dominan sampul (sama seperti halaman
-  //    Lyrics), plus overlay gelap tipis identik dengan #fs-bg::after. ──
+  //    Lyrics) tapi diredupkan, supaya kartu di tengah tetap menonjol. ──
   ctx.fillStyle = baseColor;
   ctx.fillRect(0,0,W,H);
-  ctx.fillStyle = 'rgba(0,0,0,0.14)';
+  ctx.fillStyle = 'rgba(0,0,0,0.38)';
   ctx.fillRect(0,0,W,H);
 
-  // ── Kartu: warna sama dengan halaman Lyrics tapi sedikit lebih gelap +
-  //    bayangan, supaya bentuk kartunya tetap terlihat jelas. ──
+  // ── Kartu: warna sama dengan halaman Lyrics, dibuat lebih cerah/vivid
+  //    dibanding background luar + bayangan, supaya bentuk kotaknya tetap
+  //    jelas meski warnanya senada dengan halaman Lyrics. ──
   ctx.save();
   ctx.shadowColor = 'rgba(0,0,0,0.4)';
   ctx.shadowBlur = 44;
@@ -7800,11 +7822,17 @@ async function _lcGenerateCard(){
   ctx.save();
   _lcRoundedRectPath(ctx, margin, margin, cardW, cardH, cardR);
   ctx.clip();
-  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.fillStyle = 'rgba(0,0,0,0.08)';
   ctx.fillRect(margin, margin, cardW, cardH);
   ctx.restore();
 
-  const startY = margin + cardPad;
+  // Kalau masih ada sisa ruang (kartu dipaksa persegi tapi font lirik sudah
+  // mentok di ukuran maksimum), konten dipusatkan vertikal supaya sisa
+  // ruang itu terbagi rata di atas & bawah, bukan menumpuk di satu sisi.
+  const blockH = headerBlockH + headerToLyrics + lyricsH;
+  const startY = cardH > contentH
+    ? margin + Math.max(cardPad, (cardH - blockH) / 2)
+    : margin + cardPad;
   const contentX = margin + cardPad;
 
   // Sampul album (di dalam kartu, diperbesar)
