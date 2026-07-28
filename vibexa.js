@@ -7720,30 +7720,12 @@ function _lcWrapText(ctx,text,maxW){
   if(line) out.push(line);
   return out;
 }
-function _lcDrawLogo(ctx,x,y,size){
-  // Ikon nada musik sederhana sebagai watermark aplikasi
-  ctx.save();
-  ctx.fillStyle='#fff';
-  ctx.beginPath();
-  ctx.arc(x+size*0.18, y+size*0.82, size*0.18, 0, Math.PI*2);
-  ctx.arc(x+size*0.62, y+size*0.72, size*0.18, 0, Math.PI*2);
-  ctx.fill();
-  ctx.fillRect(x+size*0.34, y, size*0.06, size*0.78);
-  ctx.fillRect(x+size*0.78, y-size*0.06, size*0.06, size*0.72);
-  ctx.beginPath();
-  ctx.moveTo(x+size*0.34,y);
-  ctx.lineTo(x+size*0.84,y-size*0.06);
-  ctx.lineTo(x+size*0.84,y+size*0.22);
-  ctx.lineTo(x+size*0.34,y+size*0.28);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-}
 async function _lcGenerateCard(){
   const track = curTrack || {};
   const canvas = document.getElementById('lyrics-card-canvas');
   const ctx = canvas.getContext('2d');
-  const W = canvas.width, H = canvas.height;
+  const W = 1080;
+  canvas.width = W; // lebar tetap, tinggi dihitung dinamis di bawah supaya tidak ada ruang kosong
 
   if(document.fonts && document.fonts.ready){ try{ await document.fonts.ready; }catch(e){} }
 
@@ -7754,53 +7736,71 @@ async function _lcGenerateCard(){
   }
   if(!baseColor) baseColor = FS_COLORS[0];
 
+  // ── Ukuran layout: header (sampul+judul+artis) besar & lirik besar,
+  //    supaya kartu padat tanpa banyak ruang kosong, seperti referensi. ──
+  const pad = 68;
+  const thumbSize = 196;
+  const headerTextX = pad + thumbSize + 32;
+  const headerTextMaxW = W - headerTextX - pad;
+  const titleFont = '800 54px Outfit, sans-serif';
+  const titleLineH = 60;
+  const artistFont = '600 34px Outfit, sans-serif';
+  const artistLineH = 40;
+  const headerGap = 14; // jarak antara judul & nama artis
+  const headerToLyrics = 60;
+  const lyricFont = '800 66px Outfit, sans-serif';
+  const lyricLineH = 82;
+  const bottomPad = 64;
+
+  // Ukur dulu baris lirik (measureText tidak butuh tinggi canvas final)
+  ctx.font = lyricFont;
+  const lines = _lcSelectedIdx.map(i=>lyrs[i] && lyrs[i].text).filter(Boolean);
+  let wrapped = [];
+  lines.forEach(line=>{ wrapped = wrapped.concat(_lcWrapText(ctx, line, W - pad*2)); });
+  if(!wrapped.length) wrapped = [''];
+
+  const headerBlockH = Math.max(thumbSize, titleLineH+headerGap+artistLineH);
+  const lyricsH = wrapped.length * lyricLineH;
+  const H = Math.round(pad + headerBlockH + headerToLyrics + lyricsH + bottomPad);
+
+  canvas.width = W; canvas.height = H; // set ukuran final (mereset context, di-set ulang di bawah)
+
   // Background warna dominan sampul album (senada dgn background halaman Lyrics)
   ctx.fillStyle = baseColor;
   ctx.fillRect(0,0,W,H);
   const grad = ctx.createLinearGradient(0,0,0,H);
-  grad.addColorStop(0,'rgba(0,0,0,0.18)');
-  grad.addColorStop(0.45,'rgba(0,0,0,0)');
-  grad.addColorStop(1,'rgba(0,0,0,0.32)');
+  grad.addColorStop(0,'rgba(0,0,0,0.16)');
+  grad.addColorStop(0.5,'rgba(0,0,0,0)');
+  grad.addColorStop(1,'rgba(0,0,0,0.28)');
   ctx.fillStyle = grad; ctx.fillRect(0,0,W,H);
 
-  const pad = 72;
-
-  // Sampul + judul + artis
+  // Sampul album (diperbesar)
   let thumbImg=null;
   const thumbUrl = track.thumb || track.photo;
   if(thumbUrl){ try{ thumbImg = await _lcLoadImage(thumbUrl); }catch(e){} }
-  const thumbSize = 100;
   if(thumbImg){
-    _lcDrawRoundedImage(ctx, thumbImg, pad, pad, thumbSize, thumbSize, 14);
+    _lcDrawRoundedImage(ctx, thumbImg, pad, pad, thumbSize, thumbSize, 22);
   } else {
     ctx.fillStyle='rgba(255,255,255,0.15)';
-    _lcRoundedRectPath(ctx, pad, pad, thumbSize, thumbSize, 14); ctx.fill();
+    _lcRoundedRectPath(ctx, pad, pad, thumbSize, thumbSize, 22); ctx.fill();
   }
-  const textX = pad + thumbSize + 24, textMaxW = W - pad*2 - thumbSize - 24;
+
+  // Judul + artis (diperbesar, diposisikan center vertikal terhadap sampul)
+  const textBlockH = titleLineH + headerGap + artistLineH;
+  const textStartY = pad + (thumbSize - textBlockH)/2;
   ctx.textBaseline='top';
   ctx.fillStyle='#fff';
-  ctx.font='700 34px Outfit, sans-serif';
-  _lcFillTextClipped(ctx, track.title || 'Unknown Title', textX, pad+10, textMaxW);
-  ctx.fillStyle='rgba(255,255,255,0.75)';
-  ctx.font='500 26px Outfit, sans-serif';
-  _lcFillTextClipped(ctx, 'Lagu · '+(track.artist || 'Unknown Artist'), textX, pad+56, textMaxW);
+  ctx.font=titleFont;
+  _lcFillTextClipped(ctx, track.title || 'Unknown Title', headerTextX, textStartY, headerTextMaxW);
+  ctx.fillStyle='rgba(255,255,255,0.8)';
+  ctx.font=artistFont;
+  _lcFillTextClipped(ctx, track.artist || 'Unknown Artist', headerTextX, textStartY+titleLineH+headerGap, headerTextMaxW);
 
   // Baris lirik terpilih
-  const lines = _lcSelectedIdx.map(i=>lyrs[i] && lyrs[i].text).filter(Boolean);
   ctx.fillStyle='#fff';
-  ctx.font='800 60px Outfit, sans-serif';
-  let wrapped=[];
-  lines.forEach(line=>{ wrapped=wrapped.concat(_lcWrapText(ctx, line, W-pad*2)); });
-  const lineHeight = 74;
-  const totalH = wrapped.length*lineHeight;
-  let y = Math.max(pad+240, (H-totalH)/2-20);
-  wrapped.forEach(w=>{ ctx.fillText(w, pad, y); y+=lineHeight; });
-
-  // Watermark aplikasi
-  _lcDrawLogo(ctx, pad, H-pad-38, 34);
-  ctx.fillStyle='#fff';
-  ctx.font='700 30px Outfit, sans-serif';
-  ctx.fillText('Vibexa', pad+46, H-pad-40);
+  ctx.font=lyricFont;
+  let y = pad + headerBlockH + headerToLyrics;
+  wrapped.forEach(w=>{ ctx.fillText(w, pad, y); y+=lyricLineH; });
 
   return canvas;
 }
