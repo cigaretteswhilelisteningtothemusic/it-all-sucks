@@ -7725,7 +7725,6 @@ async function _lcGenerateCard(){
   const canvas = document.getElementById('lyrics-card-canvas');
   const ctx = canvas.getContext('2d');
   const W = 1080;
-  canvas.width = W; // lebar tetap, tinggi dihitung dinamis di bawah
 
   if(document.fonts && document.fonts.ready){ try{ await document.fonts.ready; }catch(e){} }
 
@@ -7736,97 +7735,139 @@ async function _lcGenerateCard(){
   }
   if(!baseColor) baseColor = FS_COLORS[0];
 
-  // ── Layout ala Spotify: kartu berbentuk PERSEGI (1:1) secara default.
-  //    Kalau lirik yang dipilih panjang & tidak muat, kartu memanjang ke
-  //    bawah mengikuti kebutuhan konten (bukan persegi kaku), tapi tetap
-  //    dijaga agar tidak ada banyak ruang kosong di bawah/atas. ──
-  const pad = 68;
-  const thumbSize = 148;
-  const headerTextX = pad + thumbSize + 28;
-  const headerTextMaxW = W - headerTextX - pad;
-  const titleFont = '800 44px Outfit, sans-serif';
-  const titleLineH = 50;
-  const artistFont = '600 30px Outfit, sans-serif';
-  const artistLineH = 36;
-  const headerGap = 10; // jarak antara judul & nama artis
-  const headerToLyrics = 56;
-  const lyricFont = '800 66px Outfit, sans-serif';
-  const lyricLineH = 82;
-  const bottomPad = 68;
+  // Sampul album — dimuat lebih awal karena dipakai untuk background luar
+  // (versi blur) dan untuk thumbnail di dalam kartu.
+  let thumbImg=null;
+  const thumbUrl = track.thumb || track.photo;
+  if(thumbUrl){ try{ thumbImg = await _lcLoadImage(thumbUrl); }catch(e){} }
 
-  // Ukur dulu baris lirik (measureText tidak butuh tinggi canvas final)
+  // ── Layout ala Spotify: KARTU PUTIH membulat dengan bayangan, dikelilingi
+  //    background (blur sampul album / warna dominan) di luar kartu. Kartu
+  //    berbentuk PERSEGI secara default; kalau lirik yang dipilih panjang,
+  //    kartu memanjang ke bawah mengikuti kebutuhan konten. ──
+  const margin = 60;          // jarak kartu ke tepi kanvas -> ini yg jadi "background di luar kartu"
+  const cardR = 28;           // radius sudut kartu
+  const cardPad = 56;
+  const thumbSize = 120;
+  const headerTextX = cardPad + thumbSize + 26;
+  const titleFont = '800 40px Outfit, sans-serif';
+  const titleLineH = 46;
+  const artistFont = '600 26px Outfit, sans-serif';
+  const artistLineH = 32;
+  const headerGap = 8;
+  const headerToLyrics = 46;
+  const lyricFont = '800 58px Outfit, sans-serif';
+  const lyricLineH = 70;
+  const logoGapTop = 40;      // jarak dari lirik ke logo watermark
+  const logoH = 34;
+
+  const cardW = W - margin*2;
+  const headerTextMaxW = cardW - headerTextX - cardPad;
+  const headerTextRelX = headerTextX - cardPad; // posisi teks judul relatif terhadap contentX (kiri sampul + lebar sampul + gap)
+
+  // Ukur baris lirik dulu (measureText tidak butuh tinggi canvas final)
   ctx.font = lyricFont;
   const lines = _lcSelectedIdx.map(i=>lyrs[i] && lyrs[i].text).filter(Boolean);
   let wrapped = [];
-  lines.forEach(line=>{ wrapped = wrapped.concat(_lcWrapText(ctx, line, W - pad*2)); });
+  lines.forEach(line=>{ wrapped = wrapped.concat(_lcWrapText(ctx, line, cardW - cardPad*2)); });
   if(!wrapped.length) wrapped = [''];
 
   const headerBlockH = Math.max(thumbSize, titleLineH+headerGap+artistLineH);
   const lyricsH = wrapped.length * lyricLineH;
-  // Tinggi konten sebenarnya (tanpa dipaksa persegi)
-  const contentH = Math.round(pad + headerBlockH + headerToLyrics + lyricsH + bottomPad);
-  // Kartu minimal berbentuk persegi (tinggi = lebar). Kalau konten lebih
-  // tinggi dari lebar (lirik panjang), ikuti tinggi konten supaya tidak
-  // terpotong dan tidak menyisakan ruang kosong berlebih.
-  const H = Math.max(W, contentH);
+  const contentH = Math.round(cardPad + headerBlockH + headerToLyrics + lyricsH + logoGapTop + logoH + cardPad);
+  // Kartu minimal persegi (tinggi kartu = lebar kartu); kalau lirik panjang,
+  // ikuti tinggi konten supaya tidak terpotong / tidak ada ruang kosong.
+  const cardH = Math.max(cardW, contentH);
 
-  canvas.width = W; canvas.height = H; // set ukuran final (mereset context, di-set ulang di bawah)
+  const H = cardH + margin*2;
+  canvas.width = W; canvas.height = H;
 
-  // Background warna dominan sampul album, memenuhi SELURUH kanvas
-  // (persis seperti kartu share Spotify — background di luar teks/kartu).
-  ctx.fillStyle = baseColor;
-  ctx.fillRect(0,0,W,H);
-  const grad = ctx.createLinearGradient(0,0,0,H);
-  grad.addColorStop(0,'rgba(0,0,0,0.16)');
-  grad.addColorStop(0.5,'rgba(0,0,0,0)');
-  grad.addColorStop(1,'rgba(0,0,0,0.3)');
-  ctx.fillStyle = grad; ctx.fillRect(0,0,W,H);
-  // vignette halus di tepi supaya fokus tetap ke tengah, senada referensi
-  const rad = ctx.createRadialGradient(W/2,H*0.4,H*0.25,W/2,H*0.5,H*0.75);
-  rad.addColorStop(0,'rgba(0,0,0,0)');
-  rad.addColorStop(1,'rgba(0,0,0,0.22)');
-  ctx.fillStyle = rad; ctx.fillRect(0,0,W,H);
-
-  // Blok konten (header + lirik) diposisikan vertikal: kalau kartu persegi
-  // (lirik pendek), konten dipusatkan supaya tidak ada ruang kosong yang
-  // menumpuk di satu sisi; kalau kartu memanjang (lirik panjang), konten
-  // rata atas seperti biasa.
-  const blockH = headerBlockH + headerToLyrics + lyricsH;
-  let startY;
-  if(H > contentH){
-    // ada ruang lebih (kartu dipaksa persegi) -> pusatkan konten
-    startY = Math.max(pad, (H - blockH) / 2);
-  } else {
-    startY = pad;
-  }
-
-  // Sampul album
-  let thumbImg=null;
-  const thumbUrl = track.thumb || track.photo;
-  if(thumbUrl){ try{ thumbImg = await _lcLoadImage(thumbUrl); }catch(e){} }
+  // ── Background DI LUAR kartu: sampul album diblur + overlay gelap tipis,
+  //    fallback ke gradasi warna dominan kalau sampul tidak ada. ──
   if(thumbImg){
-    _lcDrawRoundedImage(ctx, thumbImg, pad, startY, thumbSize, thumbSize, 18);
+    ctx.save();
+    ctx.filter = 'blur(50px) saturate(1.25) brightness(0.92)';
+    const ir = thumbImg.width/thumbImg.height, tr = W/H;
+    let sw=thumbImg.width, sh=thumbImg.height, sx=0, sy=0;
+    if(ir>tr){ sw=thumbImg.height*tr; sx=(thumbImg.width-sw)/2; } else { sh=thumbImg.width/tr; sy=(thumbImg.height-sh)/2; }
+    ctx.drawImage(thumbImg, sx, sy, sw, sh, -20, -20, W+40, H+40);
+    ctx.restore();
+    ctx.fillStyle='rgba(0,0,0,0.22)'; ctx.fillRect(0,0,W,H);
   } else {
-    ctx.fillStyle='rgba(255,255,255,0.15)';
-    _lcRoundedRectPath(ctx, pad, startY, thumbSize, thumbSize, 18); ctx.fill();
+    ctx.fillStyle = baseColor;
+    ctx.fillRect(0,0,W,H);
+    const grad = ctx.createLinearGradient(0,0,0,H);
+    grad.addColorStop(0,'rgba(0,0,0,0.1)');
+    grad.addColorStop(0.5,'rgba(0,0,0,0)');
+    grad.addColorStop(1,'rgba(0,0,0,0.25)');
+    ctx.fillStyle = grad; ctx.fillRect(0,0,W,H);
   }
 
-  // Judul + artis (diposisikan center vertikal terhadap sampul)
+  // ── Kartu putih membulat dengan bayangan (ala kartu share Spotify) ──
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.35)';
+  ctx.shadowBlur = 46;
+  ctx.shadowOffsetY = 20;
+  ctx.fillStyle = '#ffffff';
+  _lcRoundedRectPath(ctx, margin, margin, cardW, cardH, cardR);
+  ctx.fill();
+  ctx.restore();
+
+  // Konten (header + lirik + logo) diposisikan vertikal di dalam kartu:
+  // kalau kartu persegi (lirik pendek) konten dipusatkan; kalau kartu
+  // memanjang (lirik panjang) konten rata atas.
+  const blockH = headerBlockH + headerToLyrics + lyricsH + logoGapTop + logoH;
+  let startY;
+  if(cardH > contentH){
+    startY = margin + Math.max(cardPad, (cardH - blockH) / 2);
+  } else {
+    startY = margin + cardPad;
+  }
+  const contentX = margin + cardPad;
+
+  // Sampul album (di dalam kartu)
+  if(thumbImg){
+    _lcDrawRoundedImage(ctx, thumbImg, contentX, startY, thumbSize, thumbSize, 16);
+  } else {
+    ctx.fillStyle='rgba(0,0,0,0.08)';
+    _lcRoundedRectPath(ctx, contentX, startY, thumbSize, thumbSize, 16); ctx.fill();
+  }
+
+  // Judul + artis (center vertikal terhadap sampul), warna gelap ala Spotify
   const textBlockH = titleLineH + headerGap + artistLineH;
   const textStartY = startY + (thumbSize - textBlockH)/2;
   ctx.textBaseline='top';
-  ctx.fillStyle='#fff';
+  ctx.fillStyle='#131313';
   ctx.font=titleFont;
-  _lcFillTextClipped(ctx, track.title || 'Unknown Title', headerTextX, textStartY, headerTextMaxW);
-  ctx.fillStyle='rgba(255,255,255,0.8)';
+  _lcFillTextClipped(ctx, track.title || 'Unknown Title', contentX+headerTextRelX, textStartY, headerTextMaxW);
+  ctx.fillStyle='#6a6a6a';
   ctx.font=artistFont;
-  _lcFillTextClipped(ctx, track.artist || 'Unknown Artist', headerTextX, textStartY+titleLineH+headerGap, headerTextMaxW);
+  _lcFillTextClipped(ctx, track.artist || 'Unknown Artist', contentX+headerTextRelX, textStartY+titleLineH+headerGap, headerTextMaxW);
 
   // Baris lirik terpilih
-  ctx.fillStyle='#fff';
+  ctx.fillStyle='#131313';
   ctx.font=lyricFont;
   let y = startY + headerBlockH + headerToLyrics;
-  wrapped.forEach(w=>{ ctx.fillText(w, pad, y); y+=lyricLineH; });
+  wrapped.forEach(w=>{ ctx.fillText(w, contentX, y); y+=lyricLineH; });
+
+  // Watermark logo "Vibexa" di pojok kiri bawah kartu (ala logo Spotify)
+  const logoY = y + logoGapTop;
+  const dotR = logoH/2;
+  const dotCx = contentX + dotR, dotCy = logoY + dotR;
+  ctx.fillStyle = '#2E7DFF';
+  ctx.beginPath(); ctx.arc(dotCx, dotCy, dotR, 0, Math.PI*2); ctx.fill();
+  // tiga batang equalizer kecil di dalam lingkaran, simbol "suara/musik"
+  ctx.fillStyle = '#ffffff';
+  const barW = 4, gap = 5, barsH = [10,16,12];
+  let bx = dotCx - (barW*3+gap*2)/2;
+  barsH.forEach(bh=>{
+    _lcRoundedRectPath(ctx, bx, dotCy-bh/2, barW, bh, 2); ctx.fill();
+    bx += barW+gap;
+  });
+  ctx.fillStyle = '#3d3d3d';
+  ctx.font = '700 26px Outfit, sans-serif';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Vibexa', dotCx+dotR+12, dotCy+1);
 
   return canvas;
 }
