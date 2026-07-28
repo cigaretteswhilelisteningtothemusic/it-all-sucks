@@ -16528,3 +16528,387 @@ async function deleteOfflineTrack(id) {
   });
 })();
 
+
+// ════════════════════════════════════════════════════════════
+// VIBEXA AI — asisten AI musik (chat, rekomendasi lagu, playlist
+// otomatis), didukung Google Gemini 2.5 Flash.
+//
+// Alur kerja:
+// 1. User ngobrol dengan AI lewat overlay #ai-chat-overlay.
+// 2. AI (Gemini) WAJIB membalas dalam format JSON terstruktur
+//    ({message, songs, playlist_name}) — lihat AI_SYSTEM_PROMPT.
+// 3. Setiap lagu yang disebut AI (judul + artis) di-resolve ke
+//    katalog iTunes lewat fetchItunesResults (fungsi yang sama
+//    dipakai fitur Search bawaan), supaya jadi objek "track" asli
+//    yang bisa langsung diputar (loadPlay) & disimpan ke playlist
+//    (openAddSongModal/addTrackToPlaylist) — persis seperti hasil
+//    pencarian manual, bukan cuma teks statis.
+// 4. Kalau AI menyusunkan PLAYLIST (playlist_name terisi), user
+//    bisa klik satu tombol untuk langsung membuat playlist berisi
+//    semua lagu yang direkomendasikan.
+//
+// CATATAN KEAMANAN: sama seperti GIPHY_API_KEY & YT2MP3_API_KEY di
+// atas, API key Gemini di bawah ini dipanggil LANGSUNG dari browser
+// (client-side) sehingga terlihat oleh siapapun yang membuka DevTools
+// atau melihat kode sumber halaman ini. Untuk aplikasi publik yang
+// lebih aman, sebaiknya panggilan ke Gemini dipindah lewat backend/
+// proxy kecil (mis. Cloudflare Worker) yang menyimpan key di server.
+// ────────────────────────────────────────────────────────────
+const GEMINI_API_KEY = "AQ.Ab8RN6IVsGDSmj7K8ZQSAWNPOGByP-4XBs4lqTo63fhARC5jHQ";
+const GEMINI_MODEL   = "gemini-2.5-flash";
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+
+const AI_SYSTEM_PROMPT = `Kamu adalah "Vibexa AI", asisten musik pintar di dalam aplikasi streaming musik bernama Vibexa. Kamu membantu user lewat obrolan santai seputar musik, memberi rekomendasi lagu, dan membuatkan playlist sesuai permintaan mereka (mirip fitur AI DJ/AI Playlist di Spotify).
+
+ATURAN WAJIB — HARUS DIIKUTI PERSIS:
+1. Balas HANYA dengan SATU objek JSON valid. Jangan menulis apapun di luar objek JSON itu (tanpa basa-basi, tanpa markdown code fence seperti \`\`\`json).
+2. Skema JSON WAJIB persis seperti ini:
+{"message": "...", "songs": [{"title": "...", "artist": "..."}], "playlist_name": null}
+- "message": balasan percakapan natural ke user, ramah dan singkat, dalam Bahasa Indonesia (kecuali user mengajak berbahasa lain).
+- "songs": array lagu NYATA yang benar-benar pernah dirilis (judul & nama artis asli — jangan pernah mengarang judul/artis). Kosongkan jadi [] kalau user cuma mengobrol biasa dan tidak sedang minta lagu/playlist.
+- "playlist_name": nama pendek & menarik untuk playlist, HANYA JIKA user secara jelas minta dibuatkan/disusunkan sebuah playlist. Selain itu isi null.
+3. Kalau user minta dibuatkan PLAYLIST: isi "songs" dengan sekitar 10-15 lagu yang relevan dengan tema/permintaannya, dan "playlist_name" wajib terisi.
+4. Kalau user cuma minta REKOMENDASI lagu (bukan playlist utuh): isi "songs" dengan sekitar 4-8 lagu dan "playlist_name": null.
+5. Kalau user cuma mengobrol / bertanya hal umum soal musik (bukan minta lagu): "songs": [] dan "playlist_name": null, cukup jawab lewat "message".
+6. Jangan pernah menyertakan kutipan lirik lagu di dalam "message" (hak cipta).`;
+
+const AI_CHAT_HIST_PREFIX = 'vibexa_ai_chat_';
+
+function _aiChatKey(){
+  const uid = (typeof currentUser !== 'undefined' && currentUser && currentUser.uid) ? currentUser.uid : 'anon';
+  return AI_CHAT_HIST_PREFIX + uid;
+}
+
+// aiChatDisplay: pesan untuk DITAMPILKAN (termasuk track hasil resolve iTunes).
+// aiApiHistory : riwayat turn mentah format Gemini (role/parts) untuk konteks obrolan.
+let aiChatDisplay = [];
+let aiApiHistory  = [];
+let aiChatLoading = false;
+
+function _aiLoadChatState(){
+  try{
+    const raw = localStorage.getItem(_aiChatKey());
+    if (raw){
+      const parsed = JSON.parse(raw);
+      aiChatDisplay = Array.isArray(parsed.display) ? parsed.display : [];
+      aiApiHistory  = Array.isArray(parsed.api) ? parsed.api : [];
+    } else {
+      aiChatDisplay = []; aiApiHistory = [];
+    }
+  }catch(e){ aiChatDisplay = []; aiApiHistory = []; }
+}
+function _aiSaveChatState(){
+  try{ localStorage.setItem(_aiChatKey(), JSON.stringify({ display: aiChatDisplay, api: aiApiHistory })); }catch(e){}
+}
+
+function openAIChatOverlay(){
+  _aiLoadChatState();
+  const ov = document.getElementById('ai-chat-overlay');
+  if (ov) ov.classList.add('show');
+  const fab = document.getElementById('ai-fab'); if (fab) fab.classList.add('hide');
+  renderAIChatMessages();
+  setTimeout(() => { const inp = document.getElementById('ai-chat-input'); if (inp) inp.focus(); }, 150);
+}
+function closeAIChatOverlay(){
+  const ov = document.getElementById('ai-chat-overlay');
+  if (ov) ov.classList.remove('show');
+  const fab = document.getElementById('ai-fab'); if (fab) fab.classList.remove('hide');
+}
+
+function aiQuickPrompt(text){
+  const inp = document.getElementById('ai-chat-input');
+  if (inp) inp.value = text;
+  sendAIChatMessage();
+}
+
+function clearAIChat(){
+  if (!aiChatDisplay.length) return;
+  if (!confirm('Hapus semua riwayat obrolan dengan Vibexa AI?')) return;
+  aiChatDisplay = []; aiApiHistory = [];
+  _aiSaveChatState();
+  renderAIChatMessages();
+}
+
+function _aiScrollToBottom(){
+  const c = document.getElementById('ai-chat-messages');
+  if (c) c.scrollTop = c.scrollHeight;
+}
+
+function renderAIChatMessages(){
+  const c = document.getElementById('ai-chat-messages');
+  if (!c) return;
+  if (!aiChatDisplay.length){
+    c.innerHTML = `
+      <div class="ai-chat-welcome">
+        <div class="ai-chat-welcome-icon">✨</div>
+        <div class="ai-chat-welcome-title">Vibexa AI</div>
+        <div class="ai-chat-welcome-sub">Minta aku buatkan playlist, kasih rekomendasi lagu, atau ngobrol santai soal musik apa aja.</div>
+        <div class="ai-chat-chips">
+          <button class="ai-chip" onclick="aiQuickPrompt('Buatkan playlist buat fokus belajar')">Playlist buat belajar</button>
+          <button class="ai-chip" onclick="aiQuickPrompt('Rekomendasikan lagu mirip Tame Impala')">Mirip Tame Impala</button>
+          <button class="ai-chip" onclick="aiQuickPrompt('Buatkan playlist lagu galau abis putus')">Playlist galau</button>
+          <button class="ai-chip" onclick="aiQuickPrompt('Rekomendasikan lagu buat semangat workout')">Lagu workout</button>
+        </div>
+      </div>`;
+    return;
+  }
+  c.innerHTML = '';
+  aiChatDisplay.forEach((msg) => c.appendChild(_aiBuildBubble(msg)));
+  _aiScrollToBottom();
+}
+
+function _aiBuildBubble(msg){
+  const row = document.createElement('div');
+  row.className = 'ai-bubble-row ' + (msg.role === 'user' ? 'me' : 'ai');
+  if (msg.role === 'user'){
+    const bubble = document.createElement('div');
+    bubble.className = 'ai-bubble';
+    bubble.textContent = msg.text || '';
+    row.appendChild(bubble);
+    return row;
+  }
+  const wrap = document.createElement('div');
+  wrap.className = 'ai-bubble-col';
+  const bubble = document.createElement('div');
+  bubble.className = 'ai-bubble';
+  bubble.textContent = msg.text || '';
+  wrap.appendChild(bubble);
+
+  if (Array.isArray(msg.songs) && msg.songs.length){
+    const list = document.createElement('div');
+    list.className = 'ai-song-list';
+    msg.songs.forEach(song => list.appendChild(_aiBuildSongCard(song)));
+    wrap.appendChild(list);
+
+    if (msg.playlistName){
+      const btn = document.createElement('button');
+      btn.className = 'ai-create-pl-btn';
+      if (msg._createdPlaylistId){
+        btn.innerHTML = ' Playlist dibuat — buka';
+        btn.onclick = () => { closeAIChatOverlay(); showPlaylistView(msg._createdPlaylistId); };
+      } else {
+        btn.innerHTML = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Buat Playlist "${esc(msg.playlistName)}"`;
+        btn.onclick = () => _aiCreatePlaylistFromMsg(msg, btn);
+      }
+      wrap.appendChild(btn);
+    }
+  }
+  row.appendChild(wrap);
+  return row;
+}
+
+function _aiBuildSongCard(song){
+  const card = document.createElement('div');
+  card.className = 'ai-song-card';
+  const thumb = (song._track && song._track.thumb) || '';
+  card.innerHTML = `
+    <div class="ai-song-thumb">${thumb ? `<img src="${esc(thumb)}" loading="lazy">` : '<span>🎵</span>'}</div>
+    <div class="ai-song-info">
+      <div class="ai-song-title">${esc(song.title)}</div>
+      <div class="ai-song-artist">${esc(song.artist || '')}</div>
+    </div>
+    <button class="ai-song-play" title="Play">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+    </button>
+  `;
+  const addSlot = document.createElement('div');
+  addSlot.className = 'ai-song-add-slot';
+  card.appendChild(addSlot);
+
+  const playBtn = card.querySelector('.ai-song-play');
+  const doPlay = async () => {
+    const track = await _aiEnsureTrackResolved(song);
+    if (track) loadPlay(track, null);
+    else toast(' Lagu tidak ditemukan di katalog');
+  };
+  playBtn.addEventListener('click', e => { e.stopPropagation(); doPlay(); });
+  card.querySelector('.ai-song-info').addEventListener('click', doPlay);
+  card.querySelector('.ai-song-thumb').addEventListener('click', doPlay);
+
+  // Resolve ke katalog iTunes di background supaya cover art & tombol
+  // "add to playlist" muncul begitu datanya siap (tanpa memblokir render chat).
+  (async () => {
+    const track = await _aiEnsureTrackResolved(song);
+    if (track){
+      addSlot.innerHTML = buildAddBtnHTML(track, 'ai-song-add');
+      wireAddBtn(addSlot.querySelector('.add-btn'), track);
+      if (track.thumb && !card.querySelector('.ai-song-thumb img')){
+        card.querySelector('.ai-song-thumb').innerHTML = `<img src="${esc(track.thumb)}" loading="lazy">`;
+      }
+    }
+  })();
+
+  return card;
+}
+
+// Cari & cache objek "track" (format sama dengan hasil Search biasa) untuk
+// satu {title, artist} yang direkomendasikan AI, lewat katalog iTunes.
+async function _aiEnsureTrackResolved(song){
+  if (song._track) return song._track;
+  if (song._resolving){
+    let tries = 0;
+    while (song._resolving && tries < 40){ await new Promise(r => setTimeout(r, 150)); tries++; }
+    return song._track || null;
+  }
+  song._resolving = true;
+  let track = null;
+  try{ track = await _aiResolveSongToTrack(song); }
+  catch(e){ console.warn('Gagal resolve lagu AI:', song, e); }
+  song._resolving = false;
+  if (track){ song._track = track; _aiSaveChatState(); }
+  return track;
+}
+
+async function _aiResolveSongToTrack(song){
+  const title = (song.title || '').trim();
+  const artist = (song.artist || '').trim();
+  if (!title) return null;
+  const q = artist ? `${artist} ${title}` : title;
+  const [usItems, idItems] = await Promise.all([
+    fetchItunesResults(q, 'US', 'song', 5).catch(() => []),
+    fetchItunesResults(q, 'ID', 'song', 5).catch(() => [])
+  ]);
+  const items = [...usItems, ...idItems];
+  if (!items.length) return null;
+
+  const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+  const tNorm = norm(title), aNorm = norm(artist);
+  let best = items.find(it => {
+    const itT = norm(it.trackName), itA = norm(it.artistName);
+    return itT === tNorm && (!aNorm || itA.includes(aNorm) || aNorm.includes(itA));
+  });
+  if (!best) best = items.find(it => norm(it.trackName).includes(tNorm) || tNorm.includes(norm(it.trackName)));
+  if (!best) best = items[0];
+
+  const thumb = (best.artworkUrl100 || '').replace('100x100bb', '600x600bb');
+  return {
+    title: best.trackName || title,
+    artist: best.artistName || artist,
+    thumb,
+    album: best.collectionName || '',
+    preview: best.previewUrl || null,
+    videoId: null,
+    photo: null,
+    duration: best.trackTimeMillis ? Math.round(best.trackTimeMillis / 1000) : 0,
+    _query: `${best.artistName || artist}|||${best.trackName || title}|||${best.trackId || Math.random()}`
+  };
+}
+
+async function _aiCreatePlaylistFromMsg(msg, btnEl){
+  if (!msg.songs || !msg.songs.length) return;
+  const originalHTML = btnEl.innerHTML;
+  btnEl.disabled = true;
+  btnEl.innerHTML = ' Menyusun playlist...';
+  try{
+    const tracks = [];
+    for (const song of msg.songs){
+      const t = await _aiEnsureTrackResolved(song);
+      if (t) tracks.push(t);
+    }
+    if (!tracks.length){
+      toast(' Tidak ada lagu yang ditemukan di katalog');
+      btnEl.disabled = false; btnEl.innerHTML = originalHTML;
+      return;
+    }
+    const id = genId();
+    playlists[id] = { id, name: msg.playlistName || 'Playlist AI', cover: '', coverThumb: '', tracks: [] };
+    tracks.forEach(t => addTrackToPlaylist(id, t));
+    renderSidebarPlaylists(); renderHomeGrid(); scheduleSave();
+    msg._createdPlaylistId = id;
+    _aiSaveChatState();
+    toast(' Playlist "' + (msg.playlistName || 'Playlist AI') + '" dibuat dengan ' + tracks.length + ' lagu!');
+    btnEl.innerHTML = ' Playlist dibuat — buka';
+    btnEl.disabled = false;
+    btnEl.onclick = () => { closeAIChatOverlay(); showPlaylistView(id); };
+  }catch(e){
+    console.error('Gagal membuat playlist dari AI:', e);
+    toast(' Gagal membuat playlist: ' + e.message);
+    btnEl.disabled = false; btnEl.innerHTML = originalHTML;
+  }
+}
+
+function _aiSetTyping(on){
+  const c = document.getElementById('ai-chat-messages');
+  if (!c) return;
+  let el = document.getElementById('ai-typing-row');
+  if (on){
+    if (el) return;
+    el = document.createElement('div');
+    el.id = 'ai-typing-row';
+    el.className = 'ai-bubble-row ai';
+    el.innerHTML = `<div class="ai-bubble ai-typing"><span></span><span></span><span></span></div>`;
+    c.appendChild(el);
+    _aiScrollToBottom();
+  } else if (el){
+    el.remove();
+  }
+}
+
+async function _aiCallGemini(historyForApi){
+  const res = await fetch(GEMINI_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: historyForApi,
+      systemInstruction: { parts: [{ text: AI_SYSTEM_PROMPT }] },
+      generationConfig: { responseMimeType: 'application/json', temperature: 0.85, maxOutputTokens: 2048 }
+    })
+  });
+  if (!res.ok){
+    let errText = '';
+    try{ errText = (await res.json())?.error?.message || ''; }catch(e){}
+    throw new Error('Gemini API error ' + res.status + (errText ? ': ' + errText : ''));
+  }
+  const data = await res.json();
+  const text = (data?.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
+  if (!text) throw new Error('Respons kosong dari AI (mungkin diblokir filter keamanan)');
+  try{ return JSON.parse(text); }
+  catch(e){
+    const m = text.match(/\{[\s\S]*\}/);
+    if (m){ try{ return JSON.parse(m[0]); }catch(e2){} }
+    throw new Error('Format balasan AI tidak valid');
+  }
+}
+
+async function sendAIChatMessage(){
+  if (aiChatLoading) return;
+  const inp = document.getElementById('ai-chat-input');
+  if (!inp) return;
+  const text = inp.value.trim();
+  if (!text) return;
+  inp.value = '';
+
+  aiChatDisplay.push({ role: 'user', text });
+  aiApiHistory.push({ role: 'user', parts: [{ text }] });
+  renderAIChatMessages();
+  _aiSaveChatState();
+
+  aiChatLoading = true;
+  const sendBtn = document.getElementById('ai-chat-send-btn');
+  if (sendBtn) sendBtn.disabled = true;
+  _aiSetTyping(true);
+
+  try{
+    const parsed = await _aiCallGemini(aiApiHistory);
+    const msg = {
+      role: 'assistant',
+      text: (parsed && typeof parsed.message === 'string' && parsed.message.trim()) || 'Oke!',
+      songs: (parsed && Array.isArray(parsed.songs)) ? parsed.songs.filter(s => s && s.title).slice(0, 20) : [],
+      playlistName: (parsed && parsed.playlist_name) || null
+    };
+    aiApiHistory.push({ role: 'model', parts: [{ text: JSON.stringify(parsed) }] });
+    aiChatDisplay.push(msg);
+    _aiSaveChatState();
+    _aiSetTyping(false);
+    renderAIChatMessages();
+  }catch(e){
+    console.error('Gemini AI error:', e);
+    _aiSetTyping(false);
+    aiChatDisplay.push({ role: 'assistant', text: 'Maaf, ada masalah menghubungi Vibexa AI: ' + e.message, songs: [], playlistName: null });
+    _aiSaveChatState();
+    renderAIChatMessages();
+  }finally{
+    aiChatLoading = false;
+    if (sendBtn) sendBtn.disabled = false;
+  }
+}
