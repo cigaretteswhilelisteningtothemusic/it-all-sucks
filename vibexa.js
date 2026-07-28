@@ -7725,7 +7725,7 @@ async function _lcGenerateCard(){
   const canvas = document.getElementById('lyrics-card-canvas');
   const ctx = canvas.getContext('2d');
   const W = 1080;
-  canvas.width = W; // lebar tetap, tinggi dihitung dinamis di bawah supaya tidak ada ruang kosong
+  canvas.width = W; // lebar tetap, tinggi dihitung dinamis di bawah
 
   if(document.fonts && document.fonts.ready){ try{ await document.fonts.ready; }catch(e){} }
 
@@ -7736,21 +7736,23 @@ async function _lcGenerateCard(){
   }
   if(!baseColor) baseColor = FS_COLORS[0];
 
-  // ── Ukuran layout: header (sampul+judul+artis) besar & lirik besar,
-  //    supaya kartu padat tanpa banyak ruang kosong, seperti referensi. ──
+  // ── Layout ala Spotify: kartu berbentuk PERSEGI (1:1) secara default.
+  //    Kalau lirik yang dipilih panjang & tidak muat, kartu memanjang ke
+  //    bawah mengikuti kebutuhan konten (bukan persegi kaku), tapi tetap
+  //    dijaga agar tidak ada banyak ruang kosong di bawah/atas. ──
   const pad = 68;
-  const thumbSize = 196;
-  const headerTextX = pad + thumbSize + 32;
+  const thumbSize = 148;
+  const headerTextX = pad + thumbSize + 28;
   const headerTextMaxW = W - headerTextX - pad;
-  const titleFont = '800 54px Outfit, sans-serif';
-  const titleLineH = 60;
-  const artistFont = '600 34px Outfit, sans-serif';
-  const artistLineH = 40;
-  const headerGap = 14; // jarak antara judul & nama artis
-  const headerToLyrics = 60;
+  const titleFont = '800 44px Outfit, sans-serif';
+  const titleLineH = 50;
+  const artistFont = '600 30px Outfit, sans-serif';
+  const artistLineH = 36;
+  const headerGap = 10; // jarak antara judul & nama artis
+  const headerToLyrics = 56;
   const lyricFont = '800 66px Outfit, sans-serif';
   const lyricLineH = 82;
-  const bottomPad = 64;
+  const bottomPad = 68;
 
   // Ukur dulu baris lirik (measureText tidak butuh tinggi canvas final)
   ctx.font = lyricFont;
@@ -7761,33 +7763,57 @@ async function _lcGenerateCard(){
 
   const headerBlockH = Math.max(thumbSize, titleLineH+headerGap+artistLineH);
   const lyricsH = wrapped.length * lyricLineH;
-  const H = Math.round(pad + headerBlockH + headerToLyrics + lyricsH + bottomPad);
+  // Tinggi konten sebenarnya (tanpa dipaksa persegi)
+  const contentH = Math.round(pad + headerBlockH + headerToLyrics + lyricsH + bottomPad);
+  // Kartu minimal berbentuk persegi (tinggi = lebar). Kalau konten lebih
+  // tinggi dari lebar (lirik panjang), ikuti tinggi konten supaya tidak
+  // terpotong dan tidak menyisakan ruang kosong berlebih.
+  const H = Math.max(W, contentH);
 
   canvas.width = W; canvas.height = H; // set ukuran final (mereset context, di-set ulang di bawah)
 
-  // Background warna dominan sampul album (senada dgn background halaman Lyrics)
+  // Background warna dominan sampul album, memenuhi SELURUH kanvas
+  // (persis seperti kartu share Spotify — background di luar teks/kartu).
   ctx.fillStyle = baseColor;
   ctx.fillRect(0,0,W,H);
   const grad = ctx.createLinearGradient(0,0,0,H);
   grad.addColorStop(0,'rgba(0,0,0,0.16)');
   grad.addColorStop(0.5,'rgba(0,0,0,0)');
-  grad.addColorStop(1,'rgba(0,0,0,0.28)');
+  grad.addColorStop(1,'rgba(0,0,0,0.3)');
   ctx.fillStyle = grad; ctx.fillRect(0,0,W,H);
+  // vignette halus di tepi supaya fokus tetap ke tengah, senada referensi
+  const rad = ctx.createRadialGradient(W/2,H*0.4,H*0.25,W/2,H*0.5,H*0.75);
+  rad.addColorStop(0,'rgba(0,0,0,0)');
+  rad.addColorStop(1,'rgba(0,0,0,0.22)');
+  ctx.fillStyle = rad; ctx.fillRect(0,0,W,H);
 
-  // Sampul album (diperbesar)
+  // Blok konten (header + lirik) diposisikan vertikal: kalau kartu persegi
+  // (lirik pendek), konten dipusatkan supaya tidak ada ruang kosong yang
+  // menumpuk di satu sisi; kalau kartu memanjang (lirik panjang), konten
+  // rata atas seperti biasa.
+  const blockH = headerBlockH + headerToLyrics + lyricsH;
+  let startY;
+  if(H > contentH){
+    // ada ruang lebih (kartu dipaksa persegi) -> pusatkan konten
+    startY = Math.max(pad, (H - blockH) / 2);
+  } else {
+    startY = pad;
+  }
+
+  // Sampul album
   let thumbImg=null;
   const thumbUrl = track.thumb || track.photo;
   if(thumbUrl){ try{ thumbImg = await _lcLoadImage(thumbUrl); }catch(e){} }
   if(thumbImg){
-    _lcDrawRoundedImage(ctx, thumbImg, pad, pad, thumbSize, thumbSize, 22);
+    _lcDrawRoundedImage(ctx, thumbImg, pad, startY, thumbSize, thumbSize, 18);
   } else {
     ctx.fillStyle='rgba(255,255,255,0.15)';
-    _lcRoundedRectPath(ctx, pad, pad, thumbSize, thumbSize, 22); ctx.fill();
+    _lcRoundedRectPath(ctx, pad, startY, thumbSize, thumbSize, 18); ctx.fill();
   }
 
-  // Judul + artis (diperbesar, diposisikan center vertikal terhadap sampul)
+  // Judul + artis (diposisikan center vertikal terhadap sampul)
   const textBlockH = titleLineH + headerGap + artistLineH;
-  const textStartY = pad + (thumbSize - textBlockH)/2;
+  const textStartY = startY + (thumbSize - textBlockH)/2;
   ctx.textBaseline='top';
   ctx.fillStyle='#fff';
   ctx.font=titleFont;
@@ -7799,7 +7825,7 @@ async function _lcGenerateCard(){
   // Baris lirik terpilih
   ctx.fillStyle='#fff';
   ctx.font=lyricFont;
-  let y = pad + headerBlockH + headerToLyrics;
+  let y = startY + headerBlockH + headerToLyrics;
   wrapped.forEach(w=>{ ctx.fillText(w, pad, y); y+=lyricLineH; });
 
   return canvas;
