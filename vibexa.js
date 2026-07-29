@@ -17193,6 +17193,29 @@ function _aiBuildSystemPrompt(){
   return prompt;
 }
 
+// File animasi Lottie untuk ikon tombol Vibexa AI (taruh sejajar dengan
+// vibexa.html di server, sama seperti file animasi streak lainnya).
+const AI_FAB_LOTTIE_URL = 'ai_animation_Flow_1.json';
+let _aiFabAnim = null;
+
+// Memuat & memutar animasi "AI Animation Flow 1" di dalam tombol AI
+// mengambang (#ai-fab), menggantikan ikon bintang statis sebelumnya.
+// Ukurannya dikecilkan lewat CSS (#ai-fab-lottie) supaya tetap pas di
+// dalam lingkaran tombol yang sama seperti sebelumnya.
+function _renderAiFabAnimation(){
+  if (typeof lottie === 'undefined') return;
+  const container = document.getElementById('ai-fab-lottie');
+  if (!container || _aiFabAnim) return;
+  _aiFabAnim = lottie.loadAnimation({
+    container: container,
+    renderer: 'svg',
+    loop: true,
+    autoplay: true,
+    path: AI_FAB_LOTTIE_URL
+  });
+}
+document.addEventListener('DOMContentLoaded', _renderAiFabAnimation);
+
 function openAIChatOverlay(){
   const ov = document.getElementById('ai-chat-overlay');
   if (ov) ov.classList.add('show');
