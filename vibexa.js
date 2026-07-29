@@ -17216,6 +17216,30 @@ function _renderAiFabAnimation(){
 }
 document.addEventListener('DOMContentLoaded', _renderAiFabAnimation);
 
+// Tombol AI mengambang (#ai-fab) HANYA muncul di halaman Home. Dipantau lewat
+// MutationObserver pada class #home-view (yang menentukan tampil/tidaknya
+// halaman Home lewat class "active" — lihat CSS #home-view.active), supaya
+// otomatis ikut ke SEMUA halaman lain (Search, Playlist, Artist, Streak,
+// Downloads, Chat, dst) tanpa perlu ubah satu-satu fungsi yang membuka
+// halaman tersebut.
+function _syncAiFabVisibility(){
+  const home = document.getElementById('home-view');
+  const fab = document.getElementById('ai-fab');
+  if (!home || !fab) return;
+  const onHome = home.classList.contains('active');
+  // "hide" dipakai juga oleh openAIChatOverlay() saat overlay Vibexa AI
+  // sendiri sedang terbuka — jangan timpa balik kalau overlay itu aktif.
+  const aiOverlayOpen = document.getElementById('ai-chat-overlay')?.classList.contains('show');
+  fab.classList.toggle('hide', !onHome || aiOverlayOpen);
+}
+document.addEventListener('DOMContentLoaded', () => {
+  _syncAiFabVisibility();
+  const home = document.getElementById('home-view');
+  if (home) new MutationObserver(_syncAiFabVisibility).observe(home, { attributes: true, attributeFilter: ['class'] });
+  const aiOverlay = document.getElementById('ai-chat-overlay');
+  if (aiOverlay) new MutationObserver(_syncAiFabVisibility).observe(aiOverlay, { attributes: true, attributeFilter: ['class'] });
+});
+
 function openAIChatOverlay(){
   const ov = document.getElementById('ai-chat-overlay');
   if (ov) ov.classList.add('show');
