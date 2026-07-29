@@ -1113,8 +1113,24 @@
       </button>
       <div class="ai-chat-head-icon">✨</div>
       <div class="ai-chat-head-text">
-        <div class="ai-chat-head-title">Vibexa AI</div>
+        <div class="ai-chat-head-title" id="ai-chat-head-title">Vibexa AI</div>
         <div class="ai-chat-head-sub">Rekomendasi lagu & playlist otomatis</div>
+      </div>
+      <div class="ai-chat-head-actions">
+        <button class="ai-chat-head-btn" id="ai-chat-new-btn" onclick="aiStartNewChat()" title="Obrolan baru">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <!-- Dropdown riwayat obrolan, mengambang persis di bawah tombol jam,
+             seperti flyout "Obrolan terbaru" di sidebar ChatGPT. -->
+        <div class="ai-chat-history-wrap" id="ai-chat-history-wrap">
+          <button class="ai-chat-head-btn" id="ai-chat-history-btn" onclick="toggleAIChatHistoryPanel(event)" title="Riwayat obrolan">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+          </button>
+          <div class="ai-chat-history-dropdown" id="ai-chat-history-panel">
+            <div class="ai-chat-history-dd-title">Obrolan terbaru</div>
+            <div class="ai-chat-history-list" id="ai-chat-history-list"></div>
+          </div>
+        </div>
       </div>
     </div>
     <div class="ai-chat-messages" id="ai-chat-messages"></div>

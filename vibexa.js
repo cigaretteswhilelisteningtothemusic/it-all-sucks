@@ -16810,11 +16810,14 @@ ATURAN FORMAT OUTPUT — WAJIB DIIKUTI PERSIS (ini teknis, di luar gaya ngobrol 
 6. Jangan pernah menyertakan kutipan lirik lagu di dalam "message" (hak cipta).`;
 
 const AI_CHAT_HIST_PREFIX = 'vibexa_ai_chat_';
-// Batas jumlah turn yang disimpan (biar node cloud & localStorage nggak
-// membengkak tanpa batas — riwayat lama tetap ada, cuma yg paling lawas dibuang).
+// Batas jumlah turn yang disimpan PER OBROLAN (biar node cloud & localStorage
+// nggak membengkak tanpa batas — riwayat lama tetap ada, cuma yg paling lawas dibuang).
 const AI_CHAT_MAX_TURNS = 80;
 // Batas jumlah fakta "memori" yang disimpan per user.
 const AI_MEMORY_MAX = 40;
+// Batas jumlah OBROLAN (sesi/percakapan) yang disimpan per user — kalau
+// kelewat, sesi paling lawas yang bukan sedang aktif akan dibuang duluan.
+const AI_SESSIONS_MAX = 30;
 
 function _aiChatKey(){
   const uid = (typeof currentUser !== 'undefined' && currentUser && currentUser.uid) ? currentUser.uid : 'anon';
@@ -16829,15 +16832,91 @@ function _aiStateRef(){
   return db.ref('users/' + currentUser.uid + '/aiChat');
 }
 
-// aiChatDisplay: pesan untuk DITAMPILKAN (termasuk track hasil resolve iTunes).
-// aiApiHistory : riwayat turn mentah format Gemini (role/parts) untuk konteks obrolan.
+// aiSessions: peta { sessionId: {id,title,display,api,createdAt,updatedAt} } —
+//             satu entri = satu "obrolan" (persis daftar riwayat obrolan ChatGPT),
+//             supaya user bisa punya banyak percakapan terpisah & lompat balik
+//             ke percakapan lama kapan aja lewat panel riwayat.
+// aiActiveSessionId: id obrolan yang lagi dibuka/aktif sekarang.
+// aiChatDisplay/aiApiHistory: TETAP ada sebagai variabel global (dipakai di
+//             banyak fungsi lain di bawah) — tapi sekarang cuma "pointer" yang
+//             selalu nunjuk ke display/api milik obrolan yang lagi aktif,
+//             supaya seluruh kode render/pengiriman pesan yang sudah ada
+//             nggak perlu diubah satu-satu.
 // aiMemoryFacts: fakta-fakta ringkas tentang user (nama panggilan, lagu/genre
-//                favorit, dll) yang disuntikkan ke system prompt supaya AI
-//                "kenal" & inget user ini di obrolan-obrolan berikutnya.
+//                favorit, dll) — ini milik USER, bukan milik satu obrolan,
+//                jadi tetap dipakai bersama di semua obrolan (persis seperti
+//                fitur "Memory" ChatGPT yang lintas percakapan).
+let aiSessions        = {};
+let aiActiveSessionId = null;
 let aiChatDisplay  = [];
 let aiApiHistory   = [];
 let aiMemoryFacts  = [];
 let aiChatLoading  = false;
+
+function _aiGenSessionId(){
+  return 'aisess_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+}
+
+function _aiNewEmptySession(){
+  const id = _aiGenSessionId();
+  return { id: id, title: null, display: [], api: [], createdAt: Date.now(), updatedAt: Date.now() };
+}
+
+// Pastikan selalu ada obrolan aktif yang valid (bikin satu baru kalau user
+// belum pernah punya obrolan sama sekali, atau kalau obrolan aktif tadi
+// dihapus). Juga menyamakan aiChatDisplay/aiApiHistory ke obrolan aktif ini.
+function _aiEnsureActiveSession(){
+  if (!aiSessions || typeof aiSessions !== 'object') aiSessions = {};
+  if (!aiActiveSessionId || !aiSessions[aiActiveSessionId]){
+    const ids = Object.keys(aiSessions).sort((a,b) => (aiSessions[b].updatedAt||0) - (aiSessions[a].updatedAt||0));
+    if (ids.length){
+      aiActiveSessionId = ids[0];
+    } else {
+      const s = _aiNewEmptySession();
+      aiSessions[s.id] = s;
+      aiActiveSessionId = s.id;
+    }
+  }
+  const s = aiSessions[aiActiveSessionId];
+  if (!Array.isArray(s.display)) s.display = [];
+  if (!Array.isArray(s.api)) s.api = [];
+  aiChatDisplay = s.display;
+  aiApiHistory  = s.api;
+}
+
+// Terima payload yang baru dimuat (dari localStorage ATAU cloud) dan
+// menormalkannya ke struktur "sessions". Ini juga meng-handle MIGRASI dari
+// format lama (satu obrolan tunggal {display, api, memory}) yang dipakai
+// sebelum fitur riwayat obrolan ini ada — supaya obrolan lama user nggak
+// hilang, otomatis dijadikan sesi pertama.
+function _aiApplyLoadedState(parsed){
+  if (!parsed || typeof parsed !== 'object'){
+    aiSessions = {}; aiActiveSessionId = null; aiMemoryFacts = [];
+    _aiEnsureActiveSession();
+    return;
+  }
+  aiMemoryFacts = Array.isArray(parsed.memory) ? parsed.memory : [];
+
+  if (parsed.sessions && typeof parsed.sessions === 'object' && Object.keys(parsed.sessions).length){
+    aiSessions = parsed.sessions;
+    aiActiveSessionId = (parsed.activeId && aiSessions[parsed.activeId]) ? parsed.activeId : null;
+  } else if (Array.isArray(parsed.display) || Array.isArray(parsed.api)){
+    // Format lama (pra-riwayat-obrolan): jadikan satu sesi pertama.
+    const s = _aiNewEmptySession();
+    s.display = Array.isArray(parsed.display) ? parsed.display : [];
+    s.api     = Array.isArray(parsed.api) ? parsed.api : [];
+    if (s.display.length){
+      const firstUser = s.display.find(m => m.role === 'user' && m.text);
+      if (firstUser) s.title = firstUser.text.trim().slice(0, 48);
+    }
+    aiSessions = { [s.id]: s };
+    aiActiveSessionId = s.id;
+  } else {
+    aiSessions = {};
+    aiActiveSessionId = null;
+  }
+  _aiEnsureActiveSession();
+}
 
 // Baca cache lokal dulu (instan, biar overlay langsung ada isi walau lagi
 // nunggu jaringan), baru ditimpa versi asli dari cloud begitu selesai dimuat.
@@ -16845,14 +16924,12 @@ function _aiLoadCachedChatState(){
   try{
     const raw = localStorage.getItem(_aiChatKey());
     if (raw){
-      const parsed = JSON.parse(raw);
-      aiChatDisplay = Array.isArray(parsed.display) ? parsed.display : [];
-      aiApiHistory  = Array.isArray(parsed.api) ? parsed.api : [];
-      aiMemoryFacts = Array.isArray(parsed.memory) ? parsed.memory : [];
+      _aiApplyLoadedState(JSON.parse(raw));
       return;
     }
   }catch(e){}
-  aiChatDisplay = []; aiApiHistory = []; aiMemoryFacts = [];
+  aiSessions = {}; aiActiveSessionId = null; aiMemoryFacts = [];
+  _aiEnsureActiveSession();
 }
 
 async function _aiLoadChatState(){
@@ -16864,9 +16941,7 @@ async function _aiLoadChatState(){
     if (snap.exists()){
       const raw = snap.val();
       const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-      aiChatDisplay = Array.isArray(parsed.display) ? parsed.display : [];
-      aiApiHistory  = Array.isArray(parsed.api) ? parsed.api : [];
-      aiMemoryFacts = Array.isArray(parsed.memory) ? parsed.memory : [];
+      _aiApplyLoadedState(parsed);
       _aiSaveChatState(true); // sinkronkan cache lokal biar konsisten dgn cloud
     }
   }catch(e){ console.warn('Gagal memuat riwayat Vibexa AI dari cloud:', e); }
@@ -16876,15 +16951,160 @@ async function _aiLoadChatState(){
 // skipCloud: true kalau cuma mau menyegarkan cache lokal (habis sinkron dari
 // cloud), tanpa nulis ulang ke cloud (biar nggak muter-muter tulis balik).
 function _aiSaveChatState(skipCloud){
-  if (aiApiHistory.length  > AI_CHAT_MAX_TURNS) aiApiHistory  = aiApiHistory.slice(-AI_CHAT_MAX_TURNS);
-  if (aiChatDisplay.length > AI_CHAT_MAX_TURNS) aiChatDisplay = aiChatDisplay.slice(-AI_CHAT_MAX_TURNS);
-  if (aiMemoryFacts.length > AI_MEMORY_MAX)     aiMemoryFacts = aiMemoryFacts.slice(-AI_MEMORY_MAX);
+  const s = aiSessions[aiActiveSessionId];
+  if (s){
+    s.display = aiChatDisplay;
+    s.api     = aiApiHistory;
+    if (s.api.length      > AI_CHAT_MAX_TURNS) aiApiHistory  = s.api     = s.api.slice(-AI_CHAT_MAX_TURNS);
+    if (s.display.length  > AI_CHAT_MAX_TURNS) aiChatDisplay = s.display = s.display.slice(-AI_CHAT_MAX_TURNS);
+    if (s.display.length) s.updatedAt = Date.now();
+    // Judul obrolan di-generate otomatis dari pesan pertama user (persis
+    // seperti auto-title obrolan baru di ChatGPT), sekali aja lalu dikunci.
+    if (!s.title){
+      const firstUser = s.display.find(m => m.role === 'user' && m.text);
+      if (firstUser) s.title = firstUser.text.trim().slice(0, 48);
+    }
+  }
+  if (aiMemoryFacts.length > AI_MEMORY_MAX) aiMemoryFacts = aiMemoryFacts.slice(-AI_MEMORY_MAX);
 
-  const payload = { display: aiChatDisplay, api: aiApiHistory, memory: aiMemoryFacts };
+  // Batasi jumlah OBROLAN yang disimpan — buang yang paling lawas (dan bukan
+  // sedang aktif) dulu, biar node cloud/localStorage nggak membengkak terus.
+  let ids = Object.keys(aiSessions);
+  if (ids.length > AI_SESSIONS_MAX){
+    ids.sort((a,b) => (aiSessions[a].updatedAt||0) - (aiSessions[b].updatedAt||0));
+    while (ids.length > AI_SESSIONS_MAX){
+      const oldId = ids.shift();
+      if (oldId !== aiActiveSessionId) delete aiSessions[oldId];
+    }
+  }
+
+  const payload = { activeId: aiActiveSessionId, sessions: aiSessions, memory: aiMemoryFacts };
   try{ localStorage.setItem(_aiChatKey(), JSON.stringify(payload)); }catch(e){}
   if (skipCloud) return;
   const ref = _aiStateRef();
   if (ref) ref.set(JSON.stringify(payload)).catch(e => console.warn('Gagal menyimpan riwayat Vibexa AI ke cloud:', e));
+}
+
+function _aiSessionTitle(s){
+  return (s && s.title) ? s.title : 'Obrolan Baru';
+}
+
+function _aiUpdateHeaderTitle(){
+  const el = document.getElementById('ai-chat-head-title');
+  if (!el) return;
+  const s = aiSessions[aiActiveSessionId];
+  el.textContent = (s && s.title) ? s.title : 'Vibexa AI';
+}
+
+// Tombol "Obrolan Baru" (persis "New Chat" di ChatGPT). Obrolan yang lagi
+// aktif sudah otomatis kesimpen tiap kali kirim pesan, jadi aman langsung
+// bikin obrolan kosong baru tanpa kehilangan apapun. Kalau obrolan aktif
+// SAAT INI masih kosong (baru dibuka, belum ngobrol sama sekali), nggak
+// perlu bikin sesi baru lagi — biar nggak numpuk obrolan kosong percuma.
+function aiStartNewChat(){
+  const cur = aiSessions[aiActiveSessionId];
+  if (cur && (!cur.display || !cur.display.length)){
+    closeAIChatHistoryPanel();
+    renderAIChatMessages();
+    _aiUpdateHeaderTitle();
+    return;
+  }
+  const s = _aiNewEmptySession();
+  aiSessions[s.id] = s;
+  aiActiveSessionId = s.id;
+  aiChatDisplay = s.display;
+  aiApiHistory  = s.api;
+  _aiSaveChatState();
+  closeAIChatHistoryPanel();
+  renderAIChatMessages();
+  _aiUpdateHeaderTitle();
+  setTimeout(() => { const inp = document.getElementById('ai-chat-input'); if (inp) inp.focus(); }, 150);
+}
+
+// Pindah ke obrolan lama yang dipilih user dari dropdown riwayat — supaya
+// bisa "melanjutkan percakapan lama" persis seperti klik riwayat chat di
+// sidebar ChatGPT.
+function aiSwitchToSession(id){
+  if (!aiSessions[id]){ closeAIChatHistoryPanel(); return; }
+  if (id === aiActiveSessionId){ closeAIChatHistoryPanel(); return; }
+  aiActiveSessionId = id;
+  const s = aiSessions[id];
+  if (!Array.isArray(s.display)) s.display = [];
+  if (!Array.isArray(s.api)) s.api = [];
+  aiChatDisplay = s.display;
+  aiApiHistory  = s.api;
+  _aiSaveChatState(true);
+  closeAIChatHistoryPanel();
+  renderAIChatMessages();
+  _aiUpdateHeaderTitle();
+}
+
+function aiDeleteSession(id, ev){
+  if (ev) ev.stopPropagation();
+  if (!aiSessions[id]) return;
+  if (!confirm('Hapus obrolan ini? Riwayatnya nggak bisa dikembalikan.')) return;
+  const wasActive = (id === aiActiveSessionId);
+  delete aiSessions[id];
+  if (wasActive) aiActiveSessionId = null;
+  _aiEnsureActiveSession();
+  _aiSaveChatState();
+  renderAIChatHistoryList();
+  if (wasActive){ renderAIChatMessages(); _aiUpdateHeaderTitle(); }
+}
+
+// Dropdown riwayat obrolan — mengambang tepat di bawah tombol jam, seperti
+// flyout "Obrolan terbaru" di sidebar ChatGPT (bukan panel layar penuh).
+function toggleAIChatHistoryPanel(e){
+  if (e) e.stopPropagation();
+  const p = document.getElementById('ai-chat-history-panel');
+  if (!p) return;
+  if (p.classList.contains('show')) closeAIChatHistoryPanel();
+  else openAIChatHistoryPanel();
+}
+function openAIChatHistoryPanel(){
+  renderAIChatHistoryList();
+  const p = document.getElementById('ai-chat-history-panel');
+  if (p) p.classList.add('show');
+}
+function closeAIChatHistoryPanel(){
+  const p = document.getElementById('ai-chat-history-panel');
+  if (p) p.classList.remove('show');
+}
+// Klik di luar dropdown -> tutup (pola yang sama dengan menu profil di topbar).
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('ai-chat-history-wrap');
+  const panel = document.getElementById('ai-chat-history-panel');
+  if (panel && panel.classList.contains('show') && wrap && !wrap.contains(e.target)) {
+    closeAIChatHistoryPanel();
+  }
+});
+
+function renderAIChatHistoryList(){
+  const list = document.getElementById('ai-chat-history-list');
+  if (!list) return;
+  const ids = Object.keys(aiSessions)
+    .filter(id => aiSessions[id].display && aiSessions[id].display.length)
+    .sort((a,b) => (aiSessions[b].updatedAt||0) - (aiSessions[a].updatedAt||0));
+  if (!ids.length){
+    list.innerHTML = '<div class="ai-chat-history-empty">Belum ada riwayat obrolan.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  ids.forEach((id) => {
+    const s = aiSessions[id];
+    const row = document.createElement('div');
+    row.className = 'ai-history-item' + (id === aiActiveSessionId ? ' active' : '');
+    row.innerHTML = `
+      <div class="ai-history-item-body">
+        <div class="ai-history-item-title">${esc(_aiSessionTitle(s))}</div>
+      </div>
+      <button class="ai-history-item-del" title="Hapus obrolan">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+      </button>`;
+    row.addEventListener('click', () => aiSwitchToSession(id));
+    row.querySelector('.ai-history-item-del').addEventListener('click', (e) => aiDeleteSession(id, e));
+    list.appendChild(row);
+  });
 }
 
 // Sekali per user (kalau belum ada memori sama sekali), tarik nama panggilan
@@ -16926,6 +17146,7 @@ function openAIChatOverlay(){
   const ov = document.getElementById('ai-chat-overlay');
   if (ov) ov.classList.add('show');
   const fab = document.getElementById('ai-fab'); if (fab) fab.classList.add('hide');
+  closeAIChatHistoryPanel();
   // Kunci scroll #main (sama seperti pola di openStreakView/openDownloadsView/
   // openChatOverlay) supaya konten Home di baliknya tidak ikut ke-scroll saat
   // user scroll di halaman Vibexa AI. Tanpa ini, #main (yang overflow-y:auto)
@@ -16940,7 +17161,8 @@ function openAIChatOverlay(){
   // lain ikut muncul di sini juga.
   _aiLoadCachedChatState();
   renderAIChatMessages();
-  _aiLoadChatState().then(() => renderAIChatMessages());
+  _aiUpdateHeaderTitle();
+  _aiLoadChatState().then(() => { renderAIChatMessages(); _aiUpdateHeaderTitle(); });
   setTimeout(() => { const inp = document.getElementById('ai-chat-input'); if (inp) inp.focus(); }, 150);
 }
 function closeAIChatOverlay(){
@@ -16949,6 +17171,7 @@ function closeAIChatOverlay(){
   const fab = document.getElementById('ai-fab'); if (fab) fab.classList.remove('hide');
   const mainEl = document.getElementById('main');
   if (mainEl) mainEl.style.overflow = '';
+  closeAIChatHistoryPanel();
 }
 
 function aiQuickPrompt(text){
@@ -17259,6 +17482,7 @@ async function sendAIChatMessage(){
   aiApiHistory.push({ role: 'user', parts: [{ text }] });
   renderAIChatMessages();
   _aiSaveChatState();
+  _aiUpdateHeaderTitle();
 
   aiChatLoading = true;
   const sendBtn = document.getElementById('ai-chat-send-btn');
