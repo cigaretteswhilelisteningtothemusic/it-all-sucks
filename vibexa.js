@@ -17195,13 +17195,17 @@ function _aiBuildSystemPrompt(){
 
 // File animasi Lottie untuk ikon tombol Vibexa AI (taruh sejajar dengan
 // vibexa.html di server, sama seperti file animasi streak lainnya).
-const AI_FAB_LOTTIE_URL = 'ai_animation_Flow_1.json';
+// Sebelumnya pakai ai_animation_Flow_1.json — sudah diganti ke Wavey_Birdie.json
+// (file lama tidak lagi dipakai, boleh dihapus dari server).
+const AI_FAB_LOTTIE_URL = 'Wavey_Birdie.json';
 let _aiFabAnim = null;
 
-// Memuat & memutar animasi "AI Animation Flow 1" di dalam tombol AI
-// mengambang (#ai-fab), menggantikan ikon bintang statis sebelumnya.
-// Ukurannya dikecilkan lewat CSS (#ai-fab-lottie) supaya tetap pas di
-// dalam lingkaran tombol yang sama seperti sebelumnya.
+// Memuat & memutar animasi "Wavey Birdie" di dalam tombol AI mengambang
+// (#ai-fab), menggantikan ikon bintang statis sebelumnya. Lottie ini murni
+// vector (tanpa layer solid/background), jadi otomatis transparan — dan
+// #ai-fab sendiri sudah background:transparent lewat CSS, jadi tidak ada
+// background apa pun di belakang animasi. Ukurannya diatur lewat CSS
+// (#ai-fab-lottie) supaya tetap pas di dalam tombol.
 function _renderAiFabAnimation(){
   if (typeof lottie === 'undefined') return;
   const container = document.getElementById('ai-fab-lottie');
