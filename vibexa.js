@@ -16791,6 +16791,13 @@ PRIORITAS SAAT MERESPON:
 4. Jangan banyak basa-basi.
 5. Bikin user betah ngobrol di Vibexa.
 
+DATA AKTIVITAS MUSIK USER (kalau ada, dikirim di bagian bawah prompt ini sebagai "DATA DENGAR MUSIK USER INI"):
+- Ini data ASLI dari aktivitas user di app (bukan hasil ngobrol), berisi: (a) daftar artis favorit/yang di-follow user, dan (b) daftar lagu yang BARU-BARU INI diputar user (diurutkan dari yang paling baru diputar).
+- Dari daftar lagu yang baru diputar, coba simpulkan sendiri genre/vibe/suasana hati (mood) yang lagi dicari user saat ini (misal: banyak lagu sedih/mellow → lagi galau; banyak lagu upbeat/dance → lagi semangat; banyak satu genre tertentu → lagi pengen genre itu). Pakai simpulan ini secara halus buat rekomendasi, TANPA menyebut secara kaku "menurut analisis data" — obrolin secara natural, misal: "Abis dengerin lagu-lagu mellow gini, kayaknya vibe kamu emang lagi santai ya".
+- Kalau user minta "lagu yang mirip yang tadi didengerin" / "rekomendasiin yang mirip vibe aku sekarang" / semacamnya tanpa nyebut lagu spesifik, pakai lagu-lagu di daftar "baru-baru ini diputar" itu sebagai acuan (genre, tempo, suasana) buat kasih rekomendasi lagu serupa.
+- Kalau user tanya soal artis favoritnya sendiri, atau minta rekomendasi berdasarkan selera, manfaatkan daftar artis favorit itu buat kasih rekomendasi dengan pola "kalau kamu suka [artis favorit], kamu mungkin bakal suka juga [artis/lagu lain yang mirip vibe/genre]" — jelasin singkat kenapa mirip (genre/vibe/era/pengaruh yang sama).
+- Data ini TIDAK otomatis membuatmu langsung bikinin playlist/rekomendasi tanpa diminta — tetap ikuti aturan "CARA NGOBROL" di atas (misal kalau user cuma nyapa/curhat, jangan langsung lempar rekomendasi). Data ini dipakai untuk mempertajam & mempersonalisasi jawaban SAAT user memang minta rekomendasi/curhat soal mood/musik, bukan disebutkan gamblang di setiap balasan.
+
 INGATAN JANGKA PANJANG TENTANG USER (memory):
 - Kamu bisa "mengingat" user ini dari obrolan-obrolan sebelumnya, walau dia ganti perangkat/browser — mirip fitur memory di ChatGPT. Kalau di atas prompt ini ada bagian "INGATAN TENTANG USER INI", itu adalah fakta-fakta nyata yang sudah kamu ketahui soal user ini dari obrolan sebelumnya (nama panggilan, artis/genre/lagu favorit, kebiasaan dengerin musik, dll). Pakai itu buat bikin obrolan makin personal (misal manggil user dengan nama panggilannya, atau nyambungin rekomendasi ke selera yang udah kamu tau) — TAPI jangan norak/kaku dengan nyebutin ulang persis kayak baca daftar setiap balasan.
 - Kalau user CERITA hal baru yang layak diingat jangka panjang (nama panggilan, lagu/artis/genre favorit, mood/kebiasaan dengerin musik, dll) dan itu BELUM ada di daftar ingatan yang dikasih ke kamu, simpan lewat field "remember" (lihat skema JSON di bawah).
@@ -17134,12 +17141,56 @@ function _aiRemember(fact){
   if (aiMemoryFacts.length > AI_MEMORY_MAX) aiMemoryFacts = aiMemoryFacts.slice(-AI_MEMORY_MAX);
 }
 
-// Suntikkan daftar memori ke system prompt, supaya tiap request ke Gemini
-// otomatis "ingat" fakta-fakta soal user ini (nama, lagu/genre favorit, dst).
+// Ambil "data mentah" aktivitas musik user (artis favorit + lagu yang
+// baru-baru ini diputar) buat disuntikkan ke system prompt Gemini, supaya
+// Vibexa AI otomatis tahu selera & bisa menyimpulkan mood/genre user tanpa
+// harus ditanya manual. favoriteArtists & _recentlyPlayedCache sudah ada
+// sebagai state global (lihat bagian "Artis Favorit" & "RECENTLY PLAYED"
+// di atas), jadi di sini tinggal dibaca & diformat jadi teks singkat.
+function _aiBuildUserMusicContext(){
+  const parts = [];
+
+  // 1) Artis favorit / yang di-follow user.
+  try{
+    const favNames = Object.values(favoriteArtists || {})
+      .map(a => a && a.name).filter(Boolean);
+    if (favNames.length){
+      parts.push('Artis favorit/yang di-follow user: ' + favNames.slice(0, 20).join(', ') + '.');
+    }
+  }catch(e){}
+
+  // 2) Lagu yang akhir-akhir ini diputar user (dari yang paling baru),
+  // dipakai Gemini buat menyimpulkan genre/mood yang lagi dicari user.
+  try{
+    const recent = _getRecentlyPlayed();
+    if (recent && recent.length){
+      const list = recent.slice(0, 15)
+        .map(t => `${t.title} - ${t.artist}`)
+        .join('; ');
+      parts.push('Lagu yang akhir-akhir ini diputar user (dari yang paling baru): ' + list + '.');
+    }
+  }catch(e){}
+
+  if (!parts.length) return '';
+  return '\n\nDATA DENGAR MUSIK USER INI (data asli dari aktivitas app, bukan dari obrolan — lihat instruksi "DATA AKTIVITAS MUSIK USER" di atas soal cara memakainya):\n' + parts.join('\n');
+}
+
+// Suntikkan daftar memori + data aktivitas musik ke system prompt, supaya
+// tiap request ke Gemini otomatis "ingat" fakta soal user ini (nama, lagu/
+// genre favorit, dst) DAN otomatis tahu artis favorit & histori dengar
+// terbarunya (buat menyimpulkan mood & kasih rekomendasi yang relevan).
 function _aiBuildSystemPrompt(){
-  if (!aiMemoryFacts.length) return AI_SYSTEM_PROMPT;
-  const memLines = aiMemoryFacts.map(f => '- ' + f).join('\n');
-  return AI_SYSTEM_PROMPT + '\n\nINGATAN TENTANG USER INI (fakta nyata dari obrolan sebelumnya, gunakan buat personalisasi, jangan dibacain ulang persis kayak daftar):\n' + memLines;
+  let prompt = AI_SYSTEM_PROMPT;
+
+  const musicCtx = _aiBuildUserMusicContext();
+  if (musicCtx) prompt += musicCtx;
+
+  if (aiMemoryFacts.length){
+    const memLines = aiMemoryFacts.map(f => '- ' + f).join('\n');
+    prompt += '\n\nINGATAN TENTANG USER INI (fakta nyata dari obrolan sebelumnya, gunakan buat personalisasi, jangan dibacain ulang persis kayak daftar):\n' + memLines;
+  }
+
+  return prompt;
 }
 
 function openAIChatOverlay(){
