@@ -796,6 +796,30 @@
     </div>
   </div>
 
+  <!-- Modal: Progres unduh SELURUH playlist ke Offline (dipicu dari tombol
+       "Download Playlist" di halaman Playlist biasa). Diletakkan di luar
+       #downloads-view karena dipicu dari halaman Playlist, bukan dari
+       halaman Unduhan Offline. -->
+  <div id="pl-download-progress-modal" class="modal-bg" style="display:none">
+    <div class="modal pldl-modal">
+      <div class="pldl-spinner-wrap" id="pldl-spinner-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="pldl-spinner-svg"><path d="M21 12a9 9 0 1 1-9-9"/></svg>
+      </div>
+      <div class="pldl-check-wrap" id="pldl-check-wrap" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="pldl-check-svg"><path d="M20 6 9 17l-5-5"/></svg>
+      </div>
+      <h3 id="pldl-title">Mengunduh Playlist...</h3>
+      <p id="pldl-current">Menyiapkan...</p>
+      <div class="pldl-progress-track">
+        <div class="pldl-progress-fill" id="pldl-progress-fill" style="width:0%"></div>
+      </div>
+      <div class="pldl-progress-label" id="pldl-progress-label">0 / 0</div>
+      <div class="mbtns" id="pldl-done-actions" style="display:none;justify-content:center;margin-top:14px;">
+        <button class="btn-p" onclick="closePlDownloadProgressModal(true)">Lihat di Unduhan Offline</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ALBUM VIEW (daftar lagu dalam album, bisa diputar) -->
   <div id="album-view" style="display:none;">
     <button class="pv-back" onclick="backFromAlbumView()">

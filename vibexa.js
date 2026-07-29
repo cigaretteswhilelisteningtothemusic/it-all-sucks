@@ -15905,6 +15905,80 @@ async function dlCreatePlaylist() {
 // yang sudah ada di halaman detail playlist offline — tidak perlu logic baru
 // untuk pemutaran maupun reorder, keduanya sudah otomatis berfungsi.
 let _dlPlaylistDownloadInProgress = false;
+let _pldlSavedPlaylistId = null; // id playlist offline hasil download terakhir, dipakai tombol "Lihat di Unduhan Offline"
+
+// ── Modal progres: tampil, update per-lagu, lalu tampil status akhir ────
+// Modal ini yang membuat user TAHU PASTI kapan proses unduh playlist
+// selesai (bar progres + label "x / total" berjalan real-time, lalu
+// berubah jadi ikon centang begitu semua lagu sudah diproses) — sebelumnya
+// satu-satunya indikator cuma teks kecil di tombol & toast yang gampang
+// terlewat.
+function _pldlShow(total){
+  const modal = document.getElementById('pl-download-progress-modal');
+  if (!modal) return;
+  const spinnerWrap = document.getElementById('pldl-spinner-wrap');
+  const checkWrap = document.getElementById('pldl-check-wrap');
+  const title = document.getElementById('pldl-title');
+  const current = document.getElementById('pldl-current');
+  const fill = document.getElementById('pldl-progress-fill');
+  const label = document.getElementById('pldl-progress-label');
+  const doneActions = document.getElementById('pldl-done-actions');
+  if (spinnerWrap) spinnerWrap.style.display = 'flex';
+  if (checkWrap) checkWrap.style.display = 'none';
+  if (title) title.textContent = 'Mengunduh Playlist...';
+  if (current) current.textContent = 'Menyiapkan...';
+  if (fill) fill.style.width = '0%';
+  if (label) label.textContent = '0 / ' + total;
+  if (doneActions) doneActions.style.display = 'none';
+  modal.style.display = 'flex';
+}
+function _pldlUpdate(doneCount, total, songLabel){
+  const current = document.getElementById('pldl-current');
+  const fill = document.getElementById('pldl-progress-fill');
+  const label = document.getElementById('pldl-progress-label');
+  if (current) current.textContent = songLabel;
+  if (fill) fill.style.width = Math.round((doneCount / total) * 100) + '%';
+  if (label) label.textContent = doneCount + ' / ' + total;
+}
+function _pldlFinish(okCount, failCount, total, playlistName){
+  const spinnerWrap = document.getElementById('pldl-spinner-wrap');
+  const checkWrap = document.getElementById('pldl-check-wrap');
+  const title = document.getElementById('pldl-title');
+  const current = document.getElementById('pldl-current');
+  const fill = document.getElementById('pldl-progress-fill');
+  const label = document.getElementById('pldl-progress-label');
+  const doneActions = document.getElementById('pldl-done-actions');
+  if (spinnerWrap) spinnerWrap.style.display = 'none';
+  if (checkWrap) checkWrap.style.display = 'flex';
+  if (fill) fill.style.width = '100%';
+  if (label) label.textContent = okCount + ' / ' + total + ' berhasil diunduh';
+  if (!okCount){
+    if (title) title.textContent = 'Unduh playlist gagal';
+    if (current) current.textContent = 'Tidak ada lagu yang berhasil diunduh. Coba lagi.';
+    if (checkWrap) checkWrap.style.display = 'none';
+  } else if (failCount){
+    if (title) title.textContent = 'Selesai (dengan beberapa kegagalan)';
+    if (current) current.textContent = okCount + ' lagu tersimpan, ' + failCount + ' gagal diunduh.';
+  } else {
+    if (title) title.textContent = 'Playlist berhasil diunduh!';
+    if (current) current.textContent = '"' + playlistName + '" siap diputar offline.';
+  }
+  if (doneActions) doneActions.style.display = okCount ? 'flex' : 'none';
+}
+// Tutup modal progres. goToOffline=true (tombol "Lihat di Unduhan Offline")
+// akan langsung membuka playlist offline yang baru dibuat.
+function closePlDownloadProgressModal(goToOffline){
+  const modal = document.getElementById('pl-download-progress-modal');
+  if (modal) modal.style.display = 'none';
+  if (goToOffline && _pldlSavedPlaylistId){
+    const plId = _pldlSavedPlaylistId;
+    try {
+      openDownloadsView();
+      switchDlTab('playlists');
+      openOfflinePlaylistView(plId);
+    } catch (e) { console.warn('Gagal membuka halaman Unduhan Offline:', e); }
+  }
+}
 
 async function downloadEntirePlaylistOffline(){
   if (_dlPlaylistDownloadInProgress) { toast(' Sedang mengunduh playlist, mohon tunggu sampai selesai...'); return; }
@@ -15917,18 +15991,20 @@ async function downloadEntirePlaylistOffline(){
   if (!confirm('Unduh semua ' + tracks.length + ' lagu di playlist "' + pl.name + '" untuk didengarkan offline?\n\nProses ini butuh koneksi internet dan mungkin memakan waktu beberapa menit.')) return;
 
   _dlPlaylistDownloadInProgress = true;
+  _pldlSavedPlaylistId = null;
   const btn = document.getElementById('pv-download-pl-btn');
   const label = document.getElementById('pv-download-pl-label');
   if (btn) btn.classList.add('dl-downloading');
+  _pldlShow(tracks.length);
 
   const trackIds = [];
   let okCount = 0, failCount = 0;
 
   for (let i = 0; i < tracks.length; i++){
     const track = tracks[i];
-    const progressText = 'Mengunduh ' + (i + 1) + '/' + tracks.length + '...';
-    if (label) label.textContent = progressText;
-    toast(' ' + progressText + ' (' + (track.title || 'Tanpa judul') + ')', 4000);
+    const songLabel = (track.title || 'Tanpa judul') + (track.artist ? ' — ' + track.artist : '');
+    if (label) label.textContent = 'Mengunduh ' + (i + 1) + '/' + tracks.length + '...';
+    _pldlUpdate(i, tracks.length, 'Mengunduh: ' + songLabel);
 
     try {
       // Video untuk lagu ini belum tentu sudah pernah di-resolve (videoId
@@ -15975,6 +16051,7 @@ async function downloadEntirePlaylistOffline(){
       console.warn('Gagal mengunduh "' + (track.title || '') + '" dari playlist:', e);
       failCount++;
     }
+    _pldlUpdate(i + 1, tracks.length, i + 1 < tracks.length ? 'Menyiapkan lagu berikutnya...' : 'Menyelesaikan...');
   }
 
   // Simpan playlist offline barunya HANYA kalau minimal 1 lagu berhasil,
@@ -15994,11 +16071,16 @@ async function downloadEntirePlaylistOffline(){
   if (btn) btn.classList.remove('dl-downloading');
   if (label) label.textContent = 'Download Playlist';
 
+  // Tandai modal sebagai SELESAI (spinner -> centang) supaya user tahu
+  // pasti kapan proses berakhir, terlepas dari berhasil semua/sebagian/gagal total.
+  _pldlFinish(okCount, failCount, tracks.length, pl.name);
+
   if (!trackIds.length){
     toast(' Tidak ada lagu yang berhasil diunduh. Coba lagi.');
     return;
   }
 
+  _pldlSavedPlaylistId = savedPlaylist ? savedPlaylist.id : null;
   toast(
     failCount
       ? (' ' + okCount + ' lagu tersimpan, ' + failCount + ' gagal diunduh')
@@ -16006,14 +16088,9 @@ async function downloadEntirePlaylistOffline(){
     4500
   );
 
-  // Langsung arahkan user ke playlist offline yang baru dibuat di halaman
-  // "Unduhan Offline" supaya bisa langsung diputar / diatur ulang urutannya.
-  try {
-    await refreshDownloadsList();
-    openDownloadsView();
-    switchDlTab('playlists');
-    if (savedPlaylist) openOfflinePlaylistView(savedPlaylist.id);
-  } catch (e) { console.warn('Gagal membuka halaman Unduhan Offline otomatis:', e); }
+  // Siapkan daftar Unduhan Offline di background supaya begitu user menekan
+  // tombol "Lihat di Unduhan Offline" di modal, datanya sudah siap tampil.
+  try { await refreshDownloadsList(); } catch (e) {}
 }
 
 // ── Modal: Tambah lagu offline ke playlist ───────────────────────────────
