@@ -17067,29 +17067,78 @@ function _aiSetTyping(on){
   }
 }
 
-async function _aiCallGemini(historyForApi){
-  const res = await fetch(GEMINI_PROXY_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: historyForApi,
-      systemInstruction: { parts: [{ text: AI_SYSTEM_PROMPT }] },
-      generationConfig: { responseMimeType: 'application/json', temperature: 0.85, maxOutputTokens: 2048 }
-    })
-  });
-  if (!res.ok){
-    let errText = '';
-    try{ errText = (await res.json())?.error?.message || ''; }catch(e){}
-    throw new Error('Gemini API error ' + res.status + (errText ? ': ' + errText : ''));
+// Kelas error khusus supaya sendAIChatMessage bisa bikin pesan yang sesuai
+// gaya Vibexa AI (bukan nampilin raw error teknis ke user), sambil tetap
+// nyimpen tipe error-nya (rate_limit / network / lainnya) buat kebutuhan lain.
+class VibexaAIError extends Error {
+  constructor(message, type){
+    super(message);
+    this.type = type || 'unknown'; // 'rate_limit' | 'network' | 'blocked' | 'invalid_format' | 'unknown'
   }
-  const data = await res.json();
-  const text = (data?.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
-  if (!text) throw new Error('Respons kosong dari AI (mungkin diblokir filter keamanan)');
-  try{ return JSON.parse(text); }
-  catch(e){
-    const m = text.match(/\{[\s\S]*\}/);
-    if (m){ try{ return JSON.parse(m[0]); }catch(e2){} }
-    throw new Error('Format balasan AI tidak valid');
+}
+
+// Coba ambil angka detik dari pesan error semacam "Please retry in 51.6s"
+// atau dari header Retry-After, buat nentuin berapa lama nunggu sebelum retry.
+function _aiParseRetryDelaySec(errText){
+  if (!errText) return null;
+  const m = errText.match(/retry in\s+([\d.]+)\s*s/i);
+  if (m) return Math.min(parseFloat(m[0].match(/[\d.]+/)[0]), 60);
+  return null;
+}
+
+function _aiSleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+// maxRetries: berapa kali retry OTOMATIS khusus buat kasus kena rate limit
+// (429). Error lain (network, format, blocked) langsung dilempar ke atas,
+// nggak di-retry, biar sendAIChatMessage bisa langsung kasih tau user.
+async function _aiCallGemini(historyForApi, maxRetries = 2){
+  let attempt = 0;
+  while (true){
+    let res;
+    try{
+      res = await fetch(GEMINI_PROXY_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: historyForApi,
+          systemInstruction: { parts: [{ text: AI_SYSTEM_PROMPT }] },
+          generationConfig: { responseMimeType: 'application/json', temperature: 0.85, maxOutputTokens: 2048 }
+        })
+      });
+    }catch(networkErr){
+      throw new VibexaAIError('Koneksi ke Vibexa AI gagal, coba cek internet kamu.', 'network');
+    }
+
+    if (!res.ok){
+      let errText = '';
+      try{ errText = (await res.json())?.error?.message || ''; }catch(e){}
+
+      if (res.status === 429){
+        const delaySec = _aiParseRetryDelaySec(errText) ?? (5 * (attempt + 1));
+        if (attempt < maxRetries){
+          attempt++;
+          await _aiSleep(delaySec * 1000);
+          continue; // coba lagi otomatis
+        }
+        throw new VibexaAIError('Lagi rame banget nih yang chat ke gue, kena limit sementara. Coba lagi bentar ya (~1 menit).', 'rate_limit');
+      }
+
+      if (res.status >= 500){
+        throw new VibexaAIError('Server AI-nya lagi ngambek dikit, coba kirim lagi ya.', 'network');
+      }
+
+      throw new VibexaAIError('Ada masalah pas nyambung ke Vibexa AI (kode ' + res.status + ').', 'unknown');
+    }
+
+    const data = await res.json();
+    const text = (data?.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
+    if (!text) throw new VibexaAIError('Responsnya kosong, mungkin kena filter keamanan. Coba pakai kata lain.', 'blocked');
+    try{ return JSON.parse(text); }
+    catch(e){
+      const m = text.match(/\{[\s\S]*\}/);
+      if (m){ try{ return JSON.parse(m[0]); }catch(e2){} }
+      throw new VibexaAIError('Balasan AI-nya agak berantakan, coba kirim ulang ya.', 'invalid_format');
+    }
   }
 }
 
@@ -17125,9 +17174,12 @@ async function sendAIChatMessage(){
     _aiSetTyping(false);
     renderAIChatMessages();
   }catch(e){
-    console.error('Gemini AI error:', e);
+    console.error('Vibexa AI error:', e);
     _aiSetTyping(false);
-    aiChatDisplay.push({ role: 'assistant', text: 'Maaf, ada masalah menghubungi Vibexa AI: ' + e.message, songs: [], playlistName: null });
+    // Kalau gagal, jangan simpan turn user yg gagal dibalas ke aiApiHistory
+    // biar konteks Gemini nggak "bolong" pas dicoba lagi nanti.
+    const friendlyText = (e && e.message) ? e.message : 'Waduh, ada gangguan dikit. Coba kirim lagi ya.';
+    aiChatDisplay.push({ role: 'assistant', text: friendlyText, songs: [], playlistName: null, isError: true });
     _aiSaveChatState();
     renderAIChatMessages();
   }finally{
