@@ -15889,6 +15889,133 @@ async function dlCreatePlaylist() {
   openOfflinePlaylistView(pl.id);
 }
 
+// ── Unduh SELURUH Playlist (dari halaman Playlist biasa) ke Offline ──────
+// Dipanggil dari tombol "Download Playlist" di halaman playlist (pv-actions,
+// lihat vibexa.html). Mengunduh semua lagu di playlist yang SEDANG DIBUKA
+// satu per satu (biar tidak membanjiri API konversi YouTube→MP3 sekaligus,
+// sama seperti downloadCurrentSongOffline), lalu menyimpan seluruh hasilnya
+// sebagai SATU playlist baru di object store DL_PL_STORE (playlist offline)
+// dengan nama & URUTAN LAGU yang PERSIS SAMA seperti playlist aslinya.
+//
+// Playlist offline yang baru dibuat ini otomatis muncul di halaman
+// "Unduhan Offline" (tab Playlist) — dan karena memakai object store yang
+// sama persis dengan playlist offline lainnya, playlist ini juga otomatis
+// bisa: (a) diputar (lewat playOfflinePlaylist / openOfflinePlaylistView,
+// sudah ada), dan (b) diatur ulang urutan lagunya lewat tombol "Atur Urutan"
+// yang sudah ada di halaman detail playlist offline — tidak perlu logic baru
+// untuk pemutaran maupun reorder, keduanya sudah otomatis berfungsi.
+let _dlPlaylistDownloadInProgress = false;
+
+async function downloadEntirePlaylistOffline(){
+  if (_dlPlaylistDownloadInProgress) { toast(' Sedang mengunduh playlist, mohon tunggu sampai selesai...'); return; }
+  if (!currentPlaylistId || !playlists[currentPlaylistId]) { toast(' Playlist tidak ditemukan'); return; }
+
+  const pl = playlists[currentPlaylistId];
+  const tracks = (pl.tracks || []).slice(); // salin urutan asli, tidak diubah selama proses
+  if (!tracks.length) { toast(' Playlist ini masih kosong'); return; }
+
+  if (!confirm('Unduh semua ' + tracks.length + ' lagu di playlist "' + pl.name + '" untuk didengarkan offline?\n\nProses ini butuh koneksi internet dan mungkin memakan waktu beberapa menit.')) return;
+
+  _dlPlaylistDownloadInProgress = true;
+  const btn = document.getElementById('pv-download-pl-btn');
+  const label = document.getElementById('pv-download-pl-label');
+  if (btn) btn.classList.add('dl-downloading');
+
+  const trackIds = [];
+  let okCount = 0, failCount = 0;
+
+  for (let i = 0; i < tracks.length; i++){
+    const track = tracks[i];
+    const progressText = 'Mengunduh ' + (i + 1) + '/' + tracks.length + '...';
+    if (label) label.textContent = progressText;
+    toast(' ' + progressText + ' (' + (track.title || 'Tanpa judul') + ')', 4000);
+
+    try {
+      // Video untuk lagu ini belum tentu sudah pernah di-resolve (videoId
+      // biasanya null sampai lagu benar-benar diputar sekali), jadi dicari
+      // dulu di sini — sama persis seperti mekanisme di loadPlay().
+      let videoId = track.videoId || null;
+      let lines = null;
+      if (!videoId){
+        const cl = cleanT(track.title || '');
+        const resolved = await resolveVidByDuration(track.artist, track.title, cl, track.duration);
+        videoId = resolved.videoId;
+        lines = resolved.lines;
+      }
+      if (!videoId) throw new Error('Video tidak ditemukan');
+
+      let data = await _yt2mp3Fetch(videoId);
+      let attempts = 0;
+      while (data && data.status === 'processing' && attempts < 20){
+        attempts++;
+        await _dlSleep(1500);
+        data = await _yt2mp3Fetch(videoId);
+      }
+      if (!data || data.status !== 'ok' || !data.link) throw new Error((data && data.msg) || 'Konversi gagal');
+
+      const res = await fetch(data.link);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const blob = await res.blob();
+
+      // Foto album ASLI (dari iTunes, sama seperti downloadCurrentSongOffline)
+      // diutamakan dibanding thumbnail video YouTube yang biasanya tertanam
+      // otomatis di ID3 file hasil konversi.
+      let artBlob = null;
+      if (track.thumb) {
+        try {
+          const artRes = await fetch(track.thumb);
+          if (artRes.ok) artBlob = await artRes.blob();
+        } catch (e) { /* fallback ke ID3 di dalam _dlAddRemoteBlob */ }
+      }
+
+      const record = await _dlAddRemoteBlob(track.title, track.artist, blob, artBlob, lines);
+      trackIds.push(record.id);
+      okCount++;
+    } catch (e) {
+      console.warn('Gagal mengunduh "' + (track.title || '') + '" dari playlist:', e);
+      failCount++;
+    }
+  }
+
+  // Simpan playlist offline barunya HANYA kalau minimal 1 lagu berhasil,
+  // dengan trackIds mengikuti urutan asli playlist (index i di atas).
+  let savedPlaylist = null;
+  if (trackIds.length){
+    savedPlaylist = {
+      id: 'dlpl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+      name: pl.name,
+      trackIds,
+      createdAt: Date.now()
+    };
+    try { await _dlPlSave(savedPlaylist); } catch (e) { console.error(e); toast(' Gagal menyimpan playlist ke Unduhan Offline'); }
+  }
+
+  _dlPlaylistDownloadInProgress = false;
+  if (btn) btn.classList.remove('dl-downloading');
+  if (label) label.textContent = 'Download Playlist';
+
+  if (!trackIds.length){
+    toast(' Tidak ada lagu yang berhasil diunduh. Coba lagi.');
+    return;
+  }
+
+  toast(
+    failCount
+      ? (' ' + okCount + ' lagu tersimpan, ' + failCount + ' gagal diunduh')
+      : (' Playlist "' + pl.name + '" (' + okCount + ' lagu) tersimpan ke Unduhan Offline'),
+    4500
+  );
+
+  // Langsung arahkan user ke playlist offline yang baru dibuat di halaman
+  // "Unduhan Offline" supaya bisa langsung diputar / diatur ulang urutannya.
+  try {
+    await refreshDownloadsList();
+    openDownloadsView();
+    switchDlTab('playlists');
+    if (savedPlaylist) openOfflinePlaylistView(savedPlaylist.id);
+  } catch (e) { console.warn('Gagal membuka halaman Unduhan Offline otomatis:', e); }
+}
+
 // ── Modal: Tambah lagu offline ke playlist ───────────────────────────────
 let _dlPendingAddTrackId = null;
 async function openDlAddToPlaylistModal(trackId) {
