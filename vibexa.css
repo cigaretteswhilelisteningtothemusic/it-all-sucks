@@ -4518,16 +4518,16 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 /* ════════════════════════════════════════════════════════════
    VIBEXA AI — asisten AI (chat, rekomendasi lagu, buat playlist)
 ════════════════════════════════════════════════════════════ */
-#ai-fab{position:fixed;right:22px;bottom:calc(var(--np-bottom) + 18px);width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--green),#8b5cf6);border:none;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:200;box-shadow:0 6px 20px rgba(46,125,255,.45);transition:transform .18s,box-shadow .18s;overflow:hidden;}
-#ai-fab:hover{transform:scale(1.08);box-shadow:0 8px 26px rgba(46,125,255,.6);}
+#ai-fab{position:fixed;right:22px;bottom:calc(var(--np-bottom) + 18px);width:68px;height:68px;border-radius:50%;background:transparent;border:none;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:200;box-shadow:none;transition:transform .18s;}
+#ai-fab:hover{transform:scale(1.08);}
 #ai-fab svg{width:23px;height:23px;}
-#ai-fab-lottie{width:34px;height:34px;pointer-events:none;}
+#ai-fab-lottie{width:64px;height:64px;pointer-events:none;}
 #ai-fab-lottie svg{width:100%!important;height:100%!important;}
 #ai-fab.hide{display:none;}
 @media(max-width:660px){
-  #ai-fab{width:46px;height:46px;right:14px;bottom:calc(var(--np-bottom) + 12px);}
+  #ai-fab{width:56px;height:56px;right:14px;bottom:calc(var(--np-bottom) + 12px);}
   #ai-fab svg{width:20px;height:20px;}
-  #ai-fab-lottie{width:30px;height:30px;}
+  #ai-fab-lottie{width:52px;height:52px;}
 }
 
 #ai-chat-overlay{position:absolute;inset:0;z-index:60;background:var(--bg);display:none;flex-direction:column;border-radius:var(--r);}
