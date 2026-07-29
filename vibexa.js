@@ -16791,73 +16791,170 @@ PRIORITAS SAAT MERESPON:
 4. Jangan banyak basa-basi.
 5. Bikin user betah ngobrol di Vibexa.
 
+INGATAN JANGKA PANJANG TENTANG USER (memory):
+- Kamu bisa "mengingat" user ini dari obrolan-obrolan sebelumnya, walau dia ganti perangkat/browser — mirip fitur memory di ChatGPT. Kalau di atas prompt ini ada bagian "INGATAN TENTANG USER INI", itu adalah fakta-fakta nyata yang sudah kamu ketahui soal user ini dari obrolan sebelumnya (nama panggilan, artis/genre/lagu favorit, kebiasaan dengerin musik, dll). Pakai itu buat bikin obrolan makin personal (misal manggil user dengan nama panggilannya, atau nyambungin rekomendasi ke selera yang udah kamu tau) — TAPI jangan norak/kaku dengan nyebutin ulang persis kayak baca daftar setiap balasan.
+- Kalau user CERITA hal baru yang layak diingat jangka panjang (nama panggilan, lagu/artis/genre favorit, mood/kebiasaan dengerin musik, dll) dan itu BELUM ada di daftar ingatan yang dikasih ke kamu, simpan lewat field "remember" (lihat skema JSON di bawah).
+- Jangan pernah menyimpan data sensitif (nomor HP, alamat, email, password, dll) ke "remember".
+
 ATURAN FORMAT OUTPUT — WAJIB DIIKUTI PERSIS (ini teknis, di luar gaya ngobrol di atas):
 1. Balas HANYA dengan SATU objek JSON valid. Jangan menulis apapun di luar objek JSON itu (tanpa basa-basi, tanpa markdown code fence seperti \`\`\`json).
 2. Skema JSON WAJIB persis seperti ini:
-{"message": "...", "songs": [{"title": "...", "artist": "..."}], "playlist_name": null}
+{"message": "...", "songs": [{"title": "...", "artist": "..."}], "playlist_name": null, "remember": null}
 - "message": balasan ngobrol yang natural ke user sesuai kepribadian & cara ngobrol di atas, dalam Bahasa Indonesia (kecuali user mengajak berbahasa lain).
 - "songs": array lagu NYATA yang benar-benar pernah dirilis (judul & nama artis asli — jangan pernah mengarang judul/artis). Kosongkan jadi [] kalau user cuma mengobrol biasa, curhat, atau kebutuhannya belum jelas dan kamu lagi nanya balik.
 - "playlist_name": nama pendek & unik untuk playlist, HANYA JIKA user secara jelas minta dibuatkan/disusunkan sebuah playlist DAN kebutuhannya udah jelas (bukan lagi kamu tanya balik). Selain itu isi null.
+- "remember": SATU fakta baru yang layak diingat jangka panjang soal user ini (lihat aturan "INGATAN JANGKA PANJANG" di atas), ditulis singkat 1 kalimat pendek Bahasa Indonesia (maks ±15 kata), contoh: "Suka dipanggil Rian", "Genre favorit: city pop dan lo-fi", "Lagu favoritnya Blinding Lights - The Weeknd". Isi null kalau tidak ada info baru yang perlu disimpan di balasan ini.
 3. Kalau user minta dibuatkan PLAYLIST dan kebutuhannya sudah jelas: isi "songs" dengan sekitar 10-15 lagu yang relevan dan disusun alurnya (misal pelan → naik → chill di akhir), dan "playlist_name" wajib terisi, plus jelasin alasan pemilihan/alurnya di "message".
 4. Kalau user cuma minta REKOMENDASI lagu (bukan playlist utuh) dan konteksnya udah jelas: isi "songs" dengan sekitar 4-8 lagu dan "playlist_name": null, dan kasih alasan singkat tiap/beberapa lagu di "message".
 5. Kalau user cuma mengobrol, curhat, tanya hal umum soal musik, atau konteksnya masih kurang jelas (kamu lagi nanya balik ke user): "songs": [] dan "playlist_name": null, cukup jawab lewat "message".
 6. Jangan pernah menyertakan kutipan lirik lagu di dalam "message" (hak cipta).`;
 
 const AI_CHAT_HIST_PREFIX = 'vibexa_ai_chat_';
+// Batas jumlah turn yang disimpan (biar node cloud & localStorage nggak
+// membengkak tanpa batas — riwayat lama tetap ada, cuma yg paling lawas dibuang).
+const AI_CHAT_MAX_TURNS = 80;
+// Batas jumlah fakta "memori" yang disimpan per user.
+const AI_MEMORY_MAX = 40;
 
 function _aiChatKey(){
   const uid = (typeof currentUser !== 'undefined' && currentUser && currentUser.uid) ? currentUser.uid : 'anon';
   return AI_CHAT_HIST_PREFIX + uid;
 }
 
+// Riwayat & memori Vibexa AI disimpan di Firebase (bukan cuma localStorage),
+// jadi user tetap "ditemani" AI yang sama & inget dia walau ganti perangkat/
+// browser — persis seperti riwayat obrolan ChatGPT yang tersimpan di akun.
+function _aiStateRef(){
+  if (typeof currentUser === 'undefined' || !currentUser) return null;
+  return db.ref('users/' + currentUser.uid + '/aiChat');
+}
+
 // aiChatDisplay: pesan untuk DITAMPILKAN (termasuk track hasil resolve iTunes).
 // aiApiHistory : riwayat turn mentah format Gemini (role/parts) untuk konteks obrolan.
-let aiChatDisplay = [];
-let aiApiHistory  = [];
-let aiChatLoading = false;
+// aiMemoryFacts: fakta-fakta ringkas tentang user (nama panggilan, lagu/genre
+//                favorit, dll) yang disuntikkan ke system prompt supaya AI
+//                "kenal" & inget user ini di obrolan-obrolan berikutnya.
+let aiChatDisplay  = [];
+let aiApiHistory   = [];
+let aiMemoryFacts  = [];
+let aiChatLoading  = false;
 
-function _aiLoadChatState(){
+// Baca cache lokal dulu (instan, biar overlay langsung ada isi walau lagi
+// nunggu jaringan), baru ditimpa versi asli dari cloud begitu selesai dimuat.
+function _aiLoadCachedChatState(){
   try{
     const raw = localStorage.getItem(_aiChatKey());
     if (raw){
       const parsed = JSON.parse(raw);
       aiChatDisplay = Array.isArray(parsed.display) ? parsed.display : [];
       aiApiHistory  = Array.isArray(parsed.api) ? parsed.api : [];
-    } else {
-      aiChatDisplay = []; aiApiHistory = [];
+      aiMemoryFacts = Array.isArray(parsed.memory) ? parsed.memory : [];
+      return;
     }
-  }catch(e){ aiChatDisplay = []; aiApiHistory = []; }
+  }catch(e){}
+  aiChatDisplay = []; aiApiHistory = []; aiMemoryFacts = [];
 }
-function _aiSaveChatState(){
-  try{ localStorage.setItem(_aiChatKey(), JSON.stringify({ display: aiChatDisplay, api: aiApiHistory })); }catch(e){}
+
+async function _aiLoadChatState(){
+  _aiLoadCachedChatState();
+  const ref = _aiStateRef();
+  if (!ref) return; // belum login / anon → cache lokal saja
+  try{
+    const snap = await ref.get();
+    if (snap.exists()){
+      const raw = snap.val();
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      aiChatDisplay = Array.isArray(parsed.display) ? parsed.display : [];
+      aiApiHistory  = Array.isArray(parsed.api) ? parsed.api : [];
+      aiMemoryFacts = Array.isArray(parsed.memory) ? parsed.memory : [];
+      _aiSaveChatState(true); // sinkronkan cache lokal biar konsisten dgn cloud
+    }
+  }catch(e){ console.warn('Gagal memuat riwayat Vibexa AI dari cloud:', e); }
+  await _aiSeedMemoryFromProfile();
+}
+
+// skipCloud: true kalau cuma mau menyegarkan cache lokal (habis sinkron dari
+// cloud), tanpa nulis ulang ke cloud (biar nggak muter-muter tulis balik).
+function _aiSaveChatState(skipCloud){
+  if (aiApiHistory.length  > AI_CHAT_MAX_TURNS) aiApiHistory  = aiApiHistory.slice(-AI_CHAT_MAX_TURNS);
+  if (aiChatDisplay.length > AI_CHAT_MAX_TURNS) aiChatDisplay = aiChatDisplay.slice(-AI_CHAT_MAX_TURNS);
+  if (aiMemoryFacts.length > AI_MEMORY_MAX)     aiMemoryFacts = aiMemoryFacts.slice(-AI_MEMORY_MAX);
+
+  const payload = { display: aiChatDisplay, api: aiApiHistory, memory: aiMemoryFacts };
+  try{ localStorage.setItem(_aiChatKey(), JSON.stringify(payload)); }catch(e){}
+  if (skipCloud) return;
+  const ref = _aiStateRef();
+  if (ref) ref.set(JSON.stringify(payload)).catch(e => console.warn('Gagal menyimpan riwayat Vibexa AI ke cloud:', e));
+}
+
+// Sekali per user (kalau belum ada memori sama sekali), tarik nama panggilan
+// dari profil yang sudah ada supaya AI langsung "kenal nama" user tanpa
+// perlu ditanya/diceritakan dulu di chat.
+async function _aiSeedMemoryFromProfile(){
+  if (aiMemoryFacts.length || typeof currentUser === 'undefined' || !currentUser) return;
+  try{
+    const snap = await db.ref('users/' + currentUser.uid + '/profile/displayName').get();
+    const name = (snap.exists() && snap.val()) ? snap.val() : (currentUser.displayName || null);
+    if (name){
+      aiMemoryFacts.push('Nama panggilan/nama akun user: ' + name);
+      _aiSaveChatState();
+    }
+  }catch(e){}
+}
+
+// Simpan fakta baru dari field "remember" yang dikasih AI, kalau memang ada
+// & belum pernah tercatat sebelumnya (hindari duplikat persis).
+function _aiRemember(fact){
+  if (!fact || typeof fact !== 'string') return;
+  const clean = fact.trim().slice(0, 160);
+  if (!clean) return;
+  const dup = aiMemoryFacts.some(f => f.toLowerCase() === clean.toLowerCase());
+  if (dup) return;
+  aiMemoryFacts.push(clean);
+  if (aiMemoryFacts.length > AI_MEMORY_MAX) aiMemoryFacts = aiMemoryFacts.slice(-AI_MEMORY_MAX);
+}
+
+// Suntikkan daftar memori ke system prompt, supaya tiap request ke Gemini
+// otomatis "ingat" fakta-fakta soal user ini (nama, lagu/genre favorit, dst).
+function _aiBuildSystemPrompt(){
+  if (!aiMemoryFacts.length) return AI_SYSTEM_PROMPT;
+  const memLines = aiMemoryFacts.map(f => '- ' + f).join('\n');
+  return AI_SYSTEM_PROMPT + '\n\nINGATAN TENTANG USER INI (fakta nyata dari obrolan sebelumnya, gunakan buat personalisasi, jangan dibacain ulang persis kayak daftar):\n' + memLines;
 }
 
 function openAIChatOverlay(){
-  _aiLoadChatState();
   const ov = document.getElementById('ai-chat-overlay');
   if (ov) ov.classList.add('show');
   const fab = document.getElementById('ai-fab'); if (fab) fab.classList.add('hide');
+  // Kunci scroll #main (sama seperti pola di openStreakView/openDownloadsView/
+  // openChatOverlay) supaya konten Home di baliknya tidak ikut ke-scroll saat
+  // user scroll di halaman Vibexa AI. Tanpa ini, #main (yang overflow-y:auto)
+  // tetap bisa di-scroll di PC/tablet karena #ai-chat-overlay cuma
+  // position:absolute di dalamnya, bukan fullscreen — akibatnya halaman
+  // Vibexa AI "bocor" dan konten Home (mis. Recently Played) di belakangnya
+  // ikut kelihatan kalau posisi scroll Home sedang tidak di paling atas.
+  const mainEl = document.getElementById('main');
+  if (mainEl) { mainEl.scrollTop = 0; mainEl.style.overflow = 'hidden'; }
+  // Render dulu dari cache lokal (instan), lalu sinkron ulang begitu versi
+  // asli dari cloud selesai dimuat — supaya riwayat & memori dari perangkat
+  // lain ikut muncul di sini juga.
+  _aiLoadCachedChatState();
   renderAIChatMessages();
+  _aiLoadChatState().then(() => renderAIChatMessages());
   setTimeout(() => { const inp = document.getElementById('ai-chat-input'); if (inp) inp.focus(); }, 150);
 }
 function closeAIChatOverlay(){
   const ov = document.getElementById('ai-chat-overlay');
   if (ov) ov.classList.remove('show');
   const fab = document.getElementById('ai-fab'); if (fab) fab.classList.remove('hide');
+  const mainEl = document.getElementById('main');
+  if (mainEl) mainEl.style.overflow = '';
 }
 
 function aiQuickPrompt(text){
   const inp = document.getElementById('ai-chat-input');
   if (inp) inp.value = text;
   sendAIChatMessage();
-}
-
-function clearAIChat(){
-  if (!aiChatDisplay.length) return;
-  if (!confirm('Hapus semua riwayat obrolan dengan Vibexa AI?')) return;
-  aiChatDisplay = []; aiApiHistory = [];
-  _aiSaveChatState();
-  renderAIChatMessages();
 }
 
 function _aiScrollToBottom(){
@@ -17099,7 +17196,7 @@ function _aiSleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 // maxRetries: berapa kali retry OTOMATIS khusus buat kasus kena rate limit
 // (429). Error lain (network, format, blocked) langsung dilempar ke atas,
 // nggak di-retry, biar sendAIChatMessage bisa langsung kasih tau user.
-async function _aiCallGemini(historyForApi, maxRetries = 2){
+async function _aiCallGemini(historyForApi, systemPrompt, maxRetries = 2){
   let attempt = 0;
   while (true){
     let res;
@@ -17109,7 +17206,7 @@ async function _aiCallGemini(historyForApi, maxRetries = 2){
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: historyForApi,
-          systemInstruction: { parts: [{ text: AI_SYSTEM_PROMPT }] },
+          systemInstruction: { parts: [{ text: systemPrompt || AI_SYSTEM_PROMPT }] },
           generationConfig: { responseMimeType: 'application/json', temperature: 0.85, maxOutputTokens: 2048 }
         })
       });
@@ -17169,13 +17266,14 @@ async function sendAIChatMessage(){
   _aiSetTyping(true);
 
   try{
-    const parsed = await _aiCallGemini(aiApiHistory);
+    const parsed = await _aiCallGemini(aiApiHistory, _aiBuildSystemPrompt());
     const msg = {
       role: 'assistant',
       text: (parsed && typeof parsed.message === 'string' && parsed.message.trim()) || 'Oke!',
       songs: (parsed && Array.isArray(parsed.songs)) ? parsed.songs.filter(s => s && s.title).slice(0, 20) : [],
       playlistName: (parsed && parsed.playlist_name) || null
     };
+    _aiRemember(parsed && parsed.remember);
     aiApiHistory.push({ role: 'model', parts: [{ text: JSON.stringify(parsed) }] });
     aiChatDisplay.push(msg);
     _aiSaveChatState();

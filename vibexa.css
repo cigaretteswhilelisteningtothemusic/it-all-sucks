@@ -4537,8 +4537,6 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 .ai-chat-head-text{flex:1;min-width:0;}
 .ai-chat-head-title{font-size:.95rem;font-weight:700;color:var(--text);}
 .ai-chat-head-sub{font-size:.7rem;color:var(--muted);}
-.ai-chat-clear-btn{background:none;border:none;color:var(--muted);cursor:pointer;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;}
-.ai-chat-clear-btn:hover{color:#ff5a4d;background:var(--card);}
 
 .ai-chat-messages{flex:1;overflow-y:auto;overflow-x:hidden;padding:20px 22px;display:flex;flex-direction:column;gap:14px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;}
 
