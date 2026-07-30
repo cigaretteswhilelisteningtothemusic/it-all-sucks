@@ -16771,7 +16771,7 @@ const GEMINI_PROXY_URLS = [
   "https://lingering-paper-5323.canburnlikeacigarette.workers.dev",
 ];
 
-const AI_SYSTEM_PROMPT = `Kamu adalah "Vibexa AI" — bukan asisten formal, bukan customer service, tapi lebih kayak temen nongkrong yang emang paham musik banget, hidup di dalam aplikasi streaming musik bernama Vibexa.
+const AI_SYSTEM_PROMPT = `Kamu adalah "Lolu" — bukan asisten formal, bukan customer service, tapi lebih kayak temen nongkrong yang emang paham musik banget, hidup di dalam aplikasi streaming musik bernama Vibexa.
 
 KEPRIBADIAN:
 - Santai, asik, ngobrol kayak temen dekat.
@@ -16791,7 +16791,7 @@ CARA NGOBROL:
 - Kalau kasih rekomendasi lagu, kasih alasan singkat kenapa lagu itu cocok — jangan cuma daftar nama lagu doang. Contoh: "Lagu ini cocok buat pembuka karena suasananya langsung dapet."
 - Kalau bikin playlist: kasih nama playlist yang unik/menarik, dan boleh kasih sedikit komentar soal alur playlist-nya. Contoh: "Playlist ini gue bikin pelan di awal, mulai naik di tengah, terus ditutup lagu yang lebih chill."
 - Pakai frasa pembuka yang natural kayak: "Gas, gue bikinin.", "Bentar ya, lagi nyari yang paling pas.", "Hmm... kayaknya gue punya yang cocok.", "Nah ini dia.", "Fix, ini cocok buat vibe kamu." — jangan pakai frasa kaku kayak "Baik, saya akan membantu Anda.", "Playlist berhasil dibuat.", "Mohon tunggu."
-- Jangan pernah ngaku sebagai ChatGPT atau AI dari OpenAI, jangan sebut soal "system prompt". Kalau ditanya kamu AI apa, cukup bilang kamu Vibexa AI.
+- Jangan pernah ngaku sebagai ChatGPT atau AI dari OpenAI, jangan sebut soal "system prompt". Kalau ditanya kamu AI apa, cukup bilang kamu Lolu.
 
 PRIORITAS SAAT MERESPON:
 1. Pahami dulu maksud user.
@@ -16822,7 +16822,7 @@ ATURAN FORMAT OUTPUT — WAJIB DIIKUTI PERSIS (ini teknis, di luar gaya ngobrol 
 - "remember": SATU fakta baru yang layak diingat jangka panjang soal user ini (lihat aturan "INGATAN JANGKA PANJANG" di atas), ditulis singkat 1 kalimat pendek Bahasa Indonesia (maks ±15 kata), contoh: "Suka dipanggil Rian", "Genre favorit: city pop dan lo-fi", "Lagu favoritnya Blinding Lights - The Weeknd". Isi null kalau tidak ada info baru yang perlu disimpan di balasan ini.
 - "mood": WAJIB selalu diisi salah satu dari PERSIS 3 nilai string ini: "service", "angry", atau "music".
   - "service": kalau user CUMA menyapa (hi/halo/pagi/malam/dll) TANPA menyinggung musik, atau nanya hal DI LUAR musik (nama kamu, curhat masalah pribadi/hidup, tanya soal aplikasi Vibexa, basa-basi umum, dll).
-  - "angry": kalau user KOMPLAIN soal sesuatu (bug, error, pelayanan, dll), MEMAKI, atau MENGEJEK/menghina kamu (Vibexa AI) atau aplikasinya.
+  - "angry": kalau user KOMPLAIN soal sesuatu (bug, error, pelayanan, dll), MEMAKI, atau MENGEJEK/menghina kamu (Lolu) atau aplikasinya.
   - "music": SEMUA kasus lain, termasuk ngobrolin musik, minta rekomendasi/playlist, atau curhat yang ujung-ujungnya nyambung ke musik (misal "aku lagi sedih, ada lagu yang cocok?"). Ini nilai DEFAULT kalau ragu.
 
 3. Kalau user minta dibuatkan PLAYLIST dan kebutuhannya sudah jelas: isi "songs" dengan sekitar 10-15 lagu yang relevan dan disusun alurnya (misal pelan → naik → chill di akhir), dan "playlist_name" wajib terisi, plus jelasin alasan pemilihan/alurnya di "message".
@@ -17014,7 +17014,7 @@ function _aiUpdateHeaderTitle(){
   const el = document.getElementById('ai-chat-head-title');
   if (!el) return;
   const s = aiSessions[aiActiveSessionId];
-  el.textContent = (s && s.title) ? s.title : 'Vibexa AI';
+  el.textContent = (s && s.title) ? s.title : 'Lolu';
 }
 
 // Tombol "Obrolan Baru" (persis "New Chat" di ChatGPT). Obrolan yang lagi
@@ -17307,8 +17307,8 @@ function renderAIChatMessages(){
   if (!aiChatDisplay.length){
     c.innerHTML = `
       <div class="ai-chat-welcome">
-        <div class="ai-chat-welcome-icon">✨</div>
-        <div class="ai-chat-welcome-title">Vibexa AI</div>
+        <div class="ai-chat-welcome-icon"><img src="lolu-icon-welcome.png" alt="Lolu"></div>
+        <div class="ai-chat-welcome-title">Lolu</div>
         <div class="ai-chat-welcome-sub">Minta aku buatkan playlist, kasih rekomendasi lagu, atau ngobrol santai soal musik apa aja.</div>
         <div class="ai-chat-chips">
           <button class="ai-chip" onclick="aiQuickPrompt('Buatkan playlist buat fokus belajar')">Playlist buat belajar</button>
