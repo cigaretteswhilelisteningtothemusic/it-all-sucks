@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-title" content="Vibexa">
 <link rel="apple-touch-icon" href="icons/launchericon-192x192.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/launchericon-192x192.png">
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&family=Press+Start+2P&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vibexa.css">
 </head>
 <body>
@@ -143,6 +143,14 @@
 <!-- Ikon berupa animasi Lottie "Wavey Birdie" (Wavey_Birdie.json), tanpa
      background apa pun (animasi vector transparan + tombol transparent).
      Animasi dimuat & diputar oleh _renderAiFabAnimation() di vibexa.js. -->
+<!-- Bubble sapaan pixel Lolu — muncul di samping kiri tombol Lolu setiap
+     user kembali ke web (lihat _aiFabBubbleRotate() di vibexa.js). Teksnya
+     bergilir dari daftar LOLU_BUBBLE_PHRASES, disimpan indeksnya di
+     localStorage biar tetap konsisten walau di-refresh/dibuka lagi nanti. -->
+<div id="ai-fab-bubble" class="ai-fab-bubble hide" role="status" aria-live="polite" onclick="openAIChatOverlay()">
+  <span id="ai-fab-bubble-text">Lolu missed you!!</span>
+  <div class="ai-fab-bubble-tail"></div>
+</div>
 <button id="ai-fab" onclick="openAIChatOverlay()" title="Lolu — Chat & Rekomendasi Musik">
   <div id="ai-fab-lottie"></div>
 </button>

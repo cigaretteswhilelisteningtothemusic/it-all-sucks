@@ -17243,12 +17243,19 @@ document.addEventListener('DOMContentLoaded', _renderAiFabAnimation);
 function _syncAiFabVisibility(){
   const home = document.getElementById('home-view');
   const fab = document.getElementById('ai-fab');
+  const bubble = document.getElementById('ai-fab-bubble');
   if (!home || !fab) return;
   const onHome = home.classList.contains('active');
   // "hide" dipakai juga oleh openAIChatOverlay() saat overlay Vibexa AI
   // sendiri sedang terbuka — jangan timpa balik kalau overlay itu aktif.
   const aiOverlayOpen = document.getElementById('ai-chat-overlay')?.classList.contains('show');
-  fab.classList.toggle('hide', !onHome || aiOverlayOpen);
+  const shouldHide = !onHome || aiOverlayOpen;
+  fab.classList.toggle('hide', shouldHide);
+  // Bubble ikut sembunyi kalau fab-nya sembunyi (mis. lagi bukan di Home,
+  // atau overlay Vibexa AI sedang terbuka) — tapi TIDAK otomatis dipaksa
+  // tampil di sini; tampil/tidaknya bubble tetap diatur oleh
+  // _aiFabBubbleRotate() lewat class "show".
+  if (bubble) bubble.classList.toggle('hide', shouldHide);
 }
 document.addEventListener('DOMContentLoaded', () => {
   _syncAiFabVisibility();
@@ -17256,6 +17263,62 @@ document.addEventListener('DOMContentLoaded', () => {
   if (home) new MutationObserver(_syncAiFabVisibility).observe(home, { attributes: true, attributeFilter: ['class'] });
   const aiOverlay = document.getElementById('ai-chat-overlay');
   if (aiOverlay) new MutationObserver(_syncAiFabVisibility).observe(aiOverlay, { attributes: true, attributeFilter: ['class'] });
+});
+
+// ── BUBBLE SAPAAN PIXEL LOLU ──────────────────────────────────────────
+// Daftar teks yang bergilir tiap kali user KELUAR dari web lalu MASUK lagi
+// (bukan tiap detik/tiap klik). "Keluar-masuk" dideteksi lewat 2 sinyal:
+//  1) load halaman baru (tab/app ditutup lalu dibuka lagi → dokumen baru)
+//  2) Page Visibility API — tab/app di-background lalu di-foreground lagi
+//     tanpa reload (umum di PWA/mobile, lihat sw.js).
+// Indeks giliran disimpan di localStorage ('loluBubbleIdx') supaya urutan
+// tetap nyambung walau sesi/refresh berganti-ganti.
+const LOLU_BUBBLE_PHRASES = [
+  "Yayy! You're here!",
+  "Lolu missed you!!",
+  "Hii, Pookie!!",
+  "Psst.... You're back!",
+  "I was waiting, XD",
+  "Guess who's happy? Me!!!",
+  "Come hang out with me, plss"
+];
+let _aiFabBubbleHideTimer = null;
+
+function _aiFabBubbleRotate(){
+  const bubble = document.getElementById('ai-fab-bubble');
+  const bubbleText = document.getElementById('ai-fab-bubble-text');
+  const fab = document.getElementById('ai-fab');
+  if (!bubble || !bubbleText || !fab) return;
+  // Jangan munculkan kalau fab sendiri lagi disembunyikan (bukan di Home /
+  // overlay Vibexa AI sedang terbuka) — hindari bubble "mengambang sendiri"
+  // tanpa tombol yang ditunjuknya.
+  if (fab.classList.contains('hide')) return;
+
+  let idx = parseInt(localStorage.getItem('loluBubbleIdx') || '-1', 10);
+  if (isNaN(idx)) idx = -1;
+  idx = (idx + 1) % LOLU_BUBBLE_PHRASES.length;
+  localStorage.setItem('loluBubbleIdx', String(idx));
+
+  bubbleText.textContent = LOLU_BUBBLE_PHRASES[idx];
+  bubble.classList.remove('hide');
+  // Restart animasi masuk walau bubble sebelumnya masih "show".
+  bubble.classList.remove('show');
+  void bubble.offsetWidth; // force reflow biar transition ke-trigger ulang
+  bubble.classList.add('show');
+
+  clearTimeout(_aiFabBubbleHideTimer);
+  _aiFabBubbleHideTimer = setTimeout(() => bubble.classList.remove('show'), 6000);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Sinyal #1: dokumen baru dimuat (ini juga mencakup kasus user menutup
+  // tab/app lalu membukanya lagi nanti).
+  _aiFabBubbleRotate();
+});
+
+// Sinyal #2: tab/app di-background lalu di-foreground lagi (tanpa reload).
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') _aiFabBubbleRotate();
 });
 
 function openAIChatOverlay(){
