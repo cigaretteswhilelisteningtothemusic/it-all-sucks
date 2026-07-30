@@ -146,13 +146,10 @@
 <!-- Bubble sapaan pixel Lolu — muncul di samping kiri tombol Lolu setiap
      user kembali ke web (lihat _aiFabBubbleRotate() di vibexa.js). Teksnya
      bergilir dari daftar LOLU_BUBBLE_PHRASES, disimpan indeksnya di
-     localStorage biar tetap konsisten walau di-refresh/dibuka lagi nanti.
-     Bentuk bubble sekarang pakai foto asli (lolu-bubble.png, di-render
-     lewat border-image di CSS — lihat #ai-fab-bubble) yang otomatis
-     memanjang mengikuti panjang teks; ekornya sudah menyatu di foto itu
-     sendiri jadi tidak perlu lagi div ekor terpisah. -->
+     localStorage biar tetap konsisten walau di-refresh/dibuka lagi nanti. -->
 <div id="ai-fab-bubble" class="ai-fab-bubble hide" role="status" aria-live="polite" onclick="openAIChatOverlay()">
   <span id="ai-fab-bubble-text">Lolu missed you!!</span>
+  <div class="ai-fab-bubble-tail"></div>
 </div>
 <button id="ai-fab" onclick="openAIChatOverlay()" title="Lolu — Chat & Rekomendasi Musik">
   <div id="ai-fab-lottie"></div>
