@@ -299,7 +299,12 @@ function _vbxEnterOfflineMode() {
   if (overlay) {
     overlay.style.opacity = '0';
     overlay.style.transition = 'opacity .4s';
-    setTimeout(() => { overlay.style.display = 'none'; }, 400);
+    setTimeout(() => {
+      overlay.style.display = 'none';
+      document.dispatchEvent(new Event('vbxAppReady'));
+    }, 400);
+  } else {
+    document.dispatchEvent(new Event('vbxAppReady'));
   }
   document.body.classList.add('vbx-offline-mode');
   // Buka langsung halaman Unduhan Offline supaya user tidak perlu mencari-cari
@@ -500,7 +505,14 @@ function showApp(user) {
   const overlay = document.getElementById('auth-overlay');
   overlay.style.opacity = '0';
   overlay.style.transition = 'opacity .4s';
-  setTimeout(() => overlay.style.display = 'none', 400);
+  setTimeout(() => {
+    overlay.style.display = 'none';
+    // Halaman baru benar-benar selesai loading di sini (overlay sudah
+    // hilang) — baru dari titik ini bubble sapaan Lolu boleh muncul &
+    // mulai ngetik, bukan dari DOMContentLoaded (yang masih ketutup
+    // layar loading burung).
+    document.dispatchEvent(new Event('vbxAppReady'));
+  }, 400);
   _restoreLastPlayedTrack();
   // Try loading display name from profile DB first
   db.ref('users/' + user.uid + '/profile/displayName').get().then(snap => {
@@ -17346,9 +17358,13 @@ function _aiFabBubbleRotate(){
   _aiFabBubbleHideTimer = setTimeout(() => bubble.classList.remove('show'), 6000);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  // Sinyal #1: dokumen baru dimuat (ini juga mencakup kasus user menutup
-  // tab/app lalu membukanya lagi nanti).
+// Sinyal #1: halaman baru selesai loading — ditandai event 'vbxAppReady'
+// yang di-dispatch showApp()/_vbxEnterOfflineMode() persis saat layar
+// loading (overlay burung) sudah hilang. Sengaja BUKAN dengarkan
+// DOMContentLoaded, karena saat itu overlay loading masih menutupi layar
+// dan bubble (plus efek ketiknya) akan mulai duluan sebelum halaman
+// kelihatan oleh user.
+document.addEventListener('vbxAppReady', () => {
   _aiFabBubbleRotate();
 });
 
