@@ -16760,7 +16760,16 @@ async function deleteOfflineTrack(id) {
 // ────────────────────────────────────────────────────────────
 // API key Gemini TIDAK lagi ditaruh di sini — disimpan aman di sisi
 // server (Cloudflare Worker), jadi tidak terlihat di DevTools/source.
-const GEMINI_PROXY_URL = "https://old-wildflower-8457.alvinwahid122.workers.dev";
+// Bisa isi LEBIH DARI SATU worker di sini (mis. worker ke-2 pakai API key
+// Gemini / project Google Cloud yang BEDA dari yang pertama, supaya
+// kuotanya kepisah) — kalau worker pertama lagi kena rate limit (429)
+// terus-menerus, otomatis dicoba ke worker berikutnya di list ini secara
+// berurutan, user nggak akan sadar ada pergantian di baliknya.
+// Kosongkan/hapus baris kedua kalau belum punya worker cadangan.
+const GEMINI_PROXY_URLS = [
+  "https://old-wildflower-8457.alvinwahid122.workers.dev",
+  "https://lingering-paper-5323.canburnlikeacigarette.workers.dev/",
+];
 
 const AI_SYSTEM_PROMPT = `Kamu adalah "Vibexa AI" — bukan asisten formal, bukan customer service, tapi lebih kayak temen nongkrong yang emang paham musik banget, hidup di dalam aplikasi streaming musik bernama Vibexa.
 
@@ -17555,12 +17564,12 @@ async function _aiWaitCatPhotoMinDuration(){
   if (remaining > 0) await _aiSleep(remaining);
 }
 
-function _aiSetTyping(on){
+function _aiSetTyping(on, catMood){
   const c = document.getElementById('ai-chat-messages');
   if (!c) return;
   let el = document.getElementById('ai-typing-row');
   if (on){
-    _aiSetCatMood('thinking');
+    _aiSetCatMood(catMood || 'thinking');
     if (el) return;
     el = document.createElement('div');
     el.id = 'ai-typing-row';
@@ -17572,6 +17581,38 @@ function _aiSetTyping(on){
     el.remove();
     _aiSetCatMood(null);
   }
+}
+
+// Deteksi heuristik CEPAT langsung dari kata-kata pesan user itu sendiri,
+// TANPA nunggu balasan AI — dipakai buat langsung milih foto kucing yang
+// paling pas dari awal ngirim, bukan nunggu field "mood" dari balasan
+// Gemini yang kadang nggak konsisten ke-isi (apalagi buat pesan pendek
+// kayak makian singkat).
+// Hasil: 'angry' | 'service' | null (null = kemungkinan besar soal musik,
+// biarin alur normal thinking->result jalan; mood akhir tetap dicek juga
+// dari field "mood" balasan Gemini sebagai fallback kedua).
+function _aiHeuristicMood(text){
+  if (!text) return null;
+  const t = text.toLowerCase();
+
+  const angryWords = [
+    'anjing','anjir','anjrit','bangsat','bego','goblok','goblog','tolol',
+    'kampret','sialan','babi','idiot','bodoh amat','tai','sampah','kntl',
+    'kontol','payah','ga becus','gabecus','nggak becus','ngaco','ngawur',
+    'parah lu','parah banget lu','error terus','eror terus','lemot banget',
+    'lambat banget','jelek banget','ampas','bacot'
+  ];
+  for (const w of angryWords) if (t.includes(w)) return 'angry';
+
+  const musicWords = [
+    'lagu','musik','music','playlist','artis','genre','dengerin','dengar',
+    'vibe','rekomendasi','album','chart','track','lirik','nyanyi','band',
+    'konser','remix','soundtrack'
+  ];
+  for (const w of musicWords) if (t.includes(w)) return null; // biarin alur musik normal
+
+  // Nggak nyinggung musik & bukan makian -> anggap sapaan/obrolan umum
+  return 'service';
 }
 
 // Kelas error khusus supaya sendAIChatMessage bisa bikin pesan yang sesuai
@@ -17595,58 +17636,84 @@ function _aiParseRetryDelaySec(errText){
 
 function _aiSleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 
-// maxRetries: berapa kali retry OTOMATIS khusus buat kasus kena rate limit
-// (429). Error lain (network, format, blocked) langsung dilempar ke atas,
-// nggak di-retry, biar sendAIChatMessage bisa langsung kasih tau user.
-async function _aiCallGemini(historyForApi, systemPrompt, maxRetries = 2){
-  let attempt = 0;
-  while (true){
-    let res;
-    try{
-      res = await fetch(GEMINI_PROXY_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: historyForApi,
-          systemInstruction: { parts: [{ text: systemPrompt || AI_SYSTEM_PROMPT }] },
-          generationConfig: { responseMimeType: 'application/json', temperature: 0.85, maxOutputTokens: 2048 }
-        })
-      });
-    }catch(networkErr){
-      throw new VibexaAIError('Koneksi ke Vibexa AI gagal, coba cek internet kamu.', 'network');
-    }
+// maxRetriesPerUrl: berapa kali retry OTOMATIS khusus kasus kena rate limit
+// (429) SEBELUM pindah ke worker cadangan berikutnya (kalau ada) di
+// GEMINI_PROXY_URLS. Error karena koneksi/server down juga bikin pindah ke
+// worker berikutnya. Error lain (format balasan aneh, kena filter
+// keamanan) TIDAK di-retry/pindah worker — itu bukan soal limit/koneksi,
+// jadi langsung dilempar ke atas biar user langsung tau.
+async function _aiCallGemini(historyForApi, systemPrompt, maxRetriesPerUrl = 2){
+  const urls = GEMINI_PROXY_URLS.filter(Boolean);
+  let lastErr = new VibexaAIError('Nggak ada worker Vibexa AI yang dikonfigurasi.', 'unknown');
 
-    if (!res.ok){
-      let errText = '';
-      try{ errText = (await res.json())?.error?.message || ''; }catch(e){}
+  for (let ui = 0; ui < urls.length; ui++){
+    const url = urls[ui];
+    const hasNextUrl = ui < urls.length - 1;
+    let attempt = 0;
 
-      if (res.status === 429){
-        const delaySec = _aiParseRetryDelaySec(errText) ?? (5 * (attempt + 1));
-        if (attempt < maxRetries){
-          attempt++;
-          await _aiSleep(delaySec * 1000);
-          continue; // coba lagi otomatis
+    while (true){
+      let res;
+      try{
+        res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: historyForApi,
+            systemInstruction: { parts: [{ text: systemPrompt || AI_SYSTEM_PROMPT }] },
+            generationConfig: { responseMimeType: 'application/json', temperature: 0.85, maxOutputTokens: 2048 }
+          })
+        });
+      }catch(networkErr){
+        lastErr = new VibexaAIError('Koneksi ke Vibexa AI gagal, coba cek internet kamu.', 'network');
+        break; // koneksi ke worker ini gagal total -> coba worker berikutnya (kalau ada)
+      }
+
+      if (!res.ok){
+        let errText = '';
+        try{ errText = (await res.json())?.error?.message || ''; }catch(e){}
+
+        if (res.status === 429){
+          if (attempt < maxRetriesPerUrl){
+            attempt++;
+            const delaySec = _aiParseRetryDelaySec(errText) ?? (5 * attempt);
+            await _aiSleep(delaySec * 1000);
+            continue; // coba lagi di worker yang sama dulu
+          }
+          // Worker ini kena limit terus walau udah di-retry -> pindah ke
+          // worker cadangan berikutnya kalau ada, atau nyerah kalau ini
+          // worker terakhir.
+          lastErr = new VibexaAIError('Lagi rame banget nih yang chat ke gue, kena limit sementara. Coba lagi bentar ya (~1 menit).', 'rate_limit');
+          break;
         }
-        throw new VibexaAIError('Lagi rame banget nih yang chat ke gue, kena limit sementara. Coba lagi bentar ya (~1 menit).', 'rate_limit');
+
+        if (res.status >= 500){
+          lastErr = new VibexaAIError('Server AI-nya lagi ngambek dikit, coba kirim lagi ya.', 'network');
+          break; // server error -> coba worker berikutnya kalau ada
+        }
+
+        // Error lain (4xx selain 429) biasanya soal konfigurasi worker,
+        // bukan soal limit -> tetep dicoba pindah worker sebagai jaga-jaga,
+        // tapi kalau ini worker terakhir langsung dilempar ke atas.
+        lastErr = new VibexaAIError('Ada masalah pas nyambung ke Vibexa AI (kode ' + res.status + ').', 'unknown');
+        break;
       }
 
-      if (res.status >= 500){
-        throw new VibexaAIError('Server AI-nya lagi ngambek dikit, coba kirim lagi ya.', 'network');
+      const data = await res.json();
+      const text = (data?.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
+      if (!text) throw new VibexaAIError('Responsnya kosong, mungkin kena filter keamanan. Coba pakai kata lain.', 'blocked');
+      try{ return JSON.parse(text); }
+      catch(e){
+        const m = text.match(/\{[\s\S]*\}/);
+        if (m){ try{ return JSON.parse(m[0]); }catch(e2){} }
+        throw new VibexaAIError('Balasan AI-nya agak berantakan, coba kirim ulang ya.', 'invalid_format');
       }
-
-      throw new VibexaAIError('Ada masalah pas nyambung ke Vibexa AI (kode ' + res.status + ').', 'unknown');
     }
 
-    const data = await res.json();
-    const text = (data?.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
-    if (!text) throw new VibexaAIError('Responsnya kosong, mungkin kena filter keamanan. Coba pakai kata lain.', 'blocked');
-    try{ return JSON.parse(text); }
-    catch(e){
-      const m = text.match(/\{[\s\S]*\}/);
-      if (m){ try{ return JSON.parse(m[0]); }catch(e2){} }
-      throw new VibexaAIError('Balasan AI-nya agak berantakan, coba kirim ulang ya.', 'invalid_format');
-    }
+    if (!hasNextUrl) throw lastErr; // udah worker terakhir & tetep gagal -> nyerah
+    // kalau masih ada worker berikutnya, lanjut ke iterasi `ui` selanjutnya
   }
+
+  throw lastErr;
 }
 
 async function sendAIChatMessage(){
@@ -17666,7 +17733,13 @@ async function sendAIChatMessage(){
   aiChatLoading = true;
   const sendBtn = document.getElementById('ai-chat-send-btn');
   if (sendBtn) sendBtn.disabled = true;
-  _aiSetTyping(true);
+
+  // Cek dari pesan user itu sendiri dulu — kalau jelas-jelas makian atau
+  // jelas di luar topik musik, langsung pasang foto kucing yang sesuai
+  // SEJAK AWAL nunggu (bukan foto "mikir" dulu baru ganti), biar reaksinya
+  // berasa instan & nggak salah gara-gara AI-nya kadang lupa isi "mood".
+  const preMood = _aiHeuristicMood(text);
+  _aiSetTyping(true, preMood === 'angry' ? 'tersinggung' : preMood === 'service' ? 'service' : 'thinking');
 
   try{
     const parsed = await _aiCallGemini(aiApiHistory, _aiBuildSystemPrompt());
@@ -17682,22 +17755,35 @@ async function sendAIChatMessage(){
     _aiSaveChatState();
 
     // Balasan udah siap di tangan, tapi jangan langsung dilempar ke layar.
-    // 1) Pastiin foto kucing "mikir" udah nongol genap durasi minimalnya
-    //    (kalau Gemini-nya kebetulan kilat, tetep ditahan biar nggak kepotong).
-    // 2) Lanjut ke foto "reveal" sesuai mood balasannya:
-    //    - "angry"   → kucing ngambek (tersinggung) dulu, BARU kucing marah.
-    //    - "service" → kucing customer service (sapaan/obrolan di luar musik).
-    //    - lainnya   → kucing "udah ketemu jawabannya" (default, seputar musik).
-    const aiMood = (parsed && (parsed.mood === 'angry' || parsed.mood === 'service')) ? parsed.mood : 'music';
+    // Tentuin mood final: heuristik dari pesan user (preMood) diprioritaskan
+    // kalau jelas makian eksplisit, selain itu ikut field "mood" dari
+    // Gemini (dinormalisasi lower-case biar nggak gagal gara-gara beda
+    // kapital), fallback ke heuristik lagi kalau Gemini nggak isi apa-apa.
+    const normalizedMood = (parsed && typeof parsed.mood === 'string') ? parsed.mood.trim().toLowerCase() : null;
+    let aiMood = (normalizedMood === 'angry' || normalizedMood === 'service' || normalizedMood === 'music') ? normalizedMood : 'music';
+    if (preMood === 'angry') aiMood = 'angry';
+    else if (aiMood === 'music' && preMood === 'service') aiMood = 'service';
+
+    // Pastiin foto yang lagi tampil (mikir/tersinggung/service) udah nongol
+    // genap durasi minimalnya dulu sebelum lanjut/ganti.
     await _aiWaitCatPhotoMinDuration();
+
     if (aiMood === 'angry'){
-      _aiSetCatMood('tersinggung');
-      await _aiWaitCatPhotoMinDuration();
+      // Kalau loading-nya udah langsung nunjukin foto tersinggung (preMood
+      // 'angry'), nggak perlu di-set ulang — udah kepenuhi minimal durasinya.
+      if (preMood !== 'angry'){
+        _aiSetCatMood('tersinggung');
+        await _aiWaitCatPhotoMinDuration();
+      }
       _aiSetCatMood('angry');
       await _aiWaitCatPhotoMinDuration();
     } else if (aiMood === 'service'){
-      _aiSetCatMood('service');
-      await _aiWaitCatPhotoMinDuration();
+      if (preMood !== 'service'){
+        _aiSetCatMood('service');
+        await _aiWaitCatPhotoMinDuration();
+      }
+      // preMood udah 'service' -> foto SERVICE aja dari awal sampai akhir,
+      // nggak pernah nampilin foto lain (sesuai permintaan).
     } else {
       _aiSetCatMood('result');
       await _aiWaitCatPhotoMinDuration();
