@@ -16768,7 +16768,7 @@ async function deleteOfflineTrack(id) {
 // Kosongkan/hapus baris kedua kalau belum punya worker cadangan.
 const GEMINI_PROXY_URLS = [
   "https://old-wildflower-8457.alvinwahid122.workers.dev",
-  "https://lingering-paper-5323.canburnlikeacigarette.workers.dev/",
+  "https://lingering-paper-5323.canburnlikeacigarette.workers.dev",
 ];
 
 const AI_SYSTEM_PROMPT = `Kamu adalah "Vibexa AI" — bukan asisten formal, bukan customer service, tapi lebih kayak temen nongkrong yang emang paham musik banget, hidup di dalam aplikasi streaming musik bernama Vibexa.
