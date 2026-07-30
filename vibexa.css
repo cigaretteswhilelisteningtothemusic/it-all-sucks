@@ -4550,42 +4550,61 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 }
 
 /* Bubble sapaan pixel Lolu — kotak dialog gaya 8-bit di samping kiri
-   #ai-fab. Sudut "berundak" dibuat lewat clip-path (bukan gambar), jadi
-   tetap tajam di layar resolusi berapa pun. Ekornya (.ai-fab-bubble-tail)
-   dua segitiga bertumpuk (luar = warna border, dalam = warna isi) supaya
-   kelihatan seperti punya garis pinggir sendiri. */
+   #ai-fab. Sudut "berundak" (2 anak tangga tiap pojok) dibuat lewat
+   clip-path (bukan gambar), jadi tetap tajam di layar resolusi berapa
+   pun. Efek 3D pixel-nya dibuat dari LAPISAN KEDUA (::before) berwarna
+   tan lebih gelap, digeser sedikit ke bawah-kiri lewat transform, dan
+   dipotong pakai clip-path yang sama persis — hasilnya kelihatan seperti
+   "shadow block" khas pixel art, bukan box-shadow blur biasa. Ekornya
+   (.ai-fab-bubble-tail) dibuat dengan cara yang sama: kotak kecil + lapisan
+   shadow-nya sendiri, ujungnya lancip lewat clip-path.*/
 #ai-fab-bubble{
-  position:fixed;right:92px;bottom:calc(var(--np-bottom) + 48px);z-index:199;
-  width:max-content;max-width:none;white-space:nowrap;padding:9px 14px;
-  background:#f6ecd6;color:#2b1d0e;
-  border:4px solid #211407;
+  position:fixed;right:100px;bottom:calc(var(--np-bottom) + 52px);z-index:199;
+  width:max-content;max-width:none;white-space:nowrap;padding:12px 18px;
+  box-sizing:border-box;
+  background:#faf1da;color:#1c1208;
+  border:3px solid #17100a;
+  --bpc:10px;--bps:5px; /* pojok: cut = ukuran anak tangga besar, step = anak tangga kecil */
   clip-path:polygon(
-    0 8px,8px 8px,8px 0,calc(100% - 8px) 0,calc(100% - 8px) 8px,100% 8px,
-    100% calc(100% - 8px),calc(100% - 8px) calc(100% - 8px),calc(100% - 8px) 100%,
-    8px 100%,8px calc(100% - 8px),0 calc(100% - 8px)
+    0 var(--bpc),var(--bps) var(--bpc),var(--bps) var(--bps),var(--bpc) var(--bps),var(--bpc) 0,
+    calc(100% - var(--bpc)) 0,calc(100% - var(--bpc)) var(--bps),calc(100% - var(--bps)) var(--bps),calc(100% - var(--bps)) var(--bpc),100% var(--bpc),
+    100% calc(100% - var(--bpc)),calc(100% - var(--bps)) calc(100% - var(--bpc)),calc(100% - var(--bps)) calc(100% - var(--bps)),calc(100% - var(--bpc)) calc(100% - var(--bps)),calc(100% - var(--bpc)) 100%,
+    var(--bpc) 100%,var(--bpc) calc(100% - var(--bps)),var(--bps) calc(100% - var(--bps)),var(--bps) calc(100% - var(--bpc)),0 calc(100% - var(--bpc))
   );
-  box-shadow:4px 4px 0 rgba(0,0,0,.4);
   cursor:pointer;pointer-events:none;
   opacity:0;transform:translateY(6px) scale(.85);transform-origin:bottom right;
   transition:opacity .22s ease,transform .22s cubic-bezier(.34,1.56,.64,1);
+}
+#ai-fab-bubble::before{
+  content:'';position:absolute;inset:0;z-index:-1;
+  background:#e0c99a;border:3px solid #17100a;box-sizing:border-box;
+  clip-path:inherit;
+  transform:translate(-7px,7px);
 }
 #ai-fab-bubble.show{opacity:1;transform:translateY(0) scale(1);pointer-events:auto;}
 #ai-fab-bubble.hide{display:none!important;}
 #ai-fab-bubble-text{
   display:block;font-family:'Press Start 2P',var(--fm),monospace;
-  font-size:.5rem;line-height:1.35;letter-spacing:.3px;text-transform:uppercase;
-  text-shadow:1px 1px 0 rgba(255,255,255,.35);
+  font-size:.56rem;line-height:1.35;letter-spacing:.5px;text-transform:uppercase;
+  font-weight:700;
 }
 #ai-fab-bubble-text span{transition:opacity .1s ease;}
-.ai-fab-bubble-tail{position:absolute;right:-13px;bottom:50%;margin-top:-7px;width:0;height:0;
-  border-top:8px solid transparent;border-bottom:8px solid transparent;
-  border-left:13px solid #211407;}
-.ai-fab-bubble-tail::after{content:'';position:absolute;right:4px;top:-6px;width:0;height:0;
-  border-top:6px solid transparent;border-bottom:6px solid transparent;
-  border-left:8px solid #f6ecd6;}
+.ai-fab-bubble-tail{
+  position:absolute;top:50%;right:-17px;margin-top:-8px;z-index:1;
+  width:22px;height:16px;box-sizing:border-box;
+  background:#faf1da;border:3px solid #17100a;
+  clip-path:polygon(0 0,55% 0,100% 50%,55% 100%,0 100%);
+}
+.ai-fab-bubble-tail::before{
+  content:'';position:absolute;inset:0;z-index:-1;
+  background:#e0c99a;border:3px solid #17100a;box-sizing:border-box;
+  clip-path:inherit;
+  transform:translate(-7px,7px);
+}
 @media(max-width:660px){
-  #ai-fab-bubble{right:64px;bottom:calc(var(--np-bottom) + 36px);padding:7px 11px;}
-  #ai-fab-bubble-text{font-size:.46rem;line-height:1.3;}
+  #ai-fab-bubble{right:70px;bottom:calc(var(--np-bottom) + 40px);padding:9px 14px;--bpc:8px;--bps:4px;}
+  #ai-fab-bubble-text{font-size:.5rem;line-height:1.3;}
+  .ai-fab-bubble-tail{width:18px;height:13px;right:-14px;margin-top:-6.5px;}
 }
 
 #ai-chat-overlay{position:absolute;inset:0;z-index:60;background:var(--bg);display:none;flex-direction:column;border-radius:var(--r);}
