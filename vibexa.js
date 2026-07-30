@@ -17307,7 +17307,7 @@ function renderAIChatMessages(){
   if (!aiChatDisplay.length){
     c.innerHTML = `
       <div class="ai-chat-welcome">
-        <div class="ai-chat-welcome-icon"><img src="lolu-icon-welcome.png" alt="Lolu"></div>
+        <div class="ai-chat-welcome-icon"><img src="lolu-icon-welcome.png" alt="Lolu" width="72" height="72"></div>
         <div class="ai-chat-welcome-title">Lolu</div>
         <div class="ai-chat-welcome-sub">Minta aku buatkan playlist, kasih rekomendasi lagu, atau ngobrol santai soal musik apa aja.</div>
         <div class="ai-chat-chips">
