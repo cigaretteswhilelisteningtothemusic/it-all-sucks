@@ -17284,6 +17284,7 @@ const LOLU_BUBBLE_PHRASES = [
 ];
 let _aiFabBubbleHideTimer = null;
 let _aiFabBubbleTypeTimer = null;
+let _aiFabBubbleTypeStartTimer = null;
 
 // Efek ketik: teks dipecah per-huruf jadi <span> tersendiri (opacity 0),
 // lalu dimunculkan satu-satu dari kiri ke kanan lewat setInterval. Bubble
@@ -17323,12 +17324,23 @@ function _aiFabBubbleRotate(){
   idx = (idx + 1) % LOLU_BUBBLE_PHRASES.length;
   localStorage.setItem('loluBubbleIdx', String(idx));
 
-  _typeAiFabBubbleText(bubbleText, LOLU_BUBBLE_PHRASES[idx], 24);
+  // Kosongkan dulu supaya tidak kelihatan teks lama sekilas, lalu tunggu
+  // sampai animasi "pop-in" kotak bubble selesai (~220ms) baru mulai
+  // mengetik — kalau langsung bareng, hurufnya ketutup fade bubble dan
+  // kelihatan seperti langsung muncul semua, bukan diketik satu-satu.
+  bubbleText.innerHTML = '';
+  clearInterval(_aiFabBubbleTypeTimer);
+  clearTimeout(_aiFabBubbleTypeStartTimer);
+
   bubble.classList.remove('hide');
   // Restart animasi masuk walau bubble sebelumnya masih "show".
   bubble.classList.remove('show');
   void bubble.offsetWidth; // force reflow biar transition ke-trigger ulang
   bubble.classList.add('show');
+
+  _aiFabBubbleTypeStartTimer = setTimeout(() => {
+    _typeAiFabBubbleText(bubbleText, LOLU_BUBBLE_PHRASES[idx], 45);
+  }, 230);
 
   clearTimeout(_aiFabBubbleHideTimer);
   _aiFabBubbleHideTimer = setTimeout(() => bubble.classList.remove('show'), 6000);
