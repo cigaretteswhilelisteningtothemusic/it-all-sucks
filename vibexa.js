@@ -17480,11 +17480,40 @@ async function _aiCreatePlaylistFromMsg(msg, btnEl){
   }
 }
 
+// Foto kucing yang muncul DI ATAS bubble loading, biar animasi "AI lagi mikir"
+// terasa lebih hidup/nyata (kayak WA lagi typing tapi ada foto pendukungnya).
+// 'thinking' = kucing mikir keras (dipasang selagi nunggu balasan Gemini),
+// 'result'   = kucing "udah ketemu jawabannya" (dipasang sekilas SEBELUM
+// bubble balasan beneran dirender ke layar).
+const AI_CAT_THINKING_SRC = 'assets/ai-cat-thinking.jpg';
+const AI_CAT_RESULT_SRC   = 'assets/ai-cat-result.jpg';
+
+function _aiSetCatMood(mood){ // mood: 'thinking' | 'result' | null (hapus)
+  const c = document.getElementById('ai-chat-messages');
+  if (!c) return;
+  let el = document.getElementById('ai-cat-row');
+  if (!mood){
+    if (el) el.remove();
+    return;
+  }
+  const src = mood === 'result' ? AI_CAT_RESULT_SRC : AI_CAT_THINKING_SRC;
+  if (!el){
+    el = document.createElement('div');
+    el.id = 'ai-cat-row';
+    el.className = 'ai-bubble-row ai ai-cat-row';
+    // Ditaruh SEBELUM bubble typing supaya posisinya di atas titik-titik loading.
+    const typingRow = document.getElementById('ai-typing-row');
+    if (typingRow) c.insertBefore(el, typingRow); else c.appendChild(el);
+  }
+  el.innerHTML = `<img src="${src}" class="ai-cat-photo" alt="" draggable="false">`;
+}
+
 function _aiSetTyping(on){
   const c = document.getElementById('ai-chat-messages');
   if (!c) return;
   let el = document.getElementById('ai-typing-row');
   if (on){
+    _aiSetCatMood('thinking');
     if (el) return;
     el = document.createElement('div');
     el.id = 'ai-typing-row';
@@ -17494,6 +17523,7 @@ function _aiSetTyping(on){
     _aiScrollToBottom();
   } else if (el){
     el.remove();
+    _aiSetCatMood(null);
   }
 }
 
@@ -17603,6 +17633,14 @@ async function sendAIChatMessage(){
     aiApiHistory.push({ role: 'model', parts: [{ text: JSON.stringify(parsed) }] });
     aiChatDisplay.push(msg);
     _aiSaveChatState();
+
+    // Balasan udah siap di tangan, tapi jangan langsung dilempar ke layar —
+    // gantikan dulu foto kucing "mikir" jadi foto kucing "udah ketemu",
+    // biar user ngerasa AI-nya beneran baru selesai mikir & nemu jawaban,
+    // baru habis itu bubble pesannya kekirim.
+    _aiSetCatMood('result');
+    await _aiSleep(650);
+
     _aiSetTyping(false);
     renderAIChatMessages();
   }catch(e){
