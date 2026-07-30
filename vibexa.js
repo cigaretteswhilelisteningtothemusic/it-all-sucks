@@ -17272,6 +17272,10 @@ function openAIChatOverlay(){
   // ikut kelihatan kalau posisi scroll Home sedang tidak di paling atas.
   const mainEl = document.getElementById('main');
   if (mainEl) { mainEl.scrollTop = 0; mainEl.style.overflow = 'hidden'; }
+  // Khusus mobile: sembunyikan mini player (#bar) & navigasi bawah (#mob-nav),
+  // dan buat halaman Lolu memenuhi layar penuh tanpa ruang kosong (lihat CSS
+  // body.ai-mobile-open, pola sama seperti body.np-mobile-open).
+  if (typeof isMobile === 'function' && isMobile()) document.body.classList.add('ai-mobile-open');
   // Render dulu dari cache lokal (instan), lalu sinkron ulang begitu versi
   // asli dari cloud selesai dimuat — supaya riwayat & memori dari perangkat
   // lain ikut muncul di sini juga.
@@ -17287,6 +17291,7 @@ function closeAIChatOverlay(){
   const fab = document.getElementById('ai-fab'); if (fab) fab.classList.remove('hide');
   const mainEl = document.getElementById('main');
   if (mainEl) mainEl.style.overflow = '';
+  document.body.classList.remove('ai-mobile-open');
   closeAIChatHistoryPanel();
 }
 

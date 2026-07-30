@@ -1440,6 +1440,25 @@ body.np-page-open #bar{
   }
 
   /* ════════════════════════════════
+     HALAMAN LOLU (AI CHAT) — mobile: sembunyikan mini player & navigasi bawah
+  ════════════════════════════════ */
+  /* Sama persis seperti pola halaman Now Playing di atas: saat halaman Lolu
+     dibuka di mobile, sembunyikan kotak mini player (#bar) DAN navigasi
+     bawah (#mob-nav) — baris grid-nya juga dihapus dari layout (bukan cuma
+     disembunyikan elemennya) supaya halaman Lolu memenuhi penuh tanpa
+     menyisakan ruang kosong di bawah. */
+  body.ai-mobile-open{
+    grid-template-rows:60px 1fr !important;
+    grid-template-areas:"topbar""main" !important;
+  }
+  body.ai-mobile-open #bar{
+    display:none !important;
+  }
+  body.ai-mobile-open #mob-nav{
+    display:none !important;
+  }
+
+  /* ════════════════════════════════
      HOME VIEW
   ════════════════════════════════ */
   #home-view{padding:16px 14px 10px}
