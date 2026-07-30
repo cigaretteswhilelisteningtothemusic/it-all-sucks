@@ -17283,6 +17283,30 @@ const LOLU_BUBBLE_PHRASES = [
   "Come hang out with me, plss"
 ];
 let _aiFabBubbleHideTimer = null;
+let _aiFabBubbleTypeTimer = null;
+
+// Efek ketik: teks dipecah per-huruf jadi <span> tersendiri (opacity 0),
+// lalu dimunculkan satu-satu dari kiri ke kanan lewat setInterval. Bubble
+// tetap langsung selebar teks penuh sejak awal (karena semua <span> sudah
+// ada di DOM, cuma transparan) — yang beranimasi cuma kemunculan hurufnya,
+// bukan lebar bubble-nya, jadi bentuk pixel-nya tidak "meloncat-loncat".
+function _typeAiFabBubbleText(el, text, speedMs){
+  clearInterval(_aiFabBubbleTypeTimer);
+  el.innerHTML = '';
+  const letters = [...text].map((ch) => {
+    const span = document.createElement('span');
+    span.textContent = ch;
+    span.style.opacity = '0';
+    el.appendChild(span);
+    return span;
+  });
+  let i = 0;
+  _aiFabBubbleTypeTimer = setInterval(() => {
+    if (i >= letters.length){ clearInterval(_aiFabBubbleTypeTimer); return; }
+    letters[i].style.opacity = '1';
+    i++;
+  }, speedMs);
+}
 
 function _aiFabBubbleRotate(){
   const bubble = document.getElementById('ai-fab-bubble');
@@ -17299,7 +17323,7 @@ function _aiFabBubbleRotate(){
   idx = (idx + 1) % LOLU_BUBBLE_PHRASES.length;
   localStorage.setItem('loluBubbleIdx', String(idx));
 
-  bubbleText.textContent = LOLU_BUBBLE_PHRASES[idx];
+  _typeAiFabBubbleText(bubbleText, LOLU_BUBBLE_PHRASES[idx], 24);
   bubble.classList.remove('hide');
   // Restart animasi masuk walau bubble sebelumnya masih "show".
   bubble.classList.remove('show');
