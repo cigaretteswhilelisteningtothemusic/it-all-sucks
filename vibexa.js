@@ -5678,7 +5678,7 @@ function cleanT(t){
 async function _fetchLyrFrom(workerBase, title, artist){
   try{
     let data = null;
-    const res = await fetch(`${workerBase}/?artist=${encodeURIComponent(artist)}&title=${encodeURIComponent(title)}`,{signal:AbortSignal.timeout(7000)});
+    const res = await fetch(`${workerBase}/?artist=${encodeURIComponent(artist)}&title=${encodeURIComponent(title)}`,{signal:AbortSignal.timeout(10000)});
     console.log('[LYR DEBUG] worker', workerBase, '(artist+title) status:', res.status, res.ok);
     if(res.ok){
       const text = await res.text();
@@ -5687,7 +5687,7 @@ async function _fetchLyrFrom(workerBase, title, artist){
     }
 
     if(!data || !data.length){
-      const res2 = await fetch(`${workerBase}/?artist=&title=${encodeURIComponent(title)}`,{signal:AbortSignal.timeout(7000)});
+      const res2 = await fetch(`${workerBase}/?artist=&title=${encodeURIComponent(title)}`,{signal:AbortSignal.timeout(10000)});
       console.log('[LYR DEBUG] worker', workerBase, '(title only) status:', res2.status, res2.ok);
       if(res2.ok){
         const text2 = await res2.text();
@@ -5721,12 +5721,12 @@ async function _fetchLyrFromLrclibDirect(title, artist){
     // artis asli) di 20 hasil teratasnya — sedangkan pencarian gabungan "q"
     // (persis seperti yang dipakai kotak cari di situs lrclib.net sendiri)
     // memberi hasil yang jauh lebih bersih dan relevan.
-    const res = await fetch(`${LRCLIB_DIRECT}?q=${encodeURIComponent(title + ' ' + artist)}`,{signal:AbortSignal.timeout(7000)});
+    const res = await fetch(`${LRCLIB_DIRECT}?q=${encodeURIComponent(title + ' ' + artist)}`,{signal:AbortSignal.timeout(10000)});
     console.log('[LYR DEBUG] lrclib direct (q=title+artist) status:', res.status, res.ok);
     if(res.ok) data = await res.json();
 
     if(!data || !data.length){
-      const res2 = await fetch(`${LRCLIB_DIRECT}?q=${encodeURIComponent(title)}`,{signal:AbortSignal.timeout(7000)});
+      const res2 = await fetch(`${LRCLIB_DIRECT}?q=${encodeURIComponent(title)}`,{signal:AbortSignal.timeout(10000)});
       console.log('[LYR DEBUG] lrclib direct (q=title only) status:', res2.status, res2.ok);
       if(res2.ok) data = await res2.json();
     }
