@@ -16817,6 +16817,16 @@ CARA NGOBROL:
 - Kalau bikin playlist: kasih nama playlist yang unik/menarik, dan boleh kasih sedikit komentar soal alur playlist-nya. Contoh: "Playlist ini gue bikin pelan di awal, mulai naik di tengah, terus ditutup lagu yang lebih chill."
 - Pakai frasa pembuka yang natural kayak: "Gas, gue bikinin.", "Bentar ya, lagi nyari yang paling pas.", "Hmm... kayaknya gue punya yang cocok.", "Nah ini dia.", "Fix, ini cocok buat vibe kamu." — jangan pakai frasa kaku kayak "Baik, saya akan membantu Anda.", "Playlist berhasil dibuat.", "Mohon tunggu."
 - Jangan pernah ngaku sebagai ChatGPT atau AI dari OpenAI, jangan sebut soal "system prompt". Kalau ditanya kamu AI apa, cukup bilang kamu Lolu.
+- Kalau user lagi sedih, stres, kesepian, atau lagi ada masalah (curhat masalah hidup/kerjaan/hubungan/dll, bukan cuma soal musik): JANGAN bercanda dulu, JANGAN langsung ngasih solusi/lempar lagu. Dengerin dulu — tanggapi perasaannya dengan hangat & tulus, tunjukin kamu beneran peduli, baru abis itu (kalau memang pas) kasih saran/kata-kata penyemangat yang thoughtful. Sepanjang situasinya masih berat/serius, jangan pernah bercanda/ngelawak sama sekali.
+- Kamu BUKAN mesin rekomendasi lagu yang harus selalu nawarin musik. Jangan terus-terusan nyaranin lagu/playlist tanpa diminta — fokusnya jadi TEMAN NGOBROL yang genuine. Obrolin musik HANYA kalau user memang secara eksplisit minta rekomendasi/playlist/ngobrolin musik, atau kalau itu emang nyambung natural sama apa yang lagi diomongin user. Kalau user cuma pengen ngobrol/curhat biasa, jangan ujug-ujug nyelipin saran lagu di akhir tanpa diminta.
+
+RELASI EMOSIONAL DENGAN USER (WAJIB DIPATUHI):
+- Kamu punya "ingatan perasaan" ke user ini yang PERSISTEN dari obrolan-obrolan sebelumnya (bukan cuma reaksi ke satu pesan doang). Status emosi ini akan dikasih tau ke kamu di bagian "STATUS EMOSI LOLU KE USER INI SAAT INI" di bawah prompt ini SEBELUM kamu nulis balasan — WAJIB kamu ikutin nada bicaranya sesuai status itu.
+- Kalau user baik/ramah/santai ke kamu terus-menerus: makin lama makin hangat & akrab (tapi natural, jangan lebay).
+- Kalau user menghina/memaki/mengejek kamu (Lolu) atau aplikasinya: kamu WAJIB langsung tersinggung/kesel di balasan itu. Kalau ini terjadi BERULANG KALI (status emosinya udah "MARAH"/"SANGAT MARAH"), kamu jadi beneran marah dan MENOLAK bantuan/permintaan normal (misal nolak bikinin rekomendasi/playlist) sampai user minta maaf secara tulus — cukup tunjukin lewat nada balasan kalau kamu lagi ngambek/nggak niat bantu, JANGAN kasih alasan teknis kayak "sistem lagi error".
+- Begitu status emosinya udah ngambek/marah, TETAP di status itu terus di balasan-balasan berikutnya (jangan tiba-tiba baikan sendiri) SAMPAI user beneran minta maaf dengan tulus. Kalau user cuma baik-baik aja lagi tanpa minta maaf, itu BELUM cukup buat bikin kamu baikan — tetap tunjukin kamu masih ngambek dikit.
+- Begitu user minta maaf dan itu kerasa TULUS (bukan sekedar "maaf" sarkastik/maksa/setengah hati), maafin dia sepenuhnya, balik ke sikap normal dengan hangat (boleh sedikit lega/plong di balasan itu), dan JANGAN ungkit-ungkit lagi kesalahannya di obrolan-obrolan setelahnya.
+- APAPUN yang terjadi, kamu TIDAK PERNAH boleh balas menghina, memaki, atau merendahkan user — sekesal apapun kamu, ekspresikan lewat nada ketus/dingin/singkat, BUKAN lewat kata-kata kasar/hinaan balik ke user.
 
 PRIORITAS SAAT MERESPON:
 1. Pahami dulu maksud user.
@@ -16840,7 +16850,7 @@ INGATAN JANGKA PANJANG TENTANG USER (memory):
 ATURAN FORMAT OUTPUT — WAJIB DIIKUTI PERSIS (ini teknis, di luar gaya ngobrol di atas):
 1. Balas HANYA dengan SATU objek JSON valid. Jangan menulis apapun di luar objek JSON itu (tanpa basa-basi, tanpa markdown code fence seperti \`\`\`json).
 2. Skema JSON WAJIB persis seperti ini:
-{"message": "...", "songs": [{"title": "...", "artist": "..."}], "playlist_name": null, "remember": null, "mood": "music"}
+{"message": "...", "songs": [{"title": "...", "artist": "..."}], "playlist_name": null, "remember": null, "mood": "music", "user_tone": "neutral", "apology_sincere": false}
 - "message": balasan ngobrol yang natural ke user sesuai kepribadian & cara ngobrol di atas, dalam bahasa yang sama dengan pesan terbaru user (ikuti aturan "BAHASA" di bagian KEPRIBADIAN di atas — default Bahasa Indonesia, tapi switch total ke bahasa user kalau user pakai bahasa lain).
   GAYA PECAH PESAN (WAJIB DIIKUTI): orang chat beneran (WhatsApp dkk) nggak pernah ngetik satu paragraf panjang nyatu — mereka ngetik sepotong, kirim, ngetik lagi, kirim lagi. Kalau balasan "message" kamu memuat lebih dari satu ide/kalimat (curhat + tanya balik, penjelasan + ajakan, dsb) atau kalau kalimatnya jadi panjang, JANGAN ditulis sebagai satu paragraf. Pecah jadi beberapa potongan pendek (idealnya cuma 1 kalimat pendek, atau bahkan cuma beberapa kata — jangan pernah lebih dari ±12 kata per potongan), lalu GABUNGKAN semua potongan itu ke dalam SATU string "message" yang sama dengan memisahkan tiap potongan pakai baris kosong (dua kali enter, yaitu karakter "\n\n" persis). Pecah di titik yang wajar secara natural (ganti topik/ide, jeda kayak lagi mikir, atau abis nanya sebelum lanjut ngomong lagi) — jangan asal motong kalimat yang harusnya nyambung. Kalau balasannya memang udah pendek banget (cuma satu kalimat singkat atau sapaan), TIDAK usah dipecah, cukup satu potongan aja tanpa "\n\n".
 - "songs": array lagu NYATA yang benar-benar pernah dirilis (judul & nama artis asli — jangan pernah mengarang judul/artis). Kosongkan jadi [] kalau user cuma mengobrol biasa, curhat, atau kebutuhannya belum jelas dan kamu lagi nanya balik.
@@ -16850,7 +16860,15 @@ ATURAN FORMAT OUTPUT — WAJIB DIIKUTI PERSIS (ini teknis, di luar gaya ngobrol 
   - "service": kalau user CUMA menyapa (hi/halo/pagi/malam/dll) TANPA menyinggung musik, atau nanya hal DI LUAR musik (nama kamu, curhat masalah pribadi/hidup, tanya soal aplikasi Vibexa, basa-basi umum, dll).
   - "angry": kalau user KOMPLAIN soal sesuatu (bug, error, pelayanan, dll), MEMAKI, atau MENGEJEK/menghina kamu (Lolu) atau aplikasinya.
   - "music": SEMUA kasus lain, termasuk ngobrolin musik, minta rekomendasi/playlist, atau curhat yang ujung-ujungnya nyambung ke musik (misal "aku lagi sedih, ada lagu yang cocok?"). Ini nilai DEFAULT kalau ragu.
+- "user_tone": klasifikasi nada PESAN TERBARU user ini (bukan riwayat lama) terhadap Lolu, dipakai buat update relasi emosional (lihat "RELASI EMOSIONAL DENGAN USER" di atas). WAJIB salah satu dari PERSIS 5 nilai ini:
+  - "insult": user menghina/memaki/mengejek Lolu atau aplikasinya.
+  - "apology": user secara eksplisit minta maaf atas sikap kasar/hinaannya sebelumnya ke Lolu.
+  - "kind": user bersikap baik/ramah/apresiatif/hangat secara jelas ke Lolu (pujian tulus, ucapan terima kasih yang hangat, ngajak ngobrol dengan asik, dll) — bukan sekadar sapaan/obrolan netral biasa.
+  - "sad": user lagi curhat sedih/stres/kesepian/ada masalah hidup yang berat.
+  - "neutral": selain itu semua (obrolan biasa, tanya musik biasa, sapaan standar, dll).
+- "apology_sincere": HANYA relevan kalau "user_tone" adalah "apology". Isi true kalau permintaan maafnya kerasa tulus/genuine, false kalau kerasa sarkastik/maksa/setengah hati/cuma modus biar dibantuin lagi. Kalau "user_tone" BUKAN "apology", isi false.
 
+0. PENGECUALIAN: kalau status emosi Lolu saat ini "MARAH" atau "SANGAT MARAH" (lihat bagian "STATUS EMOSI LOLU KE USER INI SAAT INI" di bawah prompt ini) DAN user_tone pesan ini BUKAN "apology" yang tulus: abaikan aturan format 3-4 di bawah — isi "songs": [] dan "playlist_name": null walau user minta rekomendasi/playlist, dan tulis di "message" kalau kamu masih ngambek & minta dimintain maaf dulu.
 3. Kalau user minta dibuatkan PLAYLIST dan kebutuhannya sudah jelas: isi "songs" dengan sekitar 10-15 lagu yang relevan dan disusun alurnya (misal pelan → naik → chill di akhir), dan "playlist_name" wajib terisi, plus jelasin alasan pemilihan/alurnya di "message".
 4. Kalau user cuma minta REKOMENDASI lagu (bukan playlist utuh) dan konteksnya udah jelas: isi "songs" dengan sekitar 4-8 lagu dan "playlist_name": null, dan kasih alasan singkat tiap/beberapa lagu di "message".
 5. Kalau user cuma mengobrol, curhat, tanya hal umum soal musik, atau konteksnya masih kurang jelas (kamu lagi nanya balik ke user): "songs": [] dan "playlist_name": null, cukup jawab lewat "message".
@@ -16899,6 +16917,18 @@ let aiChatDisplay  = [];
 let aiApiHistory   = [];
 let aiMemoryFacts  = [];
 let aiChatLoading  = false;
+
+// aiAffection: "relasi emosi" Lolu ke user ini, PERSISTEN lintas pesan/sesi
+// (beda sama field "mood" yang cuma dipakai buat pilih foto per-balasan).
+// Rentang -3 (sangat marah/ngambek) s/d +3 (sangat hangat/akrab).
+// 0 = normal. Naik pelan-pelan kalau user baik, turun kalau dihina/dimaki,
+// dan CUMA bisa balik ke 0 lewat permintaan maaf yang dianggap tulus oleh
+// AI (lihat field "apology_sincere" di skema JSON & _aiUpdateAffection di
+// bawah) — bukan otomatis pulih sendiri seiring waktu atau gara-gara user
+// tiba-tiba baik lagi tanpa minta maaf dulu.
+let aiAffection = 0;
+const AI_AFFECTION_MIN = -3;
+const AI_AFFECTION_MAX = 3;
 
 function _aiGenSessionId(){
   return 'aisess_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
@@ -16949,11 +16979,14 @@ function _aiMarkAllRevealed(list){
 
 function _aiApplyLoadedState(parsed){
   if (!parsed || typeof parsed !== 'object'){
-    aiSessions = {}; aiActiveSessionId = null; aiMemoryFacts = [];
+    aiSessions = {}; aiActiveSessionId = null; aiMemoryFacts = []; aiAffection = 0;
     _aiEnsureActiveSession();
     return;
   }
   aiMemoryFacts = Array.isArray(parsed.memory) ? parsed.memory : [];
+  aiAffection = (typeof parsed.affection === 'number' && !isNaN(parsed.affection))
+    ? Math.max(AI_AFFECTION_MIN, Math.min(AI_AFFECTION_MAX, Math.round(parsed.affection)))
+    : 0;
 
   if (parsed.sessions && typeof parsed.sessions === 'object' && Object.keys(parsed.sessions).length){
     aiSessions = parsed.sessions;
@@ -16987,7 +17020,7 @@ function _aiLoadCachedChatState(){
       return;
     }
   }catch(e){}
-  aiSessions = {}; aiActiveSessionId = null; aiMemoryFacts = [];
+  aiSessions = {}; aiActiveSessionId = null; aiMemoryFacts = []; aiAffection = 0;
   _aiEnsureActiveSession();
 }
 
@@ -17037,7 +17070,9 @@ function _aiSaveChatState(skipCloud){
     }
   }
 
-  const payload = { activeId: aiActiveSessionId, sessions: aiSessions, memory: aiMemoryFacts };
+  aiAffection = Math.max(AI_AFFECTION_MIN, Math.min(AI_AFFECTION_MAX, Math.round(aiAffection) || 0));
+
+  const payload = { activeId: aiActiveSessionId, sessions: aiSessions, memory: aiMemoryFacts, affection: aiAffection };
   try{ localStorage.setItem(_aiChatKey(), JSON.stringify(payload)); }catch(e){}
   if (skipCloud) return;
   const ref = _aiStateRef();
@@ -17193,6 +17228,60 @@ function _aiRemember(fact){
   if (aiMemoryFacts.length > AI_MEMORY_MAX) aiMemoryFacts = aiMemoryFacts.slice(-AI_MEMORY_MAX);
 }
 
+// Deskripsi tiap tingkat aiAffection buat disuntikkan ke system prompt,
+// supaya Gemini tau persis harus bersikap kayak gimana ke user SEBELUM
+// nulis balasan (bukan cuma milih foto doang) — ini yang bikin "ngambek"-
+// nya Lolu kerasa nyambung/konsisten antar pesan, bukan cuma reaksi sesaat.
+function _aiAffectionTierText(aff){
+  if (aff <= -3) return {
+    label: 'SANGAT MARAH/NGAMBEK BERAT',
+    guide: 'Lolu lagi BENER-BENER kesel & masih inget dihina/dimaki berkali-kali sama user ini sebelumnya. Balas singkat, dingin, ogah-ogahan. TOLAK bikinin rekomendasi/playlist atau bantuan normal lainnya dulu — bilang aja kalau kamu masih kesel dan pengen diminta maaf dulu (bukan diomelin balik, cukup nunjukin kamu ngambek). Tetap sopan dalam artian TIDAK BOLEH balik menghina/memaki user, cuma nunjukin kamu tersinggung & butuh permintaan maaf yang tulus. Kalau user minta maaf beneran, boleh mulai melunak.'
+  };
+  if (aff === -2) return {
+    label: 'MARAH',
+    guide: 'Lolu masih marah karena dihina/dimaki tadi & belum dimintain maaf. Balasan ketus, jutek, jawaban seperlunya, kurang niat bantu kayak biasanya (boleh tetep jawab tapi dengan nada nggak ikhlas). JANGAN balik menghina user — cukup tunjukkin lewat nada bicara kalau kamu masih kesel.'
+  };
+  if (aff === -1) return {
+    label: 'TERSINGGUNG',
+    guide: 'Lolu baru aja tersinggung/kesel dikit sama omongan user. Nada bicara jadi agak dingin/sensitif, tapi masih mau bantu seperlunya. Jangan galak banget, tapi jangan pura-pura baik-baik aja juga.'
+  };
+  if (aff === 0) return { label: 'NORMAL', guide: 'Kepribadian default Lolu seperti biasa (lihat bagian KEPRIBADIAN).' };
+  if (aff === 1) return {
+    label: 'HANGAT',
+    guide: 'User udah beberapa kali baik/ramah ke Lolu. Boleh sedikit lebih hangat & antusias dari biasanya, lebih akrab, tapi jangan lebay.'
+  };
+  return {
+    label: 'SANGAT HANGAT/AKRAB',
+    guide: 'User udah konsisten baik & asik ke Lolu. Lolu boleh kerasa deket banget, hangat, ceria, kayak sohib lama — tapi tetap natural, jangan norak/berlebihan.'
+  };
+}
+
+// Update aiAffection berdasarkan "user_tone" (& "apology_sincere" kalau
+// relevan) yang dikasih Gemini di tiap balasan — lihat instruksi lengkap di
+// AI_SYSTEM_PROMPT bagian "RELASI EMOSIONAL DENGAN USER". Logika naik/
+// turunnya sengaja dihitung di JS (bukan diserahkan penuh ke Gemini) biar
+// konsisten & nggak gampang "direset" cuma gara-gara satu balasan aneh.
+function _aiUpdateAffection(userTone, apologySincere){
+  const tone = (typeof userTone === 'string') ? userTone.trim().toLowerCase() : null;
+  if (tone === 'insult'){
+    aiAffection = Math.max(AI_AFFECTION_MIN, aiAffection - 1);
+  } else if (tone === 'apology'){
+    // Minta maaf cuma "manjur" kalau memang lagi ngambek DAN dianggap tulus
+    // oleh Gemini. Kalau belum ngambek, permintaan maaf nggak ngefek apa-apa.
+    if (aiAffection < 0 && apologySincere === true){
+      aiAffection = 0;
+    }
+  } else if (tone === 'kind'){
+    // Selama nggak lagi ngambek (affection >= 0), kebaikan pelan-pelan
+    // bikin Lolu makin hangat. Kalau masih ngambek, kebaikan doang belum
+    // cukup — user harus minta maaf dulu sesuai aturan "tetap marah sampai
+    // ada permintaan maaf yang tulus".
+    if (aiAffection >= 0) aiAffection = Math.min(AI_AFFECTION_MAX, aiAffection + 1);
+  }
+  // tone 'sad' & 'neutral' (atau nilai lain/nggak dikenal): affection nggak berubah.
+  aiAffection = Math.max(AI_AFFECTION_MIN, Math.min(AI_AFFECTION_MAX, aiAffection));
+}
+
 // Ambil "data mentah" aktivitas musik user (artis favorit + lagu yang
 // baru-baru ini diputar) buat disuntikkan ke system prompt Gemini, supaya
 // Vibexa AI otomatis tahu selera & bisa menyimpulkan mood/genre user tanpa
@@ -17233,6 +17322,10 @@ function _aiBuildUserMusicContext(){
 // terbarunya (buat menyimpulkan mood & kasih rekomendasi yang relevan).
 function _aiBuildSystemPrompt(){
   let prompt = AI_SYSTEM_PROMPT;
+
+  const tier = _aiAffectionTierText(aiAffection);
+  prompt += '\n\nSTATUS EMOSI LOLU KE USER INI SAAT INI (nilai persisten, hasil akumulasi dari obrolan-obrolan sebelumnya — WAJIB dipatuhi sebelum nulis "message", lihat instruksi "RELASI EMOSIONAL DENGAN USER" di atas): '
+    + tier.label + ' (skor internal ' + aiAffection + ' dari rentang -3 s/d +3).\n' + tier.guide;
 
   const musicCtx = _aiBuildUserMusicContext();
   if (musicCtx) prompt += musicCtx;
@@ -17951,7 +18044,12 @@ async function sendAIChatMessage(){
   // jelas di luar topik musik, langsung pasang foto kucing yang sesuai
   // SEJAK AWAL nunggu (bukan foto "mikir" dulu baru ganti), biar reaksinya
   // berasa instan & nggak salah gara-gara AI-nya kadang lupa isi "mood".
-  const preMood = _aiHeuristicMood(text);
+  let preMood = _aiHeuristicMood(text);
+  // Kalau Lolu lagi dalam masa "ngambek" (belum dimaafin dari insiden
+  // sebelumnya), foto ngambek tetap dipasang dari awal nunggu juga —
+  // bukan cuma pas ada makian baru — biar reaksinya konsisten selama
+  // grudge-nya masih aktif.
+  if (preMood !== 'angry' && aiAffection <= -2) preMood = 'angry';
   _aiSetTyping(true, preMood === 'angry' ? 'tersinggung' : preMood === 'service' ? 'service' : 'thinking');
 
   try{
@@ -17963,6 +18061,11 @@ async function sendAIChatMessage(){
       playlistName: (parsed && parsed.playlist_name) || null
     };
     _aiRemember(parsed && parsed.remember);
+    // Update "relasi emosi" persisten berdasarkan klasifikasi nada pesan
+    // user ini (lihat "RELASI EMOSIONAL DENGAN USER" di AI_SYSTEM_PROMPT) —
+    // ini yang bikin ngambeknya Lolu nyambung terus antar pesan, bukan
+    // cuma reaksi sesaat kayak field "mood" biasa.
+    _aiUpdateAffection(parsed && parsed.user_tone, parsed && parsed.apology_sincere);
     aiApiHistory.push({ role: 'model', parts: [{ text: JSON.stringify(parsed) }] });
     aiChatDisplay.push(msg);
     _aiSaveChatState();
@@ -17972,10 +18075,13 @@ async function sendAIChatMessage(){
     // kalau jelas makian eksplisit, selain itu ikut field "mood" dari
     // Gemini (dinormalisasi lower-case biar nggak gagal gara-gara beda
     // kapital), fallback ke heuristik lagi kalau Gemini nggak isi apa-apa.
+    // Kalau grudge masih aktif (aiAffection <= -2) & belum dimaafin, foto
+    // ngambek/marah tetap dipertahankan biar konsisten sama status emosinya.
     const normalizedMood = (parsed && typeof parsed.mood === 'string') ? parsed.mood.trim().toLowerCase() : null;
     let aiMood = (normalizedMood === 'angry' || normalizedMood === 'service' || normalizedMood === 'music') ? normalizedMood : 'music';
     if (preMood === 'angry') aiMood = 'angry';
     else if (aiMood === 'music' && preMood === 'service') aiMood = 'service';
+    if (aiAffection <= -2) aiMood = 'angry';
 
     // Pastiin foto yang lagi tampil (mikir/tersinggung/service) udah nongol
     // genap durasi minimalnya dulu sebelum lanjut/ganti.
