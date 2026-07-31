@@ -1103,7 +1103,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
         </button>
         <button class="chat-gif-btn" id="chat-gif-btn" onclick="toggleGifPicker()" title="Send GIF">GIF</button>
-        <input type="text" id="chat-input" placeholder="Write a message..." autocomplete="off" oninput="onChatInputTyping()" onkeydown="if(event.key==='Enter'){event.preventDefault();sendChatMessage();}">
+        <textarea id="chat-input" rows="1" placeholder="Write a message..." autocomplete="off" oninput="onChatInputTyping()" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatMessage();}"></textarea>
         <button class="chat-send-btn" onclick="sendChatMessage()" title="Send">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
         </button>
@@ -1142,7 +1142,7 @@
     </div>
     <div class="ai-chat-messages" id="ai-chat-messages"></div>
     <div class="ai-chat-inputbar">
-      <input type="text" id="ai-chat-input" placeholder="Minta playlist, rekomendasi lagu, atau ngobrol soal musik..." autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter'){event.preventDefault();sendAIChatMessage();}">
+      <textarea id="ai-chat-input" rows="1" placeholder="Minta playlist, rekomendasi lagu, atau ngobrol soal musik..." autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAIChatMessage();}"></textarea>
       <button class="ai-chat-send-btn" id="ai-chat-send-btn" onclick="sendAIChatMessage()" title="Send">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>
       </button>

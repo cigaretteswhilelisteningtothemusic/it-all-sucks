@@ -22,6 +22,7 @@
   --np-bottom: 92px;
 }
 *{margin:0;padding:0;box-sizing:border-box}
+html{background:#0A0A0A}
 html,body{height:100%;overflow:hidden}
 body{
   font-family:var(--f);
@@ -4393,7 +4394,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 .chat-date-sep span{background:var(--card);color:var(--sub);font-size:.68rem;font-weight:600;padding:4px 14px;border-radius:20px;border:1px solid var(--border);}
 
 .chat-input-bar{display:flex;align-items:center;gap:10px;padding:14px 22px;border-top:1px solid var(--border);flex-shrink:0;}
-#chat-input{flex:1;background:var(--card);border:1px solid var(--border);border-radius:24px;padding:11px 18px;color:var(--text);font-family:var(--f);font-size:.86rem;outline:none;transition:border-color .15s;}
+#chat-input{flex:1;background:var(--card);border:1px solid var(--border);border-radius:24px;padding:11px 18px;color:var(--text);font-family:var(--f);font-size:.86rem;outline:none;transition:border-color .15s;resize:none;overflow:hidden;white-space:nowrap;line-height:1.3;}
 #chat-input:focus{border-color:var(--green);}
 .chat-send-btn{width:42px;height:42px;border-radius:50%;background:var(--green);border:none;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:transform .15s;}
 .chat-send-btn svg{width:18px;height:18px;}
@@ -4714,7 +4715,7 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 .ai-create-pl-btn:disabled{opacity:.75;cursor:default;}
 
 .ai-chat-inputbar{display:flex;align-items:center;gap:10px;padding:14px 22px;border-top:1px solid var(--border);flex-shrink:0;}
-#ai-chat-input{flex:1;background:var(--card);border:1px solid var(--border);border-radius:50px;padding:11px 18px;color:var(--text);font-family:var(--f);font-size:.85rem;outline:none;transition:border-color .2s;}
+#ai-chat-input{flex:1;background:var(--card);border:1px solid var(--border);border-radius:50px;padding:11px 18px;color:var(--text);font-family:var(--f);font-size:.85rem;outline:none;transition:border-color .2s;resize:none;overflow:hidden;white-space:nowrap;line-height:1.3;}
 #ai-chat-input::placeholder{color:var(--muted);}
 #ai-chat-input:focus{border-color:var(--green);}
 .ai-chat-send-btn{width:42px;height:42px;border-radius:50%;border:none;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:transform .15s;}
