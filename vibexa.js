@@ -5828,22 +5828,34 @@ async function fetchLyr(title, artist, knownDuration){
   const k = title+'|'+artist;
   if(lyrCache[k] !== undefined) return lyrCache[k];
 
-  // Coba tiap sumber SATU PER SATU (worker 1 → worker 2 → langsung lrclib.net)
-  // dan baru berhenti begitu ada sumber yang benar-benar menghasilkan lirik
-  // terpakai. Sebelumnya begitu satu worker balas dengan ARRAY (walau isinya
-  // semua sampah/tanpa lirik, mis. flood entri troll di database lrclib),
-  // pencarian langsung berhenti di situ — sumber lain yang sebenarnya punya
-  // data bagus tidak pernah dicoba. Sekarang "berhasil" hanya dihitung kalau
-  // benar-benar dapat baris lirik yang bisa diparse.
+  // Coba semua sumber (worker 1, worker 2, langsung lrclib.net) lalu pakai
+  // yang PERTAMA (sesuai urutan prioritas worker1 > worker2 > lrclib direct)
+  // yang benar-benar menghasilkan lirik terpakai. Sebelumnya begitu satu
+  // worker balas dengan ARRAY (walau isinya semua sampah/tanpa lirik, mis.
+  // flood entri troll di database lrclib), pencarian langsung berhenti di
+  // situ — sumber lain yang sebenarnya punya data bagus tidak pernah dicoba.
+  // Sekarang "berhasil" hanya dihitung kalau benar-benar dapat baris lirik
+  // yang bisa diparse.
   const sources = [
     () => _fetchLyrFrom(WORKER, title, artist),
     () => _fetchLyrFrom(WORKER2, title, artist),
     () => _fetchLyrFromLrclibDirect(title, artist),
   ];
 
+  // PENTING: jalankan SEMUA sumber SEKALIGUS secara paralel (Promise.allSettled),
+  // BUKAN satu-per-satu (await berurutan) seperti sebelumnya. Tiap sumber bisa
+  // butuh sampai 2 request x 7 detik = 14 detik (kalau request pertama kosong,
+  // dicoba lagi title-only). Kalau 3 sumber dijalankan berurutan dan semuanya
+  // gagal/lambat, total waktu tunggu bisa sampai ~42 detik sebelum akhirnya
+  // menyerah — inilah penyebab utama loading lirik terasa "lama banget".
+  // Dengan paralel, waktu tunggu maksimum dibatasi oleh sumber TERLAMBAT saja
+  // (~14 detik), dan prioritas (worker1 > worker2 > lrclib direct) tetap
+  // dihormati karena hasil tetap diproses sesuai urutan `sources` di atas.
+  const settledResults = await Promise.allSettled(sources.map(fn => fn()));
+
   let bestPool = [];
-  for(const getData of sources){
-    const data = await getData();
+  for(const settled of settledResults){
+    const data = settled.status === 'fulfilled' ? settled.value : null;
     if(!data || !data.length) continue;
 
     const artistMatched = _filterByExactArtist(data, artist);
