@@ -17544,6 +17544,27 @@ function renderAIChatMessages(){
   const c = document.getElementById('ai-chat-messages');
   if (!c) return;
   if (!aiChatDisplay.length){
+    // Layar welcome utk obrolan baru/kosong. aiAffection itu status yg
+    // PERSISTEN lintas obrolan (lihat _aiSaveChatState/_aiApplyLoadedState),
+    // jadi kalau Lolu masih ngambek/marah, welcome screen-nya WAJIB ikut
+    // nunjukin itu — sebelumnya di sini selalu dipasang foto & sapaan ceria
+    // yang sama tanpa peduli aiAffection, jadi kesannya "baik-baik aja lagi"
+    // padahal skornya belum di-reset (cuma reset lewat permintaan maaf yg
+    // dianggap tulus, lihat _aiUpdateAffection).
+    if (aiAffection < 0){
+      const tier = _aiAffectionTierText(aiAffection);
+      const moodImg = (aiAffection <= -2) ? AI_CAT_SRC.angry : AI_CAT_SRC.tersinggung;
+      c.innerHTML = `
+        <div class="ai-chat-welcome ai-chat-welcome-sulking">
+          <div class="ai-chat-welcome-icon"><img src="${moodImg}" alt="Lolu" width="72" height="72"></div>
+          <div class="ai-chat-welcome-title">Lolu lagi ${tier.label.toLowerCase()}</div>
+          <div class="ai-chat-welcome-sub">Ini obrolan baru, tapi Lolu masih inget kejadian sebelumnya. Coba minta maaf dulu deh.</div>
+          <div class="ai-chat-chips">
+            <button class="ai-chip" onclick="aiQuickPrompt('Maaf ya Lolu, aku nggak bermaksud gitu')">Minta maaf ke Lolu</button>
+          </div>
+        </div>`;
+      return;
+    }
     c.innerHTML = `
       <div class="ai-chat-welcome">
         <div class="ai-chat-welcome-icon"><img src="lolu-icon-welcome.png" alt="Lolu" width="72" height="72"></div>
