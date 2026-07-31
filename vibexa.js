@@ -16936,6 +16936,17 @@ function _aiEnsureActiveSession(){
 // format lama (satu obrolan tunggal {display, api, memory}) yang dipakai
 // sebelum fitur riwayat obrolan ini ada — supaya obrolan lama user nggak
 // hilang, otomatis dijadikan sesi pertama.
+// Tandai semua pesan di sebuah riwayat sebagai "udah pernah tampil" —
+// dipakai tiap kali riwayat dimuat dari localStorage/cloud (BUKAN pesan baru
+// yang baru aja dikirim), supaya animasi ngetik + jeda 2 detik per bubble
+// tidak diputar ulang setiap kali user keluar lalu masuk lagi ke halaman
+// chat AI.
+function _aiMarkAllRevealed(list){
+  if (Array.isArray(list)){
+    list.forEach(m => { if (m && m.role === 'assistant') m._revealed = true; });
+  }
+}
+
 function _aiApplyLoadedState(parsed){
   if (!parsed || typeof parsed !== 'object'){
     aiSessions = {}; aiActiveSessionId = null; aiMemoryFacts = [];
@@ -16962,6 +16973,7 @@ function _aiApplyLoadedState(parsed){
     aiSessions = {};
     aiActiveSessionId = null;
   }
+  Object.keys(aiSessions).forEach(id => _aiMarkAllRevealed(aiSessions[id].display));
   _aiEnsureActiveSession();
 }
 
