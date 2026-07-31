@@ -22,7 +22,7 @@
   --np-bottom: 92px;
 }
 *{margin:0;padding:0;box-sizing:border-box}
-html{background:#0A0A0A}
+html{background:#0A0A0A;color-scheme:dark;}
 html,body{height:100%;overflow:hidden}
 body{
   font-family:var(--f);
