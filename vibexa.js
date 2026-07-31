@@ -17472,6 +17472,15 @@ function _aiSplitMessageText(text){
     .filter(Boolean);
 }
 
+// Hapus titik tunggal di akhir potongan teks (bukan "..." / emoticon) biar
+// kesannya orang beneran lagi ngetik santai di chat, bukan kalimat formal.
+// Titik ganda (elipsis "...") sengaja dibiarkan karena itu gaya bahasa, bukan
+// tanda titik penutup kalimat biasa.
+function _aiHumanizeText(text){
+  if (!text) return text;
+  return String(text).replace(/(?<!\.)\.(?!\.)[ \t]*$/, '').trimEnd();
+}
+
 function _aiBuildBubble(msg){
   const row = document.createElement('div');
   row.className = 'ai-bubble-row ' + (msg.role === 'user' ? 'me' : 'ai');
@@ -17484,42 +17493,75 @@ function _aiBuildBubble(msg){
   }
   const wrap = document.createElement('div');
   wrap.className = 'ai-bubble-col';
+  row.appendChild(wrap);
 
   // Balasan AI dipecah jadi beberapa bubble kecil (bukan 1 bubble besar)
   // biar keliatan kayak orang chat beneran (lihat referensi screenshot WA).
+  // Setiap potongan juga dibersihkan dari titik penutup di akhir kalimat
+  // biar kesannya orang beneran lagi ngetik, bukan teks formal robotik.
   const textParts = _aiSplitMessageText(msg.text);
-  const parts = textParts.length ? textParts : [(msg.text || '').trim()].filter(Boolean);
-  parts.forEach((part, i) => {
-    const bubble = document.createElement('div');
-    bubble.className = 'ai-bubble';
-    if (parts.length > 1){
-      bubble.classList.add('ai-bubble-split');
-      bubble.style.animationDelay = (i * 110) + 'ms';
-    }
-    bubble.textContent = part;
-    wrap.appendChild(bubble);
-  });
+  const parts = (textParts.length ? textParts : [(msg.text || '').trim()].filter(Boolean))
+    .map(_aiHumanizeText)
+    .filter(Boolean);
 
-  if (Array.isArray(msg.songs) && msg.songs.length){
-    const list = document.createElement('div');
-    list.className = 'ai-song-list';
-    msg.songs.forEach(song => list.appendChild(_aiBuildSongCard(song)));
-    wrap.appendChild(list);
+  const appendExtras = () => {
+    if (Array.isArray(msg.songs) && msg.songs.length){
+      const list = document.createElement('div');
+      list.className = 'ai-song-list';
+      msg.songs.forEach(song => list.appendChild(_aiBuildSongCard(song)));
+      wrap.appendChild(list);
 
-    if (msg.playlistName){
-      const btn = document.createElement('button');
-      btn.className = 'ai-create-pl-btn';
-      if (msg._createdPlaylistId){
-        btn.innerHTML = ' Playlist dibuat — buka';
-        btn.onclick = () => { closeAIChatOverlay(); showPlaylistView(msg._createdPlaylistId); };
-      } else {
-        btn.innerHTML = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Buat Playlist "${esc(msg.playlistName)}"`;
-        btn.onclick = () => _aiCreatePlaylistFromMsg(msg, btn);
+      if (msg.playlistName){
+        const btn = document.createElement('button');
+        btn.className = 'ai-create-pl-btn';
+        if (msg._createdPlaylistId){
+          btn.innerHTML = ' Playlist dibuat — buka';
+          btn.onclick = () => { closeAIChatOverlay(); showPlaylistView(msg._createdPlaylistId); };
+        } else {
+          btn.innerHTML = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Buat Playlist "${esc(msg.playlistName)}"`;
+          btn.onclick = () => _aiCreatePlaylistFromMsg(msg, btn);
+        }
+        wrap.appendChild(btn);
       }
-      wrap.appendChild(btn);
     }
+    _aiScrollToBottom();
+  };
+
+  if (msg._revealed){
+    // Pesan lama (udah pernah tampil sebelumnya) -> render langsung tanpa
+    // jeda, supaya pas pindah/reload chat nggak keputer ulang animasinya.
+    parts.forEach((part) => {
+      const bubble = document.createElement('div');
+      bubble.className = 'ai-bubble';
+      if (parts.length > 1) bubble.classList.add('ai-bubble-split');
+      bubble.textContent = part;
+      wrap.appendChild(bubble);
+    });
+    appendExtras();
+  } else {
+    // Pesan baru -> setiap bubble dimunculin satu-satu, didahului indikator
+    // "sedang mengetik" + jeda 2 detik, biar berasa kayak lawan chat asli.
+    (async () => {
+      for (let i = 0; i < parts.length; i++){
+        const typingBubble = document.createElement('div');
+        typingBubble.className = 'ai-bubble ai-typing';
+        typingBubble.innerHTML = '<span></span><span></span><span></span>';
+        wrap.appendChild(typingBubble);
+        _aiScrollToBottom();
+        await new Promise(r => setTimeout(r, 2000));
+        typingBubble.remove();
+
+        const bubble = document.createElement('div');
+        bubble.className = 'ai-bubble ai-bubble-split';
+        bubble.textContent = parts[i];
+        wrap.appendChild(bubble);
+        _aiScrollToBottom();
+      }
+      appendExtras();
+      msg._revealed = true;
+    })();
   }
-  row.appendChild(wrap);
+
   return row;
 }
 

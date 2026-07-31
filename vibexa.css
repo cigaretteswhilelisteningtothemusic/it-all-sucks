@@ -4676,8 +4676,10 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 .ai-bubble-row{display:flex;max-width:82%;}
 .ai-bubble-row.me{align-self:flex-end;justify-content:flex-end;}
 .ai-bubble-row.ai{align-self:flex-start;justify-content:flex-start;}
-.ai-bubble-col{display:flex;flex-direction:column;gap:10px;min-width:0;width:100%;}
-.ai-bubble{padding:10px 15px;border-radius:16px;font-size:.86rem;line-height:1.48;word-wrap:break-word;white-space:pre-wrap;}
+.ai-bubble-col{display:flex;flex-direction:column;align-items:flex-start;gap:10px;min-width:0;max-width:100%;}
+.ai-bubble{padding:10px 15px;border-radius:16px;font-size:.86rem;line-height:1.48;word-wrap:break-word;white-space:pre-wrap;max-width:100%;width:fit-content;}
+.ai-bubble-col .ai-song-list,
+.ai-bubble-col .ai-create-pl-btn{align-self:stretch;}
 @keyframes aiBubbleSplitIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
 .ai-bubble-split{animation:aiBubbleSplitIn .3s ease both;}
 .ai-bubble-col{gap:6px;}
