@@ -4678,6 +4678,11 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 .ai-bubble-row.ai{align-self:flex-start;justify-content:flex-start;}
 .ai-bubble-col{display:flex;flex-direction:column;gap:10px;min-width:0;width:100%;}
 .ai-bubble{padding:10px 15px;border-radius:16px;font-size:.86rem;line-height:1.48;word-wrap:break-word;white-space:pre-wrap;}
+@keyframes aiBubbleSplitIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+.ai-bubble-split{animation:aiBubbleSplitIn .3s ease both;}
+.ai-bubble-col{gap:6px;}
+.ai-bubble-col .ai-song-list,
+.ai-bubble-col .ai-create-pl-btn{margin-top:8px;}
 .ai-bubble-row.me .ai-bubble{background:var(--green);color:#fff;border-bottom-right-radius:4px;}
 .ai-bubble-row.ai .ai-bubble{background:var(--card);color:var(--text);border-bottom-left-radius:4px;}
 

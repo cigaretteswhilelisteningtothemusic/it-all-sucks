@@ -16842,6 +16842,7 @@ ATURAN FORMAT OUTPUT — WAJIB DIIKUTI PERSIS (ini teknis, di luar gaya ngobrol 
 2. Skema JSON WAJIB persis seperti ini:
 {"message": "...", "songs": [{"title": "...", "artist": "..."}], "playlist_name": null, "remember": null, "mood": "music"}
 - "message": balasan ngobrol yang natural ke user sesuai kepribadian & cara ngobrol di atas, dalam bahasa yang sama dengan pesan terbaru user (ikuti aturan "BAHASA" di bagian KEPRIBADIAN di atas — default Bahasa Indonesia, tapi switch total ke bahasa user kalau user pakai bahasa lain).
+  GAYA PECAH PESAN (WAJIB DIIKUTI): orang chat beneran (WhatsApp dkk) nggak pernah ngetik satu paragraf panjang nyatu — mereka ngetik sepotong, kirim, ngetik lagi, kirim lagi. Kalau balasan "message" kamu memuat lebih dari satu ide/kalimat (curhat + tanya balik, penjelasan + ajakan, dsb) atau kalau kalimatnya jadi panjang, JANGAN ditulis sebagai satu paragraf. Pecah jadi beberapa potongan pendek (idealnya cuma 1 kalimat pendek, atau bahkan cuma beberapa kata — jangan pernah lebih dari ±12 kata per potongan), lalu GABUNGKAN semua potongan itu ke dalam SATU string "message" yang sama dengan memisahkan tiap potongan pakai baris kosong (dua kali enter, yaitu karakter "\n\n" persis). Pecah di titik yang wajar secara natural (ganti topik/ide, jeda kayak lagi mikir, atau abis nanya sebelum lanjut ngomong lagi) — jangan asal motong kalimat yang harusnya nyambung. Kalau balasannya memang udah pendek banget (cuma satu kalimat singkat atau sapaan), TIDAK usah dipecah, cukup satu potongan aja tanpa "\n\n".
 - "songs": array lagu NYATA yang benar-benar pernah dirilis (judul & nama artis asli — jangan pernah mengarang judul/artis). Kosongkan jadi [] kalau user cuma mengobrol biasa, curhat, atau kebutuhannya belum jelas dan kamu lagi nanya balik.
 - "playlist_name": nama pendek & unik untuk playlist, HANYA JIKA user secara jelas minta dibuatkan/disusunkan sebuah playlist DAN kebutuhannya udah jelas (bukan lagi kamu tanya balik). Selain itu isi null.
 - "remember": SATU fakta baru yang layak diingat jangka panjang soal user ini (lihat aturan "INGATAN JANGKA PANJANG" di atas), ditulis singkat 1 kalimat pendek Bahasa Indonesia (maks ±15 kata), contoh: "Suka dipanggil Rian", "Genre favorit: city pop dan lo-fi", "Lagu favoritnya Blinding Lights - The Weeknd". Isi null kalau tidak ada info baru yang perlu disimpan di balasan ini.
@@ -17457,6 +17458,20 @@ function renderAIChatMessages(){
   _aiScrollToBottom();
 }
 
+// Pecah teks balasan AI jadi beberapa "potongan pesan" terpisah — dipisah
+// oleh baris kosong ("\n\n") sesuai instruksi di AI_SYSTEM_PROMPT — supaya
+// tiap potongan bisa dirender jadi bubble sendiri-sendiri, persis kayak
+// orang beneran ngetik-kirim-ngetik-kirim di WhatsApp (bukan satu bubble
+// raksasa yang keliatan kayak balasan AI). Kalau Gemini kebetulan nggak
+// pakai "\n\n" (balasan pendek / lupa format), fallback ke 1 potongan biasa.
+function _aiSplitMessageText(text){
+  if (!text) return [];
+  return String(text)
+    .split(/\n\s*\n+/)
+    .map(s => s.trim())
+    .filter(Boolean);
+}
+
 function _aiBuildBubble(msg){
   const row = document.createElement('div');
   row.className = 'ai-bubble-row ' + (msg.role === 'user' ? 'me' : 'ai');
@@ -17469,10 +17484,21 @@ function _aiBuildBubble(msg){
   }
   const wrap = document.createElement('div');
   wrap.className = 'ai-bubble-col';
-  const bubble = document.createElement('div');
-  bubble.className = 'ai-bubble';
-  bubble.textContent = msg.text || '';
-  wrap.appendChild(bubble);
+
+  // Balasan AI dipecah jadi beberapa bubble kecil (bukan 1 bubble besar)
+  // biar keliatan kayak orang chat beneran (lihat referensi screenshot WA).
+  const textParts = _aiSplitMessageText(msg.text);
+  const parts = textParts.length ? textParts : [(msg.text || '').trim()].filter(Boolean);
+  parts.forEach((part, i) => {
+    const bubble = document.createElement('div');
+    bubble.className = 'ai-bubble';
+    if (parts.length > 1){
+      bubble.classList.add('ai-bubble-split');
+      bubble.style.animationDelay = (i * 110) + 'ms';
+    }
+    bubble.textContent = part;
+    wrap.appendChild(bubble);
+  });
 
   if (Array.isArray(msg.songs) && msg.songs.length){
     const list = document.createElement('div');
