@@ -17366,6 +17366,39 @@ function _renderAiFabAnimation(){
 }
 document.addEventListener('DOMContentLoaded', _renderAiFabAnimation);
 
+// ── MODE MALAM TOMBOL AI: animasi "burung tidur" jam 21.00–06.00 ──────────
+// Di luar jam tsb (06.00–20.59) tombol AI pakai animasi Wavey_Birdie seperti
+// biasa. Begitu masuk jam 21.00, animasi Wavey_Birdie disembunyikan lalu
+// diganti animasi GIF burung tidur (background sudah dihapus/transparan,
+// ukurannya disamakan lewat CSS #ai-fab-sleep-gif supaya pas menyatu di
+// dalam tombol). Jam 06.00 pagi, otomatis balik lagi ke Wavey_Birdie.
+function _isAiFabSleepHour(){
+  const h = new Date().getHours();
+  // 21.00 malam s/d 06.00 pagi (melewati tengah malam)
+  return h >= 21 || h < 6;
+}
+function _updateAiFabSleepMode(){
+  const lottieEl = document.getElementById('ai-fab-lottie');
+  const sleepEl = document.getElementById('ai-fab-sleep-gif');
+  if (!lottieEl || !sleepEl) return;
+  const sleepNow = _isAiFabSleepHour();
+  if (sleepNow){
+    lottieEl.style.display = 'none';
+    if (_aiFabAnim) { try{ _aiFabAnim.pause(); }catch(e){} }
+    sleepEl.classList.add('show');
+  } else {
+    sleepEl.classList.remove('show');
+    lottieEl.style.display = '';
+    if (_aiFabAnim) { try{ _aiFabAnim.play(); }catch(e){} }
+  }
+}
+document.addEventListener('DOMContentLoaded', () => {
+  _updateAiFabSleepMode();
+  // Cek tiap menit supaya transisi 21.00 & 06.00 otomatis kepakai walau
+  // web/app tetap dibuka terus tanpa reload.
+  setInterval(_updateAiFabSleepMode, 60 * 1000);
+});
+
 // Tombol AI mengambang (#ai-fab) HANYA muncul di halaman Home. Dipantau lewat
 // MutationObserver pada class #home-view (yang menentukan tampil/tidaknya
 // halaman Home lewat class "active" — lihat CSS #home-view.active), supaya

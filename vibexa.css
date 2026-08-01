@@ -4544,10 +4544,17 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 #ai-fab-lottie{width:64px;height:64px;pointer-events:none;}
 #ai-fab-lottie svg{width:100%!important;height:100%!important;}
 #ai-fab.hide{display:none;}
+/* Animasi "burung tidur" (21.00–06.00) — gantikan Wavey_Birdie di jam tsb.
+   Background GIF sudah dihapus (transparan) & ukurannya disamakan dengan
+   #ai-fab-lottie supaya menyatu pas di dalam tombol AI. Disembunyikan lewat
+   display:none default, dimunculkan lewat class "show" oleh vibexa.js. */
+#ai-fab-sleep-gif{width:64px;height:64px;object-fit:contain;pointer-events:none;display:none;}
+#ai-fab-sleep-gif.show{display:block;}
 @media(max-width:660px){
   #ai-fab{width:56px;height:56px;right:14px;bottom:calc(var(--np-bottom) + 12px);}
   #ai-fab svg{width:20px;height:20px;}
   #ai-fab-lottie{width:52px;height:52px;}
+  #ai-fab-sleep-gif{width:52px;height:52px;}
 }
 
 /* Bubble sapaan pixel Lolu — kotak dialog gaya 8-bit di samping kiri
