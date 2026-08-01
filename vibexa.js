@@ -17397,6 +17397,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // Cek tiap menit supaya transisi 21.00 & 06.00 otomatis kepakai walau
   // web/app tetap dibuka terus tanpa reload.
   setInterval(_updateAiFabSleepMode, 60 * 1000);
+  // Sama halnya buat welcome screen di halaman chat Lolu: kalau overlay
+  // chat lagi kebuka dan lagi nampilin welcome screen (belum ada pesan),
+  // re-render tiap menit biar transisi jam tidur (21.00/06.00) otomatis
+  // kepakai juga tanpa perlu buka-tutup ulang chatnya.
+  setInterval(() => {
+    const ov = document.getElementById('ai-chat-overlay');
+    if (ov && ov.classList.contains('show') && !aiChatDisplay.length){
+      renderAIChatMessages();
+    }
+  }, 60 * 1000);
 });
 
 // Tombol AI mengambang (#ai-fab) HANYA muncul di halaman Home. Dipantau lewat
@@ -17574,10 +17584,29 @@ function _aiScrollToBottom(){
   if (c) c.scrollTop = c.scrollHeight;
 }
 
+// ── MODE TIDUR LOLU DI HALAMAN CHAT: welcome screen (obrolan kosong) diganti
+// animasi burung tidur (sleepbird.gif) + teks "Shhh... Lolu is sleeping" jam
+// 21.00–06.00, menggantikan sementara tampilan welcome biasa/ngambek. Di luar
+// jam itu otomatis balik ke tampilan asal. Ukurannya disamakan lewat class
+// .ai-chat-welcome-icon yang sudah ada (72x72), biar nggak beda sendiri sama
+// icon welcome biasa di halaman chat ini.
+function _isLoluChatSleepHour(){
+  const h = new Date().getHours();
+  return h >= 21 || h < 6;
+}
 function renderAIChatMessages(){
   const c = document.getElementById('ai-chat-messages');
   if (!c) return;
   if (!aiChatDisplay.length){
+    if (_isLoluChatSleepHour()){
+      c.innerHTML = `
+        <div class="ai-chat-welcome ai-chat-welcome-sleeping">
+          <div class="ai-chat-welcome-icon"><img src="sleepbird.gif" alt="Lolu sedang tidur"></div>
+          <div class="ai-chat-welcome-title">Shhh... Lolu is sleeping</div>
+          <div class="ai-chat-welcome-sub">Lolu lagi tidur, balik lagi jam 6 pagi ya.</div>
+        </div>`;
+      return;
+    }
     // Layar welcome utk obrolan baru/kosong. aiAffection itu status yg
     // PERSISTEN lintas obrolan (lihat _aiSaveChatState/_aiApplyLoadedState),
     // jadi kalau Lolu masih ngambek/marah, welcome screen-nya WAJIB ikut
