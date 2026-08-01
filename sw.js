@@ -24,7 +24,7 @@ const messaging = firebase.messaging();
 // tidak berubah dan TIDAK akan pernah menginstall ulang / menyegarkan cache
 // — cache lama (termasuk vibexa.html versi lama) akan dipakai selamanya
 // oleh navigasi offline, walau server sudah punya versi terbaru.
-const CACHE_VERSION = 'vibexa-v30';
+const CACHE_VERSION = 'vibexa-v31';
 const APP_SHELL = [
   './vibexa.html',
   './manifest.json'
