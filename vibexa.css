@@ -4544,6 +4544,9 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 #ai-fab-lottie{width:64px;height:64px;pointer-events:none;}
 #ai-fab-lottie svg{width:100%!important;height:100%!important;}
 #ai-fab.hide{display:none;}
+/* Titik merah kecil penanda ada pesan follow-up baru dari Lolu (chat proaktif) */
+.ai-followup-dot{position:absolute;top:2px;right:2px;width:14px;height:14px;border-radius:50%;background:#ff3b5c;border:2px solid #14151a;box-shadow:0 0 0 2px rgba(255,59,92,.35);animation:aiFollowupPulse 1.6s ease-in-out infinite;pointer-events:none;}
+@keyframes aiFollowupPulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.25);opacity:.75;}}
 /* Animasi "burung tidur" (21.00–06.00) — gantikan Wavey_Birdie di jam tsb.
    Background GIF sudah dihapus (transparan) & ukurannya disamakan dengan
    #ai-fab-lottie supaya menyatu pas di dalam tombol AI. Disembunyikan lewat

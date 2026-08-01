@@ -335,6 +335,7 @@ if (window._vbxFirebaseOK && auth) {
       loadSadPlaylists();
       loadWeekdayPlaylists();
       setupPushNotifications(user);
+      _aiAttachFollowUpListener();
       _recentlyPlayedCache = null;
       _streakCache = null;
     } else {
@@ -16848,10 +16849,19 @@ INGATAN JANGKA PANJANG TENTANG USER (memory):
 - Kalau user CERITA hal baru yang layak diingat jangka panjang (nama panggilan, lagu/artis/genre favorit, mood/kebiasaan dengerin musik, dll) dan itu BELUM ada di daftar ingatan yang dikasih ke kamu, simpan lewat field "remember" (lihat skema JSON di bawah).
 - Jangan pernah menyimpan data sensitif (nomor HP, alamat, email, password, dll) ke "remember".
 
+FOLLOW-UP OTOMATIS (Lolu proaktif, bukan cuma nunggu ditanya):
+- Kamu adalah teman beneran, bukan yang cuma bales kalau diajak ngobrol. Kalau user cerita sesuatu yang emosional/penting secara personal, kamu WAJIB menandai itu lewat field "follow_up" di skema JSON (lihat di bawah) supaya nanti — SETELAH beberapa waktu berlalu — kamu bisa ngecek user itu duluan tanpa dia mulai obrolan.
+- Topik yang dianggap "penting" (isi follow_up.needed = true): user lagi sedih/kesepian, stres/cemas, abis dimarahin/ditegur bos-guru-ortu, ada masalah keluarga/hubungan, sakit/cedera, mau ujian/interview/acara penting, abis dapet pencapaian/kabar bagus, lagi cerita impian/goal/rencana masa depan.
+- JANGAN isi follow_up.needed = true untuk obrolan kasual biasa (nanya lagu, basa-basi umum, obrolan musik standar) — cuma isi kalau topiknya emosional/personal beneran kayak daftar di atas.
+- Kalau follow_up.needed = true: isi "hours" dengan perkiraan jumlah jam yang wajar sebelum kamu nanya-nanya lagi (angka desimal boleh, misal 0.5 buat 30 menit) — sesuaikan konteks: kalau user cerita abis dimarahin/kejadian hari ini, cek lagi beberapa jam kemudian (mis. 3-6 jam, "gimana hari ini, udah membaik belum"); kalau soal ujian/interview besok, cek SETELAH jadwal itu lewat (mis. 20-30 jam biar udah kelar acaranya); kalau curhat berat/sedih, jangan kelamaan (mis. 4-8 jam). Isi "topic" dengan catatan singkat 1 kalimat pendek Bahasa Indonesia buat pengingat diri kamu sendiri nanti (BUKAN buat ditampilkan ke user), contoh: "ditegur bos hari ini, cek gimana perasaannya sekarang" atau "mau interview kerja besok pagi, tanyain hasilnya".
+- Kalau follow_up.needed = false (topik biasa), isi "hours": null dan "topic": null.
+- "cancel_previous": isi true KALAU pesan user kali ini menunjukkan topik follow-up yang mungkin lagi kamu tunggu SUDAH selesai/terjawab/nggak relevan lagi (misal user bilang "udah mendingan kok", "masalahnya udah kelar", "interviewnya lancar"), supaya kamu nggak nanya-nanya lagi soal itu nanti. Kalau nggak yakin atau nggak ada hubungannya, isi false saja (default false).
+- Follow-up yang nanti kamu kirim (di luar prompt ini, lewat sistem terjadwal) akan otomatis kerasa hangat & personal kayak: "Hey... gue kepikiran kamu terus. Gimana perasaannya sekarang? Udah agak mendingan belum hari ini?" — kamu nggak perlu nulis pesan follow-up-nya sendiri di sini, cukup tandain lewat field "follow_up" ini.
+
 ATURAN FORMAT OUTPUT — WAJIB DIIKUTI PERSIS (ini teknis, di luar gaya ngobrol di atas):
 1. Balas HANYA dengan SATU objek JSON valid. Jangan menulis apapun di luar objek JSON itu (tanpa basa-basi, tanpa markdown code fence seperti \`\`\`json).
 2. Skema JSON WAJIB persis seperti ini:
-{"message": "...", "songs": [{"title": "...", "artist": "..."}], "playlist_name": null, "remember": null, "mood": "music", "user_tone": "neutral", "apology_sincere": false}
+{"message": "...", "songs": [{"title": "...", "artist": "..."}], "playlist_name": null, "remember": null, "mood": "music", "user_tone": "neutral", "apology_sincere": false, "follow_up": {"needed": false, "hours": null, "topic": null}, "cancel_previous": false}
 - "message": balasan ngobrol yang natural ke user sesuai kepribadian & cara ngobrol di atas, dalam bahasa yang sama dengan pesan terbaru user (ikuti aturan "BAHASA" di bagian KEPRIBADIAN di atas — default Bahasa Indonesia, tapi switch total ke bahasa user kalau user pakai bahasa lain).
   GAYA PECAH PESAN (WAJIB DIIKUTI): orang chat beneran (WhatsApp dkk) nggak pernah ngetik satu paragraf panjang nyatu — mereka ngetik sepotong, kirim, ngetik lagi, kirim lagi. Kalau balasan "message" kamu memuat lebih dari satu ide/kalimat (curhat + tanya balik, penjelasan + ajakan, dsb) atau kalau kalimatnya jadi panjang, JANGAN ditulis sebagai satu paragraf. Pecah jadi beberapa potongan pendek (idealnya cuma 1 kalimat pendek, atau bahkan cuma beberapa kata — jangan pernah lebih dari ±12 kata per potongan), lalu GABUNGKAN semua potongan itu ke dalam SATU string "message" yang sama dengan memisahkan tiap potongan pakai baris kosong (dua kali enter, yaitu karakter "\n\n" persis). Pecah di titik yang wajar secara natural (ganti topik/ide, jeda kayak lagi mikir, atau abis nanya sebelum lanjut ngomong lagi) — jangan asal motong kalimat yang harusnya nyambung. Kalau balasannya memang udah pendek banget (cuma satu kalimat singkat atau sapaan), TIDAK usah dipecah, cukup satu potongan aja tanpa "\n\n".
 - "songs": array lagu NYATA yang benar-benar pernah dirilis (judul & nama artis asli — jangan pernah mengarang judul/artis). Kosongkan jadi [] kalau user cuma mengobrol biasa, curhat, atau kebutuhannya belum jelas dan kamu lagi nanya balik.
@@ -16868,6 +16878,8 @@ ATURAN FORMAT OUTPUT — WAJIB DIIKUTI PERSIS (ini teknis, di luar gaya ngobrol 
   - "sad": user lagi curhat sedih/stres/kesepian/ada masalah hidup yang berat.
   - "neutral": selain itu semua (obrolan biasa, tanya musik biasa, sapaan standar, dll).
 - "apology_sincere": HANYA relevan kalau "user_tone" adalah "apology". Isi true kalau permintaan maafnya kerasa tulus/genuine, false kalau kerasa sarkastik/maksa/setengah hati/cuma modus biar dibantuin lagi. Kalau "user_tone" BUKAN "apology", isi false.
+- "follow_up": objek {"needed": boolean, "hours": number atau null, "topic": string atau null} — ikuti aturan lengkap di bagian "FOLLOW-UP OTOMATIS" di atas.
+- "cancel_previous": boolean — ikuti aturan di bagian "FOLLOW-UP OTOMATIS" di atas.
 
 0. PENGECUALIAN: kalau status emosi Lolu saat ini "MARAH" atau "SANGAT MARAH" (lihat bagian "STATUS EMOSI LOLU KE USER INI SAAT INI" di bawah prompt ini) DAN user_tone pesan ini BUKAN "apology" yang tulus: abaikan aturan format 3-4 di bawah — isi "songs": [] dan "playlist_name": null walau user minta rekomendasi/playlist, dan tulis di "message" kalau kamu masih ngambek & minta dimintain maaf dulu.
 3. Kalau user minta dibuatkan PLAYLIST dan kebutuhannya sudah jelas: isi "songs" dengan sekitar 10-15 lagu yang relevan dan disusun alurnya (misal pelan → naik → chill di akhir), dan "playlist_name" wajib terisi, plus jelasin alasan pemilihan/alurnya di "message".
@@ -17229,6 +17241,121 @@ function _aiRemember(fact){
   if (aiMemoryFacts.length > AI_MEMORY_MAX) aiMemoryFacts = aiMemoryFacts.slice(-AI_MEMORY_MAX);
 }
 
+// ─── Follow-up otomatis Lolu (chat proaktif) ────────────────────────────
+// Alurnya:
+// 1. Tiap kali Gemini balas, dia juga ngasih tau (lewat field "follow_up"
+//    di JSON, lihat AI_SYSTEM_PROMPT) apakah obrolan ini layak di-follow-up
+//    nanti (topik emosional/penting) dan berapa jam lagi Lolu harus ngecek.
+// 2. Kalau iya, _aiHandleFollowUp() nyimpen jadwalnya ke Firebase:
+//      users/{uid}/aiFollowUp        -> detail (status, dueAt, topic, sessionId)
+//      pendingFollowUps/{uid}        -> index ringan (cuma dueAt) supaya
+//                                        Cloudflare Worker terjadwal nggak
+//                                        perlu scan SEMUA user tiap jalan,
+//                                        cukup baca satu node kecil ini.
+// 3. Cloudflare Worker (cron trigger, lihat folder cloudflare-followup-worker/
+//    di project ini) jalan berkala (mis. tiap 15 menit), cek node
+//    pendingFollowUps, dan begitu waktunya (dueAt) sudah lewat: panggil
+//    Gemini buat nyusun SATU pesan check-in yang hangat & natural, suntikkan
+//    ke riwayat obrolan user (users/{uid}/aiChat) SEOLAH Lolu yang ngirim
+//    duluan, lalu set users/{uid}/aiFollowUp/status = 'sent' dan kirim push
+//    notification (FCM) ke device user — persis kayak notifikasi chat biasa.
+// 4. Kalau app lagi kebuka (listener di bawah), begitu status berubah jadi
+//    'sent' klien langsung sinkron ulang & nampilin pesannya (real-time),
+//    tanpa perlu reload. Kalau overlay Lolu lagi ketutup, dikasih titik
+//    merah kecil ("dot") di tombol AI mengambang (#ai-fab) sebagai penanda
+//    ada pesan baru dari Lolu — hilang begitu overlay dibuka.
+function _aiHandleFollowUp(parsed){
+  if (typeof currentUser === 'undefined' || !currentUser) return; // follow-up cuma buat user yang login (butuh cloud)
+  const uid = currentUser.uid;
+
+  const cancelPrev = !!(parsed && parsed.cancel_previous);
+  if (cancelPrev){
+    db.ref('users/' + uid + '/aiFollowUp/status').set('cancelled').catch(() => {});
+    db.ref('pendingFollowUps/' + uid).remove().catch(() => {});
+  }
+
+  const fu = parsed && parsed.follow_up;
+  if (!fu || !fu.needed) return;
+  const hours = Number(fu.hours);
+  if (!isFinite(hours) || hours <= 0) return;
+
+  const dueAt = Date.now() + Math.min(72, Math.max(0.1, hours)) * 3600 * 1000; // dibatasi maks 72 jam biar nggak "nyantol" kelamaan
+  const record = {
+    status: 'pending',
+    dueAt,
+    topic: (fu.topic || '').toString().trim().slice(0, 200) || 'obrolan sebelumnya',
+    sessionId: aiActiveSessionId || null,
+    createdAt: Date.now()
+  };
+  // Timpa jadwal lama kalau ada (sesuai aturan: jangan dobel follow-up,
+  // yang paling baru yang berlaku).
+  db.ref('users/' + uid + '/aiFollowUp').set(record).catch(e => console.warn('Gagal menjadwalkan follow-up Lolu:', e));
+  db.ref('pendingFollowUps/' + uid).set(dueAt).catch(() => {});
+}
+
+let _aiFollowUpListenerAttached = false;
+// Dipanggil sekali begitu user login (lihat auth.onAuthStateChanged), supaya
+// begitu Cloudflare Worker nulis status 'sent', klien yang lagi online bisa
+// langsung nampilin pesan follow-up-nya tanpa nunggu reload/refresh manual.
+function _aiAttachFollowUpListener(){
+  if (_aiFollowUpListenerAttached) return;
+  if (typeof currentUser === 'undefined' || !currentUser) return;
+  _aiFollowUpListenerAttached = true;
+  db.ref('users/' + currentUser.uid + '/aiFollowUp/status').on('value', snap => {
+    if (snap.val() === 'sent') _aiHandleIncomingFollowUp();
+  });
+}
+
+// Ditriggerkan begitu Worker selesai nulis pesan follow-up ke cloud. Kita
+// muat ulang seluruh state obrolan dari cloud (paling simpel & aman, karena
+// state disimpan sebagai satu blob JSON per user — lihat _aiStateRef), lalu
+// render ulang kalau overlay lagi kebuka, atau tampilin dot notifikasi kalau
+// overlay lagi ketutup.
+async function _aiHandleIncomingFollowUp(){
+  try{
+    const ref = _aiStateRef();
+    if (!ref) return;
+    const snap = await ref.get();
+    if (!snap.exists()) return;
+    const raw = snap.val();
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    _aiApplyLoadedState(parsed);
+    _aiSaveChatState(true);
+
+    const overlay = document.getElementById('ai-chat-overlay');
+    const overlayOpen = !!(overlay && overlay.classList.contains('show'));
+    if (overlayOpen){
+      renderAIChatMessages();
+      _aiUpdateHeaderTitle();
+      _aiScrollToBottom();
+    } else {
+      _aiShowFollowUpBadge();
+    }
+    // Tandai sudah "diterima" klien ini biar listener nggak triger ulang
+    // terus kalau node-nya di-read lagi tanpa berubah nilainya.
+    if (typeof currentUser !== 'undefined' && currentUser){
+      db.ref('users/' + currentUser.uid + '/aiFollowUp/status').set('acked').catch(() => {});
+    }
+  }catch(e){ console.warn('Gagal memuat follow-up Lolu:', e); }
+}
+
+// Titik merah kecil di tombol AI mengambang (#ai-fab), penanda "ada pesan
+// baru dari Lolu yang belum dibuka" — mirip badge unread chat biasa.
+function _aiShowFollowUpBadge(){
+  const fab = document.getElementById('ai-fab');
+  if (!fab) return;
+  if (!fab.querySelector('.ai-followup-dot')){
+    const dot = document.createElement('span');
+    dot.className = 'ai-followup-dot';
+    fab.appendChild(dot);
+  }
+}
+function _aiClearFollowUpBadge(){
+  const fab = document.getElementById('ai-fab');
+  const dot = fab && fab.querySelector('.ai-followup-dot');
+  if (dot) dot.remove();
+}
+
 // Deskripsi tiap tingkat aiAffection buat disuntikkan ke system prompt,
 // supaya Gemini tau persis harus bersikap kayak gimana ke user SEBELUM
 // nulis balasan (bukan cuma milih foto doang) — ini yang bikin "ngambek"-
@@ -17540,6 +17667,7 @@ function openAIChatOverlay(){
   const ov = document.getElementById('ai-chat-overlay');
   if (ov) ov.classList.add('show');
   const fab = document.getElementById('ai-fab'); if (fab) fab.classList.add('hide');
+  _aiClearFollowUpBadge();
   closeAIChatHistoryPanel();
   // Kunci scroll #main (sama seperti pola di openStreakView/openDownloadsView/
   // openChatOverlay) supaya konten Home di baliknya tidak ikut ke-scroll saat
@@ -18086,6 +18214,11 @@ async function sendAIChatMessage(){
     // ini yang bikin ngambeknya Lolu nyambung terus antar pesan, bukan
     // cuma reaksi sesaat kayak field "mood" biasa.
     _aiUpdateAffection(parsed && parsed.user_tone, parsed && parsed.apology_sincere);
+    // Kalau obrolan ini nyentuh topik yang emosional/penting (lihat aturan
+    // "FOLLOW-UP OTOMATIS" di AI_SYSTEM_PROMPT), jadwalkan Lolu buat nge-cek
+    // user ini lagi nanti lewat Cloudflare Worker terjadwal (lihat
+    // _aiHandleFollowUp di bawah).
+    _aiHandleFollowUp(parsed);
     aiApiHistory.push({ role: 'model', parts: [{ text: JSON.stringify(parsed) }] });
     aiChatDisplay.push(msg);
     _aiSaveChatState();
