@@ -24,7 +24,7 @@ const messaging = firebase.messaging();
 // tidak berubah dan TIDAK akan pernah menginstall ulang / menyegarkan cache
 // — cache lama (termasuk vibexa.html versi lama) akan dipakai selamanya
 // oleh navigasi offline, walau server sudah punya versi terbaru.
-const CACHE_VERSION = 'vibexa-v29';
+const CACHE_VERSION = 'vibexa-v30';
 const APP_SHELL = [
   './vibexa.html',
   './manifest.json'
@@ -99,11 +99,16 @@ messaging.onBackgroundMessage((payload) => {
   const body = payload?.notification?.body || '';
   const chatId = payload?.data?.chatId || '';
   const fromUid = payload?.data?.fromUid || '';
+  // Notif follow-up Lolu (dikirim khusus dari worker follow-up, ditandai
+  // fromUid: 'lolu-ai' / type: 'ai_followup') pakai ikon burung Lolu.
+  // Notif chat biasa dari user lain tetap pakai ikon default Vibexa.
+  const isLoluFollowUp = fromUid === 'lolu-ai' || payload?.data?.type === 'ai_followup';
+  const notifIcon = isLoluFollowUp ? 'icons/lolu-icon-192.png' : 'icons/launchericon-192x192.png';
 
   self.registration.showNotification(title, {
     body,
-    icon: 'icons/launchericon-192x192.png',
-    badge: 'icons/launchericon-192x192.png',
+    icon: notifIcon,
+    badge: notifIcon,
     // tag = fromUid: notif dari orang yang SAMA akan menggantikan notif
     // sebelumnya (jadi 1 notif per lawan chat), bukan menumpuk per pesan.
     // renotify: true supaya tetap muncul/berbunyi ulang walau tag sama.

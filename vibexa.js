@@ -427,12 +427,15 @@ _messagingReadyPromise.then(() => {
       const title = payload?.notification?.title || 'Vibexa';
       const body = payload?.notification?.body || '';
       const fromUid = payload?.data?.fromUid || '';
+      const isLoluFollowUp = fromUid === 'lolu-ai' || payload?.data?.type === 'ai_followup';
       if (Notification.permission === 'granted') {
         // tag = fromUid, sama seperti di sw.js, supaya notif dari orang
         // yang sama menggantikan notif sebelumnya (bukan menumpuk).
+        // Ikon burung khusus HANYA untuk notif follow-up Lolu; user lain
+        // tetap pakai ikon default Vibexa.
         new Notification(title, {
           body,
-          icon: 'icons/icon-192.png',
+          icon: isLoluFollowUp ? 'icons/lolu-icon-192.png' : 'icons/icon-192.png',
           tag: fromUid ? `chat_${fromUid}` : undefined,
         });
       }
