@@ -4731,12 +4731,13 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 .ai-create-pl-btn:hover{background:var(--green);color:#fff;}
 .ai-create-pl-btn:disabled{opacity:.75;cursor:default;}
 
-/* Stiker balasan Lolu AI — muncul di bawah bubble teks, kecil & playful
-   kayak stiker chat beneran (bukan gambar besar penuh layar). */
-.ai-sticker-wrap{width:112px;height:112px;}
-.ai-sticker-img{width:100%;height:100%;object-fit:contain;display:block;animation:aiCatPop .28s cubic-bezier(.22,1,.36,1);}
+/* Stiker balasan Lolu AI — dibikin mirip kartu GIF/gambar biasa di chat
+   (rounded card, ada padding tipis), tapi lebih besar & jelas kayak stiker. */
+.ai-sticker-wrap{width:220px;max-width:70%;border-radius:16px;overflow:hidden;padding:4px;margin-top:6px;line-height:0;}
+.ai-sticker-img{width:100%;height:auto;max-height:280px;border-radius:13px;display:block;object-fit:contain;animation:aiCatPop .28s cubic-bezier(.22,1,.36,1);}
 @media (max-width:640px){
-  .ai-sticker-wrap{width:min(34vw,128px);height:min(34vw,128px);}
+  .ai-sticker-wrap{width:min(58vw,240px);}
+  .ai-sticker-img{max-height:240px;}
 }
 
 .ai-chat-inputbar{display:flex;align-items:center;gap:10px;padding:14px 22px;border-top:1px solid var(--border);flex-shrink:0;}
