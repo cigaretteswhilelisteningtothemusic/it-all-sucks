@@ -781,6 +781,30 @@ function _stickerResourceToUrl(r){
   return `https://res.cloudinary.com/${STICKER_CLOUD_NAME}/image/upload/${ver}${r.public_id}.${fmt}`;
 }
 
+// Pilih & CACHE URL stiker untuk satu pesan AI (msg), sehingga hasilnya
+// tetap SAMA setiap kali bubble ini dirender ulang (misal user keluar-masuk
+// halaman chat, atau reload) — bukan diacak ulang tiap kali. Sekali dapat
+// URL-nya (atau ketahuan kosong/gagal), hasilnya disimpan di msg._stickerUrl
+// & msg._stickerResolved, lalu ikut tersimpan ke localStorage/cloud lewat
+// _aiSaveChatState() persis seperti cover lagu yang sudah di-resolve.
+async function _aiEnsureStickerResolved(msg){
+  if (msg._stickerResolved) return msg._stickerUrl || null;
+  if (msg._stickerResolving){
+    let tries = 0;
+    while (msg._stickerResolving && tries < 40){ await new Promise(r => setTimeout(r, 150)); tries++; }
+    return msg._stickerUrl || null;
+  }
+  msg._stickerResolving = true;
+  let url = null;
+  try{ url = await _pickRandomSticker(msg.stickerTag); }
+  catch(e){ console.warn('Gagal resolve stiker AI:', msg.stickerTag, e); }
+  msg._stickerResolving = false;
+  msg._stickerResolved = true;
+  msg._stickerUrl = url;
+  _aiSaveChatState();
+  return url;
+}
+
 // Pilih satu URL stiker secara acak dari tag tsb, atau null kalau tag
 // nggak dikenal / nggak ada stiker yg punya tag itu / gagal fetch.
 async function _pickRandomSticker(tag){
@@ -17932,7 +17956,7 @@ function _aiBuildBubble(msg){
       const stickerWrap = document.createElement('div');
       stickerWrap.className = 'ai-sticker-wrap';
       wrap.appendChild(stickerWrap);
-      _pickRandomSticker(msg.stickerTag).then(url => {
+      _aiEnsureStickerResolved(msg).then(url => {
         if (url){
           stickerWrap.innerHTML = `<img src="${esc(url)}" class="ai-sticker-img" alt="stiker" loading="lazy">`;
           _aiScrollToBottom();
