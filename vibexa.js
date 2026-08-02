@@ -17712,11 +17712,11 @@ const LOLU_BUBBLE_PHRASES = [
 // LOLU_BUBBLE_PHRASES, cuma nyimpen index rotasinya terpisah), dan otomatis
 // balik ke LOLU_BUBBLE_PHRASES normal begitu udah lewat jam 06.00.
 const LOLU_BUBBLE_NIGHT_PHRASES = [
-  "Lagi mimpi nemu cacing jumbo!",
-  "Jangan bangunin... cacingnya hampir ketangkep!",
-  "Shh... Lolu lagi tidur nyenyak...",
-  "Zzz... Lagi mimpi indah",
-  "Lolu lagi bobo..."
+  "Dreaming about finding a giant worm!",
+  "Shh... Don't wake me up... I'm this close to catching the worm!",
+  "Shh... Lolu is sleeping soundly...",
+  "Zzz... Having sweet dreams...",
+  "Dreaming... Do not disturb!"
 ];
 let _aiFabBubbleHideTimer = null;
 let _aiFabBubbleTypeTimer = null;
