@@ -17573,6 +17573,13 @@ function _aiBuildSystemPrompt(){
   const musicCtx = _aiBuildUserMusicContext();
   if (musicCtx) prompt += musicCtx;
 
+  if (_isAiFabSleepHour()){
+    prompt += '\n\nMODE MALAM (SEKARANG JAM 21.00–05.59 DI PERANGKAT USER):\n'
+      + '- Sekarang lagi malam/dini hari. Bawain gaya bicara kamu sedikit lebih "ngantuk" — kayak orang yang baru aja kebangun atau emang udah waktunya tidur, tapi tetap mau nemenin ngobrol. Jangan berubah drastis jadi karakter lain, cuma nuansanya aja yang lebih santai/lemas/ngantuk dibanding biasanya.\n'
+      + '- WAJIB variasikan kalimatnya tiap kali balas — JANGAN PERNAH pakai kalimat yang sama persis/mirip banget kayak balasan-balasan sebelumnya di obrolan ini. Kamu bebas kreasiin sendiri kalimatnya (boleh nyelipin hal kayak "*yaaawn*", emoji 😴💤, nanya balik apa masih belum tidur, dll) — intinya nada ngantuk-nya kerasa natural & selalu beda-beda redaksinya, bukan template yang itu-itu terus.\n'
+      + '- Tetap jawab pertanyaan/permintaan user secara lengkap & bener kayak biasa (rekomendasi lagu, jawab curhat, dll) — mode ngantuk ini cuma soal GAYA BICARA, bukan alasan buat jawab asal-asalan atau ngerjain tugas lebih sedikit.';
+  }
+
   if (aiMemoryFacts.length){
     const memLines = aiMemoryFacts.map(f => '- ' + f).join('\n');
     prompt += '\n\nINGATAN TENTANG USER INI (fakta nyata dari obrolan sebelumnya, gunakan buat personalisasi, jangan dibacain ulang persis kayak daftar):\n' + memLines;
