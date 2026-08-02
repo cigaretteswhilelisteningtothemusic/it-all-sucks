@@ -754,7 +754,7 @@ let _chatMediaUploading = false;
 // dan stiker otomatis nggak akan tampil (gagal secara diam-diam, chat
 // tetap jalan normal tanpa stiker).
 const STICKER_CLOUD_NAME = 'sgwb5oml'; // akun/cloud Cloudinary khusus stiker Lolu (terpisah dari CLOUDINARY_CLOUD_NAME yg dipakai utk upload foto/video chat)
-const STICKER_ALLOWED_TAGS = ['happy','sad','laugh','sleep','greeting','love','celebrate','thinking','forgive','angry'];
+const STICKER_ALLOWED_TAGS = ['happy','sad','laugh','sleep','greeting','greeting_night','love','celebrate','thinking','forgive','angry'];
 const _stickerTagCache = {}; // { tag: [{public_id,format,version}, ...] } — cache per tag biar nggak fetch ulang tiap kali tag yg sama muncul lagi
 
 // Ambil (dgn cache) daftar semua resource Cloudinary yang punya tag tsb.
@@ -822,7 +822,14 @@ function _aiExtractStickerTag(text){
   if (!text) return { text: text || '', tag: null };
   const m = String(text).match(/\[sticker:\s*([a-z_]+)\s*\]/i);
   if (!m) return { text: String(text), tag: null };
-  const tag = m[1].toLowerCase();
+  let tag = m[1].toLowerCase();
+  // "greeting" otomatis diganti "greeting_night" kalau lagi jam 21.00–06.00
+  // (dan sebaliknya, kalau AI kepeleset milih "greeting_night" padahal
+  // udah bukan jam segitu, otomatis dibalikin ke "greeting" biasa) —
+  // ditentukan dari jam PERANGKAT SAAT INI, bukan dari tebakan AI, biar akurat.
+  if (tag === 'greeting' || tag === 'greeting_night'){
+    tag = _isAiFabSleepHour() ? 'greeting_night' : 'greeting';
+  }
   const cleaned = String(text).replace(m[0], '').replace(/\n{3,}/g, '\n\n').trim();
   return { text: cleaned, tag: STICKER_ALLOWED_TAGS.includes(tag) ? tag : null };
 }
@@ -16985,6 +16992,7 @@ ATURAN FORMAT OUTPUT — WAJIB DIIKUTI PERSIS (ini teknis, di luar gaya ngobrol 
 STIKER (opsional, bikin obrolan kerasa lebih hidup & ekspresif):
 - Kamu BISA sesekali ngirim stiker buat nunjukin ekspresi/emosi di balasanmu. Stiker-stiker itu disimpan di Cloudinary, dan kamu SAMA SEKALI TIDAK TAU nama file, URL, Public ID, Asset ID, atau lokasi penyimpanan stiker itu — kamu HANYA boleh milih salah satu TAG (kategori) yang paling cocok sama konteks obrolan, nanti aplikasi yang otomatis nyari & nampilin stiker acak dari tag itu.
 - Tag yang tersedia (WAJIB pilih PERSIS salah satu dari daftar ini, jangan pernah mengarang tag baru di luar daftar): happy, sad, laugh, sleep, greeting, love, celebrate, thinking, forgive, angry.
+- Khusus buat menyapa (dipakai kalau user lagi say hi/nyapa di awal obrolan): kamu CUKUP selalu pilih tag "greeting" seperti biasa — jangan pernah nulis "greeting_night" sendiri. Aplikasi yang otomatis mendeteksi jam SAAT ITU JUGA dan menggantinya jadi stiker versi malam kalau memang lagi jam 21.00–06.00, jadi kamu nggak perlu (dan nggak akan pernah akurat kalau) nebak-nebak jam berapa sekarang.
 - Caranya: kalau (dan HANYA kalau) kamu mau kirim stiker, tambahkan baris BARU di bagian PALING AKHIR "message", dipisah dari potongan teks sebelumnya pakai "\\n\\n" (baris kosong, sama kayak pemisah potongan pesan biasa), berisi PERSIS format ini (tanpa tanda kutip, tanpa teks lain di baris itu): [sticker:tag]
   Contoh potongan akhir "message": "Hai! Senang kamu datang lagi.\\n\\nAda yang ingin kita lakukan hari ini?\\n\\n[sticker:greeting]"
 - JANGAN PERNAH mengirim URL gambar, URL Cloudinary, markdown image (![]()), nama file, Public ID, atau Asset ID di dalam "message" — cukup format [sticker:tag] di atas, titik.
