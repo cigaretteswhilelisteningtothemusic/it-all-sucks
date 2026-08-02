@@ -17706,6 +17706,18 @@ const LOLU_BUBBLE_PHRASES = [
   "Guess who's happy? Me!!!",
   "Come hang out with me, plss"
 ];
+// Dipakai gantiin LOLU_BUBBLE_PHRASES di atas kalau lagi jam 21.00–05.59
+// (dicek pakai _isAiFabSleepHour() yang sama dgn animasi burung tidur).
+// Muter/gonta-ganti sendiri tiap kali user keluar-masuk web (persis kayak
+// LOLU_BUBBLE_PHRASES, cuma nyimpen index rotasinya terpisah), dan otomatis
+// balik ke LOLU_BUBBLE_PHRASES normal begitu udah lewat jam 06.00.
+const LOLU_BUBBLE_NIGHT_PHRASES = [
+  "Lagi mimpi nemu cacing jumbo!",
+  "Jangan bangunin... cacingnya hampir ketangkep!",
+  "Shh... Lolu lagi tidur nyenyak...",
+  "Zzz... Lagi mimpi indah",
+  "Lolu lagi bobo..."
+];
 let _aiFabBubbleHideTimer = null;
 let _aiFabBubbleTypeTimer = null;
 let _aiFabBubbleTypeStartTimer = null;
@@ -17743,10 +17755,13 @@ function _aiFabBubbleRotate(){
   // tanpa tombol yang ditunjuknya.
   if (fab.classList.contains('hide')) return;
 
-  let idx = parseInt(localStorage.getItem('loluBubbleIdx') || '-1', 10);
+  const nightMode = _isAiFabSleepHour();
+  const phrases = nightMode ? LOLU_BUBBLE_NIGHT_PHRASES : LOLU_BUBBLE_PHRASES;
+  const idxStorageKey = nightMode ? 'loluBubbleNightIdx' : 'loluBubbleIdx';
+  let idx = parseInt(localStorage.getItem(idxStorageKey) || '-1', 10);
   if (isNaN(idx)) idx = -1;
-  idx = (idx + 1) % LOLU_BUBBLE_PHRASES.length;
-  localStorage.setItem('loluBubbleIdx', String(idx));
+  idx = (idx + 1) % phrases.length;
+  localStorage.setItem(idxStorageKey, String(idx));
 
   // Kosongkan dulu supaya tidak kelihatan teks lama sekilas, lalu tunggu
   // sampai animasi "pop-in" kotak bubble selesai (~220ms) baru mulai
@@ -17763,7 +17778,7 @@ function _aiFabBubbleRotate(){
   bubble.classList.add('show');
 
   _aiFabBubbleTypeStartTimer = setTimeout(() => {
-    _typeAiFabBubbleText(bubbleText, LOLU_BUBBLE_PHRASES[idx], 45);
+    _typeAiFabBubbleText(bubbleText, phrases[idx], 45);
   }, 230);
 
   clearTimeout(_aiFabBubbleHideTimer);
