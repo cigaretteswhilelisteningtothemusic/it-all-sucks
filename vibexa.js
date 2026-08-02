@@ -739,6 +739,70 @@ let _chatPendingMediaType = null; // 'image' | 'video'
 let _chatPendingMediaPreviewUrl = null; // object URL utk thumbnail preview
 let _chatMediaUploading = false;
 
+// ── Stiker Lolu AI (Cloudinary, cari resource berdasarkan TAG) ─────────
+// Lolu (AI) HANYA pernah mengirim sebuah TAG (lihat AI_SYSTEM_PROMPT,
+// bagian "STIKER"), TIDAK PERNAH tau URL/Public ID/Asset ID/nama file.
+// Aplikasi yang mencari sendiri semua stiker Cloudinary yang punya tag itu
+// lewat endpoint publik "resource list by tag" milik Cloudinary, lalu
+// milih satu secara acak buat ditampilkan.
+//
+// CATATAN SETUP CLOUDINARY: endpoint di bawah ini
+// (https://res.cloudinary.com/<cloud>/image/list/<tag>.json) hanya bisa
+// diakses tanpa API key/secret kalau opsi "Resource list" diaktifkan di
+// dashboard Cloudinary akun stiker (Settings → Security → centang
+// "Resource list"). Kalau belum aktif, endpoint ini akan menolak request
+// dan stiker otomatis nggak akan tampil (gagal secara diam-diam, chat
+// tetap jalan normal tanpa stiker).
+const STICKER_CLOUD_NAME = 'sgwb5oml'; // akun/cloud Cloudinary khusus stiker Lolu (terpisah dari CLOUDINARY_CLOUD_NAME yg dipakai utk upload foto/video chat)
+const STICKER_ALLOWED_TAGS = ['happy','sad','laugh','sleep','greeting','love','celebrate','thinking','forgive','angry'];
+const _stickerTagCache = {}; // { tag: [{public_id,format,version}, ...] } — cache per tag biar nggak fetch ulang tiap kali tag yg sama muncul lagi
+
+// Ambil (dgn cache) daftar semua resource Cloudinary yang punya tag tsb.
+async function _fetchStickerResourcesByTag(tag){
+  if (Object.prototype.hasOwnProperty.call(_stickerTagCache, tag)) return _stickerTagCache[tag];
+  try{
+    const res = await fetch(`https://res.cloudinary.com/${STICKER_CLOUD_NAME}/image/list/${encodeURIComponent(tag)}.json`);
+    if (!res.ok) throw new Error('status ' + res.status);
+    const data = await res.json();
+    const resources = Array.isArray(data.resources) ? data.resources : [];
+    _stickerTagCache[tag] = resources;
+    return resources;
+  }catch(e){
+    console.warn('Gagal ambil daftar stiker Cloudinary utk tag "' + tag + '":', e);
+    _stickerTagCache[tag] = [];
+    return [];
+  }
+}
+
+function _stickerResourceToUrl(r){
+  if (!r || !r.public_id) return null;
+  const fmt = r.format || 'png';
+  const ver = r.version ? `v${r.version}/` : '';
+  return `https://res.cloudinary.com/${STICKER_CLOUD_NAME}/image/upload/${ver}${r.public_id}.${fmt}`;
+}
+
+// Pilih satu URL stiker secara acak dari tag tsb, atau null kalau tag
+// nggak dikenal / nggak ada stiker yg punya tag itu / gagal fetch.
+async function _pickRandomSticker(tag){
+  if (!tag || !STICKER_ALLOWED_TAGS.includes(tag)) return null;
+  const resources = await _fetchStickerResourcesByTag(tag);
+  if (!resources.length) return null;
+  const r = resources[Math.floor(Math.random() * resources.length)];
+  return _stickerResourceToUrl(r);
+}
+
+// Cari & lepas marker "[sticker:tag]" dari teks balasan AI (lihat format
+// di AI_SYSTEM_PROMPT bagian "STIKER"). Mengembalikan teks yg udah bersih
+// dari marker itu + tag stiker yg valid (atau null kalau nggak ada/nggak valid).
+function _aiExtractStickerTag(text){
+  if (!text) return { text: text || '', tag: null };
+  const m = String(text).match(/\[sticker:\s*([a-z_]+)\s*\]/i);
+  if (!m) return { text: String(text), tag: null };
+  const tag = m[1].toLowerCase();
+  const cleaned = String(text).replace(m[0], '').replace(/\n{3,}/g, '\n\n').trim();
+  return { text: cleaned, tag: STICKER_ALLOWED_TAGS.includes(tag) ? tag : null };
+}
+
 // ── Send GIF di Chat (Giphy) ───────────────────────────────────────────
 // API Key ini BUKAN rahasia — memang didesain Giphy untuk dipakai langsung
 // di sisi client (browser), beda dengan API Secret Cloudinary.
@@ -16892,7 +16956,19 @@ ATURAN FORMAT OUTPUT — WAJIB DIIKUTI PERSIS (ini teknis, di luar gaya ngobrol 
 3. Kalau user minta dibuatkan PLAYLIST dan kebutuhannya sudah jelas: isi "songs" dengan sekitar 10-15 lagu yang relevan dan disusun alurnya (misal pelan → naik → chill di akhir), dan "playlist_name" wajib terisi, plus jelasin alasan pemilihan/alurnya di "message".
 4. Kalau user cuma minta REKOMENDASI lagu (bukan playlist utuh) dan konteksnya udah jelas: isi "songs" dengan sekitar 4-8 lagu dan "playlist_name": null, dan kasih alasan singkat tiap/beberapa lagu di "message".
 5. Kalau user cuma mengobrol, curhat, tanya hal umum soal musik, atau konteksnya masih kurang jelas (kamu lagi nanya balik ke user): "songs": [] dan "playlist_name": null, cukup jawab lewat "message".
-6. Jangan pernah menyertakan kutipan lirik lagu di dalam "message" (hak cipta).`;
+6. Jangan pernah menyertakan kutipan lirik lagu di dalam "message" (hak cipta).
+
+STIKER (opsional, bikin obrolan kerasa lebih hidup & ekspresif):
+- Kamu BISA sesekali ngirim stiker buat nunjukin ekspresi/emosi di balasanmu. Stiker-stiker itu disimpan di Cloudinary, dan kamu SAMA SEKALI TIDAK TAU nama file, URL, Public ID, Asset ID, atau lokasi penyimpanan stiker itu — kamu HANYA boleh milih salah satu TAG (kategori) yang paling cocok sama konteks obrolan, nanti aplikasi yang otomatis nyari & nampilin stiker acak dari tag itu.
+- Tag yang tersedia (WAJIB pilih PERSIS salah satu dari daftar ini, jangan pernah mengarang tag baru di luar daftar): happy, sad, laugh, sleep, greeting, love, celebrate, thinking, forgive, angry.
+- Caranya: kalau (dan HANYA kalau) kamu mau kirim stiker, tambahkan baris BARU di bagian PALING AKHIR "message", dipisah dari potongan teks sebelumnya pakai "\\n\\n" (baris kosong, sama kayak pemisah potongan pesan biasa), berisi PERSIS format ini (tanpa tanda kutip, tanpa teks lain di baris itu): [sticker:tag]
+  Contoh potongan akhir "message": "Hai! Senang kamu datang lagi.\\n\\nAda yang ingin kita lakukan hari ini?\\n\\n[sticker:greeting]"
+- JANGAN PERNAH mengirim URL gambar, URL Cloudinary, markdown image (![]()), nama file, Public ID, atau Asset ID di dalam "message" — cukup format [sticker:tag] di atas, titik.
+- ATURAN PEMAKAIAN (WAJIB DIPATUHI KETAT):
+  - Sebagian besar balasan TIDAK perlu pakai stiker sama sekali — ini pengecualian/bumbu, bukan kewajiban tiap balasan.
+  - Cuma kirim stiker kalau memang secara natural nambahin nuansa emosi ke balasanmu (misal lagi nyapa hangat, ketawa bareng, ikutan sedih/prihatin, ngasih semangat, seneng banget/merayakan sesuatu, lagi mikir, minta maaf/baikan, atau lagi ngambek/kesel).
+  - JANGAN PERNAH kirim lebih dari SATU stiker dalam satu balasan.
+  - JANGAN maksain stiker di balasan yang biasa aja/netral/informatif doang (misal lagi ngejelasin alasan pilihan lagu, kasih daftar playlist, atau obrolan teknis) — di situ nggak usah pakai stiker.`;
 
 const AI_CHAT_HIST_PREFIX = 'vibexa_ai_chat_';
 // Batas jumlah turn yang disimpan PER OBROLAN (biar node cloud & localStorage
@@ -17852,6 +17928,19 @@ function _aiBuildBubble(msg){
         wrap.appendChild(btn);
       }
     }
+    if (msg.stickerTag){
+      const stickerWrap = document.createElement('div');
+      stickerWrap.className = 'ai-sticker-wrap';
+      wrap.appendChild(stickerWrap);
+      _pickRandomSticker(msg.stickerTag).then(url => {
+        if (url){
+          stickerWrap.innerHTML = `<img src="${esc(url)}" class="ai-sticker-img" alt="stiker" loading="lazy">`;
+          _aiScrollToBottom();
+        } else {
+          stickerWrap.remove();
+        }
+      });
+    }
     _aiScrollToBottom();
   };
 
@@ -18209,11 +18298,14 @@ async function sendAIChatMessage(){
 
   try{
     const parsed = await _aiCallGemini(aiApiHistory, _aiBuildSystemPrompt());
+    const rawMessage = (parsed && typeof parsed.message === 'string' && parsed.message.trim()) || 'Oke!';
+    const { text: msgTextNoSticker, tag: stickerTag } = _aiExtractStickerTag(rawMessage);
     const msg = {
       role: 'assistant',
-      text: (parsed && typeof parsed.message === 'string' && parsed.message.trim()) || 'Oke!',
+      text: msgTextNoSticker || 'Oke!',
       songs: (parsed && Array.isArray(parsed.songs)) ? parsed.songs.filter(s => s && s.title).slice(0, 20) : [],
-      playlistName: (parsed && parsed.playlist_name) || null
+      playlistName: (parsed && parsed.playlist_name) || null,
+      stickerTag: stickerTag
     };
     _aiRemember(parsed && parsed.remember);
     // Update "relasi emosi" persisten berdasarkan klasifikasi nada pesan
