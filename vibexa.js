@@ -5084,28 +5084,38 @@ function _pickByDuration(results, targetDuration, toleranceSec){
 const VIDEO_DURATION_TOLERANCE = 3;
 
 // ── Strategi pencarian video utama ──────────────────────────────────────
-// 1) Cari video dengan query "judul - artist" (bersih, tanpa embel-embel) &
-//    ambil lirik (untuk tahu durasi resmi lagu) SECARA PARALEL.
+// 1) Cari video dengan query "judul - artist - lyrics" (query UTAMA/prioritas
+//    pertama, karena upload "lyrics video" biasanya paling konsisten
+//    durasinya) & ambil lirik (untuk tahu durasi resmi lagu) SECARA PARALEL.
+// 1b) Kalau query "... lyrics" itu SAMA SEKALI tidak menemukan video apapun
+//    (rawResults kosong) → mundur/fallback ke query polos "judul - artist".
 // 2) Buang kandidat yang judulnya mengandung kata "live/konser/acoustic/cover/dll".
 // 2b) Saring lagi supaya hanya kandidat yang judulnya benar2 relevan (memuat
 //    nama artist yang diminta) yang dipakai — mencegah lagu dari artist LAIN
 //    yang judulnya kebetulan sama ikut kepilih hanya karena durasinya mirip.
 // 3) Dari sisa kandidat yang "bersih & relevan", pilih yang durasinya paling
 //    dekat dengan durasi lirik → kalau ketemu, langsung dipakai.
-// 4) Kalau tidak ada kandidat bersih yang durasinya cukup dekat → fallback ke
-//    query "judul - artist - lyrics" (upload "lyrics video" biasanya paling
-//    konsisten durasinya), diutamakan yang judulnya juga bersih & relevan.
+// 4) Kalau tidak ada kandidat bersih (dari hasil "lyrics") yang durasinya
+//    cukup dekat → fallback ke query polos "judul - artist" (video biasa,
+//    tanpa embel-embel "lyrics"), diutamakan yang judulnya juga bersih & relevan.
 // 5) Fallback terakhir: "official audio", lalu kandidat bersih teratas, lalu
 //    kandidat apa adanya (termasuk yang "kotor") sebagai jaring pengaman.
 // Return {videoId, lines} — lines dipakai langsung supaya tidak perlu fetchLyr lagi.
 async function resolveVidByDuration(artist, title, cleanTitleForLyrics, knownDuration){
-  const [rawResults, lyricsData] = await Promise.all([
-    resolveVidList(`${title} ${artist}`),
+  const [lyricsQueryResults, lyricsData] = await Promise.all([
+    resolveVidList(`${title} ${artist} lyrics`),
     fetchLyr(cleanTitleForLyrics, artist, knownDuration)
   ]);
   let lines = (lyricsData && lyricsData.lines) || [];
   console.log('[LYR DEBUG] resolveVidByDuration: lines from fetchLyr ->', lines.length);
   const targetDuration = lyricsData && lyricsData.duration;
+
+  // Query utama "... lyrics" tidak menemukan video sama sekali → mundur ke
+  // query polos "judul - artist" sebagai gantinya.
+  let rawResults = lyricsQueryResults;
+  if(!rawResults || !rawResults.length){
+    rawResults = await resolveVidList(`${title} ${artist}`);
+  }
 
   const cleanResults = _filterCleanVideos(rawResults);
   const relevantResults = _bestRelevantCandidates(cleanResults, artist, title);
@@ -5115,11 +5125,11 @@ async function resolveVidByDuration(artist, title, cleanTitleForLyrics, knownDur
   let pickedFrom = relevantResults;
 
   if(!videoId){
-    const lyricsResults = await resolveVidList(`${title} ${artist} lyrics`);
-    const cleanLyricsResults = _filterCleanVideos(lyricsResults);
-    const relevantLyricsResults = _bestRelevantCandidates(cleanLyricsResults.length ? cleanLyricsResults : lyricsResults, artist, title);
-    videoId = (relevantLyricsResults[0] && relevantLyricsResults[0].videoId) || null;
-    pickedFrom = relevantLyricsResults;
+    const plainResults = await resolveVidList(`${title} ${artist}`);
+    const cleanPlainResults = _filterCleanVideos(plainResults);
+    const relevantPlainResults = _bestRelevantCandidates(cleanPlainResults.length ? cleanPlainResults : plainResults, artist, title);
+    videoId = (relevantPlainResults[0] && relevantPlainResults[0].videoId) || null;
+    pickedFrom = relevantPlainResults;
   }
   if(!videoId){
     const audioResults = await resolveVidList(`${title} ${artist} official audio`);
