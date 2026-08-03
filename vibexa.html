@@ -16,6 +16,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icons/launchericon-192x192.png">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&family=Press+Start+2P&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vibexa.css">
+<link rel="stylesheet" href="voice-dj.css">
 </head>
 <body>
 
@@ -152,6 +153,25 @@
   <span id="ai-fab-bubble-text">Lolu missed you!!</span>
   <div class="ai-fab-bubble-tail"></div>
 </div>
+<!-- VOICE-CONTROLLED AI DJ — tombol mikrofon terpisah dari tombol chat Lolu.
+     Tekan sekali untuk mulai bicara (tanpa wake word), Lolu akan
+     mendengarkan lalu menjalankan perintah musik secara otomatis.
+     Lihat voice-dj.js untuk seluruh logikanya (Speech Recognition,
+     Intent Parser, Music/Playlist Search, Playback Controller, dst). -->
+<div id="voice-dj-bubble" class="voice-dj-bubble hide" role="status" aria-live="polite">
+  <div class="voice-dj-bubble-row">
+    <span id="voice-dj-bubble-text">Listening...</span>
+  </div>
+  <div id="voice-dj-transcript" class="voice-dj-transcript"></div>
+  <div class="voice-dj-bubble-tail"></div>
+</div>
+<button id="voice-dj-fab" title="Voice AI DJ — Press and speak" aria-label="Voice AI DJ">
+  <svg id="voice-dj-ico-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v4M8 23h8"/></svg>
+  <svg id="voice-dj-ico-stop" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>
+  <div id="voice-dj-ring"></div>
+</button>
+<button id="voice-dj-lang-btn" title="Voice language" onclick="window.VoiceDJ && VoiceDJ.toggleLanguage()">EN</button>
+
 <button id="ai-fab" onclick="openAIChatOverlay()" title="Lolu — Chat & Rekomendasi Musik">
   <div id="ai-fab-lottie"></div>
   <!-- Animasi burung tidur — otomatis tampil jam 21.00–06.00 menggantikan
@@ -1865,5 +1885,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
 
 <script src="vibexa.js"></script>
+<!-- Voice-controlled AI DJ (Web Speech API). Loaded after vibexa.js so it
+     can reuse the player's existing globals (curTrack, curQueue, YTP,
+     playlists, loadPlay, playNext, playPrev, toast, fetchItunesResults, ...)
+     without duplicating any player logic. -->
+<script src="voice-dj.js"></script>
 </body>
 </html>
