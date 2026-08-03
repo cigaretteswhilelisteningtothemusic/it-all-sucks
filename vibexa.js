@@ -708,6 +708,8 @@ let _chatCurrentMessages = {};  // cache pesan percakapan yg sedang terbuka (utk
 let _chatReplyTarget = null;    // pesan yg sedang dibalas: { key, text, from, name }
 let _chatOpenActionsKey = null; // key pesan yg menu aksinya (Balas/Hapus) sedang terbuka
 let _chatOpenActionsMode = 'actions'; // 'actions' atau 'confirm-delete'
+let _chatLastTapKey = null;     // key pesan yg terakhir di-tap (mobile) — utk deteksi double-tap "like"
+let _chatLastTapTime = 0;       // timestamp tap terakhir tsb
 let _chatInboxRef = null;       // ref listener inbox
 let _chatTypingListCache = {};  // chatId -> true/false, status "sedang mengetik" tiap chat DI DAFTAR CHAT (bukan cuma yg sedang dibuka)
 let _chatTypingListRefs = {};   // chatId -> ref listener typing masing2 chat di daftar (utk attach/detach dinamis saat daftar berubah)
@@ -1568,6 +1570,16 @@ async function startChatWithFriend(uid, name, photo) {
   });
 }
 
+// Dipanggil saat notifikasi "X menyukai pesanmu" di-klik — langsung buka
+// overlay Chat dan arahkan ke percakapan dengan orang yang like pesan itu.
+function openChatFromLikeNotif(n) {
+  if (!n || !n.fromUid) return;
+  document.getElementById('notif-panel')?.classList.remove('open');
+  document.getElementById('notif-overlay')?.classList.remove('show');
+  openChatOverlay();
+  startChatWithFriend(n.fromUid, n.fromName || 'User', n.fromPhoto || '');
+}
+
 // ── Percakapan ───────────────────────────────────────────────
 function openConversation(chatId, peerUid, peerName, peerPhoto) {
   detachChatMessagesListener();
@@ -1658,7 +1670,45 @@ function markChatSeen(chatId, uid) {
 // atau segera setelah pesan benar-benar terkirim.
 const CHAT_TYPING_IDLE_MS = 2500;
 
+// ── Kolom ketik memanjang otomatis ke atas (ala WhatsApp) ──────────────
+// Dipanggil setiap kali user mengetik. Tinggi textarea disesuaikan dengan
+// isi teks (tumbuh ke atas), dibatasi CHAT_INPUT_MAX_HEIGHT supaya tidak
+// memakan seluruh layar kalau teksnya sangat panjang — setelah itu baru
+// discroll secara internal.
+const CHAT_INPUT_MAX_HEIGHT = 132; // px, kira-kira 5-6 baris — cocok dgn CSS max-height #chat-input
+
+function autoResizeChatInput(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  const next = Math.min(el.scrollHeight, CHAT_INPUT_MAX_HEIGHT);
+  el.style.height = next + 'px';
+  el.style.overflowY = el.scrollHeight > CHAT_INPUT_MAX_HEIGHT ? 'auto' : 'hidden';
+}
+
+// Menampilkan/menyembunyikan tombol attach & GIF di sebelah kiri kolom
+// ketik. Saat kolom ketik difokuskan (atau masih berisi teks), tombol2
+// tsb menciut otomatis supaya kolom ketik melebar ke kiri dan user lebih
+// leluasa mengetik — dipulihkan lagi begitu kolom kosong & tidak difokus.
+function updateChatInputBarState() {
+  const bar = document.querySelector('.chat-input-bar');
+  const inputEl = document.getElementById('chat-input');
+  if (!bar || !inputEl) return;
+  const hasText = inputEl.value.trim().length > 0;
+  const isFocused = document.activeElement === inputEl;
+  bar.classList.toggle('chat-input-bar--focused', hasText || isFocused);
+}
+
+function onChatInputFocus() {
+  updateChatInputBarState();
+}
+
+function onChatInputBlur() {
+  updateChatInputBarState();
+}
+
 function onChatInputTyping() {
+  autoResizeChatInput(document.getElementById('chat-input'));
+  updateChatInputBarState();
   if (!_chatMyTypingRef || !_chatCurrentPeer) return;
   const inputEl = document.getElementById('chat-input');
   const hasText = !!(inputEl && inputEl.value.trim().length > 0);
@@ -1876,10 +1926,26 @@ function renderChatMessages(msgsObj) {
       }
     }
 
+    // Like pesan (ala Instagram): tombol hati muncul saat hover di desktop,
+    // dan double-tap di mobile (lihat listener 'touchend' di bawah). Status
+    // like disimpan per-uid di m.likes supaya kedua pihak bisa like pesan
+    // yang sama secara independen.
+    let likeBtnHTML = '';
+    if (!deleted) {
+      const iLiked = !!(myUid && m.likes && m.likes[myUid]);
+      likeBtnHTML = `
+        <button type="button" class="chat-msg-like-btn${iLiked ? ' liked' : ''}" data-act="like-msg" data-key="${key}" title="${iLiked ? 'Unlike' : 'Like'}" aria-label="Like message">
+          <svg viewBox="0 0 24 24" fill="${iLiked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.7-4.34-9.3-8.24C1 10.02 1.6 6.6 4.3 5.06c2.3-1.31 4.9-.5 6.3 1.4L12 8l1.4-1.54c1.4-1.9 4-2.71 6.3-1.4 2.7 1.54 3.3 4.96 1.6 7.7C18.7 16.66 12 21 12 21z"/></svg>
+        </button>`;
+    }
+
     return `${sepHTML}
       <div class="chat-bubble-row ${mine ? 'me' : 'them'}" data-msgkey="${key}">
         ${quoteHTML}
-        ${bubbleHTML}
+        <div class="chat-bubble-wrap">
+          ${likeBtnHTML}
+          ${bubbleHTML}
+        </div>
         <div class="chat-bubble-time">${formatChatTime(m.ts)}</div>
         ${readHTML}
         ${actionsHTML}
@@ -1899,6 +1965,13 @@ document.addEventListener('click', e => {
   const actBtn = e.target.closest('.cba-btn');
   if (actBtn) {
     handleBubbleAction(actBtn.dataset.act, actBtn.dataset.key);
+    return;
+  }
+
+  const likeBtn = e.target.closest('.chat-msg-like-btn');
+  if (likeBtn) {
+    e.stopPropagation();
+    toggleChatMessageLike(likeBtn.dataset.key);
     return;
   }
 
@@ -1923,6 +1996,32 @@ document.addEventListener('click', e => {
   }
 });
 
+// Double-tap di mobile utk like pesan, ala Instagram/WhatsApp. Dipasang di
+// 'touchend' (bukan 'click') supaya tetap terdeteksi walau elemen di dalam
+// bubble (foto/video) punya onclick sendiri dengan stopPropagation. Kalau
+// double-tap terdeteksi, event di-preventDefault supaya "ghost click" yang
+// menyusul tidak ikut membuka menu aksi / image viewer.
+document.addEventListener('touchend', e => {
+  const wrap = document.getElementById('chat-messages');
+  if (!wrap || !wrap.contains(e.target)) return;
+  const bubbleTarget = e.target.closest('.chat-bubble:not(.chat-bubble-deleted), .chat-bubble-media, .chat-bubble-caption');
+  if (!bubbleTarget) return;
+  const row = e.target.closest('.chat-bubble-row');
+  const key = row && row.dataset.msgkey;
+  if (!key) return;
+
+  const now = Date.now();
+  if (_chatLastTapKey === key && (now - _chatLastTapTime) < 300) {
+    e.preventDefault();
+    _chatLastTapKey = null;
+    _chatLastTapTime = 0;
+    toggleChatMessageLike(key, row);
+  } else {
+    _chatLastTapKey = key;
+    _chatLastTapTime = now;
+  }
+}, { passive: false });
+
 function handleBubbleAction(act, key) {
   const chatId = _chatCurrentPeer && _chatCurrentPeer.chatId;
   if (!chatId || !key) return;
@@ -1946,6 +2045,104 @@ function handleBubbleAction(act, key) {
     _chatOpenActionsKey = null;
     renderChatMessages(_chatCurrentMessages);
   }
+}
+
+// ── Like pesan chat (ala Instagram) ─────────────────────────────────────
+// Toggle like SAYA sendiri utk satu pesan. Disimpan di
+// chats/{chatId}/messages/{key}/likes/{myUid} = true, supaya kedua pihak
+// bisa like pesan yang sama secara independen (dan dihapus lagi kalau
+// di-tap/klik ulang, sama seperti Instagram).
+async function toggleChatMessageLike(key, rowEl) {
+  if (!currentUser || !_chatCurrentPeer || !_chatCurrentPeer.chatId || !key) return;
+  const m = _chatCurrentMessages[key];
+  if (!m || m.deletedForEveryone) return;
+
+  const chatId = _chatCurrentPeer.chatId;
+  const myUid = currentUser.uid;
+  const alreadyLiked = !!(m.likes && m.likes[myUid]);
+  const likeRef = db.ref('chats/' + chatId + '/messages/' + key + '/likes/' + myUid);
+
+  // Update optimistik lokal supaya UI langsung terasa responsif, listener
+  // realtime akan menimpanya lagi dengan data server begitu sinkron.
+  m.likes = m.likes || {};
+  if (alreadyLiked) {
+    delete m.likes[myUid];
+  } else {
+    m.likes[myUid] = true;
+  }
+  renderChatMessages(_chatCurrentMessages);
+  // Panggil burst SETELAH render, karena render menimpa ulang innerHTML
+  // (elemen burst yg ditambah sebelum render akan langsung terhapus lagi).
+  if (!alreadyLiked) spawnChatHeartBurst(key);
+
+  try {
+    if (alreadyLiked) {
+      await likeRef.remove();
+    } else {
+      await likeRef.set(true);
+      // Jangan kirim notifikasi like ke diri sendiri (pesan sendiri yang di-like sendiri)
+      if (m.from && m.from !== myUid) {
+        sendChatMessageLikeNotif(m, key, chatId);
+      }
+    }
+  } catch (err) {
+    console.warn('Gagal update like pesan:', err);
+  }
+}
+
+// Kirim notifikasi in-app + push notification ke pemilik pesan yang di-like,
+// mirip alur notifikasi like playlist (lihat toggleLike()).
+async function sendChatMessageLikeNotif(msg, key, chatId) {
+  try {
+    const ownerUid = msg.from;
+    const profileSnap = await db.ref('users/' + currentUser.uid + '/profile').get().catch(() => null);
+    const profile = profileSnap?.val() || {};
+    const fromName = profile.displayName || currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'User');
+    const fromPhoto = profile.photoURL || profile.photoBase64 || currentUser.photoURL || '';
+
+    let preview = (msg.text || '').toString().trim();
+    if (!preview) {
+      if (msg.type === 'image') preview = 'Photo';
+      else if (msg.type === 'video') preview = 'Video';
+      else if (msg.type === 'gif') preview = 'GIF';
+      else preview = 'Message';
+    }
+
+    const notif = {
+      type: 'chat_like',
+      fromUid: currentUser.uid,
+      fromName,
+      fromPhoto,
+      chatId,
+      msgKey: key,
+      msgPreview: preview.slice(0, 100),
+      ts: Date.now(),
+      read: false
+    };
+    db.ref('users/' + ownerUid + '/notifications').push(notif).catch(() => {});
+
+    // Push notification ala WhatsApp walau app/tab lagi tertutup, pakai
+    // Worker yang sama dengan notifikasi pesan chat biasa.
+    triggerChatPushNotification(
+      { uid: ownerUid, chatId },
+      `${fromName} menyukai pesanmu: "${preview.slice(0, 60)}"`
+    );
+  } catch (e) {
+    console.warn('sendChatMessageLikeNotif error:', e);
+  }
+}
+
+// Animasi hati besar muncul-lalu-menghilang di tengah bubble saat di-like,
+// persis efek double-tap di Instagram.
+function spawnChatHeartBurst(key, rowEl) {
+  const row = rowEl || document.querySelector(`.chat-bubble-row[data-msgkey="${CSS.escape(key)}"]`);
+  const wrap = row && row.querySelector('.chat-bubble-wrap');
+  if (!wrap) return;
+  const burst = document.createElement('div');
+  burst.className = 'chat-heart-burst';
+  burst.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>';
+  wrap.appendChild(burst);
+  setTimeout(() => burst.remove(), 800);
 }
 
 // Menyimpan pesan yg akan dibalas & menampilkan preview-nya di atas kotak input.
@@ -2081,6 +2278,8 @@ async function sendChatMessage() {
   }
 
   input.value = '';
+  autoResizeChatInput(input); // kolom ketik kembali ke tinggi normal (1 baris)
+  updateChatInputBarState(); // tombol attach & GIF muncul lagi kalau kolom kosong & tidak difokus
   stopChatTyping(); // pesan sudah terkirim → indikator "mengetik" langsung berhenti
 
   const myUid = currentUser.uid;
@@ -2120,6 +2319,8 @@ async function sendChatMessage() {
   }).catch(err => {
     console.error('Gagal mengirim pesan:', err);
     input.value = text; // kembalikan teks kalau gagal terkirim
+    autoResizeChatInput(input);
+    updateChatInputBarState();
   });
 }
 
@@ -13437,10 +13638,12 @@ function openNotifZoom(id) {
   const isSongLike = n.type === 'song_like';
   const isCommentLike = n.type === 'comment_like';
   const isReply = n.type === 'comment_reply';
+  const isChatLike = n.type === 'chat_like';
 
   const isSongTarget = n.targetType === 'song';
   let actionText;
   if (isAsk) actionText = 'sent an anonymous message to your vibeprofile';
+  else if (isChatLike) actionText = `liked your message`;
   else if (isLike) actionText = `liked your "${n.playlistName || 'playlist'}" playlist`;
   else if (isSongLike) actionText = `liked the song you suggested: "${n.songTitle || 'song'}"`;
   else if (isCommentLike) actionText = `liked your comment on "${n.playlistName || 'playlist'}"`;
@@ -13455,14 +13658,14 @@ function openNotifZoom(id) {
     avatarWrap.innerHTML = `<div class="notif-avatar"><img src="${esc(n.fromPhoto)}" alt=""></div>`;
   } else if (isAsk) {
     avatarWrap.innerHTML = `<div class="notif-icon-wrap notif-icon-ask">💬</div>`;
-  } else if (isLike || isSongLike) {
-    avatarWrap.innerHTML = `<div class="notif-icon-wrap notif-icon-like"></div>`;
+  } else if (isLike || isSongLike || isChatLike) {
+    avatarWrap.innerHTML = `<div class="notif-icon-wrap notif-icon-like">${isChatLike ? '❤' : ''}</div>`;
   } else {
     avatarWrap.innerHTML = `<div class="notif-icon-wrap notif-icon-comment"></div>`;
   }
 
   const bodyEl = document.getElementById('notif-zoom-body');
-  const fullText = isAsk ? (n.text || '') : (n.comment || '');
+  const fullText = isAsk ? (n.text || '') : (isChatLike ? (n.msgPreview || '') : (n.comment || ''));
   if (fullText) {
     bodyEl.innerHTML = `<div style="margin-bottom:10px;color:var(--sub);font-size:.8rem;">${esc(n.fromName || 'Seseorang')} ${esc(actionText)}</div><div>${esc(fullText)}</div>`;
   } else {
@@ -13497,7 +13700,7 @@ function renderNotifications(notifs) {
   const appUpdateHtml = shouldShowAppUpdateNotif() ? buildAppUpdateNotifHtml() : '';
 
   if (!notifs || !notifs.length) {
-    list.innerHTML = appUpdateHtml + `<div class="notif-empty"><span></span>No notifications yet.<br>When someone likes, comments,<br>or sends an anonymous message to<br>your vibeprofile, it will appear here.</div>`;
+    list.innerHTML = appUpdateHtml + `<div class="notif-empty"><span></span>No notifications yet.<br>When someone likes, comments,<br>likes your chat message, or sends<br>an anonymous message, it will appear here.</div>`;
     updateNotifBulkBar();
     return;
   }
@@ -13515,6 +13718,7 @@ function renderNotifications(notifs) {
     const isReply = n.type === 'comment_reply';
     const isAsk = n.type === 'ask_message';
     const isFollowReq = n.type === 'follow_request';
+    const isChatLike = n.type === 'chat_like';
 
     let icon, actionText;
     if (isFollowReq) {
@@ -13523,6 +13727,9 @@ function renderNotifications(notifs) {
     } else if (isAsk) {
       icon = `<div class="notif-icon-wrap notif-icon-ask">💬</div>`;
       actionText = `sent an anonymous message to your vibeprofile`;
+    } else if (isChatLike) {
+      icon = `<div class="notif-icon-wrap notif-icon-like">❤</div>`;
+      actionText = `liked your message`;
     } else if (isLike) {
       icon = `<div class="notif-icon-wrap notif-icon-like"></div>`;
       actionText = `liked your <span class="notif-pl">${esc(n.playlistName || 'playlist')}</span> playlist`;
@@ -13553,6 +13760,10 @@ function renderNotifications(notifs) {
 
     const askPrev = isAsk && n.text
       ? `<div class="notif-comment-preview notif-ask-preview">❝ ${esc(n.text.slice(0, 100))}${n.text.length > 100 ? '…' : ''} ❞</div>`
+      : '';
+
+    const chatLikePrev = isChatLike && n.msgPreview
+      ? `<div class="notif-comment-preview">"${esc(n.msgPreview.slice(0, 80))}${n.msgPreview.length > 80 ? '…' : ''}"</div>`
       : '';
 
     // Tombol Terima/Tolak untuk notifikasi permintaan follow (hanya kalau masih pending),
@@ -13592,6 +13803,7 @@ function renderNotifications(notifs) {
         </div>
         ${commentPrev}
         ${askPrev}
+        ${chatLikePrev}
         ${followActionsHtml}
         ${bottomLine}
       </div>
@@ -13605,6 +13817,11 @@ function renderNotifications(notifs) {
       } else if (isFollowReq) {
         if (ev.target.closest('.notif-follow-btn')) return; // ditangani listener delegasi tombol sendiri
         if (!n.read) markNotifRead(n._id);
+      } else if (isChatLike) {
+        // Klik notif "like pesan" langsung membuka percakapannya, bukan
+        // modal zoom, supaya user langsung diarahkan ke pesan yg di-like.
+        if (!n.read) markNotifRead(n._id);
+        openChatFromLikeNotif(n);
       } else {
         openNotifZoom(n._id);
       }
