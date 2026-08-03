@@ -152,6 +152,65 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
   .profile-streak-badge{font-size:.64rem;}
 }
 
+/* ── VOICE AI DJ — dipindah dari floating fixed button ke jejeran
+   My Profile (bareng Streak & tombol Profile/VibeProfile). Rule aslinya
+   ada di voice-dj.css (position:fixed dsb, tidak diubah di sana), jadi
+   override-nya di sini pakai selector lebih spesifik (.topbar-profile-wrap
+   #voice-dj-fab) supaya menang tanpa perlu !important dobel-dobel. */
+.topbar-profile-wrap #voice-dj-fab{
+  position:relative;
+  inset:auto;top:auto;right:auto;bottom:auto;left:auto;
+  width:34px;height:34px;
+  border-radius:50%;
+  background:rgba(46,125,255,.14);
+  border:1px solid rgba(46,125,255,.35);
+  color:#2e7dff;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:none;
+  z-index:auto;
+  flex-shrink:0;
+  transition:background .15s,border-color .15s,transform .15s;
+}
+.topbar-profile-wrap #voice-dj-fab:hover{background:rgba(46,125,255,.24);border-color:#2e7dff;transform:scale(1.05);}
+.topbar-profile-wrap #voice-dj-fab svg{width:15px;height:15px;}
+.topbar-profile-wrap #voice-dj-fab.listening{background:rgba(46,125,255,.3);border-color:#2e7dff;}
+.topbar-profile-wrap #voice-dj-ring{position:absolute;inset:-3px;border-radius:50%;pointer-events:none;}
+.topbar-profile-wrap #voice-dj-lang-btn{
+  position:relative;
+  inset:auto;top:auto;right:auto;bottom:auto;left:auto;
+  width:auto;height:auto;
+  padding:2px 7px;
+  font-size:.62rem;font-weight:700;letter-spacing:.5px;
+  border-radius:50px;
+  background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.16);
+  color:var(--sub);
+  flex-shrink:0;
+  cursor:pointer;
+  font-family:var(--f);
+}
+.topbar-profile-wrap #voice-dj-lang-btn:hover{background:rgba(255,255,255,.14);color:var(--text);}
+/* Bubble "Listening..." di-anchor ke wrap (position:relative) supaya
+   muncul menggantung di bawah tombolnya yang sekarang ada di topbar,
+   bukan lagi di pojok kanan bawah layar. */
+.topbar-profile-wrap #voice-dj-bubble{
+  position:absolute;
+  top:calc(100% + 12px);
+  right:0;left:auto;bottom:auto;
+  z-index:60;
+}
+@media (max-width:660px){
+  .topbar-profile-wrap #voice-dj-fab{width:28px;height:28px;}
+  .topbar-profile-wrap #voice-dj-fab svg{width:13px;height:13px;}
+  .topbar-profile-wrap #voice-dj-lang-btn{padding:1px 5px;font-size:.56rem;}
+  /* Ikut mengecil/hilang saat search di-fokus di mobile, sama seperti
+     pill Streak, supaya konsisten. */
+  .home-topbar.mobile-searching .topbar-profile-wrap #voice-dj-fab,
+  .home-topbar.mobile-searching .topbar-profile-wrap #voice-dj-lang-btn{
+    display:none;
+  }
+}
+
 
 /* ── COLLAPSED SIDEBAR (Spotify-style icon rail) ───────────── */
 body.side-collapsed .logo-name,

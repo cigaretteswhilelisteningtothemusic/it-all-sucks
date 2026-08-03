@@ -17645,6 +17645,18 @@ function _updateAiFabSleepMode(){
     lottieEl.style.display = 'none';
     if (_aiFabAnim) { try{ _aiFabAnim.pause(); }catch(e){} }
     sleepEl.classList.add('show');
+    // Bubble sapaan "Lolu missed you!!" dkk TIDAK boleh nongol jam
+    // 21.00–06.00 (biar konsisten sama mode tidur burungnya) — dipaksa
+    // hide di sini juga (bukan cuma di _aiFabBubbleRotate()) supaya kalau
+    // bubble kebetulan lagi "show" pas jam berganti ke 21.00 sementara tab
+    // tetap terbuka, dia langsung ilang tanpa perlu reload/keluar-masuk tab.
+    const bubble = document.getElementById('ai-fab-bubble');
+    if (bubble){
+      bubble.classList.remove('show');
+      clearTimeout(_aiFabBubbleHideTimer);
+      clearInterval(_aiFabBubbleTypeTimer);
+      clearTimeout(_aiFabBubbleTypeStartTimer);
+    }
   } else {
     sleepEl.classList.remove('show');
     lottieEl.style.display = '';
@@ -17765,9 +17777,18 @@ function _aiFabBubbleRotate(){
   // tanpa tombol yang ditunjuknya.
   if (fab.classList.contains('hide')) return;
 
-  const nightMode = _isAiFabSleepHour();
-  const phrases = nightMode ? LOLU_BUBBLE_NIGHT_PHRASES : LOLU_BUBBLE_PHRASES;
-  const idxStorageKey = nightMode ? 'loluBubbleNightIdx' : 'loluBubbleIdx';
+  // Bubble sapaan TIDAK muncul sama sekali jam 21.00–05.59 (dicek pakai
+  // _isAiFabSleepHour() yang sama dgn mode tidur burung). Begitu sudah
+  // lewat jam 06.00, fungsi ini otomatis lanjut nampilin bubble lagi
+  // seperti biasa di panggilan berikutnya (buka tab baru / balik dari
+  // background) — tidak perlu logic tambahan buat "munculkan lagi".
+  if (_isAiFabSleepHour()){
+    bubble.classList.remove('show');
+    return;
+  }
+
+  const idxStorageKey = 'loluBubbleIdx';
+  const phrases = LOLU_BUBBLE_PHRASES;
   let idx = parseInt(localStorage.getItem(idxStorageKey) || '-1', 10);
   if (isNaN(idx)) idx = -1;
   idx = (idx + 1) % phrases.length;
