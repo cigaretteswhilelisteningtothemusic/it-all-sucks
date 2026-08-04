@@ -1324,7 +1324,7 @@ body.np-page-open #bar{
   ════════════════════════════════ */
   body{
     grid-template-columns:1fr;
-    grid-template-rows:60px 1fr 64px 56px;
+    grid-template-rows:60px 1fr 76px 56px;
     grid-template-areas:"topbar""main""bar""mob-nav";
     overflow:hidden;
     --np-bottom: 120px;
@@ -1339,17 +1339,32 @@ body.np-page-open #bar{
   #playlists-grid{
     display:flex !important;
   }
-  .home-topbar,#main,#bar{border-radius:0;border-width:0;}
+  .home-topbar,#main{border-radius:0;border-width:0;}
   .home-topbar{border-bottom:1px solid var(--border);}
-  #bar{border-top:1px solid var(--border);}
   #side{display:none}
   #lyr{display:none}
   #main{overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;}
 
   /* ════════════════════════════════
      PLAYER BAR
+     Kotak "play" mini player mengambang (floating), sudut membulat & ada
+     batas (border) — gaya kotak play Spotify di mobile. Warnanya ikut
+     warna dominan sampul album/background lirik lagu yang sedang diputar
+     (var(--fs-bg-color), sama dengan warna halaman Lyrics/Now Playing —
+     lihat _applyFSColorValue() di JS), dengan warna gelap default sebagai
+     fallback sebelum ada lagu yang diputar / warna belum sempat diekstrak.
   ════════════════════════════════ */
-  #bar{grid-area:bar;padding:0 12px;height:64px;border-top:1px solid var(--border);border-radius:0;gap:8px;}
+  #bar{
+    grid-area:bar;
+    padding:0 12px;
+    height:64px;
+    margin:6px 10px;
+    border:1px solid rgba(255,255,255,.14);
+    border-radius:14px;
+    gap:8px;
+    background:var(--fs-bg-color, rgba(8,11,18,.96));
+    transition:background .5s ease,margin .4s ease,border-radius .4s ease,border-color .4s ease;
+  }
   .bar-track{gap:9px;min-width:0;flex:1;overflow:hidden}
   #bar-thumb,.bar-ph{width:40px!important;height:40px!important;border-radius:9px!important;font-size:1.1rem!important;flex-shrink:0}
   .bar-info{min-width:0;overflow:hidden}
@@ -1914,6 +1929,15 @@ body.np-page-open #bar{
 .np-mob-play-btn{flex-shrink:0;width:58px;height:58px;border-radius:50%;background:#fff;border:none;display:flex;align-items:center;justify-content:center;color:#000;cursor:pointer;transition:transform .15s;}
 .np-mob-play-btn:active{transform:scale(.93)}
 .np-mob-play-btn svg{width:24px;height:24px}
+
+/* Garis pendek + nama artis di bawah baris tombol play, khusus tampilan
+   mobile (gaya "swipe up" halaman Now Playing Spotify di HP). Elemen
+   induknya (.np-mob-controls) sudah display:none di desktop & baru
+   dimunculkan lewat @media(max-width:660px), jadi ini otomatis mobile-only. */
+.np-mob-bottom-handle{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:6px;}
+.np-mob-handle-line{width:34px;height:4px;border-radius:4px;background:rgba(255,255,255,.3);}
+.np-mob-handle-artist{font-size:.8rem;font-weight:600;color:rgba(255,255,255,.68);cursor:pointer;max-width:80vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.np-mob-handle-artist:hover,.np-mob-handle-artist:active{color:#fff;}
 .np-mob-bottom-row{display:flex;align-items:center;justify-content:center;}
 .np-mob-queue-btn{display:flex;align-items:center;gap:7px;background:none;border:none;color:rgba(255,255,255,.68);font-family:var(--f);font-weight:700;font-size:.72rem;letter-spacing:.2px;cursor:pointer;padding:9px 16px;border-radius:20px;transition:all .18s;}
 .np-mob-queue-btn:hover{color:#fff;background:rgba(255,255,255,.08)}

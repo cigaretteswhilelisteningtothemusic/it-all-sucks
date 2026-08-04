@@ -7071,6 +7071,11 @@ function _applyFSColorValue(c){
   const l=document.getElementById('fs-lyr'), b=document.getElementById('fs-bg');
   if(l){ l.style.background=c; l.style.setProperty('--fs-bg-color', c); }
   if(b) b.style.background=c;
+  // Set juga di :root supaya elemen lain di luar halaman Lyrics (mis. kotak
+  // "play" mini player #bar di tampilan mobile) bisa ikut memakai warna
+  // dominan lagu yang sama lewat var(--fs-bg-color), tanpa perlu ekstraksi
+  // ulang — pickFSColor() sudah dipanggil setiap kali lagu baru dimuat.
+  document.documentElement.style.setProperty('--fs-bg-color', c);
 }
 // Ubah rgb(...) jadi versi lebih cerah & jenuh (vivid), gaya "Canvas" Spotify,
 // alih-alih digelapkan seperti sebelumnya. Lightness dijaga agar teks putih tetap kebaca.
@@ -7265,6 +7270,9 @@ function openNP(track){
   else { artEl.style.display='none'; phEl.style.display='flex'; }
   document.getElementById('np-track-title').textContent=track.title || '—';
   document.getElementById('np-track-artist').textContent=track.artist || '—';
+  // Nama artis di bawah garis pendek (khusus tampilan mobile, di bawah tombol play)
+  const mobHandleArtist=document.getElementById('np-mob-handle-artist');
+  if(mobHandleArtist) mobHandleArtist.textContent=track.artist || '—';
   const miniArt=document.getElementById('np-mini-art');
   if(track.thumb){ miniArt.src=track.thumb; miniArt.style.display='block'; } else { miniArt.style.display='none'; }
   document.getElementById('np-mini-title').textContent=track.title || '—';
