@@ -3690,6 +3690,25 @@ function toggleArtistViewFollow() {
   toggleFollowArtist(_currentArtistData.name, _currentArtistData.photo || '');
 }
 
+// ─── Voice AI DJ — halaman penuh (kartu "DJ" di Home) ──────
+// Overlay full-screen di atas semua halaman lain (sama seperti pola
+// #np-view), jadi TIDAK perlu menambahkan baris "display:none" untuk
+// #voice-dj-page ke setiap fungsi showXxxView() yang sudah ada — cukup
+// dibuka/ditutup lewat 2 fungsi ini saja.
+function openVoiceDjPage() {
+  if (typeof closeNP === 'function') { closeNP(); }
+  document.getElementById('voice-dj-page').classList.add('open');
+  document.body.classList.add('voice-dj-mobile-open');
+}
+
+function closeVoiceDjPage() {
+  document.getElementById('voice-dj-page').classList.remove('open');
+  document.body.classList.remove('voice-dj-mobile-open');
+  // Kalau mic sedang aktif saat halaman ditutup, hentikan supaya tidak
+  // terus mendengarkan di belakang layar.
+  if (window.VoiceDJ && VoiceDJ.stop) { VoiceDJ.stop(); }
+}
+
 // ─── Views ────────────────────────────────────────────────
 function showHomeView() {
   // Jika sedang di halaman Song Preview, hentikan audio preview-nya dulu

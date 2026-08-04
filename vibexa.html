@@ -199,6 +199,28 @@
 
     <div class="home-greeting" id="home-greeting">Welcome </div>
     <div class="home-sub">Your playlists are automatically saved to this account.</div>
+
+    <!-- DJ — kartu kotak di Home yang membuka halaman penuh Voice AI DJ
+         (mirip kartu "DJ" ala Spotify). Klik di mana saja pada kartu, atau
+         tombol play bulat di kanan, akan memanggil openVoiceDjPage() (lihat
+         vibexa.js) yang menutup semua halaman lain lalu menampilkan
+         #voice-dj-page. Visual lingkaran birunya memakai voice-dj.js/css
+         yang sudah ada — dj-orb.gif hanya dipakai untuk tampilan animasi. -->
+    <div class="home-dj-card" id="home-dj-card" onclick="openVoiceDjPage()">
+      <div class="home-dj-card-orb">
+        <img src="dj-orb.gif" alt="" draggable="false">
+      </div>
+      <div class="home-dj-card-body">
+        <div class="home-dj-card-title-row">
+          <span class="home-dj-card-title">DJ</span>
+          <span class="home-dj-card-badge">BETA</span>
+        </div>
+        <p class="home-dj-card-desc" id="home-dj-card-desc">Ngomong aja, DJ yang muterin. Ketuk untuk mulai ngobrol pakai suara.</p>
+      </div>
+      <button class="home-dj-card-play" onclick="event.stopPropagation();openVoiceDjPage()" title="Buka Voice DJ" aria-label="Buka Voice DJ">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+    </div>
     <div class="home-section-title" style="display:none;">
       <span>All Playlists</span>
       <button class="home-new-pl-btn" onclick="openNewPlaylistModal()">
@@ -1680,6 +1702,43 @@
     <div class="lyr-select-bar-sub" id="lyr-select-count">0 baris dipilih</div>
   </div>
   <button id="lyr-select-continue-btn" onclick="openLyricsCardModal()" disabled>Lanjutkan</button>
+</div>
+
+<!-- ═══════════ VOICE AI DJ — halaman penuh (dibuka dari kartu "DJ" di
+     Home lewat openVoiceDjPage(), lihat vibexa.js). Referensi tampilan:
+     halaman "DJ" milik Spotify — orb animasi di tengah, judul besar,
+     tombol mic besar di bawah orb, transcript ucapan user + balasan DJ.
+     Semua warna memakai variabel tema yang sama dengan sisa web ini
+     (--bg/--card/--green/--border/dst, lihat vibexa.css) supaya menyatu,
+     bukan komponen tempelan. Interaksi suaranya memakai ulang mesin yang
+     sama persis dengan mic FAB kecil di pojok (voice-dj.js) — halaman ini
+     hanya menambah "wajah" baru untuk state yang sama (lihat UIStateManager
+     di voice-dj.js yang sudah diperluas supaya menulis ke elemen
+     #vdj-page-* di bawah ini juga). -->
+<div id="voice-dj-page">
+  <div class="vdj-header">
+    <button class="vdj-icon-btn" onclick="closeVoiceDjPage()" title="Tutup">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <div class="vdj-header-title">DJ</div>
+    <button class="vdj-icon-btn vdj-lang-btn" id="vdj-page-lang-btn" onclick="window.VoiceDJ && VoiceDJ.toggleLanguage()" title="Bahasa suara">EN</button>
+  </div>
+
+  <div class="vdj-body">
+    <div class="vdj-orb-wrap" id="vdj-page-orb">
+      <img class="vdj-orb-gif" src="dj-orb.gif" alt="" draggable="false">
+      <button class="vdj-mic-btn" id="vdj-page-mic-btn" onclick="window.VoiceDJ && VoiceDJ.toggle()" title="Tekan lalu bicara" aria-label="Bicara ke DJ">
+        <svg id="vdj-page-ico-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v4M8 23h8"/></svg>
+        <svg id="vdj-page-ico-stop" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>
+      </button>
+    </div>
+
+    <div class="vdj-status" id="vdj-page-status">Welcome</div>
+    <div class="vdj-sub" id="vdj-page-sub">DJ</div>
+    <div class="vdj-transcript" id="vdj-page-transcript"></div>
+
+    <p class="vdj-hint">Ketuk mic lalu ucapkan perintah, misalnya <em>&quot;putar lagu galau&quot;</em>, <em>&quot;skip lagu ini&quot;</em>, atau <em>&quot;muterin playlist ku&quot;</em>.</p>
+  </div>
 </div>
 
 <div id="mob-nav" style="display:none">

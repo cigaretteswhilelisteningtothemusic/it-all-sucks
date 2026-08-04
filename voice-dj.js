@@ -38,6 +38,14 @@
     // entirely instead of showing a button that can never work.
     if (fabEl) fabEl.classList.add('hide');
     if (langBtn) langBtn.classList.add('hide');
+    // Halaman penuh DJ juga disesuaikan: sembunyikan tombol mic & tampilkan
+    // pesan bahwa fitur suara tidak didukung, daripada tombol yang diam saja.
+    const pageMic = document.getElementById('vdj-page-mic-btn');
+    if (pageMic) pageMic.style.display = 'none';
+    const pageStat = document.getElementById('vdj-page-status');
+    if (pageStat) pageStat.textContent = 'Not supported';
+    const pageSubEl = document.getElementById('vdj-page-sub');
+    if (pageSubEl) pageSubEl.textContent = 'This browser can\'t use voice control';
     console.warn('Voice AI DJ: SpeechRecognition API not supported in this browser.');
     return;
   }
@@ -74,37 +82,76 @@
     const icoStop  = document.getElementById('voice-dj-ico-stop');
     const loluFab  = document.getElementById('ai-fab-lottie');
 
+    // Elemen halaman penuh "DJ" (lihat #voice-dj-page di vibexa.html).
+    // Bisa saja tidak ada di DOM (mis. versi lama file), makanya semua
+    // pemakaian di bawah selalu dicek null-nya dulu — mic FAB kecil tetap
+    // berfungsi normal walau halaman ini belum ada.
+    const pageOrb    = document.getElementById('vdj-page-orb');
+    const pageMicBtn = document.getElementById('vdj-page-mic-btn');
+    const pageIcoMic  = document.getElementById('vdj-page-ico-mic');
+    const pageIcoStop = document.getElementById('vdj-page-ico-stop');
+    const pageStatus     = document.getElementById('vdj-page-status');
+    const pageSub         = document.getElementById('vdj-page-sub');
+    const pageTranscript = document.getElementById('vdj-page-transcript');
+
+    const DEFAULT_STATUS = { text: 'Welcome', sub: 'DJ' };
+
     let hideTimer = null;
 
     function setFabState(state){
       // state: 'idle' | 'listening' | 'processing' | 'speaking'
-      if (!fabEl) return;
-      fabEl.classList.remove('listening', 'processing', 'speaking');
-      if (state !== 'idle') fabEl.classList.add(state);
+      if (fabEl){
+        fabEl.classList.remove('listening', 'processing', 'speaking');
+        if (state !== 'idle') fabEl.classList.add(state);
+      }
       if (icoMic && icoStop){
         icoMic.style.display  = (state === 'listening') ? 'none' : 'block';
         icoStop.style.display = (state === 'listening') ? 'block' : 'none';
       }
       // Give Lolu's own floating icon a little life while we're working.
       if (loluFab) loluFab.style.animation = (state === 'idle') ? '' : 'voiceDjMicBob 1s ease-in-out infinite';
+
+      // Cerminkan state yang sama ke orb + tombol mic di halaman penuh DJ.
+      if (pageOrb){
+        pageOrb.classList.remove('listening', 'processing', 'speaking');
+        if (state !== 'idle') pageOrb.classList.add(state);
+      }
+      if (pageMicBtn){
+        pageMicBtn.classList.remove('listening', 'processing', 'speaking');
+        if (state !== 'idle') pageMicBtn.classList.add(state);
+      }
+      if (pageIcoMic && pageIcoStop){
+        pageIcoMic.style.display  = (state === 'listening') ? 'none' : 'block';
+        pageIcoStop.style.display = (state === 'listening') ? 'block' : 'none';
+      }
     }
 
     function showBubble(state, text, transcript){
-      if (!bubble) return;
-      clearTimeout(hideTimer);
-      bubble.classList.remove('state-listening', 'state-processing', 'state-speaking', 'state-error');
-      bubble.classList.add('state-' + state);
-      bubble.classList.remove('hide');
-      bubble.classList.add('show');
-      if (bubbleTx) bubbleTx.textContent = text;
-      if (transcriptEl) transcriptEl.textContent = transcript || '';
+      if (bubble){
+        clearTimeout(hideTimer);
+        bubble.classList.remove('state-listening', 'state-processing', 'state-speaking', 'state-error');
+        bubble.classList.add('state-' + state);
+        bubble.classList.remove('hide');
+        bubble.classList.add('show');
+        if (bubbleTx) bubbleTx.textContent = text;
+        if (transcriptEl) transcriptEl.textContent = transcript || '';
+      }
+      // Sinkronkan teks status/transcript ke halaman penuh DJ juga, terlepas
+      // dari mic mana (FAB kecil atau tombol besar di halaman) yang dipakai.
+      if (pageStatus) pageStatus.textContent = text;
+      if (pageSub) pageSub.textContent = transcript ? 'DJ' : (state === 'error' ? 'DJ' : '');
+      if (pageTranscript) pageTranscript.textContent = transcript || '';
     }
 
     function hideBubble(delay){
-      if (!bubble) return;
       clearTimeout(hideTimer);
       hideTimer = setTimeout(() => {
-        bubble.classList.remove('show');
+        if (bubble) bubble.classList.remove('show');
+        // Kembalikan halaman penuh DJ ke sapaan default begitu percakapan
+        // selesai, supaya tidak menampilkan balasan lama selamanya.
+        if (pageStatus) pageStatus.textContent = DEFAULT_STATUS.text;
+        if (pageSub) pageSub.textContent = DEFAULT_STATUS.sub;
+        if (pageTranscript) pageTranscript.textContent = '';
       }, delay || 0);
     }
 
@@ -151,7 +198,10 @@
     function currentLang(){ return LANGS[langIdx]; }
 
     function updateLangBtn(){
-      if (langBtn) langBtn.textContent = currentLang() === 'id-ID' ? 'ID' : 'EN';
+      const label = currentLang() === 'id-ID' ? 'ID' : 'EN';
+      if (langBtn) langBtn.textContent = label;
+      const pageLangBtn = document.getElementById('vdj-page-lang-btn');
+      if (pageLangBtn) pageLangBtn.textContent = label;
     }
     updateLangBtn();
 
@@ -734,6 +784,9 @@
   }
 
   if (fabEl) fabEl.addEventListener('click', onMicButtonClick);
+  // Tombol mic besar di halaman penuh DJ dipanggil lewat onclick="VoiceDJ.toggle()"
+  // di HTML (lihat #vdj-page-mic-btn), bukan addEventListener di sini, supaya
+  // tidak double-fire kalau kedua cara sama-sama dipasang.
 
   /* ------------------------------------------------------------------ *
    * 12. Public API (handy for debugging / future extension)
@@ -742,6 +795,7 @@
     toggleLanguage: SpeechRecognitionModule.toggleLanguage,
     start: beginListening,
     stop: SpeechRecognitionModule.stop,
+    toggle: onMicButtonClick, // dipakai tombol mic besar di halaman penuh DJ
     parseIntent: IntentParser.parse,     // exposed so new commands can be tested from the console
     setTTSEnabled: TTS.setEnabled,
     _modules: { SpeechRecognitionModule, IntentParser, MusicSearch, PlaylistSearch, PlaybackController, UIStateManager, TTS }
