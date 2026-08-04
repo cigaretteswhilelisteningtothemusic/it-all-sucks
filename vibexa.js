@@ -7216,6 +7216,14 @@ function _npAvgColorFromImage(url){
 async function pickNPColor(track){
   const bg=document.getElementById('np-bg');
   if(!bg) return;
+  // Terapkan warna ke background halaman Now Playing SEKALIGUS ke variabel
+  // CSS global --np-bg-color, supaya elemen lain di luar halaman Now Playing
+  // (mis. kotak "play" mini player #bar di tampilan mobile) bisa ikut
+  // memakai warna background halaman Now Playing ini lewat var(--np-bg-color).
+  const applyNPColor=(c)=>{
+    bg.style.background=c;
+    document.documentElement.style.setProperty('--np-bg-color', c);
+  };
   // Pakai cache warna yang sama dengan halaman lirik fullscreen (_fsColorCache)
   // supaya warna background halaman Now Playing PERSIS sama dengan warna
   // background halaman Lyrics untuk lagu yang sama, dan tidak perlu ekstrak ulang.
@@ -7226,12 +7234,12 @@ async function pickNPColor(track){
   // Playing (kotak Albums/Playlist/Jelajahi) tetap terlihat tajam & cerah,
   // bukan gelap.
   if(key && _fsColorCache[key]){
-    bg.style.background=_fsColorCache[key];
+    applyNPColor(_fsColorCache[key]);
     return;
   }
   _npColorIdx++;
   const fallback=FS_COLORS[_npColorIdx % FS_COLORS.length];
-  bg.style.background=fallback;
+  applyNPColor(fallback);
   if(track && track.thumb){
     try{
       // _fsVividColorFromImage: ekstraksi warna dominan yang sama & sudah
@@ -7239,7 +7247,7 @@ async function pickNPColor(track){
       // Lyrics (gaya "Canvas" Spotify), bukan versi lama yang digelapkan.
       const color=await _fsVividColorFromImage(track.thumb);
       if(key) _fsColorCache[key]=color;
-      if(curTrack===track) bg.style.background=color;
+      if(curTrack===track) applyNPColor(color);
     }catch(e){ /* tetap pakai warna palet fallback */ }
   }
 }

@@ -1349,10 +1349,10 @@ body.np-page-open #bar{
      PLAYER BAR
      Kotak "play" mini player mengambang (floating), sudut membulat & ada
      batas (border) — gaya kotak play Spotify di mobile. Warnanya ikut
-     warna dominan sampul album/background lirik lagu yang sedang diputar
-     (var(--fs-bg-color), sama dengan warna halaman Lyrics/Now Playing —
-     lihat _applyFSColorValue() di JS), dengan warna gelap default sebagai
-     fallback sebelum ada lagu yang diputar / warna belum sempat diekstrak.
+     warna background halaman Now Playing (var(--np-bg-color), di-set oleh
+     pickNPColor() di JS setiap kali halaman Now Playing dibuka/lagu
+     berganti), dengan warna gelap default sebagai fallback sebelum ada
+     lagu yang diputar / warna belum sempat diekstrak.
   ════════════════════════════════ */
   #bar{
     grid-area:bar;
@@ -1362,7 +1362,7 @@ body.np-page-open #bar{
     border:1px solid rgba(255,255,255,.14);
     border-radius:14px;
     gap:8px;
-    background:var(--fs-bg-color, rgba(8,11,18,.96));
+    background:var(--np-bg-color, rgba(8,11,18,.96));
     transition:background .5s ease,margin .4s ease,border-radius .4s ease,border-color .4s ease;
   }
   .bar-track{gap:9px;min-width:0;flex:1;overflow:hidden}
