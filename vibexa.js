@@ -5543,6 +5543,12 @@ function _restoreLastPlayedTrack(){
   try{ _updateArtistWidgets(track); }catch(e){}
   try{ setFSNowPlayingInfo(track); }catch(e){}
   try{ _setupMediaSession(track); }catch(e){}
+  // Set warna background kotak "play" (#bar) mengikuti warna dominan
+  // thumbnail lagu ini (var(--np-bg-color)) SEJAK AWAL, walau lagu belum
+  // diputar sama sekali — supaya tidak perlu menunggu user menekan play
+  // dulu baru kotaknya berwarna. Sebelumnya --np-bg-color cuma di-set oleh
+  // openNP() yang dipanggil otomatis saat lagu MULAI diputar.
+  try{ if (typeof pickNPColor === 'function') pickNPColor(track); }catch(e){}
   setPB(false);
   updProg();
 }
