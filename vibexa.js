@@ -1161,6 +1161,13 @@ document.addEventListener('click', function(e) {
   if (overlay.contains(e.target)) return; // klik di dalam Chat sendiri, biarkan
   if (e.target.closest('#side-btn-chat, #mob-btn-chat')) return; // tombol Chat sendiri
   if (e.target.closest('#lib-collapse-btn')) return; // tombol expand/collapse Your Library — bukan navigasi halaman, jangan tutup Chat
+  // FIX (bug: tap pesan di mobile malah menutup halaman Chat/kembali ke
+  // tampilan awal): pengaman tambahan supaya interaksi apa pun dengan area
+  // pesan (like, buka menu Reply/Delete, dst.) TIDAK PERNAH dianggap
+  // "klik di luar Chat", bahkan di kondisi tepi (mis. render ulang bubble
+  // yang sempat membuat e.target lepas dari DOM sesaat) yang bisa membuat
+  // overlay.contains(e.target) di atas gagal mendeteksi dengan benar.
+  if (e.target.closest && e.target.closest('#chat-messages, .chat-bubble-row, .chat-msg-like-btn, .chat-bubble-actions')) return;
   // Viewer foto/GIF fullscreen (#img-viewer) SENGAJA ditaruh di luar
   // #chat-overlay di DOM (supaya bisa dipakai ulang di halaman lain juga,
   // mis. foto komentar) — tapi ini menyebabkan bug: tap foto utk MENUTUP
