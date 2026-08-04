@@ -708,8 +708,11 @@ let _chatCurrentMessages = {};  // cache pesan percakapan yg sedang terbuka (utk
 let _chatReplyTarget = null;    // pesan yg sedang dibalas: { key, text, from, name }
 let _chatOpenActionsKey = null; // key pesan yg menu aksinya (Balas/Hapus) sedang terbuka
 let _chatOpenActionsMode = 'actions'; // 'actions' atau 'confirm-delete'
-let _chatLastTapKey = null;     // key pesan yg terakhir di-tap (mobile) — utk deteksi double-tap "like"
-let _chatLastTapTime = 0;       // timestamp tap terakhir tsb
+let _chatLongPressTimer = null; // timer tekan-tahan (mobile) — utk deteksi "like" (tekan 1 detik)
+let _chatLongPressKey = null;   // key pesan yg sedang ditekan-tahan
+let _chatLongPressMoved = false;// true kalau jari sudah bergeser (dianggap scroll, bukan tekan-tahan)
+let _chatLongPressStartXY = null; // {x,y} posisi awal sentuhan, utk deteksi geser
+let _chatLongPressFired = false;// true kalau like sudah terpicu utk sentuhan ini (supaya tap yg menyusul tidak buka menu aksi)
 let _chatInboxRef = null;       // ref listener inbox
 let _chatTypingListCache = {};  // chatId -> true/false, status "sedang mengetik" tiap chat DI DAFTAR CHAT (bukan cuma yg sedang dibuka)
 let _chatTypingListRefs = {};   // chatId -> ref listener typing masing2 chat di daftar (utk attach/detach dinamis saat daftar berubah)
@@ -1135,6 +1138,12 @@ function openChatOverlay() {
   if (mainEl) { mainEl.scrollTop = 0; mainEl.style.overflow = 'hidden'; }
   document.getElementById('chat-overlay').classList.add('show');
   showChatSubview('chat-list-view');
+  // Sembunyikan tombol bulat "Lolu" (AI) beserta bubble sapaannya selama
+  // halaman Chat terbuka, supaya tidak menutupi/mengganggu daftar chat
+  // atau kotak tulis pesan (khususnya di mobile, karena posisinya fixed
+  // di pojok kanan bawah).
+  const aiFab = document.getElementById('ai-fab'); if (aiFab) aiFab.classList.add('hide');
+  const aiFabBubble = document.getElementById('ai-fab-bubble'); if (aiFabBubble) aiFabBubble.classList.add('hide');
   // Khusus mobile: sembunyikan mini player (#bar) & buat halaman Chat
   // memenuhi layar penuh tanpa ruang kosong (lihat CSS body.chat-mobile-open).
   if (typeof isMobile === 'function' && isMobile()) document.body.classList.add('chat-mobile-open');
@@ -1147,6 +1156,9 @@ function closeChatOverlay() {
   if (_chatSelectMode) exitChatSelectMode();
   document.body.classList.remove('chat-mobile-open');
   document.body.classList.remove('chat-kb-open');
+  // Tampilkan lagi tombol "Lolu" (AI) setelah keluar dari halaman Chat.
+  const aiFab = document.getElementById('ai-fab'); if (aiFab) aiFab.classList.remove('hide');
+  const aiFabBubble = document.getElementById('ai-fab-bubble'); if (aiFabBubble) aiFabBubble.classList.remove('hide');
 }
 
 // ── Auto-tutup halaman Chat saat tombol lain ditekan ─────────
@@ -1934,7 +1946,7 @@ function renderChatMessages(msgsObj, scrollToBottom) {
     }
 
     // Like pesan (ala Instagram): tombol hati muncul saat hover di desktop,
-    // dan double-tap di mobile (lihat listener 'touchend' di bawah). Status
+    // dan tekan-tahan 1 detik di mobile (lihat listener 'touchstart' di bawah). Status
     // like disimpan per-uid di m.likes supaya kedua pihak bisa like pesan
     // yang sama secara independen.
     let likeBtnHTML = '';
@@ -2021,12 +2033,21 @@ document.addEventListener('click', e => {
   }
 });
 
-// Double-tap di mobile utk like pesan, ala Instagram/WhatsApp. Dipasang di
-// 'touchend' (bukan 'click') supaya tetap terdeteksi walau elemen di dalam
-// bubble (foto/video) punya onclick sendiri dengan stopPropagation. Kalau
-// double-tap terdeteksi, event di-preventDefault supaya "ghost click" yang
-// menyusul tidak ikut membuka menu aksi / image viewer.
-document.addEventListener('touchend', e => {
+// Tekan-tahan (long-press) 1 detik di mobile utk like pesan, ala
+// Instagram — BUKAN double-tap. Dipasang lewat touchstart/touchmove/
+// touchend (bukan 'click') supaya tetap terdeteksi walau elemen di dalam
+// bubble (foto/video) punya onclick sendiri dengan stopPropagation.
+const CHAT_LONG_PRESS_MS = 1000;   // lama tekan supaya dianggap "like"
+const CHAT_LONG_PRESS_MOVE_TOLERANCE = 10; // px toleransi geser jari sebelum dianggap scroll (batal like)
+
+function _clearChatLongPress() {
+  if (_chatLongPressTimer) { clearTimeout(_chatLongPressTimer); _chatLongPressTimer = null; }
+  _chatLongPressKey = null;
+  _chatLongPressStartXY = null;
+  _chatLongPressMoved = false;
+}
+
+document.addEventListener('touchstart', e => {
   const wrap = document.getElementById('chat-messages');
   if (!wrap || !wrap.contains(e.target)) return;
   const bubbleTarget = e.target.closest('.chat-bubble:not(.chat-bubble-deleted), .chat-bubble-media, .chat-bubble-caption');
@@ -2035,17 +2056,45 @@ document.addEventListener('touchend', e => {
   const key = row && row.dataset.msgkey;
   if (!key) return;
 
-  const now = Date.now();
-  if (_chatLastTapKey === key && (now - _chatLastTapTime) < 300) {
-    e.preventDefault();
-    _chatLastTapKey = null;
-    _chatLastTapTime = 0;
+  _clearChatLongPress();
+  _chatLongPressFired = false;
+  _chatLongPressKey = key;
+  const t = e.touches[0];
+  _chatLongPressStartXY = { x: t.clientX, y: t.clientY };
+  _chatLongPressTimer = setTimeout(() => {
+    _chatLongPressTimer = null;
+    if (_chatLongPressMoved || _chatLongPressKey !== key) return; // jari sudah geser/beda pesan → batal
+    _chatLongPressFired = true; // tandai supaya 'click' yg menyusul (saat jari diangkat) tidak buka menu aksi
+    if (navigator.vibrate) { try { navigator.vibrate(15); } catch (e2) {} } // getaran halus sbg feedback, kalau didukung
     toggleChatMessageLike(key, row);
-  } else {
-    _chatLastTapKey = key;
-    _chatLastTapTime = now;
+  }, CHAT_LONG_PRESS_MS);
+}, { passive: true });
+
+document.addEventListener('touchmove', e => {
+  if (!_chatLongPressKey || !_chatLongPressStartXY) return;
+  const t = e.touches[0];
+  const dx = t.clientX - _chatLongPressStartXY.x;
+  const dy = t.clientY - _chatLongPressStartXY.y;
+  if (Math.abs(dx) > CHAT_LONG_PRESS_MOVE_TOLERANCE || Math.abs(dy) > CHAT_LONG_PRESS_MOVE_TOLERANCE) {
+    _chatLongPressMoved = true;
+    _clearChatLongPress(); // jari lagi scroll, bukan menekan-tahan pesan → batalkan
+  }
+}, { passive: true });
+
+document.addEventListener('touchend', e => {
+  // Kalau timer belum sempat menyala (tekan-tahan belum genap 1 detik),
+  // batalkan saja — ini jadi tap biasa (buka/tutup menu Balas/Hapus lewat
+  // listener 'click' seperti biasa).
+  _clearChatLongPress();
+  if (_chatLongPressFired) {
+    // Like sudah terpicu lewat tekan-tahan → cegah "ghost click" yang
+    // menyusul supaya TIDAK ikut membuka menu aksi Balas/Hapus.
+    e.preventDefault();
+    _chatLongPressFired = false;
   }
 }, { passive: false });
+
+document.addEventListener('touchcancel', () => { _clearChatLongPress(); _chatLongPressFired = false; });
 
 function handleBubbleAction(act, key) {
   const chatId = _chatCurrentPeer && _chatCurrentPeer.chatId;
