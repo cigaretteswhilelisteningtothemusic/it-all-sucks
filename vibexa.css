@@ -4588,19 +4588,19 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   .chat-bubble-wrap:hover .chat-msg-like-btn{opacity:1;transform:scale(1);}
   .chat-msg-like-btn:hover{color:#ff4d6d;background:var(--hover);}
 }
-/* FIX: sebelumnya tombol like ini disembunyikan total di layar sentuh
-   (display:none) selama belum di-like, sehingga di mobile TIDAK ADA cara
-   untuk like pesan sama sekali selain gestur double-tap tersembunyi yang
-   gampang gagal/bentrok dengan double-tap-zoom bawaan browser. Sekarang
-   tombolnya tetap terlihat permanen di layar sentuh supaya bisa langsung
-   ditekan sekali untuk like/unlike. */
+/* Di mobile: TIDAK ada tombol like yang terlihat/ditekan — like HANYA
+   lewat tap 2x (double-tap) pada bubble pesan, persis seperti Instagram
+   DM. Ikon hati kecil ini hanya muncul sebagai penanda status setelah
+   pesan di-like (mis. lihat animasi burst hati di bawah), bukan sebagai
+   tombol yang bisa ditekan langsung. */
 @media(hover:none),(pointer:coarse){
-  .chat-msg-like-btn{opacity:1;transform:scale(1);}
+  .chat-msg-like-btn:not(.liked){display:none;}
+  .chat-msg-like-btn.liked{pointer-events:none;}
 }
-/* Perluas area sentuh & cegah double-tap-to-zoom bawaan browser ikut
-   ter-trigger saat menekan bubble/tombol like di chat mobile — ini yang
-   sebelumnya kadang membuat tap terasa "meleset"/tidak responsif. */
-.chat-msg-like-btn,.chat-bubble,.chat-bubble-media,.chat-bubble-caption{touch-action:manipulation;}
+/* Cegah double-tap-to-zoom bawaan browser ikut ter-trigger saat tap 2x
+   di bubble pesan mobile, supaya gestur "tap 2x untuk like" selalu
+   terdeteksi dengan mulus dan tidak malah men-zoom layar. */
+.chat-bubble,.chat-bubble-media,.chat-bubble-caption{touch-action:manipulation;}
 .chat-heart-burst{position:absolute;top:50%;left:50%;width:58px;height:58px;color:#ff4d6d;pointer-events:none;z-index:5;animation:chatHeartBurst .8s ease forwards;}
 .chat-heart-burst svg{width:100%;height:100%;filter:drop-shadow(0 2px 8px rgba(0,0,0,.4));}
 @keyframes chatHeartBurst{

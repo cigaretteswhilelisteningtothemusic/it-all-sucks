@@ -1635,7 +1635,7 @@ function openConversation(chatId, peerUid, peerName, peerPhoto) {
   _chatMsgsRef.on('value', snap => {
     const val = snap.exists() ? (snap.val() || {}) : {};
     _chatCurrentMessages = val;
-    renderChatMessages(val);
+    renderChatMessages(val, true); // pesan baru masuk / percakapan baru dibuka → scroll ke pesan terbaru
     // Ada pesan baru masuk selagi percakapan ini terbuka → tandai langsung
     // dibaca supaya lawan bicara melihat status "Dibaca" secara real-time.
     if (currentUser) markChatSeen(chatId, currentUser.uid);
@@ -1827,7 +1827,7 @@ function renderConvStatusUI(uid) {
   statusEl.classList.toggle('online', online);
 }
 
-function renderChatMessages(msgsObj) {
+function renderChatMessages(msgsObj, scrollToBottom) {
   const wrap = document.getElementById('chat-messages');
   if (!wrap) return;
   const myUid = currentUser ? currentUser.uid : null;
@@ -1959,8 +1959,26 @@ function renderChatMessages(msgsObj) {
       </div>`;
   }).join('');
 
+  // FIX (bug: menekan pesan di paling atas malah "menurunkan" halaman ke
+  // paling bawah): sebelumnya wrap.scrollTop = wrap.scrollHeight dipanggil
+  // di SETIAP render, termasuk render ulang gara-gara buka/tutup menu
+  // Reply/Delete atau like/unlike pesan yang sudah ada — jadi setiap
+  // interaksi kecil sekalipun langsung melempar posisi scroll ke paling
+  // bawah. Sekarang posisi scroll saat ini disimpan dulu SEBELUM DOM
+  // diganti, lalu dikembalikan lagi persis di posisi yang sama — kecuali
+  // caller memang secara eksplisit minta scroll ke bawah (parameter
+  // scrollToBottom, dipakai saat pesan baru masuk / percakapan baru dibuka).
+  const prevScrollTop = wrap.scrollTop;
+  const prevScrollHeight = wrap.scrollHeight;
   wrap.innerHTML = html;
-  wrap.scrollTop = wrap.scrollHeight;
+  if (scrollToBottom) {
+    wrap.scrollTop = wrap.scrollHeight;
+  } else {
+    // Selisih tinggi konten (kalau ada, mis. menu aksi baru saja
+    // dibuka/ditutup) diperhitungkan supaya posisi pesan yang sedang
+    // dilihat user tetap persis di tempat yang sama, tidak ikut geser.
+    wrap.scrollTop = prevScrollTop + (wrap.scrollHeight - prevScrollHeight);
+  }
 }
 
 // Delegasi klik utk seluruh interaksi di area pesan: buka/tutup menu aksi
