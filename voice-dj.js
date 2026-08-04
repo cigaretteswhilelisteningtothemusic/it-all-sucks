@@ -57,7 +57,7 @@
 // Leave the array empty ( [] ) to disable AI chat while keeping every
 // other Voice DJ command working normally.
 const AI_DJ_PROXY_URLS = [
-  // " https://voice-dj-worker.alvinwahid122.workers.dev",
+  "https://voice-dj-worker.alvinwahid122.workers.dev",
 ];
 
 (function(){
