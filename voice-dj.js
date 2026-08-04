@@ -20,9 +20,46 @@
    It relies on globals already defined in vibexa.js (loaded before this
    file): YTP, playing, curTrack, curQueue, playlists, LIKED_PLAYLIST_ID,
    loadPlay(), playNext(), playPrev(), toggleRepeatMode(), _repeatMode,
-   fetchItunesResults(), toast(), esc(). None of those are modified here —
-   they're only called, exactly like every other part of the app calls them.
+   fetchItunesResults(), fetchDeezerChartTracks(), toast(), esc(). None of
+   those are modified here — they're only called, exactly like every other
+   part of the app calls them. The one exception is loadPlay(), which this
+   file wraps (see "DJ ANNOUNCER") purely to hook into track-change events;
+   the original function is still called every time, unchanged.
+
+   ── AI DJ (chat + trending playback) ──────────────────────────────────
+   On top of the deterministic command parser above, this file adds a real
+   conversational layer powered by Gemini 3.6 Flash:
+     • Anything the rule-based IntentParser can't classify (a question, a
+       request to explain what a song/lyric means, small talk, "who is
+       this artist", etc.) is sent to AIChat, which asks Gemini for a
+       short, speakable answer and reads it back with TTS.
+     • "Play what's trending / play popular songs" is a dedicated command
+       (play_trending) that queues *every* trending track, not just one.
+     • DJAnnouncer wraps loadPlay() so that whenever Vibexa moves on to a
+       new track during a Voice-DJ-started session, it says "Next up,
+       we're playing <title> by <artist>" before the new song plays.
+
+   None of this calls Gemini directly from the browser with a bare API
+   key. Requests go to a small Cloudflare Worker (see voice-dj-worker.js
+   next to this file) that holds up to 20 Gemini API keys server-side and
+   rotates to the next one whenever one hits its rate limit — the key(s)
+   never appear in this file or in DevTools. Fill in your deployed
+   Worker's URL(s) in AI_DJ_PROXY_URLS below before this part works; the
+   rest of Voice DJ (playback commands) works fine even if it's left
+   empty, it just won't be able to chat.
    ========================================================================== */
+
+// URL(s) of your deployed Cloudflare Worker (see voice-dj-worker.js +
+// README.md in the same folder for how to deploy it and where this URL
+// comes from). You can list more than one — if the first one ever fails
+// outright (not just a single rate-limited key, but the whole worker
+// unreachable), Voice DJ automatically tries the next one in the list.
+// Leave the array empty ( [] ) to disable AI chat while keeping every
+// other Voice DJ command working normally.
+const AI_DJ_PROXY_URLS = [
+  // " https://voice-dj-worker.alvinwahid122.workers.dev",
+];
+
 (function(){
   'use strict';
 
@@ -360,6 +397,130 @@
   })();
 
   /* ------------------------------------------------------------------ *
+   * 5b. TRENDING MUSIC — "play what's trending" queues EVERY trending
+   *     track (not just one), reusing the same chart Vibexa's own
+   *     "Top Songs" section is built from wherever possible.
+   * ------------------------------------------------------------------ */
+  const TrendingMusic = (function(){
+    const DEFAULT_LIMIT = 50;
+
+    function trackFromDeezer(t){
+      return {
+        title: t.title || 'Unknown',
+        artist: t.artist || 'Unknown',
+        thumb: t.thumb || '',
+        album: '',
+        preview: t.preview || null,
+        videoId: null,
+        photo: null,
+        duration: t.duration || 0,
+        _query: `${t.artist}|||${t.title}|||${t.id || Math.random()}`
+      };
+    }
+
+    function trackFromItunesRssEntry(e){
+      const title  = (e['im:name']   && e['im:name'].label)   || 'Unknown';
+      const artist = (e['im:artist'] && e['im:artist'].label) || 'Unknown';
+      const imgs   = (e['im:image']  && e['im:image']) || [];
+      const thumb  = imgs.length ? (imgs[imgs.length - 1].label || '') : '';
+      return {
+        title, artist, thumb,
+        album: '',
+        preview: null,
+        videoId: null,
+        photo: null,
+        duration: 0,
+        _query: `${artist}|||${title}|||${Math.random()}`
+      };
+    }
+
+    // Prefer the exact same Deezer chart Vibexa's "Top Songs" page uses
+    // (already global in vibexa.js), so what Voice DJ calls "trending" is
+    // literally the same list the user can see and scroll through in the
+    // app. Falls back to iTunes's public "Top Songs" RSS feed (no key
+    // required) if that function isn't available for any reason.
+    async function fetchAllTrending(limit){
+      limit = limit || DEFAULT_LIMIT;
+
+      if (typeof fetchDeezerChartTracks === 'function'){
+        try{
+          const items = await fetchDeezerChartTracks(limit);
+          if (items && items.length) return items.map(trackFromDeezer);
+        }catch(e){ /* fall through to the RSS backup below */ }
+      }
+
+      try{
+        const res = await fetch(`https://itunes.apple.com/us/rss/topsongs/limit=${limit}/json`);
+        const data = await res.json();
+        const entries = (data && data.feed && data.feed.entry) || [];
+        return entries.map(trackFromItunesRssEntry);
+      }catch(e){ return []; }
+    }
+
+    return { fetchAllTrending };
+  })();
+
+  /* ------------------------------------------------------------------ *
+   * 5c. AI CHAT — conversational fallback (song/lyric meaning, artist
+   *     trivia, small talk) powered by Gemini 3.6 Flash through the
+   *     Cloudflare Worker(s) listed in AI_DJ_PROXY_URLS.
+   * ------------------------------------------------------------------ */
+  const AIChat = (function(){
+
+    function buildSystemPrompt(lang, track){
+      const isId = lang === 'id-ID';
+      const trackLine = track
+        ? (isId
+            ? ` Lagu yang sedang diputar saat ini: "${track.title}" oleh ${track.artist}.`
+            : ` The song currently playing right now: "${track.title}" by ${track.artist}.`)
+        : '';
+      return isId
+        ? `Kamu adalah Lolu, DJ AI bersuara di aplikasi musik Vibexa. Kamu ngobrol lewat suara (jawabanmu langsung dibacakan text-to-speech), jadi jawabanmu WAJIB singkat, maksimal 3-4 kalimat pendek, Bahasa Indonesia yang santai dan natural, TANPA markdown, TANPA emoji, TANPA daftar bernomor, dan JANGAN PERNAH mengutip lirik lagu apapun secara langsung (hak cipta) — kalau ditanya makna lirik, jelaskan maknanya pakai kata-katamu sendiri, bukan kutipan. Kamu bisa menjelaskan makna sebuah lagu, cerita singkat/fakta soal artis, rekomendasi genre, atau sekadar ngobrol santai.${trackLine} Jawab pesan user di bawah ini langsung, natural, dan ringkas — jangan basa-basi pembuka kayak "Baik, saya akan menjelaskan".`
+        : `You are Lolu, the voice AI DJ inside the Vibexa music app. You're talking out loud (your reply is read aloud via text-to-speech), so it MUST be short — max 3-4 short sentences, casual and natural, with NO markdown, NO emoji, NO numbered lists, and NEVER quote song lyrics directly (copyright) — if asked what a lyric means, explain the meaning in your own words instead of quoting it. You can explain what a song means, share quick artist facts, suggest genres, or just chat casually.${trackLine} Answer the user's message below directly, naturally, and concisely — skip stiff openers like "Sure, I'd be happy to explain".`;
+    }
+
+    // Tries each configured Worker URL in order. Each Worker itself
+    // already rotates across up to 20 Gemini API keys server-side on
+    // rate limits (see voice-dj-worker.js), so this loop is only about
+    // falling back to a *different* Worker deployment if one is fully
+    // unreachable (down, misconfigured, wrong URL, etc).
+    async function ask(userText, lang, track){
+      const text = (userText || '').trim();
+      if (!text) return null;
+      const urls = AI_DJ_PROXY_URLS.filter(Boolean);
+      if (!urls.length) return null;
+
+      const body = JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text }] }],
+        systemInstruction: { parts: [{ text: buildSystemPrompt(lang, track) }] },
+        generationConfig: { temperature: 0.8, maxOutputTokens: 300 }
+      });
+
+      for (let i = 0; i < urls.length; i++){
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 15000);
+        try{
+          const res = await fetch(urls[i], {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: ctrl.signal,
+            body
+          });
+          if (!res.ok) continue; // this worker had trouble -> try the next configured worker
+          const data = await res.json();
+          const reply = (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts || [])
+            .map(p => p.text || '').join('').trim();
+          if (reply) return reply;
+        }catch(e){ /* network error / timeout -> try the next configured worker */ }
+        finally{ clearTimeout(timer); }
+      }
+      return null;
+    }
+
+    return { ask };
+  })();
+
+  /* ------------------------------------------------------------------ *
    * 6. PLAYLIST SEARCH — fuzzy match against the logged-in user's playlists
    * ------------------------------------------------------------------ */
   const PlaylistSearch = (function(){
@@ -411,13 +572,26 @@
     function playTrack(track, queue){
       if (queue && queue.length) curQueue = queue;
       else curQueue = [track];
+      DJAnnouncer.beginSession();
       loadPlay(track, null);
     }
 
     function playPlaylist(pl){
       if (!pl || !pl.tracks || !pl.tracks.length) return false;
       curQueue = [...pl.tracks];
+      DJAnnouncer.beginSession();
       loadPlay(pl.tracks[0], pl.id || null);
+      return true;
+    }
+
+    // Queues an entire list of tracks (used by "play what's trending") and
+    // starts playing the first one — Next/Previous then walk through every
+    // track in the list, not just a single song.
+    function playQueueAll(tracks){
+      if (!tracks || !tracks.length) return false;
+      curQueue = tracks;
+      DJAnnouncer.beginSession();
+      loadPlay(tracks[0], null);
       return true;
     }
 
@@ -503,12 +677,72 @@
     }
 
     return {
-      playTrack, playPlaylist, pause, resume, stopPlayback, next, prev,
+      playTrack, playPlaylist, playQueueAll, pause, resume, stopPlayback, next, prev,
       repeatAll, repeatOne, repeatOff, shuffleQueue,
       volumeUp, volumeDown, setVolumeTo, mute, unmute,
       duck, unduck, getVolume, setVolume
     };
   })();
+
+  /* ------------------------------------------------------------------ *
+   * 7b. DJ ANNOUNCER — wraps loadPlay() so that once a Voice DJ session
+   *     is running (trending playback, or "play <song/artist/playlist>"),
+   *     every subsequent track change gets spoken out loud first:
+   *     "Next up, we're playing <title> by <artist>." The very first
+   *     track of a session is skipped (Voice DJ already speaks a normal
+   *     confirmation for that one, e.g. "Playing songs by X"), so this
+   *     only kicks in from the 2nd track onward — exactly the moment a
+   *     real radio DJ would talk, i.e. transitions, not the opening cue.
+   * ------------------------------------------------------------------ */
+  const DJAnnouncer = (function(){
+    let enabled = true;       // user can turn this off with a voice command
+    let sessionActive = false; // a Voice-DJ-driven queue is currently playing
+    let skipNext = false;      // true = the *next* loadPlay() is the session's own opening track
+
+    function beginSession(){
+      sessionActive = true;
+      skipNext = true;
+    }
+
+    function setEnabled(v){ enabled = !!v; }
+    function isEnabled(){ return enabled; }
+
+    function announce(track, lang){
+      if (!track || !track.title) return;
+      const isId = lang === 'id-ID';
+      const text = isId
+        ? `Selanjutnya kita putar ${track.title} dari ${track.artist}.`
+        : `Up next, we're playing ${track.title} by ${track.artist}.`;
+      if (typeof toast === 'function') toast('🎙️ ' + text, 3200);
+      // Duck the just-starting track a touch while Lolu talks over the
+      // intro, then hand volume back once the announcement finishes.
+      PlaybackController.duck();
+      TTS.speak(text, lang, () => { PlaybackController.unduck(); });
+    }
+
+    // Monkey-patches the single global loadPlay() that every playback
+    // path in vibexa.js (Next/Previous, manual clicks, this file's own
+    // PlaybackController) eventually funnels through. The original
+    // function is always still called — this only adds an announcement
+    // in front of it when appropriate.
+    function hook(){
+      if (typeof window.loadPlay !== 'function'){
+        console.warn('Voice AI DJ: loadPlay() not found, DJ Announcer disabled.');
+        return;
+      }
+      const originalLoadPlay = window.loadPlay;
+      window.loadPlay = function(track, fromPlId){
+        if (enabled && sessionActive && track){
+          if (skipNext) skipNext = false;
+          else announce(track, SpeechRecognitionModule.currentLang());
+        }
+        return originalLoadPlay.call(this, track, fromPlId);
+      };
+    }
+
+    return { beginSession, setEnabled, isEnabled, hook };
+  })();
+  DJAnnouncer.hook();
 
   /* ------------------------------------------------------------------ *
    * 8. INTENT PARSER — turns recognized text into structured commands
@@ -531,6 +765,14 @@
       // ── Mute / Unmute ───────────────────────────────────────────────
       if (/^(unmute|suarakan|nyalakan suara|bunyikan lagi)\b/.test(n)) return { intent: 'unmute', raw: text };
       if (/^(mute|bisukan|senyapkan|diamkan)\b/.test(n)) return { intent: 'mute', raw: text };
+
+      // ── DJ announcer on/off ("stop announcing songs" / "matikan pengumuman lagu") ─
+      if (/\b(matikan|nonaktifkan|hentikan)\b.*\b(pengumuman|announcer?)\b/.test(n)
+       || /\b(stop|turn\s*off|disable)\b.*\b(song\s*)?announc(e|ing|ements?)\b/.test(n))
+        return { intent: 'dj_announce_off', raw: text };
+      if (/\b(nyalakan|aktifkan|hidupkan)\b.*\b(pengumuman|announcer?)\b/.test(n)
+       || /\b(turn\s*on|enable)\b.*\b(song\s*)?announc(e|ing|ements?)\b/.test(n))
+        return { intent: 'dj_announce_on', raw: text };
 
       // ── Volume up / down ─────────────────────────────────────────────
       if (/\b(volume\s*up|turn\s*(it\s*)?up|louder|naikkan\s*volume|kencangkan(?:\s*volume)?|besarkan\s*volume)\b/.test(n))
@@ -565,6 +807,12 @@
       m = text.match(/^(?:find|search(?:\s+for)?|cari(?:\s+lagu)?)\s+(?:songs?\s+)?(?:by\s+)?(.+)$/i);
       if (m) return { intent: 'search_music', query: m[1].trim(), raw: text };
 
+      // ── Play trending / popular songs — queues ALL of them, not just one ─
+      // "play trending songs", "play what's popular", "play the top chart",
+      // "putar lagu yang sedang populer/trending", "putar musik yang lagi hits"
+      if (/^(?:play|putar)\b/.test(n) && /\b(trending|populer|viral|hits?|top\s*chart|charts?)\b/.test(n))
+        return { intent: 'play_trending', raw: text };
+
       // ── Play playlist ──────────────────────────────────────────────
       // "play my workout playlist" / "play my favorites" / "putar playlist X"
       m = text.match(/^(?:play|putar)\s+my\s+(.+?)\s+playlist$/i)
@@ -597,6 +845,10 @@
       case 'play_song':      return id ? `Memutar ${intentResult.title} dari ${intentResult.artist}.` : `Playing ${intentResult.title} by ${intentResult.artist}.`;
       case 'play_artist':    return id ? `Memutar lagu-lagu dari ${intentResult.artist}.` : `Playing songs by ${intentResult.artist}.`;
       case 'play_playlist':  return id ? `Memutar playlist ${intentResult.playlistName}.` : `Playing your ${intentResult.playlistName} playlist.`;
+      case 'play_trending':  return id ? `Oke, aku putar semua ${intentResult.count} lagu yang lagi trending sekarang, semuanya masuk antrian.` : `Alright, playing all ${intentResult.count} trending songs right now, queued up.`;
+      case 'dj_announce_off': return id ? 'Oke, aku nggak akan ngomong lagi tiap ganti lagu.' : "Got it, I'll stay quiet between songs.";
+      case 'dj_announce_on':  return id ? 'Oke, aku akan ngasih tau lagi tiap ganti lagu.' : "Got it, I'll announce songs again.";
+      case 'ai_chat':          return intentResult.message;
       case 'pause':           return id ? 'Musik dijeda.' : 'Pausing your music.';
       case 'resume':          return id ? 'Melanjutkan musik.' : 'Resuming playback.';
       case 'stop':             return id ? 'Musik dihentikan.' : 'Stopping playback.';
@@ -655,6 +907,17 @@
           break;
         }
 
+        case 'play_trending': {
+          const tracks = await TrendingMusic.fetchAllTrending(50);
+          if (!tracks || !tracks.length) { final = { intent: 'not_found', raw: intentResult.raw }; break; }
+          PlaybackController.playQueueAll(tracks);
+          final = { intent: 'play_trending', count: tracks.length };
+          break;
+        }
+
+        case 'dj_announce_off': DJAnnouncer.setEnabled(false); final = { intent: 'dj_announce_off' }; break;
+        case 'dj_announce_on':  DJAnnouncer.setEnabled(true);  final = { intent: 'dj_announce_on' };  break;
+
         case 'search_music': {
           if (typeof showSearchView === 'function') showSearchView();
           const qInput = document.getElementById('q') || document.getElementById('home-q');
@@ -682,8 +945,15 @@
         case 'mute':             PlaybackController.mute(); break;
         case 'unmute':          PlaybackController.unmute(); break;
 
-        default:
-          final = { intent: 'unknown', raw: intentResult.raw };
+        // Nothing in the rule-based command list matched — instead of just
+        // saying "I didn't understand", hand it to Gemini as a real chat
+        // message. This is what lets people ask "what does this song mean",
+        // "who sings this", "tell me about this artist", or just chat.
+        default: {
+          const track = (typeof curTrack !== 'undefined') ? curTrack : null;
+          const reply = await AIChat.ask(intentResult.raw, lang, track);
+          final = reply ? { intent: 'ai_chat', message: reply } : { intent: 'unknown', raw: intentResult.raw };
+        }
       }
     }catch(e){
       console.error('Voice AI DJ: command failed', e);
@@ -798,7 +1068,8 @@
     toggle: onMicButtonClick, // dipakai tombol mic besar di halaman penuh DJ
     parseIntent: IntentParser.parse,     // exposed so new commands can be tested from the console
     setTTSEnabled: TTS.setEnabled,
-    _modules: { SpeechRecognitionModule, IntentParser, MusicSearch, PlaylistSearch, PlaybackController, UIStateManager, TTS }
+    askAI: AIChat.ask, // handy for testing the AI chat proxy from the console, e.g. VoiceDJ.askAI('what does this song mean?', 'en-US')
+    _modules: { SpeechRecognitionModule, IntentParser, MusicSearch, TrendingMusic, AIChat, PlaylistSearch, PlaybackController, DJAnnouncer, UIStateManager, TTS }
   };
 
 })();
