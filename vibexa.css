@@ -1934,7 +1934,7 @@ body.np-page-open #bar{
    mobile (gaya "swipe up" halaman Now Playing Spotify di HP). Elemen
    induknya (.np-mob-controls) sudah display:none di desktop & baru
    dimunculkan lewat @media(max-width:660px), jadi ini otomatis mobile-only. */
-.np-mob-bottom-handle{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:6px;}
+.np-mob-bottom-handle{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:26px;}
 .np-mob-handle-line{width:34px;height:4px;border-radius:4px;background:rgba(255,255,255,.3);}
 .np-mob-handle-artist{font-size:.8rem;font-weight:600;color:rgba(255,255,255,.68);cursor:pointer;max-width:80vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .np-mob-handle-artist:hover,.np-mob-handle-artist:active{color:#fff;}
