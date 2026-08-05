@@ -583,7 +583,18 @@
     }
 
     UIState.setReply(replyText);
-    VoiceOutput.speak(replyText);
+    // Balasan suara Lolu memakai Piper TTS client-side (lihat lolu-piper-tts.js).
+    // VoiceOutput (Web Speech API) HANYA dipakai sebagai fallback darurat kalau
+    // modul Piper gagal dimuat sama sekali (mis. browser tidak mendukung
+    // dynamic import / OPFS), supaya Lolu tetap "bersuara" walau kualitasnya
+    // turun — bukan pengganti Piper dalam kondisi normal.
+    if (window.LoluPiperTTS && typeof window.LoluPiperTTS.speakDJ === 'function') {
+      window.LoluPiperTTS.speakDJ(replyText).catch(function () {
+        VoiceOutput.speak(replyText);
+      });
+    } else {
+      VoiceOutput.speak(replyText);
+    }
 
     // Kirim juga sebagai bubble chat di dalam obrolan Lolu (kalau overlay
     // sedang terbuka) supaya user tetap punya jejak percakapan seperti chat
@@ -622,6 +633,15 @@
     SpeechInput.setLang(currentLang);
     UIState.setListening();
     PlaybackController.duckVolume();
+
+    // Klik tombol mic = user-gesture pertama yang tersedia di alur ini.
+    // Manfaatkan untuk (1) "membuka kunci" autoplay audio Piper, dan
+    // (2) mulai unduh/siapkan model Piper di background supaya balasan
+    // pertama Lolu tidak menunggu lama. Lihat lolu-piper-tts.js.
+    if (window.LoluPiperTTS) {
+      window.LoluPiperTTS.unlockAudio();
+      window.LoluPiperTTS.preload();
+    }
 
     SpeechInput.start(
       (text) => {
