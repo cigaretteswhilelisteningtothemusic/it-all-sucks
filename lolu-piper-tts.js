@@ -38,6 +38,16 @@
      lalu host di server/CDN sendiri — tapi ini butuh menyesuaikan opsi
      custom base URL pada library (cek dokumentasi/README versi library yang
      dipakai untuk nama opsi persisnya sebelum mengubah kode ini).
+
+   PENTING — dependency 'onnxruntime-web':
+   - piper-tts-web.js melakukan `import ... from 'onnxruntime-web'` di dalam
+     kodenya sendiri (bare specifier). Browser TIDAK bisa resolve bare
+     specifier semacam ini tanpa import map (beda dengan bundler seperti
+     webpack/vite yang otomatis resolve dari node_modules). Karena itu
+     vibexa.html WAJIB punya <script type="importmap"> yang memetakan
+     "onnxruntime-web" ke build ESM-nya di CDN — sudah ditambahkan di <head>
+     vibexa.html. Kalau import map itu dihapus/hilang, Piper akan gagal
+     dengan error "Failed to resolve module specifier 'onnxruntime-web'".
    ========================================================================== */
 (function () {
   'use strict';
