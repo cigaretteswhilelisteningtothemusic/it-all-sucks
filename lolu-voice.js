@@ -2,13 +2,19 @@
    LOLU VOICE DJ
    ==========================================================================
    Fitur voice command untuk halaman Chat AI (Lolu). User cukup pencet tombol
-   mic — TANPA wake word — ngomong satu perintah, dan Lolu langsung
-   menjalankannya (putar lagu, pause, next, atur volume, dst) sambil
-   membalas lewat teks + suara (Text-to-Speech).
+   mic — TANPA wake word — ngomong satu perintah ATAU langsung ngobrol biasa,
+   dan Lolu langsung merespons: kalau itu printah player (putar lagu, pause,
+   next, atur volume, dst) langsung dieksekusi; kalau bukan printah yang
+   dikenali, otomatis disambungkan ke AI Lolu (Gemini, lewat _aiCallGemini
+   milik vibexa.js — AI YANG SAMA dipakai Chat AI berbasis teks) supaya user
+   beneran bisa ngobrol pakai suara. Semua balasan Lolu keluar lewat teks +
+   suara (Text-to-Speech).
 
    Modul ini sengaja dipisah dari vibexa.js dan berdiri sendiri
    (namespace `LoluVoiceDJ`) supaya gampang dikembangkan lebih lanjut tanpa
-   mengubah logic chat AI (Gemini) yang sudah ada. Terdiri dari beberapa
+   mengubah logic chat AI (Gemini) yang sudah ada — modul ini hanya MEMAKAI
+   ULANG fungsi & state milik vibexa.js (aiChatDisplay, aiApiHistory,
+   _aiCallGemini, dkk), bukan bikin koneksi AI baru. Terdiri dari beberapa
    sub-modul independen:
 
      1. SpeechInput        -> Speech-to-Text (Web Speech API)
@@ -19,6 +25,10 @@
      6. UIState             -> tombol mic, bubble "Listening.../Processing...",
                                animasi Lolu
      7. VoiceOutput         -> balasan suara (SpeechSynthesis / TTS)
+     8. AIChatBridge        -> sambungkan ucapan yang BUKAN printah player ke
+                               obrolan AI (Gemini) yang sama dipakai Chat AI
+                               teks di vibexa.js, biar user bisa ngobrol
+                               beneran pakai suara, satu konteks sama chat teks
 
    Semua sub-modul TIDAK saling tahu detail satu sama lain secara langsung —
    mereka hanya dipanggil berurutan oleh `LoluVoiceDJ.toggleListening()`,
@@ -440,6 +450,99 @@
   })();
 
   // ==========================================================================
+  // 8) AI CHAT BRIDGE — kalau ucapan user TIDAK dikenali IntentParser sebagai
+  //    printah player (intent 'unknown'), itu artinya user lagi BENERAN
+  //    ngobrol sama Lolu (curhat, nanya, basa-basi, dll), bukan minta puter
+  //    lagu. Di sinilah suara disambungkan ke "otak" AI Lolu yang sama
+  //    persis dipakai Chat AI berbasis teks di vibexa.js (Gemini, lewat
+  //    _aiCallGemini + GEMINI_PROXY_URLS) — bukan AI/model terpisah.
+  //
+  //    vibexa.js & lolu-voice.js sama-sama <script> classic (bukan module)
+  //    yang dimuat di halaman yang sama, jadi semua deklarasi top-level di
+  //    vibexa.js (aiChatDisplay, aiApiHistory, _aiCallGemini,
+  //    _aiBuildSystemPrompt, dst — lihat AI_SYSTEM_PROMPT & sendAIChatMessage
+  //    di vibexa.js) otomatis "kelihatan" dari sini lewat scope chain,
+  //    TANPA perlu window.* ataupun mengubah vibexa.js sama sekali.
+  //
+  //    Riwayat obrolan (aiChatDisplay/aiApiHistory) dipakai bareng2 sama
+  //    Chat AI teks, supaya Lolu punya SATU konteks obrolan yang nyambung
+  //    baik user ngetik maupun ngomong lewat mic.
+  // ==========================================================================
+  const AIChatBridge = (function () {
+
+    function isReady() {
+      return typeof _aiCallGemini === 'function'
+        && typeof aiChatDisplay !== 'undefined'
+        && typeof aiApiHistory !== 'undefined';
+    }
+
+    // Kirim `text` ke AI Lolu (Gemini) persis seperti sendAIChatMessage() di
+    // vibexa.js, lalu balikin teks balasannya (buat ditampilkan di bubble
+    // voice + diucapkan lewat TTS). Riwayat API, render bubble teks+lagu di
+    // overlay Chat AI, penyimpanan state, follow-up otomatis, dsb, semuanya
+    // sudah ditangani lewat fungsi2 vibexa.js yang sama dipakai chat teks —
+    // jadi hasil & perilakunya konsisten 100% dengan ngobrol lewat keyboard.
+    async function chat(text) {
+      if (!isReady()) {
+        return reply(
+          'Fitur ngobrolnya lagi belum siap, coba lagi bentar ya.',
+          "Chat isn't ready yet, please try again in a bit."
+        );
+      }
+
+      aiChatDisplay.push({ role: 'user', text, viaVoice: true });
+      aiApiHistory.push({ role: 'user', parts: [{ text }] });
+      if (typeof renderAIChatMessages === 'function') renderAIChatMessages();
+      if (typeof _aiSaveChatState === 'function') _aiSaveChatState();
+      if (typeof _aiUpdateHeaderTitle === 'function') _aiUpdateHeaderTitle();
+
+      aiChatLoading = true;
+      if (typeof _aiSetTyping === 'function') _aiSetTyping(true);
+
+      try {
+        const systemPrompt = typeof _aiBuildSystemPrompt === 'function' ? _aiBuildSystemPrompt() : undefined;
+        const parsed = await _aiCallGemini(aiApiHistory, systemPrompt);
+        const rawMessage = (parsed && typeof parsed.message === 'string' && parsed.message.trim()) || 'Oke!';
+        const extracted = typeof _aiExtractStickerTag === 'function'
+          ? _aiExtractStickerTag(rawMessage)
+          : { text: rawMessage, tag: null };
+
+        const msg = {
+          role: 'assistant',
+          text: extracted.text || 'Oke!',
+          songs: (parsed && Array.isArray(parsed.songs)) ? parsed.songs.filter(s => s && s.title).slice(0, 20) : [],
+          playlistName: (parsed && parsed.playlist_name) || null,
+          stickerTag: extracted.tag,
+          viaVoice: true
+        };
+
+        if (typeof _aiRemember === 'function') _aiRemember(parsed && parsed.remember);
+        if (typeof _aiUpdateAffection === 'function') _aiUpdateAffection(parsed && parsed.user_tone, parsed && parsed.apology_sincere);
+        if (typeof _aiHandleFollowUp === 'function') _aiHandleFollowUp(parsed);
+
+        aiApiHistory.push({ role: 'model', parts: [{ text: JSON.stringify(parsed) }] });
+        aiChatDisplay.push(msg);
+        if (typeof _aiSaveChatState === 'function') _aiSaveChatState();
+
+        return msg.text;
+      } catch (e) {
+        console.error('LoluVoiceDJ -> AI chat error:', e);
+        const friendlyText = (e && e.message) ? e.message
+          : reply('Waduh, ada gangguan dikit pas nyambung ke AI-nya. Coba ngomong lagi ya.', 'Oops, something went wrong connecting to the AI. Try again.');
+        aiChatDisplay.push({ role: 'assistant', text: friendlyText, songs: [], playlistName: null, isError: true, viaVoice: true });
+        if (typeof _aiSaveChatState === 'function') _aiSaveChatState();
+        return friendlyText;
+      } finally {
+        aiChatLoading = false;
+        if (typeof _aiSetTyping === 'function') _aiSetTyping(false);
+        if (typeof renderAIChatMessages === 'function') renderAIChatMessages();
+      }
+    }
+
+    return { chat, isReady };
+  })();
+
+  // ==========================================================================
   // Balasan teks Lolu untuk tiap intent — dwibahasa mengikuti bahasa aktif.
   // ==========================================================================
   function reply(idText, enText) { return currentLang === 'id-ID' ? idText : enText; }
@@ -454,6 +557,11 @@
 
     const intent = IntentParser.parse(text);
     let replyText = '';
+    // true kalau balasannya sudah ditulis langsung ke riwayat Chat AI asli
+    // (aiChatDisplay/aiApiHistory lewat AIChatBridge) supaya
+    // _pushVoiceTurnToChatLog di bawah (yang cuma nulis versi "tampilan
+    // doang", tanpa songs/sticker) TIDAK dobel-nambahin turn yang sama.
+    let loggedViaAIChat = false;
 
     try {
       switch (intent.intent) {
@@ -571,11 +679,18 @@
           replyText = reply('Suara dinyalakan kembali.', 'Unmuted.');
           break;
 
-        default:
-          replyText = reply(
-            `Aku dengar: “${text}” — tapi aku belum paham perintahnya. Coba misalnya "putar Baby dari Justin Bieber" atau "pause".`,
-            `I heard: “${text}” — but I'm not sure what to do with that. Try something like "play Baby by Justin Bieber" or "pause".`
-          );
+        // 'unknown' -> IntentParser nggak nemuin pola printah player yang
+        // cocok, artinya ini kemungkinan besar OBROLAN BENERAN, bukan
+        // command. Sambungkan ke AI Lolu (Gemini) yang sama dipakai Chat AI
+        // teks, biar user bisa beneran ngobrol pakai suara (lihat
+        // AIChatBridge di bagian 8 di atas).
+        case 'unknown':
+        default: {
+          UIState.setProcessing(reply('Lolu lagi mikir...', 'Lolu is thinking...'));
+          replyText = await AIChatBridge.chat(text);
+          loggedViaAIChat = true;
+          break;
+        }
       }
     } catch (e) {
       console.error('LoluVoiceDJ error:', e);
@@ -598,8 +713,10 @@
 
     // Kirim juga sebagai bubble chat di dalam obrolan Lolu (kalau overlay
     // sedang terbuka) supaya user tetap punya jejak percakapan seperti chat
-    // biasa, tanpa perlu menekan tombol Send.
-    _pushVoiceTurnToChatLog(text, replyText);
+    // biasa, tanpa perlu menekan tombol Send. DILEWATI kalau turn ini sudah
+    // ditulis ke riwayat Chat AI ASLI oleh AIChatBridge (intent 'unknown'),
+    // supaya obrolannya nggak dobel-muncul.
+    if (!loggedViaAIChat) _pushVoiceTurnToChatLog(text, replyText);
 
     PlaybackController.restoreVolumeAfterDuck();
   }
@@ -609,11 +726,17 @@
   // ikut campur ke riwayat yang dikirim ke Gemini.
   function _pushVoiceTurnToChatLog(userText, loluText) {
     try {
-      if (!Array.isArray(window.aiChatDisplay) || typeof window.renderAIChatMessages !== 'function') return;
-      window.aiChatDisplay.push({ role: 'user', text: userText, viaVoice: true });
-      window.aiChatDisplay.push({ role: 'assistant', text: loluText, songs: [], playlistName: null, viaVoice: true });
-      window.renderAIChatMessages();
-      if (typeof window._aiSaveChatState === 'function') window._aiSaveChatState();
+      // CATATAN: aiChatDisplay/renderAIChatMessages dideklarasikan sebagai
+      // top-level `let`/`function` di vibexa.js (bukan `window.aiChatDisplay`
+      // dkk — let/const top-level TIDAK jadi properti window), tapi tetap
+      // bisa diakses langsung di sini lewat scope chain karena vibexa.js dan
+      // lolu-voice.js sama-sama <script> classic di halaman yang sama.
+      if (typeof aiChatDisplay === 'undefined' || !Array.isArray(aiChatDisplay)) return;
+      if (typeof renderAIChatMessages !== 'function') return;
+      aiChatDisplay.push({ role: 'user', text: userText, viaVoice: true });
+      aiChatDisplay.push({ role: 'assistant', text: loluText, songs: [], playlistName: null, viaVoice: true });
+      renderAIChatMessages();
+      if (typeof _aiSaveChatState === 'function') _aiSaveChatState();
     } catch (e) { /* aman diabaikan — cuma UI tambahan */ }
   }
 
