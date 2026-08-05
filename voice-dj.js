@@ -1,1075 +1,709 @@
-/* ==========================================================================
-   VOICE-CONTROLLED AI DJ — Lolu
-   ==========================================================================
-   Press the mic button -> speak a command -> Lolu executes it. No wake word,
-   no server: Speech-to-Text runs on the browser's Web Speech API and intent
-   parsing + music/playlist lookup all run client-side against the same
-   catalog Vibexa already uses (iTunes search + the user's own playlists).
+// ════════════════════════════════════════════════════════════════════
+// VOICE AI DJ — "Lolu" bisa dikendalikan pakai suara.
+//
+// User menekan tombol mic di #voice-dj-page → browser mendengarkan lewat
+// Web Speech API (SpeechRecognition) → ucapan diubah jadi teks → teks
+// dianalisis jadi perintah terstruktur ({intent, ...}) → perintah itu
+// dieksekusi ke player yang SUDAH ADA di vibexa.js (loadPlay, playNext,
+// dst) → Lolu membalas lewat teks di layar + suara (TTS).
+//
+// Tidak ada wake word ("Hey Lolu") — mic HANYA aktif setelah tombol mic
+// ditekan, dan otomatis berhenti setelah satu ucapan selesai (continuous
+// = false) atau setelah timeout. Semua berjalan 100% di browser, tanpa
+// server pengenalan suara sendiri.
+//
+// Modul-modul di file ini (dipisah biar gampang ditambah perintah baru):
+//   1. SpeechController   → wrapper SpeechRecognition (STT) + TTS
+//   2. IntentParser       → ubah teks jadi {intent, ...} terstruktur
+//   3. MusicSearch        → cari lagu/artis lewat iTunes (reuse vibexa.js)
+//   4. PlaylistSearch     → cari playlist milik user (object `playlists`)
+//   5. PlaybackController → bungkus kontrol player yang sudah ada
+//   6. UIStateManager     → update tampilan #voice-dj-page
+//   7. VoiceDJ            → orkestrator, di-expose ke window.VoiceDJ
+// ════════════════════════════════════════════════════════════════════
 
-   This file is intentionally split into small, independent modules so new
-   commands/languages can be added without touching the others:
-
-     SpeechRecognitionModule  – wraps SpeechRecognition/webkitSpeechRecognition
-     IntentParser             – text -> structured { intent, ...slots }
-     MusicSearch               – finds songs/artists in the catalog
-     PlaylistSearch            – finds the user's playlists by spoken name
-     PlaybackController        – the only module allowed to touch the player
-     UIStateManager            – mic button + speech-bubble UI state
-     TTS                       – optional spoken confirmation
-
-   It relies on globals already defined in vibexa.js (loaded before this
-   file): YTP, playing, curTrack, curQueue, playlists, LIKED_PLAYLIST_ID,
-   loadPlay(), playNext(), playPrev(), toggleRepeatMode(), _repeatMode,
-   fetchItunesResults(), fetchDeezerChartTracks(), toast(), esc(). None of
-   those are modified here — they're only called, exactly like every other
-   part of the app calls them. The one exception is loadPlay(), which this
-   file wraps (see "DJ ANNOUNCER") purely to hook into track-change events;
-   the original function is still called every time, unchanged.
-
-   ── AI DJ (chat + trending playback) ──────────────────────────────────
-   On top of the deterministic command parser above, this file adds a real
-   conversational layer powered by Gemini 3.6 Flash:
-     • Anything the rule-based IntentParser can't classify (a question, a
-       request to explain what a song/lyric means, small talk, "who is
-       this artist", etc.) is sent to AIChat, which asks Gemini for a
-       short, speakable answer and reads it back with TTS.
-     • "Play what's trending / play popular songs" is a dedicated command
-       (play_trending) that queues *every* trending track, not just one.
-     • DJAnnouncer wraps loadPlay() so that whenever Vibexa moves on to a
-       new track during a Voice-DJ-started session, it says "Next up,
-       we're playing <title> by <artist>" before the new song plays.
-
-   None of this calls Gemini directly from the browser with a bare API
-   key. Requests go to a small Cloudflare Worker (see voice-dj-worker.js
-   next to this file) that holds up to 20 Gemini API keys server-side and
-   rotates to the next one whenever one hits its rate limit — the key(s)
-   never appear in this file or in DevTools. Fill in your deployed
-   Worker's URL(s) in AI_DJ_PROXY_URLS below before this part works; the
-   rest of Voice DJ (playback commands) works fine even if it's left
-   empty, it just won't be able to chat.
-   ========================================================================== */
-
-// URL(s) of your deployed Cloudflare Worker (see voice-dj-worker.js +
-// README.md in the same folder for how to deploy it and where this URL
-// comes from). You can list more than one — if the first one ever fails
-// outright (not just a single rate-limited key, but the whole worker
-// unreachable), Voice DJ automatically tries the next one in the list.
-// Leave the array empty ( [] ) to disable AI chat while keeping every
-// other Voice DJ command working normally.
-const AI_DJ_PROXY_URLS = [
-  "https://voice-dj-worker.alvinwahid122.workers.dev",
-];
-
-(function(){
+(function () {
   'use strict';
 
-  /* ------------------------------------------------------------------ *
-   * 0. Feature detection
-   * ------------------------------------------------------------------ */
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const fabEl   = document.getElementById('voice-dj-fab');
-  const langBtn = document.getElementById('voice-dj-lang-btn');
+  // ── Konfigurasi bahasa ────────────────────────────────────────────
+  // Dua bahasa didukung: Indonesia (id-ID) & Inggris (en-US). Tombol
+  // bahasa di header halaman DJ men-toggle di antara keduanya, dan
+  // pilihannya disimpan supaya tetap sama walau halaman dibuka ulang.
+  var SUPPORTED_LANGS = ['id-ID', 'en-US'];
+  var _vdjLang = localStorage.getItem('vdjLang') || 'id-ID';
 
-  if (!SR) {
-    // Browser doesn't support the Web Speech API — hide the entry point
-    // entirely instead of showing a button that can never work.
-    if (fabEl) fabEl.classList.add('hide');
-    if (langBtn) langBtn.classList.add('hide');
-    // Halaman penuh DJ juga disesuaikan: sembunyikan tombol mic & tampilkan
-    // pesan bahwa fitur suara tidak didukung, daripada tombol yang diam saja.
-    const pageMic = document.getElementById('vdj-page-mic-btn');
-    if (pageMic) pageMic.style.display = 'none';
-    const pageStat = document.getElementById('vdj-page-status');
-    if (pageStat) pageStat.textContent = 'Not supported';
-    const pageSubEl = document.getElementById('vdj-page-sub');
-    if (pageSubEl) pageSubEl.textContent = 'This browser can\'t use voice control';
-    console.warn('Voice AI DJ: SpeechRecognition API not supported in this browser.');
-    return;
-  }
+  function _vdjIsID() { return _vdjLang === 'id-ID'; }
 
-  /* ------------------------------------------------------------------ *
-   * 1. Small shared helpers
-   * ------------------------------------------------------------------ */
-  function norm(s){
-    return (s || '')
-      .toLowerCase()
-      .normalize('NFKD').replace(/[\u0300-\u036f]/g, '') // strip accents
-      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-  }
+  // ════════════════════════════════════════════════════════════════
+  // 1. SPEECH CONTROLLER — Speech-to-Text (STT) & Text-to-Speech (TTS)
+  // ════════════════════════════════════════════════════════════════
+  var SpeechController = (function () {
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    var recognition = null;
+    var listening = false;
+    var manualTimeoutId = null;
+    var MAX_LISTEN_MS = 9000; // jaga-jaga kalau browser tidak auto-stop
 
-  function wordOverlapScore(a, b){
-    const wa = norm(a).split(' ').filter(Boolean);
-    const wb = new Set(norm(b).split(' ').filter(Boolean));
-    if (!wa.length || !wb.size) return 0;
-    let hit = 0;
-    wa.forEach(w => { if (wb.has(w)) hit++; });
-    return hit / wa.length;
-  }
+    function isSupported() { return !!SR; }
 
-  /* ------------------------------------------------------------------ *
-   * 2. UI STATE MANAGER — mic button + speech bubble + Lolu animation
-   * ------------------------------------------------------------------ */
-  const UIStateManager = (function(){
-    const bubble   = document.getElementById('voice-dj-bubble');
-    const bubbleTx = document.getElementById('voice-dj-bubble-text');
-    const transcriptEl = document.getElementById('voice-dj-transcript');
-    const icoMic   = document.getElementById('voice-dj-ico-mic');
-    const icoStop  = document.getElementById('voice-dj-ico-stop');
-    const loluFab  = document.getElementById('ai-fab-lottie');
-
-    // Elemen halaman penuh "DJ" (lihat #voice-dj-page di vibexa.html).
-    // Bisa saja tidak ada di DOM (mis. versi lama file), makanya semua
-    // pemakaian di bawah selalu dicek null-nya dulu — mic FAB kecil tetap
-    // berfungsi normal walau halaman ini belum ada.
-    const pageOrb    = document.getElementById('vdj-page-orb');
-    const pageMicBtn = document.getElementById('vdj-page-mic-btn');
-    const pageIcoMic  = document.getElementById('vdj-page-ico-mic');
-    const pageIcoStop = document.getElementById('vdj-page-ico-stop');
-    const pageStatus     = document.getElementById('vdj-page-status');
-    const pageSub         = document.getElementById('vdj-page-sub');
-    const pageTranscript = document.getElementById('vdj-page-transcript');
-
-    const DEFAULT_STATUS = { text: 'Welcome', sub: 'DJ' };
-
-    let hideTimer = null;
-
-    function setFabState(state){
-      // state: 'idle' | 'listening' | 'processing' | 'speaking'
-      if (fabEl){
-        fabEl.classList.remove('listening', 'processing', 'speaking');
-        if (state !== 'idle') fabEl.classList.add(state);
-      }
-      if (icoMic && icoStop){
-        icoMic.style.display  = (state === 'listening') ? 'none' : 'block';
-        icoStop.style.display = (state === 'listening') ? 'block' : 'none';
-      }
-      // Give Lolu's own floating icon a little life while we're working.
-      if (loluFab) loluFab.style.animation = (state === 'idle') ? '' : 'voiceDjMicBob 1s ease-in-out infinite';
-
-      // Cerminkan state yang sama ke orb + tombol mic di halaman penuh DJ.
-      if (pageOrb){
-        pageOrb.classList.remove('listening', 'processing', 'speaking');
-        if (state !== 'idle') pageOrb.classList.add(state);
-      }
-      if (pageMicBtn){
-        pageMicBtn.classList.remove('listening', 'processing', 'speaking');
-        if (state !== 'idle') pageMicBtn.classList.add(state);
-      }
-      if (pageIcoMic && pageIcoStop){
-        pageIcoMic.style.display  = (state === 'listening') ? 'none' : 'block';
-        pageIcoStop.style.display = (state === 'listening') ? 'block' : 'none';
-      }
-    }
-
-    function showBubble(state, text, transcript){
-      if (bubble){
-        clearTimeout(hideTimer);
-        bubble.classList.remove('state-listening', 'state-processing', 'state-speaking', 'state-error');
-        bubble.classList.add('state-' + state);
-        bubble.classList.remove('hide');
-        bubble.classList.add('show');
-        if (bubbleTx) bubbleTx.textContent = text;
-        if (transcriptEl) transcriptEl.textContent = transcript || '';
-      }
-      // Sinkronkan teks status/transcript ke halaman penuh DJ juga, terlepas
-      // dari mic mana (FAB kecil atau tombol besar di halaman) yang dipakai.
-      if (pageStatus) pageStatus.textContent = text;
-      if (pageSub) pageSub.textContent = transcript ? 'DJ' : (state === 'error' ? 'DJ' : '');
-      if (pageTranscript) pageTranscript.textContent = transcript || '';
-    }
-
-    function hideBubble(delay){
-      clearTimeout(hideTimer);
-      hideTimer = setTimeout(() => {
-        if (bubble) bubble.classList.remove('show');
-        // Kembalikan halaman penuh DJ ke sapaan default begitu percakapan
-        // selesai, supaya tidak menampilkan balasan lama selamanya.
-        if (pageStatus) pageStatus.textContent = DEFAULT_STATUS.text;
-        if (pageSub) pageSub.textContent = DEFAULT_STATUS.sub;
-        if (pageTranscript) pageTranscript.textContent = '';
-      }, delay || 0);
-    }
-
-    return { setFabState, showBubble, hideBubble };
-  })();
-
-  /* ------------------------------------------------------------------ *
-   * 3. TTS (optional) — spoken confirmation of what Lolu is doing
-   * ------------------------------------------------------------------ */
-  const TTS = (function(){
-    const synth = window.speechSynthesis;
-    let enabled = true;
-
-    function speak(text, lang, onend){
-      if (!enabled || !synth || !text){ if (onend) onend(); return; }
-      try{
-        synth.cancel(); // don't stack utterances
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = lang || 'en-US';
-        u.rate = 1.02;
-        u.onend = () => { if (onend) onend(); };
-        u.onerror = () => { if (onend) onend(); };
-        synth.speak(u);
-      }catch(e){ if (onend) onend(); }
-    }
-
-    return {
-      speak,
-      setEnabled(v){ enabled = !!v; },
-      isEnabled(){ return enabled; }
-    };
-  })();
-
-  /* ------------------------------------------------------------------ *
-   * 4. SPEECH RECOGNITION MODULE
-   * ------------------------------------------------------------------ */
-  const SpeechRecognitionModule = (function(){
-    const LANGS = ['en-US', 'id-ID'];
-    let langIdx = (localStorage.getItem('voiceDjLang') === 'id-ID') ? 1 : 0;
-    let recognition = null;
-    let listening = false;
-    let safetyTimer = null;
-
-    function currentLang(){ return LANGS[langIdx]; }
-
-    function updateLangBtn(){
-      const label = currentLang() === 'id-ID' ? 'ID' : 'EN';
-      if (langBtn) langBtn.textContent = label;
-      const pageLangBtn = document.getElementById('vdj-page-lang-btn');
-      if (pageLangBtn) pageLangBtn.textContent = label;
-    }
-    updateLangBtn();
-
-    function toggleLanguage(){
-      langIdx = (langIdx + 1) % LANGS.length;
-      localStorage.setItem('voiceDjLang', currentLang());
-      updateLangBtn();
-      toast(currentLang() === 'id-ID' ? ' Voice language: Indonesian' : ' Voice language: English');
-    }
-
-    function buildRecognizer(){
-      const r = new SR();
-      r.lang = currentLang();
-      r.continuous = false;      // stop automatically once a result comes in
-      r.interimResults = false;  // only final results
+    function _buildRecognition() {
+      var r = new SR();
+      // Sesuai spesifikasi: sekali ucap → langsung diproses, tanpa hasil
+      // sementara, dan hanya alternatif terbaik yang diambil.
+      r.continuous = false;
+      r.interimResults = false;
       r.maxAlternatives = 1;
+      r.lang = _vdjLang;
       return r;
     }
 
-    // callbacks: { onStart, onResult(text), onError(err), onEnd }
-    function start(callbacks){
+    // start(onFinalText, onStart, onError, onEnd)
+    function start(onFinalText, onStart, onError, onEnd) {
+      if (!isSupported()) {
+        if (onError) onError('unsupported');
+        return;
+      }
       if (listening) return;
-      callbacks = callbacks || {};
-      recognition = buildRecognizer();
+
+      recognition = _buildRecognition();
       listening = true;
 
-      recognition.onstart = () => { if (callbacks.onStart) callbacks.onStart(); };
-
-      recognition.onresult = (e) => {
-        clearTimeout(safetyTimer);
-        const text = (e.results && e.results[0] && e.results[0][0] && e.results[0][0].transcript) || '';
-        if (callbacks.onResult) callbacks.onResult(text.trim());
+      recognition.onstart = function () {
+        if (onStart) onStart();
+        clearTimeout(manualTimeoutId);
+        manualTimeoutId = setTimeout(function () {
+          try { recognition && recognition.stop(); } catch (e) {}
+        }, MAX_LISTEN_MS);
       };
 
-      recognition.onerror = (e) => {
-        clearTimeout(safetyTimer);
+      recognition.onresult = function (ev) {
+        var text = '';
+        try {
+          text = ev.results[0][0].transcript || '';
+        } catch (e) {}
+        if (onFinalText) onFinalText(text.trim());
+      };
+
+      recognition.onerror = function (ev) {
+        if (onError) onError((ev && ev.error) || 'unknown');
+      };
+
+      recognition.onend = function () {
         listening = false;
-        if (callbacks.onError) callbacks.onError(e.error || 'unknown');
+        clearTimeout(manualTimeoutId);
+        if (onEnd) onEnd();
       };
 
-      recognition.onend = () => {
-        clearTimeout(safetyTimer);
-        listening = false;
-        if (callbacks.onEnd) callbacks.onEnd();
-      };
-
-      try{
+      try {
         recognition.start();
-        // Safety timeout: if the browser never fires a result/error/end
-        // (rare, but happens on some mobile WebViews), force a stop after
-        // a timeout so the mic doesn't get stuck in "listening" forever.
-        safetyTimer = setTimeout(() => { try{ recognition.stop(); }catch(e){} }, 9000);
-      }catch(e){
+      } catch (e) {
         listening = false;
-        if (callbacks.onError) callbacks.onError('start-failed');
+        if (onError) onError('start-failed');
       }
     }
 
-    function stop(){
-      if (recognition && listening){ try{ recognition.stop(); }catch(e){} }
-    }
-
-    function abort(){
-      if (recognition){ try{ recognition.abort(); }catch(e){} }
+    function stop() {
+      clearTimeout(manualTimeoutId);
+      if (recognition && listening) {
+        try { recognition.stop(); } catch (e) {}
+      }
       listening = false;
     }
 
-    return { start, stop, abort, toggleLanguage, currentLang, isListening: () => listening };
+    function isListening() { return listening; }
+
+    // ── Text-to-Speech ─────────────────────────────────────────────
+    var synth = window.speechSynthesis || null;
+
+    function speak(text, onDone) {
+      if (!synth || !text) { if (onDone) onDone(); return; }
+      try { synth.cancel(); } catch (e) {}
+      var utt = new SpeechSynthesisUtterance(text);
+      utt.lang = _vdjLang;
+      utt.rate = 1.02;
+      utt.pitch = 1.05;
+      // Coba pilih voice yang cocok dengan bahasa aktif kalau tersedia.
+      try {
+        var voices = synth.getVoices() || [];
+        var match = voices.find(function (v) { return v.lang === _vdjLang; }) ||
+                    voices.find(function (v) { return v.lang && v.lang.indexOf(_vdjLang.slice(0, 2)) === 0; });
+        if (match) utt.voice = match;
+      } catch (e) {}
+      utt.onend = function () { if (onDone) onDone(); };
+      utt.onerror = function () { if (onDone) onDone(); };
+      try { synth.speak(utt); } catch (e) { if (onDone) onDone(); }
+    }
+
+    function cancelSpeak() { if (synth) { try { synth.cancel(); } catch (e) {} } }
+
+    return {
+      isSupported: isSupported,
+      start: start,
+      stop: stop,
+      isListening: isListening,
+      speak: speak,
+      cancelSpeak: cancelSpeak
+    };
   })();
 
-  /* ------------------------------------------------------------------ *
-   * 5. MUSIC SEARCH — song & artist lookup (reuses vibexa's iTunes calls)
-   * ------------------------------------------------------------------ */
-  const MusicSearch = (function(){
+  // ════════════════════════════════════════════════════════════════
+  // 2. INTENT PARSER — teks ucapan → command terstruktur
+  // ════════════════════════════════════════════════════════════════
+  // Mengembalikan objek seperti:
+  //   { intent: "play_song", title: "Baby", artist: "Justin Bieber" }
+  //   { intent: "pause" }
+  //   { intent: "play_playlist", playlist: "Workout" }
+  //   { intent: "next_track" }
+  // Parser berjalan 100% lokal (regex, cepat & tidak butuh jaringan).
+  var IntentParser = (function () {
+    function norm(s) { return (s || '').trim().toLowerCase(); }
 
-    function trackFromItunesItem(it){
-      const thumb = (it.artworkUrl100 || '').replace('100x100bb', '600x600bb');
+    // Perintah playback satu-kata/frasa tetap, EN + ID sekaligus.
+    var EXACT_PATTERNS = [
+      { re: /^(pause|jeda|berhenti(kan)?( musik| lagu)?)$/i, intent: 'pause' },
+      { re: /^(stop|stop( musik| lagu)?)$/i, intent: 'stop' },
+      { re: /^(resume|play|lanjutkan|lanjut(in)?|terusin|mainkan)$/i, intent: 'resume' },
+      { re: /^(next( song| track)?|skip( lagu| song)?|lagu (selanjutnya|berikutnya)|next lagu)$/i, intent: 'next_track' },
+      { re: /^(previous( song| track)?|lagu sebelumnya|balik(in)? lagu|kembali(kan)? ke lagu sebelumnya)$/i, intent: 'previous_track' },
+      { re: /^(repeat this song|ulangi lagu ini|putar ulang lagu ini|repeat song ini)$/i, intent: 'repeat_one' },
+      { re: /^(repeat|ulangi|ulang)$/i, intent: 'repeat_all' },
+      { re: /^(shuffle|acak(kan)?( lagu| antrian)?)$/i, intent: 'shuffle' },
+      { re: /^(mute|bisukan( suara)?|senyapkan( suara)?)$/i, intent: 'mute' },
+      { re: /^(unmute|suarakan( lagi)?|batal(kan)? bisu)$/i, intent: 'unmute' },
+      { re: /^(volume up|naikkan volume|volume naik|kencangkan (suara|volume))$/i, intent: 'volume_up' },
+      { re: /^(volume down|turunkan volume|volume turun|pelankan (suara|volume)|kecilkan (suara|volume))$/i, intent: 'volume_down' }
+    ];
+
+    // Kata-kata pembuka/pengganggu yang dibuang saat mengekstrak nama
+    // playlist dari kalimat.
+    var PLAYLIST_STOPWORDS = ['play', 'putar', 'muterin', 'muter', 'my', 'the',
+      'playlist', 'daftar putar', 'punya saya', 'punya ku', 'punyaku', 'aku',
+      'saya', 'ku'];
+
+    function stripStopwords(text, words) {
+      var out = ' ' + text + ' ';
+      words.forEach(function (w) {
+        var re = new RegExp('\\b' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'gi');
+        out = out.replace(re, ' ');
+      });
+      return out.replace(/\s+/g, ' ').trim();
+    }
+
+    function parse(rawText) {
+      var text = norm(rawText);
+      if (!text) return { intent: 'unknown', raw: rawText };
+
+      // 1) Perintah playback tetap (paling spesifik & tidak ambigu)
+      for (var i = 0; i < EXACT_PATTERNS.length; i++) {
+        if (EXACT_PATTERNS[i].re.test(text)) {
+          return { intent: EXACT_PATTERNS[i].intent, raw: rawText };
+        }
+      }
+
+      // 2) "Set volume to 50%" / "atur volume ke 50" / "volume 50%"
+      var volMatch = text.match(/(?:set\s+)?(?:volume|suara)\s*(?:ke|to)?\s*(\d{1,3})\s*(%|persen)?/i);
+      if (volMatch) {
+        var v = Math.max(0, Math.min(100, parseInt(volMatch[1], 10)));
+        return { intent: 'volume_set', value: v, raw: rawText };
+      }
+
+      // 3) Playlist: kalau kata "playlist"/"daftar putar" muncul, atau
+      //    user minta lagu favorit/kesukaan.
+      if (/playlist|daftar putar/i.test(text)) {
+        var plName = stripStopwords(text, PLAYLIST_STOPWORDS);
+        return { intent: 'play_playlist', playlist: plName, raw: rawText };
+      }
+      if (/favorit(e|ku)?s?|kesukaan|liked songs|lagu (yang )?disukai/i.test(text) &&
+          /^(play|putar|muterin|muter)\b/i.test(text)) {
+        return { intent: 'play_playlist', playlist: 'favorites', raw: rawText };
+      }
+
+      // 4) Pencarian eksplisit: "find songs by X" / "search for X" / "cari X"
+      var searchMatch = text.match(/^(?:find( songs)? by|search for|cari(kan)?( lagu)?( dari| oleh)?)\s+(.+)$/i);
+      if (searchMatch) {
+        return { intent: 'search_music', query: searchMatch[searchMatch.length - 1].trim(), raw: rawText };
+      }
+
+      // 5) "Play X" / "Putar X" / "Muterin X" generik — bisa lagu, bisa
+      //    artis. Kalau ada " by "/" oleh "/" dari " pisahkan judul & artis.
+      var playMatch = text.match(/^(?:play|putar|muterin|muter)\s+(.+)$/i);
+      if (playMatch) {
+        var body = playMatch[1].trim();
+        var byMatch = body.match(/^(.+?)\s+(?:by|oleh|dari)\s+(.+)$/i);
+        if (byMatch) {
+          return { intent: 'play_song', title: byMatch[1].trim(), artist: byMatch[2].trim(), raw: rawText };
+        }
+        // Tidak ada "by" → biarkan executor yang memutuskan lagu vs artis.
+        return { intent: 'play_query', query: body, raw: rawText };
+      }
+
+      return { intent: 'unknown', raw: rawText };
+    }
+
+    return { parse: parse };
+  })();
+
+  // ════════════════════════════════════════════════════════════════
+  // 3. MUSIC SEARCH — cari lagu/artis via katalog iTunes
+  //    (reuse fetchItunesResults & lookupArtistSongs dari vibexa.js)
+  // ════════════════════════════════════════════════════════════════
+  var MusicSearch = (function () {
+    function buildTrack(it) {
+      var thumb = (it.artworkUrl100 || '').replace('100x100bb', '600x600bb');
       return {
         title: it.trackName || 'Unknown',
         artist: it.artistName || 'Unknown',
-        thumb,
+        thumb: thumb,
         album: it.collectionName || '',
         preview: it.previewUrl || null,
         videoId: null,
         photo: null,
         duration: it.trackTimeMillis ? Math.round(it.trackTimeMillis / 1000) : 0,
-        _query: `${it.artistName}|||${it.trackName}|||${it.trackId || Math.random()}`
+        _query: (it.artistName || '') + '|||' + (it.trackName || '') + '|||' + (it.trackId || Math.random())
       };
     }
 
-    // Search a specific "title [by artist]" and return the best-matching track
-    // plus a small queue of related results (so Next/Previous keep working).
-    async function findBestSong(title, artist){
-      const term = artist ? `${title} ${artist}` : title;
-      let items = [];
-      try{
-        items = await fetchItunesResults(term, 'US', 'song', 25);
-      }catch(e){ items = []; }
-      if (!items.length) return null;
-
-      items.sort((a, b) => {
-        const scoreA = wordOverlapScore(title, a.trackName) + (artist ? wordOverlapScore(artist, a.artistName) : 0);
-        const scoreB = wordOverlapScore(title, b.trackName) + (artist ? wordOverlapScore(artist, b.artistName) : 0);
-        return scoreB - scoreA;
-      });
-
-      const best = items[0];
-      const queue = items.slice(0, 15).map(trackFromItunesItem);
-      return { track: trackFromItunesItem(best), queue };
-    }
-
-    // Search all songs by a given artist name.
-    async function findArtistTracks(artistName){
-      let items = [];
-      try{
-        items = await fetchItunesResults(artistName, 'US', 'song', 50);
-      }catch(e){ items = []; }
-      const nArtist = norm(artistName);
-      const matched = items.filter(it => {
-        const a = norm(it.artistName || '');
-        return a === nArtist || a.includes(nArtist) || nArtist.includes(a);
-      });
-      const pool = matched.length ? matched : items;
-      if (!pool.length) return null;
-      return pool.slice(0, 25).map(trackFromItunesItem);
-    }
-
-    // Decide whether a bare "play X" phrase (no "by <artist>") means an
-    // artist or a specific song, then resolve it fully. This is the piece
-    // that lets "Play Justin Bieber" and "Play Shape of You" both work
-    // without the user ever saying the word "artist".
-    async function resolveAmbiguousPlay(query){
-      let items = [];
-      try{
-        items = await fetchItunesResults(query, 'US', 'song', 15);
-      }catch(e){ items = []; }
-      if (!items.length) return null;
-
-      const nQuery = norm(query);
-      const topArtistName = norm(items[0].artistName || '');
-      const looksLikeArtist = topArtistName && (topArtistName === nQuery || nQuery.includes(topArtistName));
-
-      if (looksLikeArtist){
-        const tracks = await findArtistTracks(items[0].artistName);
-        if (tracks && tracks.length){
-          return { intent: 'play_artist', artist: items[0].artistName, tracks };
-        }
+    // Cari lagu terbaik yang cocok dengan query (judul, atau "judul artis").
+    async function findBestSong(query) {
+      if (typeof fetchItunesResults !== 'function') return null;
+      try {
+        var results = await Promise.all([
+          fetchItunesResults(query, 'ID').catch(function () { return []; }),
+          fetchItunesResults(query, 'US').catch(function () { return []; })
+        ]);
+        var items = results[0].concat(results[1]);
+        if (!items.length) return null;
+        var qNorm = query.toLowerCase().replace(/[^a-z0-9 ]/g, '');
+        // Prioritaskan judul yang benar-benar mengandung kata kunci.
+        items.sort(function (a, b) {
+          var aHit = (a.trackName || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').indexOf(qNorm) !== -1 ? 0 : 1;
+          var bHit = (b.trackName || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').indexOf(qNorm) !== -1 ? 0 : 1;
+          return aHit - bHit;
+        });
+        return buildTrack(items[0]);
+      } catch (e) {
+        return null;
       }
-      // Fall back to treating it as a song title search.
-      const best = items[0];
-      const queue = items.slice(0, 15).map(trackFromItunesItem);
-      return { intent: 'play_song', title: best.trackName, artist: best.artistName, track: trackFromItunesItem(best), queue };
     }
 
-    return { findBestSong, findArtistTracks, resolveAmbiguousPlay, trackFromItunesItem };
+    // Cek apakah `name` adalah nama artis yang dikenali; kalau ya kembalikan
+    // beberapa lagu top-nya (pakai lookupArtistSongs yang sudah ada).
+    async function findArtistTracks(name) {
+      if (typeof fetchItunesResults !== 'function' || typeof lookupArtistSongs !== 'function') return null;
+      try {
+        var found = await fetchItunesResults(name, 'US', 'musicArtist', 5);
+        if (!found || !found.length) return null;
+        var norm = function (s) { return (s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); };
+        var target = norm(name);
+        var best = found.find(function (a) { return norm(a.artistName) === target; }) ||
+                   found.find(function (a) { return norm(a.artistName).indexOf(target) !== -1 || target.indexOf(norm(a.artistName)) !== -1; });
+        if (!best) return null;
+        var songs = await lookupArtistSongs(best.artistId, 'US');
+        if (!songs || !songs.length) return null;
+        var tracks = songs.slice(0, 30).map(buildTrack);
+        return { artistName: best.artistName, tracks: tracks };
+      } catch (e) {
+        return null;
+      }
+    }
+
+    return { findBestSong: findBestSong, findArtistTracks: findArtistTracks };
   })();
 
-  /* ------------------------------------------------------------------ *
-   * 5b. TRENDING MUSIC — "play what's trending" queues EVERY trending
-   *     track (not just one), reusing the same chart Vibexa's own
-   *     "Top Songs" section is built from wherever possible.
-   * ------------------------------------------------------------------ */
-  const TrendingMusic = (function(){
-    const DEFAULT_LIMIT = 50;
-
-    function trackFromDeezer(t){
-      return {
-        title: t.title || 'Unknown',
-        artist: t.artist || 'Unknown',
-        thumb: t.thumb || '',
-        album: '',
-        preview: t.preview || null,
-        videoId: null,
-        photo: null,
-        duration: t.duration || 0,
-        _query: `${t.artist}|||${t.title}|||${t.id || Math.random()}`
-      };
-    }
-
-    function trackFromItunesRssEntry(e){
-      const title  = (e['im:name']   && e['im:name'].label)   || 'Unknown';
-      const artist = (e['im:artist'] && e['im:artist'].label) || 'Unknown';
-      const imgs   = (e['im:image']  && e['im:image']) || [];
-      const thumb  = imgs.length ? (imgs[imgs.length - 1].label || '') : '';
-      return {
-        title, artist, thumb,
-        album: '',
-        preview: null,
-        videoId: null,
-        photo: null,
-        duration: 0,
-        _query: `${artist}|||${title}|||${Math.random()}`
-      };
-    }
-
-    // Prefer the exact same Deezer chart Vibexa's "Top Songs" page uses
-    // (already global in vibexa.js), so what Voice DJ calls "trending" is
-    // literally the same list the user can see and scroll through in the
-    // app. Falls back to iTunes's public "Top Songs" RSS feed (no key
-    // required) if that function isn't available for any reason.
-    async function fetchAllTrending(limit){
-      limit = limit || DEFAULT_LIMIT;
-
-      if (typeof fetchDeezerChartTracks === 'function'){
-        try{
-          const items = await fetchDeezerChartTracks(limit);
-          if (items && items.length) return items.map(trackFromDeezer);
-        }catch(e){ /* fall through to the RSS backup below */ }
-      }
-
-      try{
-        const res = await fetch(`https://itunes.apple.com/us/rss/topsongs/limit=${limit}/json`);
-        const data = await res.json();
-        const entries = (data && data.feed && data.feed.entry) || [];
-        return entries.map(trackFromItunesRssEntry);
-      }catch(e){ return []; }
-    }
-
-    return { fetchAllTrending };
-  })();
-
-  /* ------------------------------------------------------------------ *
-   * 5c. AI CHAT — conversational fallback (song/lyric meaning, artist
-   *     trivia, small talk) powered by Gemini 3.6 Flash through the
-   *     Cloudflare Worker(s) listed in AI_DJ_PROXY_URLS.
-   * ------------------------------------------------------------------ */
-  const AIChat = (function(){
-
-    function buildSystemPrompt(lang, track){
-      const isId = lang === 'id-ID';
-      const trackLine = track
-        ? (isId
-            ? ` Lagu yang sedang diputar saat ini: "${track.title}" oleh ${track.artist}.`
-            : ` The song currently playing right now: "${track.title}" by ${track.artist}.`)
-        : '';
-      return isId
-        ? `Kamu adalah Lolu, DJ AI bersuara di aplikasi musik Vibexa. Kamu ngobrol lewat suara (jawabanmu langsung dibacakan text-to-speech), jadi jawabanmu WAJIB singkat, maksimal 3-4 kalimat pendek, Bahasa Indonesia yang santai dan natural, TANPA markdown, TANPA emoji, TANPA daftar bernomor, dan JANGAN PERNAH mengutip lirik lagu apapun secara langsung (hak cipta) — kalau ditanya makna lirik, jelaskan maknanya pakai kata-katamu sendiri, bukan kutipan. Kamu bisa menjelaskan makna sebuah lagu, cerita singkat/fakta soal artis, rekomendasi genre, atau sekadar ngobrol santai.${trackLine} Jawab pesan user di bawah ini langsung, natural, dan ringkas — jangan basa-basi pembuka kayak "Baik, saya akan menjelaskan".`
-        : `You are Lolu, the voice AI DJ inside the Vibexa music app. You're talking out loud (your reply is read aloud via text-to-speech), so it MUST be short — max 3-4 short sentences, casual and natural, with NO markdown, NO emoji, NO numbered lists, and NEVER quote song lyrics directly (copyright) — if asked what a lyric means, explain the meaning in your own words instead of quoting it. You can explain what a song means, share quick artist facts, suggest genres, or just chat casually.${trackLine} Answer the user's message below directly, naturally, and concisely — skip stiff openers like "Sure, I'd be happy to explain".`;
-    }
-
-    // Tries each configured Worker URL in order. Each Worker itself
-    // already rotates across up to 20 Gemini API keys server-side on
-    // rate limits (see voice-dj-worker.js), so this loop is only about
-    // falling back to a *different* Worker deployment if one is fully
-    // unreachable (down, misconfigured, wrong URL, etc).
-    async function ask(userText, lang, track){
-      const text = (userText || '').trim();
-      if (!text) return null;
-      const urls = AI_DJ_PROXY_URLS.filter(Boolean);
-      if (!urls.length) return null;
-
-      const body = JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text }] }],
-        systemInstruction: { parts: [{ text: buildSystemPrompt(lang, track) }] },
-        generationConfig: { temperature: 0.8, maxOutputTokens: 300 }
-      });
-
-      for (let i = 0; i < urls.length; i++){
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 15000);
-        try{
-          const res = await fetch(urls[i], {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            signal: ctrl.signal,
-            body
-          });
-          if (!res.ok) continue; // this worker had trouble -> try the next configured worker
-          const data = await res.json();
-          const reply = (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts || [])
-            .map(p => p.text || '').join('').trim();
-          if (reply) return reply;
-        }catch(e){ /* network error / timeout -> try the next configured worker */ }
-        finally{ clearTimeout(timer); }
-      }
-      return null;
-    }
-
-    return { ask };
-  })();
-
-  /* ------------------------------------------------------------------ *
-   * 6. PLAYLIST SEARCH — fuzzy match against the logged-in user's playlists
-   * ------------------------------------------------------------------ */
-  const PlaylistSearch = (function(){
-    const FAVORITES_WORDS = ['favorite', 'favorites', 'favourite', 'favourites', 'liked songs', 'liked song', 'favorit', 'kesukaan', 'lagu favorit', 'lagu yang disukai'];
-
-    function findByName(spokenName){
-      if (!spokenName) return null;
-      const n = norm(spokenName);
-      if (FAVORITES_WORDS.some(w => n === norm(w) || n.includes(norm(w)))){
-        if (typeof ensureLikedPlaylist === 'function') ensureLikedPlaylist();
-        return (typeof playlists !== 'undefined' && playlists[LIKED_PLAYLIST_ID]) || null;
-      }
+  // ════════════════════════════════════════════════════════════════
+  // 4. PLAYLIST SEARCH — cocokkan ucapan dengan playlist user
+  // ════════════════════════════════════════════════════════════════
+  var PlaylistSearch = (function () {
+    function find(rawName) {
       if (typeof playlists === 'undefined') return null;
-
-      let best = null, bestScore = 0;
-      Object.keys(playlists).forEach(id => {
-        const pl = playlists[id];
-        if (!pl || !pl.name) return;
-        const pn = norm(pl.name);
-        let score = 0;
-        if (pn === n) score = 1;
-        else if (pn.includes(n) || n.includes(pn)) score = 0.7;
-        else score = wordOverlapScore(spokenName, pl.name) * 0.6;
-        if (score > bestScore){ bestScore = score; best = pl; }
+      if (typeof ensureLikedPlaylist === 'function') ensureLikedPlaylist();
+      var q = (rawName || '').trim().toLowerCase();
+      if (!q || /favorit|favorite|liked|disukai|kesukaan/.test(q)) {
+        return playlists[LIKED_PLAYLIST_ID] || null;
+      }
+      var entries = Object.keys(playlists).map(function (id) { return playlists[id]; });
+      var exact = entries.find(function (p) { return p.name && p.name.toLowerCase() === q; });
+      if (exact) return exact;
+      var partial = entries.find(function (p) {
+        if (!p.name) return false;
+        var n = p.name.toLowerCase();
+        return n.indexOf(q) !== -1 || q.indexOf(n) !== -1;
       });
-      return bestScore >= 0.4 ? best : null;
+      return partial || null;
     }
-
-    return { findByName };
+    return { find: find };
   })();
 
-  /* ------------------------------------------------------------------ *
-   * 7. PLAYBACK CONTROLLER — the only module that touches the real player
-   * ------------------------------------------------------------------ */
-  const PlaybackController = (function(){
-
-    function getVolEl(){ return document.getElementById('vol'); }
-    function getVolume(){ const el = getVolEl(); return el ? (parseInt(el.value, 10) || 0) : 0; }
-    function setVolume(v){
-      const el = getVolEl();
-      if (!el) return;
-      v = Math.max(0, Math.min(100, Math.round(v)));
-      el.value = v;
-      el.dispatchEvent(new Event('input', { bubbles: true }));
+  // ════════════════════════════════════════════════════════════════
+  // 5. PLAYBACK CONTROLLER — bungkus kontrol player vibexa.js
+  // ════════════════════════════════════════════════════════════════
+  var PlaybackController = (function () {
+    function getVolume() {
+      var el = document.getElementById('vol');
+      return el ? (parseInt(el.value, 10) || 0) : 80;
     }
 
-    let _mutedPrevVolume = null;
-
-    function playTrack(track, queue){
-      if (queue && queue.length) curQueue = queue;
-      else curQueue = [track];
-      DJAnnouncer.beginSession();
-      loadPlay(track, null);
+    function setVolume(percent) {
+      percent = Math.max(0, Math.min(100, Math.round(percent)));
+      var el = document.getElementById('vol');
+      if (el) el.value = percent;
+      try { if (typeof YTP !== 'undefined' && YTP) YTP.setVolume(percent); } catch (e) {}
+      try { if (typeof spAudio !== 'undefined' && spAudio) spAudio.volume = percent / 100; } catch (e) {}
+      return percent;
     }
 
-    function playPlaylist(pl){
-      if (!pl || !pl.tracks || !pl.tracks.length) return false;
-      curQueue = [...pl.tracks];
-      DJAnnouncer.beginSession();
-      loadPlay(pl.tracks[0], pl.id || null);
+    function isPlaying() { return typeof playing !== 'undefined' && !!playing; }
+    function hasTrack() { return typeof curTrack !== 'undefined' && !!curTrack; }
+
+    function pause() {
+      if (isPlaying() && typeof _togglePlayPause === 'function') _togglePlayPause();
+    }
+    function resume() {
+      if (!isPlaying() && hasTrack() && typeof _togglePlayPause === 'function') _togglePlayPause();
+    }
+    function next() { if (typeof playNext === 'function') playNext(); }
+    function previous() { if (typeof playPrev === 'function') playPrev(); }
+
+    function repeatOne() {
+      if (typeof _repeatMode !== 'undefined') {
+        _repeatMode = 'one';
+        if (typeof _updateRepeatBtnUI === 'function') _updateRepeatBtnUI();
+      }
+    }
+    function repeatAll() {
+      if (typeof _repeatMode !== 'undefined') {
+        _repeatMode = _repeatMode === 'all' ? 'off' : 'all';
+        if (typeof _updateRepeatBtnUI === 'function') _updateRepeatBtnUI();
+      }
+    }
+
+    function shuffleQueue() {
+      if (typeof curQueue === 'undefined' || curQueue.length < 3) return false;
+      var head = curQueue[0];
+      var rest = curQueue.slice(1);
+      for (var i = rest.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var tmp = rest[i]; rest[i] = rest[j]; rest[j] = tmp;
+      }
+      curQueue = [head].concat(rest);
       return true;
     }
 
-    // Queues an entire list of tracks (used by "play what's trending") and
-    // starts playing the first one — Next/Previous then walk through every
-    // track in the list, not just a single song.
-    function playQueueAll(tracks){
+    function playTrack(track, plId) {
+      if (typeof loadPlay === 'function') {
+        curQueue = [track];
+        loadPlay(track, plId || null);
+      }
+    }
+
+    function playQueue(tracks, plId) {
       if (!tracks || !tracks.length) return false;
-      curQueue = tracks;
-      DJAnnouncer.beginSession();
-      loadPlay(tracks[0], null);
+      if (typeof curQueue !== 'undefined') curQueue = tracks.slice();
+      if (typeof loadPlay === 'function') loadPlay(tracks[0], plId || null);
       return true;
     }
 
-    function pause(){
-      try{
-        if (curTrack && curTrack.offline){
-          const dl = document.getElementById('dl-audio');
-          if (dl) dl.pause();
-          return;
-        }
-        if (YTP && typeof playing !== 'undefined' && playing) YTP.pauseVideo();
-      }catch(e){}
-    }
-
-    function resume(){
-      try{
-        if (curTrack && curTrack.offline){
-          const dl = document.getElementById('dl-audio');
-          if (dl) dl.play().catch(()=>{});
-          return;
-        }
-        if (YTP && !playing) YTP.playVideo();
-        else if (!YTP && curTrack) loadPlay(curTrack, null);
-      }catch(e){}
-    }
-
-    function stopPlayback(){
-      try{
-        if (curTrack && curTrack.offline){
-          const dl = document.getElementById('dl-audio');
-          if (dl){ dl.pause(); dl.currentTime = 0; }
-          return;
-        }
-        if (YTP){ YTP.pauseVideo(); YTP.seekTo(0, true); }
-      }catch(e){}
-    }
-
-    function next(){ if (typeof playNext === 'function') playNext(); }
-    function prev(){ if (typeof playPrev === 'function') playPrev(); }
-
-    function repeatAll(){
-      let tries = 0;
-      while (typeof _repeatMode !== 'undefined' && _repeatMode !== 'all' && tries < 3){ toggleRepeatMode(); tries++; }
-    }
-    function repeatOne(){
-      let tries = 0;
-      while (typeof _repeatMode !== 'undefined' && _repeatMode !== 'one' && tries < 3){ toggleRepeatMode(); tries++; }
-    }
-    function repeatOff(){
-      let tries = 0;
-      while (typeof _repeatMode !== 'undefined' && _repeatMode !== 'off' && tries < 3){ toggleRepeatMode(); tries++; }
-    }
-
-    function shuffleQueue(){
-      if (typeof curQueue === 'undefined' || curQueue.length < 2) return false;
-      const currentIdx = curTrack ? curQueue.findIndex(t => t._query === curTrack._query) : -1;
-      const current = currentIdx !== -1 ? curQueue[currentIdx] : null;
-      let rest = curQueue.filter((_, i) => i !== currentIdx);
-      if (typeof _shuffleArray === 'function') rest = _shuffleArray(rest);
-      else rest = rest.map(v => [Math.random(), v]).sort((a,b)=>a[0]-b[0]).map(p=>p[1]);
-      curQueue = current ? [current, ...rest] : rest;
-      return true;
-    }
-
-    function volumeUp(){ setVolume(getVolume() + 10); return getVolume(); }
-    function volumeDown(){ setVolume(getVolume() - 10); return getVolume(); }
-    function setVolumeTo(n){ setVolume(n); return getVolume(); }
-
-    function mute(){ if (_mutedPrevVolume === null) _mutedPrevVolume = getVolume(); setVolume(0); }
-    function unmute(){ setVolume(_mutedPrevVolume === null ? 80 : _mutedPrevVolume); _mutedPrevVolume = null; }
-
-    // Volume ducking while Lolu is listening/processing a command.
-    let _duckPrevVolume = null;
-    function duck(){
-      if (typeof playing === 'undefined' || !playing) return;
-      _duckPrevVolume = getVolume();
-      setVolume(Math.max(4, Math.round(_duckPrevVolume * 0.18)));
-    }
-    function unduck(){
-      if (_duckPrevVolume === null) return;
-      setVolume(_duckPrevVolume);
-      _duckPrevVolume = null;
+    function playPlaylist(pl) {
+      if (!pl || !pl.tracks || !pl.tracks.length) return false;
+      return playQueue(pl.tracks, pl.id);
     }
 
     return {
-      playTrack, playPlaylist, playQueueAll, pause, resume, stopPlayback, next, prev,
-      repeatAll, repeatOne, repeatOff, shuffleQueue,
-      volumeUp, volumeDown, setVolumeTo, mute, unmute,
-      duck, unduck, getVolume, setVolume
+      getVolume: getVolume, setVolume: setVolume,
+      isPlaying: isPlaying, hasTrack: hasTrack,
+      pause: pause, resume: resume, next: next, previous: previous,
+      repeatOne: repeatOne, repeatAll: repeatAll, shuffleQueue: shuffleQueue,
+      playTrack: playTrack, playQueue: playQueue, playPlaylist: playPlaylist
     };
   })();
 
-  /* ------------------------------------------------------------------ *
-   * 7b. DJ ANNOUNCER — wraps loadPlay() so that once a Voice DJ session
-   *     is running (trending playback, or "play <song/artist/playlist>"),
-   *     every subsequent track change gets spoken out loud first:
-   *     "Next up, we're playing <title> by <artist>." The very first
-   *     track of a session is skipped (Voice DJ already speaks a normal
-   *     confirmation for that one, e.g. "Playing songs by X"), so this
-   *     only kicks in from the 2nd track onward — exactly the moment a
-   *     real radio DJ would talk, i.e. transitions, not the opening cue.
-   * ------------------------------------------------------------------ */
-  const DJAnnouncer = (function(){
-    let enabled = true;       // user can turn this off with a voice command
-    let sessionActive = false; // a Voice-DJ-driven queue is currently playing
-    let skipNext = false;      // true = the *next* loadPlay() is the session's own opening track
-
-    function beginSession(){
-      sessionActive = true;
-      skipNext = true;
-    }
-
-    function setEnabled(v){ enabled = !!v; }
-    function isEnabled(){ return enabled; }
-
-    function announce(track, lang){
-      if (!track || !track.title) return;
-      const isId = lang === 'id-ID';
-      const text = isId
-        ? `Selanjutnya kita putar ${track.title} dari ${track.artist}.`
-        : `Up next, we're playing ${track.title} by ${track.artist}.`;
-      if (typeof toast === 'function') toast('🎙️ ' + text, 3200);
-      // Duck the just-starting track a touch while Lolu talks over the
-      // intro, then hand volume back once the announcement finishes.
-      PlaybackController.duck();
-      TTS.speak(text, lang, () => { PlaybackController.unduck(); });
-    }
-
-    // Monkey-patches the single global loadPlay() that every playback
-    // path in vibexa.js (Next/Previous, manual clicks, this file's own
-    // PlaybackController) eventually funnels through. The original
-    // function is always still called — this only adds an announcement
-    // in front of it when appropriate.
-    function hook(){
-      if (typeof window.loadPlay !== 'function'){
-        console.warn('Voice AI DJ: loadPlay() not found, DJ Announcer disabled.');
-        return;
-      }
-      const originalLoadPlay = window.loadPlay;
-      window.loadPlay = function(track, fromPlId){
-        if (enabled && sessionActive && track){
-          if (skipNext) skipNext = false;
-          else announce(track, SpeechRecognitionModule.currentLang());
-        }
-        return originalLoadPlay.call(this, track, fromPlId);
+  // ════════════════════════════════════════════════════════════════
+  // 6. UI STATE MANAGER — update tampilan #voice-dj-page
+  // ════════════════════════════════════════════════════════════════
+  var UIStateManager = (function () {
+    function els() {
+      return {
+        orb: document.getElementById('vdj-page-orb'),
+        micBtn: document.getElementById('vdj-page-mic-btn'),
+        icoMic: document.getElementById('vdj-page-ico-mic'),
+        icoStop: document.getElementById('vdj-page-ico-stop'),
+        status: document.getElementById('vdj-page-status'),
+        sub: document.getElementById('vdj-page-sub'),
+        transcript: document.getElementById('vdj-page-transcript'),
+        langBtn: document.getElementById('vdj-page-lang-btn')
       };
     }
 
-    return { beginSession, setEnabled, isEnabled, hook };
-  })();
-  DJAnnouncer.hook();
-
-  /* ------------------------------------------------------------------ *
-   * 8. INTENT PARSER — turns recognized text into structured commands
-   * ------------------------------------------------------------------ */
-  const IntentParser = (function(){
-
-    // Deterministic (rule-based) patterns cover every command in the spec
-    // without needing a network round-trip for anything except resolving
-    // which song/artist/playlist the user meant.
-    function parse(rawText){
-      const text = (rawText || '').trim();
-      const n = norm(text);
-      if (!n) return { intent: 'unknown', raw: rawText };
-
-      // ── Volume: explicit percentage ────────────────────────────────
-      let m = n.match(/(?:set\s+)?(?:the\s+)?volume\s+(?:to|at|ke)?\s*(\d{1,3})\s*(?:%|percent|persen)?$/)
-            || n.match(/(?:atur|set)\s+volume\s+(?:ke|jadi)\s*(\d{1,3})/);
-      if (m) return { intent: 'set_volume', level: Math.max(0, Math.min(100, parseInt(m[1], 10))), raw: text };
-
-      // ── Mute / Unmute ───────────────────────────────────────────────
-      if (/^(unmute|suarakan|nyalakan suara|bunyikan lagi)\b/.test(n)) return { intent: 'unmute', raw: text };
-      if (/^(mute|bisukan|senyapkan|diamkan)\b/.test(n)) return { intent: 'mute', raw: text };
-
-      // ── DJ announcer on/off ("stop announcing songs" / "matikan pengumuman lagu") ─
-      if (/\b(matikan|nonaktifkan|hentikan)\b.*\b(pengumuman|announcer?)\b/.test(n)
-       || /\b(stop|turn\s*off|disable)\b.*\b(song\s*)?announc(e|ing|ements?)\b/.test(n))
-        return { intent: 'dj_announce_off', raw: text };
-      if (/\b(nyalakan|aktifkan|hidupkan)\b.*\b(pengumuman|announcer?)\b/.test(n)
-       || /\b(turn\s*on|enable)\b.*\b(song\s*)?announc(e|ing|ements?)\b/.test(n))
-        return { intent: 'dj_announce_on', raw: text };
-
-      // ── Volume up / down ─────────────────────────────────────────────
-      if (/\b(volume\s*up|turn\s*(it\s*)?up|louder|naikkan\s*volume|kencangkan(?:\s*volume)?|besarkan\s*volume)\b/.test(n))
-        return { intent: 'volume_up', raw: text };
-      if (/\b(volume\s*down|turn\s*(it\s*)?down|quieter|lower\s*(?:the\s*)?volume|kecilkan\s*volume|pelankan(?:\s*volume)?)\b/.test(n))
-        return { intent: 'volume_down', raw: text };
-
-      // ── Repeat this song (repeat-one) vs generic repeat (repeat-all) ─
-      if (/\b(repeat\s+this\s+song|repeat\s+one|ulangi\s+lagu\s+ini|ulang\s+lagu\s+ini)\b/.test(n))
-        return { intent: 'repeat_one', raw: text };
-      if (/\b(repeat|ulangi|ulang)\b/.test(n))
-        return { intent: 'repeat_all', raw: text };
-
-      // ── Shuffle ───────────────────────────────────────────────────────
-      if (/\b(shuffle|acak(?:kan)?)\b/.test(n)) return { intent: 'shuffle', raw: text };
-
-      // ── Next / Previous ───────────────────────────────────────────────
-      if (/\b(next\s*(song|track)?|skip(?:\s+this\s+song)?|lagu\s*berikutnya|selanjutnya)\b/.test(n))
-        return { intent: 'next_track', raw: text };
-      if (/\b(previous\s*(song|track)?|go\s*back|lagu\s*sebelumnya|sebelumnya|balik\s*lagu)\b/.test(n))
-        return { intent: 'previous_track', raw: text };
-
-      // ── Stop vs Pause (check "stop" before generic pause wording) ────
-      if (/^(stop|berhenti)\b(?!\s*sebentar)/.test(n)) return { intent: 'stop', raw: text };
-      if (/^(pause|jeda|berhenti\s*sebentar)\b/.test(n)) return { intent: 'pause', raw: text };
-
-      // ── Resume (bare "play"/"putar" with nothing else spoken) ────────
-      if (/^(resume|continue|unpause|lanjutkan|lanjut|terusin)\b$/.test(n)) return { intent: 'resume', raw: text };
-      if (/^(play|putar)$/.test(n)) return { intent: 'resume', raw: text };
-
-      // ── Search (explicit "find"/"search"/"cari") ──────────────────────
-      m = text.match(/^(?:find|search(?:\s+for)?|cari(?:\s+lagu)?)\s+(?:songs?\s+)?(?:by\s+)?(.+)$/i);
-      if (m) return { intent: 'search_music', query: m[1].trim(), raw: text };
-
-      // ── Play trending / popular songs — queues ALL of them, not just one ─
-      // "play trending songs", "play what's popular", "play the top chart",
-      // "putar lagu yang sedang populer/trending", "putar musik yang lagi hits"
-      if (/^(?:play|putar)\b/.test(n) && /\b(trending|populer|viral|hits?|top\s*chart|charts?)\b/.test(n))
-        return { intent: 'play_trending', raw: text };
-
-      // ── Play playlist ──────────────────────────────────────────────
-      // "play my workout playlist" / "play my favorites" / "putar playlist X"
-      m = text.match(/^(?:play|putar)\s+my\s+(.+?)\s+playlist$/i)
-       || text.match(/^(?:play|putar)\s+(?:the\s+)?playlist\s+(.+)$/i)
-       || text.match(/^(?:play|putar)\s+(.+?)\s+playlist$/i)
-       || text.match(/^(?:play|putar)\s+my\s+(favorites?|favourites?|liked\s*songs?)$/i)
-       || text.match(/^(?:play|putar)\s+playlist\s*(?:saya|ku)?\s+(.+)$/i);
-      if (m) return { intent: 'play_playlist', playlist: m[1].trim(), raw: text };
-
-      // ── Play song "X by Y" / "putar X dari/oleh Y" ────────────────────
-      m = text.match(/^(?:play|putar)\s+(.+?)\s+(?:by|dari|oleh)\s+(.+)$/i);
-      if (m) return { intent: 'play_song', title: m[1].trim(), artist: m[2].trim(), raw: text };
-
-      // ── Play <ambiguous song-or-artist> — resolved later by MusicSearch ─
-      m = text.match(/^(?:play|putar)\s+(.+)$/i);
-      if (m) return { intent: 'play_resolve', query: m[1].trim(), raw: text };
-
-      return { intent: 'unknown', raw: text };
+    // state: 'idle' | 'listening' | 'processing' | 'speaking'
+    function setState(state) {
+      var e = els();
+      if (!e.orb || !e.micBtn) return;
+      ['listening', 'processing', 'speaking'].forEach(function (c) {
+        e.orb.classList.remove(c);
+        e.micBtn.classList.remove(c);
+      });
+      if (state !== 'idle') {
+        e.orb.classList.add(state);
+        e.micBtn.classList.add(state);
+      }
+      if (e.icoMic && e.icoStop) {
+        var showStop = state === 'listening' || state === 'processing';
+        e.icoMic.style.display = showStop ? 'none' : 'block';
+        e.icoStop.style.display = showStop ? 'block' : 'none';
+      }
     }
 
-    return { parse };
+    function setStatus(text) { var e = els(); if (e.status) e.status.textContent = text; }
+    function setSub(text) { var e = els(); if (e.sub) e.sub.textContent = text; }
+    function setTranscript(text) { var e = els(); if (e.transcript) e.transcript.textContent = text || ''; }
+    function setLangLabel(lang) {
+      var e = els();
+      if (e.langBtn) e.langBtn.textContent = lang === 'id-ID' ? 'ID' : 'EN';
+    }
+
+    return {
+      setState: setState, setStatus: setStatus, setSub: setSub,
+      setTranscript: setTranscript, setLangLabel: setLangLabel
+    };
   })();
 
-  /* ------------------------------------------------------------------ *
-   * 9. RESPONSE TEXT — human-readable confirmations (spoken + shown)
-   * ------------------------------------------------------------------ */
-  function responseFor(intentResult, lang){
-    const id = lang === 'id-ID';
-    switch (intentResult.intent){
-      case 'play_song':      return id ? `Memutar ${intentResult.title} dari ${intentResult.artist}.` : `Playing ${intentResult.title} by ${intentResult.artist}.`;
-      case 'play_artist':    return id ? `Memutar lagu-lagu dari ${intentResult.artist}.` : `Playing songs by ${intentResult.artist}.`;
-      case 'play_playlist':  return id ? `Memutar playlist ${intentResult.playlistName}.` : `Playing your ${intentResult.playlistName} playlist.`;
-      case 'play_trending':  return id ? `Oke, aku putar semua ${intentResult.count} lagu yang lagi trending sekarang, semuanya masuk antrian.` : `Alright, playing all ${intentResult.count} trending songs right now, queued up.`;
-      case 'dj_announce_off': return id ? 'Oke, aku nggak akan ngomong lagi tiap ganti lagu.' : "Got it, I'll stay quiet between songs.";
-      case 'dj_announce_on':  return id ? 'Oke, aku akan ngasih tau lagi tiap ganti lagu.' : "Got it, I'll announce songs again.";
-      case 'ai_chat':          return intentResult.message;
-      case 'pause':           return id ? 'Musik dijeda.' : 'Pausing your music.';
-      case 'resume':          return id ? 'Melanjutkan musik.' : 'Resuming playback.';
-      case 'stop':             return id ? 'Musik dihentikan.' : 'Stopping playback.';
-      case 'next_track':      return id ? 'Lanjut ke lagu berikutnya.' : 'Skipping to the next song.';
-      case 'previous_track':  return id ? 'Kembali ke lagu sebelumnya.' : 'Playing the previous song.';
-      case 'shuffle':          return id ? 'Antrian diacak.' : 'Shuffling your queue.';
-      case 'repeat_all':      return id ? 'Mode ulangi semua diaktifkan.' : 'Repeat is on.';
-      case 'repeat_one':      return id ? 'Mengulang lagu ini.' : 'Repeating this song.';
-      case 'volume_up':       return id ? 'Volume dinaikkan.' : 'Volume up.';
-      case 'volume_down':     return id ? 'Volume diturunkan.' : 'Volume down.';
-      case 'set_volume':      return id ? `Volume diatur ke ${intentResult.level} persen.` : `Volume set to ${intentResult.level} percent.`;
-      case 'mute':              return id ? 'Suara dibisukan.' : 'Muted.';
-      case 'unmute':           return id ? 'Suara dinyalakan lagi.' : 'Unmuted.';
-      case 'search_music':    return id ? `Menampilkan hasil pencarian untuk ${intentResult.query}.` : `Here's what I found for ${intentResult.query}.`;
-      case 'not_found':        return id ? 'Maaf, aku tidak menemukan itu.' : "Sorry, I couldn't find that.";
-      default:                  return id ? 'Maaf, aku tidak mengerti perintah itu.' : "Sorry, I didn't catch that command.";
+  // ════════════════════════════════════════════════════════════════
+  // 7. VOICEDJ ORCHESTRATOR — hubungkan semua modul di atas
+  // ════════════════════════════════════════════════════════════════
+  var _preDuckVolume = null; // volume sebelum di-duck saat mulai mendengarkan
+  var _mutedPrevVolume = null; // volume sebelum di-mute, untuk unmute
+
+  function T(id, en) { return _vdjIsID() ? id : en; }
+
+  function duckVolumeIfPlaying() {
+    _preDuckVolume = PlaybackController.getVolume();
+    if (PlaybackController.isPlaying()) {
+      PlaybackController.setVolume(Math.round(_preDuckVolume * 0.18));
     }
   }
 
-  /* ------------------------------------------------------------------ *
-   * 10. COMMAND EXECUTOR — glues Intent Parser + Search modules to the
-   *     Playback Controller, then reports back through UI + TTS.
-   * ------------------------------------------------------------------ */
-  async function executeIntent(intentResult, lang){
-    let final = intentResult;
-
-    try{
-      switch (intentResult.intent){
-
-        case 'play_resolve': {
-          const resolved = await MusicSearch.resolveAmbiguousPlay(intentResult.query);
-          if (!resolved) { final = { intent: 'not_found', raw: intentResult.raw }; break; }
-          if (resolved.intent === 'play_artist'){
-            PlaybackController.playTrack(resolved.tracks[0], resolved.tracks);
-            final = { intent: 'play_artist', artist: resolved.artist };
-          } else {
-            PlaybackController.playTrack(resolved.track, resolved.queue);
-            final = { intent: 'play_song', title: resolved.title, artist: resolved.artist };
-          }
-          break;
-        }
-
-        case 'play_song': {
-          const found = await MusicSearch.findBestSong(intentResult.title, intentResult.artist);
-          if (!found) { final = { intent: 'not_found', raw: intentResult.raw }; break; }
-          PlaybackController.playTrack(found.track, found.queue);
-          final = { intent: 'play_song', title: found.track.title, artist: found.track.artist };
-          break;
-        }
-
-        case 'play_playlist': {
-          const pl = PlaylistSearch.findByName(intentResult.playlist);
-          if (!pl) { final = { intent: 'not_found', raw: intentResult.raw }; break; }
-          PlaybackController.playPlaylist(pl);
-          final = { intent: 'play_playlist', playlistName: pl.name };
-          break;
-        }
-
-        case 'play_trending': {
-          const tracks = await TrendingMusic.fetchAllTrending(50);
-          if (!tracks || !tracks.length) { final = { intent: 'not_found', raw: intentResult.raw }; break; }
-          PlaybackController.playQueueAll(tracks);
-          final = { intent: 'play_trending', count: tracks.length };
-          break;
-        }
-
-        case 'dj_announce_off': DJAnnouncer.setEnabled(false); final = { intent: 'dj_announce_off' }; break;
-        case 'dj_announce_on':  DJAnnouncer.setEnabled(true);  final = { intent: 'dj_announce_on' };  break;
-
-        case 'search_music': {
-          if (typeof showSearchView === 'function') showSearchView();
-          const qInput = document.getElementById('q') || document.getElementById('home-q');
-          if (qInput) qInput.value = intentResult.query;
-          if (typeof doSearch === 'function') { await doSearch(); }
-          final = { intent: 'search_music', query: intentResult.query };
-          break;
-        }
-
-        case 'pause':          PlaybackController.pause(); break;
-        case 'resume':         PlaybackController.resume(); break;
-        case 'stop':            PlaybackController.stopPlayback(); break;
-        case 'next_track':     PlaybackController.next(); break;
-        case 'previous_track': PlaybackController.prev(); break;
-        case 'shuffle': {
-          const ok = PlaybackController.shuffleQueue();
-          if (!ok) final = { intent: 'not_found', raw: intentResult.raw };
-          break;
-        }
-        case 'repeat_all':     PlaybackController.repeatAll(); break;
-        case 'repeat_one':     PlaybackController.repeatOne(); break;
-        case 'volume_up':      PlaybackController.volumeUp(); break;
-        case 'volume_down':    PlaybackController.volumeDown(); break;
-        case 'set_volume':     PlaybackController.setVolumeTo(intentResult.level); break;
-        case 'mute':             PlaybackController.mute(); break;
-        case 'unmute':          PlaybackController.unmute(); break;
-
-        // Nothing in the rule-based command list matched — instead of just
-        // saying "I didn't understand", hand it to Gemini as a real chat
-        // message. This is what lets people ask "what does this song mean",
-        // "who sings this", "tell me about this artist", or just chat.
-        default: {
-          const track = (typeof curTrack !== 'undefined') ? curTrack : null;
-          const reply = await AIChat.ask(intentResult.raw, lang, track);
-          final = reply ? { intent: 'ai_chat', message: reply } : { intent: 'unknown', raw: intentResult.raw };
-        }
-      }
-    }catch(e){
-      console.error('Voice AI DJ: command failed', e);
-      final = { intent: 'not_found', raw: intentResult.raw };
+  function restoreVolume() {
+    if (_preDuckVolume !== null && PlaybackController.isPlaying()) {
+      PlaybackController.setVolume(_preDuckVolume);
     }
-
-    return final;
+    _preDuckVolume = null;
   }
 
-  /* ------------------------------------------------------------------ *
-   * 11. MAIN FLOW — wires the mic button to everything above
-   * ------------------------------------------------------------------ */
-  const L = {
-    listening: 'Listening...',
-    listening_id: 'Mendengarkan...',
-    processing: 'Processing...',
-    processing_id: 'Memproses...'
-  };
+  // Bangun pesan balasan Lolu berdasarkan intent yang dieksekusi.
+  async function executeIntent(cmd) {
+    switch (cmd.intent) {
+      case 'pause':
+      case 'stop':
+        PlaybackController.pause();
+        return T('Oke, musik dijeda.', 'Pausing your music.');
 
-  function beginListening(){
-    if (SpeechRecognitionModule.isListening()) return; // ignore double taps
-    const lang = SpeechRecognitionModule.currentLang();
-    const isId = lang === 'id-ID';
-
-    PlaybackController.duck();
-    UIStateManager.setFabState('listening');
-    UIStateManager.showBubble('listening', isId ? L.listening_id : L.listening, '');
-
-    SpeechRecognitionModule.start({
-      onStart(){ /* mic is live */ },
-
-      onResult(text){
-        UIStateManager.setFabState('processing');
-        UIStateManager.showBubble('processing', isId ? L.processing_id : L.processing, text);
-        handleTranscript(text, lang);
-      },
-
-      onError(err){
-        PlaybackController.unduck();
-        UIStateManager.setFabState('idle');
-        if (err === 'no-speech'){
-          UIStateManager.showBubble('error', isId ? 'Tidak terdengar suara.' : "Didn't hear anything.", '');
-        } else if (err === 'not-allowed' || err === 'service-not-allowed'){
-          UIStateManager.showBubble('error', isId ? 'Izin mikrofon ditolak.' : 'Microphone access was denied.', '');
-        } else {
-          UIStateManager.showBubble('error', isId ? 'Terjadi kesalahan.' : 'Something went wrong.', '');
+      case 'resume':
+        if (!PlaybackController.hasTrack()) {
+          return T('Belum ada lagu yang diputar sebelumnya.', "There's no song to resume yet.");
         }
-        UIStateManager.hideBubble(2200);
-      },
+        PlaybackController.resume();
+        return T('Oke, lanjut muter.', 'Resuming playback.');
 
-      onEnd(){
-        // If onResult already fired, this is a no-op; if not (e.g. aborted),
-        // make sure the mic button doesn't stay stuck lit up.
-        if (fabEl && fabEl.classList.contains('listening')){
-          PlaybackController.unduck();
-          UIStateManager.setFabState('idle');
-          UIStateManager.hideBubble(300);
+      case 'next_track':
+        PlaybackController.next();
+        return T('Skip ke lagu berikutnya.', 'Skipping to the next song.');
+
+      case 'previous_track':
+        PlaybackController.previous();
+        return T('Balik ke lagu sebelumnya.', 'Playing the previous song.');
+
+      case 'repeat_one':
+        PlaybackController.repeatOne();
+        return T('Oke, lagu ini bakal diulang terus.', "Okay, I'll repeat this song.");
+
+      case 'repeat_all':
+        PlaybackController.repeatAll();
+        return T('Repeat diatur.', 'Repeat updated.');
+
+      case 'shuffle':
+        var shuffled = PlaybackController.shuffleQueue();
+        return shuffled
+          ? T('Antrian lagu udah diacak.', 'Shuffled your queue.')
+          : T('Antriannya kependekan buat diacak.', 'Not enough songs in the queue to shuffle.');
+
+      case 'mute':
+        _mutedPrevVolume = PlaybackController.getVolume();
+        PlaybackController.setVolume(0);
+        return T('Suara dimatikan.', 'Muted.');
+
+      case 'unmute':
+        PlaybackController.setVolume(_mutedPrevVolume != null ? _mutedPrevVolume : 80);
+        _mutedPrevVolume = null;
+        return T('Suara dinyalakan lagi.', 'Unmuted.');
+
+      case 'volume_up':
+        _preDuckVolume = PlaybackController.setVolume(PlaybackController.getVolume() + 15);
+        return T('Volume dinaikkan.', 'Volume increased.');
+
+      case 'volume_down':
+        _preDuckVolume = PlaybackController.setVolume(PlaybackController.getVolume() - 15);
+        return T('Volume diturunkan.', 'Volume decreased.');
+
+      case 'volume_set':
+        _preDuckVolume = PlaybackController.setVolume(cmd.value);
+        return T('Volume diatur ke ' + cmd.value + ' persen.', 'Volume set to ' + cmd.value + ' percent.');
+
+      case 'play_playlist': {
+        var pl = PlaylistSearch.find(cmd.playlist);
+        if (!pl) {
+          return T('Aku nggak nemu playlist "' + cmd.playlist + '".', 'I couldn\u2019t find a playlist called "' + cmd.playlist + '".');
         }
+        var ok = PlaybackController.playPlaylist(pl);
+        return ok
+          ? T('Muterin playlist ' + pl.name + '.', 'Playing your ' + pl.name + ' playlist.')
+          : T('Playlist ' + pl.name + ' masih kosong.', 'That playlist is empty.');
       }
-    });
+
+      case 'search_music':
+      case 'play_query': {
+        var query = cmd.query || cmd.query === '' ? cmd.query : cmd.query;
+        query = (cmd.intent === 'play_query') ? cmd.query : cmd.query;
+        // Coba dulu sebagai nama artis.
+        var artistResult = await MusicSearch.findArtistTracks(query);
+        if (artistResult && artistResult.tracks.length) {
+          PlaybackController.playQueue(artistResult.tracks, null);
+          return T('Muterin lagu-lagu dari ' + artistResult.artistName + '.', 'Playing songs by ' + artistResult.artistName + '.');
+        }
+        // Kalau bukan nama artis, cari sebagai judul lagu.
+        var song = await MusicSearch.findBestSong(query);
+        if (song) {
+          PlaybackController.playTrack(song, null);
+          return T('Muterin ' + song.title + ' dari ' + song.artist + '.', 'Playing ' + song.title + ' by ' + song.artist + '.');
+        }
+        return T('Aku nggak nemu lagu buat "' + query + '".', 'I couldn\u2019t find anything for "' + query + '".');
+      }
+
+      case 'play_song': {
+        var q = cmd.artist ? (cmd.artist + ' ' + cmd.title) : cmd.title;
+        var songResult = await MusicSearch.findBestSong(q);
+        if (songResult) {
+          PlaybackController.playTrack(songResult, null);
+          return T('Muterin ' + songResult.title + ' dari ' + songResult.artist + '.', 'Playing ' + songResult.title + ' by ' + songResult.artist + '.');
+        }
+        return T('Aku nggak nemu lagunya.', "I couldn't find that song.");
+      }
+
+      default:
+        return T('Maaf, aku belum ngerti maksudnya. Coba bilang lagi ya.', "Sorry, I didn't catch that. Could you try again?");
+    }
   }
 
-  async function handleTranscript(text, lang){
-    const isId = lang === 'id-ID';
-    const intentResult = IntentParser.parse(text);
-    const finalResult = await executeIntent(intentResult, lang);
-    const responseText = responseFor(finalResult, lang);
-
-    UIStateManager.setFabState('speaking');
-    UIStateManager.showBubble(
-      finalResult.intent === 'not_found' || finalResult.intent === 'unknown' ? 'error' : 'speaking',
-      responseText,
-      text
-    );
-
-    TTS.speak(responseText, lang, () => {
-      PlaybackController.unduck();
-      UIStateManager.setFabState('idle');
-      UIStateManager.hideBubble(1600);
-    });
-
-    // Safety net in case TTS never fires onend (disabled/unsupported).
-    setTimeout(() => {
-      if (fabEl && (fabEl.classList.contains('speaking') || fabEl.classList.contains('processing'))){
-        PlaybackController.unduck();
-        UIStateManager.setFabState('idle');
-        UIStateManager.hideBubble(1200);
-      }
-    }, 4500);
+  function onMicError(err) {
+    UIStateManager.setState('idle');
+    if (err === 'unsupported') {
+      UIStateManager.setStatus(T('Browser ini belum mendukung input suara', 'Voice input isn\u2019t supported in this browser'));
+      if (typeof toast === 'function') toast(T(' Browser kamu belum mendukung Voice DJ', ' Your browser doesn\u2019t support Voice DJ'));
+    } else if (err === 'not-allowed' || err === 'service-not-allowed') {
+      UIStateManager.setStatus(T('Izin mikrofon ditolak', 'Microphone access denied'));
+      if (typeof toast === 'function') toast(T(' Izinkan akses mikrofon dulu ya', ' Please allow microphone access'));
+    } else if (err === 'no-speech') {
+      UIStateManager.setStatus(T('Nggak kedengeran apa-apa', "I didn't hear anything"));
+    } else {
+      UIStateManager.setStatus(T('Ada gangguan, coba lagi ya', 'Something went wrong, try again'));
+    }
+    restoreVolume();
+    UIStateManager.setSub('Lolu');
   }
 
-  function onMicButtonClick(){
-    if (SpeechRecognitionModule.isListening()){
-      SpeechRecognitionModule.stop();
+  function toggle() {
+    if (SpeechController.isListening()) {
+      SpeechController.stop();
       return;
     }
-    beginListening();
+    if (!SpeechController.isSupported()) {
+      onMicError('unsupported');
+      return;
+    }
+    SpeechController.cancelSpeak();
+    UIStateManager.setTranscript('');
+    duckVolumeIfPlaying();
+
+    SpeechController.start(
+      // onFinalText
+      async function (text) {
+        UIStateManager.setState('processing');
+        UIStateManager.setStatus(T('Memproses...', 'Processing...'));
+        UIStateManager.setTranscript('\u201c' + text + '\u201d');
+
+        if (!text) {
+          var msg = T('Aku nggak nangkep ucapannya.', "I didn't catch that.");
+          UIStateManager.setStatus(msg);
+          restoreVolume();
+          UIStateManager.setState('speaking');
+          SpeechController.speak(msg, function () {
+            UIStateManager.setState('idle');
+            UIStateManager.setSub('Lolu');
+          });
+          return;
+        }
+
+        var cmd = IntentParser.parse(text);
+        var reply = await executeIntent(cmd);
+
+        UIStateManager.setStatus(reply);
+        UIStateManager.setState('speaking');
+        SpeechController.speak(reply, function () {
+          UIStateManager.setState('idle');
+          UIStateManager.setSub('Lolu');
+          restoreVolume();
+        });
+      },
+      // onStart
+      function () {
+        UIStateManager.setState('listening');
+        UIStateManager.setStatus(T('Mendengarkan...', 'Listening...'));
+        UIStateManager.setSub(T('Ngomong aja, aku dengerin', "I'm listening"));
+      },
+      // onError
+      onMicError,
+      // onEnd
+      function () {
+        // onresult sudah menangani transisi state selanjutnya; kalau
+        // recognition berhenti TANPA hasil (mis. no-speech), pastikan
+        // tetap kembali ke idle supaya mic tidak nyangkut di state listening.
+        var e = UIStateManager;
+        setTimeout(function () {
+          var micBtn = document.getElementById('vdj-page-mic-btn');
+          if (micBtn && micBtn.classList.contains('listening')) {
+            e.setState('idle');
+            restoreVolume();
+          }
+        }, 50);
+      }
+    );
   }
 
-  if (fabEl) fabEl.addEventListener('click', onMicButtonClick);
-  // Tombol mic besar di halaman penuh DJ dipanggil lewat onclick="VoiceDJ.toggle()"
-  // di HTML (lihat #vdj-page-mic-btn), bukan addEventListener di sini, supaya
-  // tidak double-fire kalau kedua cara sama-sama dipasang.
+  function stop() {
+    SpeechController.stop();
+    SpeechController.cancelSpeak();
+    UIStateManager.setState('idle');
+    restoreVolume();
+  }
 
-  /* ------------------------------------------------------------------ *
-   * 12. Public API (handy for debugging / future extension)
-   * ------------------------------------------------------------------ */
+  function toggleLanguage() {
+    var idx = SUPPORTED_LANGS.indexOf(_vdjLang);
+    _vdjLang = SUPPORTED_LANGS[(idx + 1) % SUPPORTED_LANGS.length];
+    localStorage.setItem('vdjLang', _vdjLang);
+    UIStateManager.setLangLabel(_vdjLang);
+    UIStateManager.setStatus(_vdjIsID() ? 'Halo!' : 'Hello!');
+    UIStateManager.setSub('Lolu');
+  }
+
+  // Inisialisasi tampilan awal begitu script dimuat.
+  document.addEventListener('DOMContentLoaded', function () {
+    UIStateManager.setLangLabel(_vdjLang);
+    UIStateManager.setStatus(_vdjIsID() ? 'Halo!' : 'Hello!');
+    UIStateManager.setSub('Lolu');
+  });
+
   window.VoiceDJ = {
-    toggleLanguage: SpeechRecognitionModule.toggleLanguage,
-    start: beginListening,
-    stop: SpeechRecognitionModule.stop,
-    toggle: onMicButtonClick, // dipakai tombol mic besar di halaman penuh DJ
-    parseIntent: IntentParser.parse,     // exposed so new commands can be tested from the console
-    setTTSEnabled: TTS.setEnabled,
-    askAI: AIChat.ask, // handy for testing the AI chat proxy from the console, e.g. VoiceDJ.askAI('what does this song mean?', 'en-US')
-    _modules: { SpeechRecognitionModule, IntentParser, MusicSearch, TrendingMusic, AIChat, PlaylistSearch, PlaybackController, DJAnnouncer, UIStateManager, TTS }
+    toggle: toggle,
+    stop: stop,
+    toggleLanguage: toggleLanguage
   };
-
 })();
