@@ -1,0 +1,127 @@
+/* ==========================================================================
+   LOLU VOICE DJ — styles
+   Tombol mic + bubble status "Listening.../Processing..." di halaman Chat AI,
+   plus animasi pulsing pada avatar Lolu ketika sedang mendengarkan.
+   Dibuat sebagai file terpisah supaya tidak bentrok / menambah beban ke
+   vibexa.css yang sudah sangat besar.
+   ========================================================================== */
+
+/* ── Tombol mic utama ─────────────────────────────────────────────────── */
+.ai-chat-mic-btn{
+  position:relative;
+  width:42px;height:42px;border-radius:50%;border:none;
+  background:var(--card,#181818);
+  color:var(--muted,#9a9a9a);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;flex-shrink:0;
+  border:1px solid var(--border,rgba(255,255,255,.1));
+  transition:transform .15s ease, background .2s ease, color .2s ease, box-shadow .2s ease;
+}
+.ai-chat-mic-btn:hover{ transform:scale(1.06); color:#fff; }
+.ai-chat-mic-btn:active{ transform:scale(.94); }
+.ai-chat-mic-btn.unsupported{ opacity:.35; cursor:not-allowed; }
+.ai-chat-mic-btn.unsupported:hover{ transform:none; }
+
+.ai-chat-mic-btn svg{ position:relative; z-index:2; }
+
+.ai-chat-mic-btn .lolu-mic-pulse{
+  position:absolute; inset:0; border-radius:50%;
+  background:var(--green,#2E7DFF);
+  opacity:0; transform:scale(1);
+  z-index:1;
+}
+
+/* Status: sedang mendengarkan -> merah + ring berdenyut */
+.ai-chat-mic-btn.listening{
+  background:#E0294B; color:#fff; border-color:#E0294B;
+  box-shadow:0 0 0 0 rgba(224,41,75,.55);
+  animation:loluMicListenGlow 1.4s ease-out infinite;
+}
+.ai-chat-mic-btn.listening .lolu-mic-pulse{
+  background:#E0294B;
+  animation:loluMicPulseRing 1.4s ease-out infinite;
+}
+@keyframes loluMicListenGlow{
+  0%{ box-shadow:0 0 0 0 rgba(224,41,75,.55); }
+  70%{ box-shadow:0 0 0 12px rgba(224,41,75,0); }
+  100%{ box-shadow:0 0 0 0 rgba(224,41,75,0); }
+}
+@keyframes loluMicPulseRing{
+  0%{ opacity:.55; transform:scale(1); }
+  100%{ opacity:0; transform:scale(1.9); }
+}
+
+/* Status: sedang memproses (STT selesai, menunggu hasil command) -> biru + spin halus */
+.ai-chat-mic-btn.processing{
+  background:var(--green,#2E7DFF); color:#fff; border-color:var(--green,#2E7DFF);
+}
+.ai-chat-mic-btn.processing svg{ animation:loluMicProcessSpin 1s linear infinite; }
+@keyframes loluMicProcessSpin{
+  0%{ transform:rotate(0deg); }
+  100%{ transform:rotate(360deg); }
+}
+
+/* ── Tombol pilihan bahasa (ID/EN) di sebelah mic ────────────────────── */
+.ai-chat-mic-lang-btn{
+  flex-shrink:0;
+  min-width:34px;height:34px;padding:0 8px;
+  border-radius:17px;border:1px solid var(--border,rgba(255,255,255,.1));
+  background:transparent;color:var(--muted,#9a9a9a);
+  font-family:var(--f,inherit); font-size:.7rem; font-weight:700; letter-spacing:.03em;
+  cursor:pointer;
+  transition:color .2s ease, border-color .2s ease, background .2s ease;
+}
+.ai-chat-mic-lang-btn:hover{ color:#fff; border-color:var(--green,#2E7DFF); background:var(--green-dim,rgba(46,125,255,.16)); }
+
+/* ── Bubble status "Listening.../Processing.../<balasan Lolu>" ──────────
+   Muncul melayang tepat di atas input bar, seperti speech bubble kecil. ── */
+.lolu-voice-bubble{
+  position:absolute;
+  left:22px; right:22px;
+  bottom:74px;
+  max-width:calc(100% - 44px);
+  margin:0 auto;
+  background:linear-gradient(135deg, var(--green,#2E7DFF), #6aa4ff);
+  color:#fff;
+  border-radius:16px;
+  padding:10px 14px;
+  font-family:var(--f,inherit);
+  font-size:.82rem; line-height:1.35;
+  box-shadow:0 8px 24px rgba(0,0,0,.35);
+  display:flex; align-items:center; gap:8px;
+  opacity:0; transform:translateY(8px) scale(.97);
+  pointer-events:none;
+  transition:opacity .18s ease, transform .18s ease;
+  z-index:30;
+}
+.lolu-voice-bubble.show{ opacity:1; transform:translateY(0) scale(1); }
+.lolu-voice-bubble-text{ word-break:break-word; }
+
+.lolu-voice-bubble-row{ display:flex; gap:3px; flex-shrink:0; }
+.lolu-voice-dot{
+  width:6px;height:6px;border-radius:50%;
+  background:#fff;
+  opacity:.55;
+  animation:loluVoiceDotBounce 1.1s ease-in-out infinite;
+}
+.lolu-voice-dot:nth-child(2){ animation-delay:.15s; }
+.lolu-voice-dot:nth-child(3){ animation-delay:.3s; }
+@keyframes loluVoiceDotBounce{
+  0%, 60%, 100%{ transform:translateY(0); opacity:.55; }
+  30%{ transform:translateY(-4px); opacity:1; }
+}
+
+/* ── Animasi avatar Lolu di header Chat AI saat mendengarkan/memproses ── */
+.ai-chat-head-icon img.lolu-voice-pulsing{
+  animation:loluHeadIconPulse 1s ease-in-out infinite;
+}
+@keyframes loluHeadIconPulse{
+  0%, 100%{ transform:scale(1); filter:drop-shadow(0 0 0 rgba(46,125,255,0)); }
+  50%{ transform:scale(1.12); filter:drop-shadow(0 0 8px rgba(46,125,255,.65)); }
+}
+
+@media (max-width: 660px){
+  .lolu-voice-bubble{ left:12px; right:12px; bottom:68px; font-size:.78rem; padding:9px 12px; }
+  .ai-chat-mic-btn{ width:38px; height:38px; }
+  .ai-chat-mic-lang-btn{ min-width:30px; height:30px; font-size:.65rem; }
+}

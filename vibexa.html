@@ -16,7 +16,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icons/launchericon-192x192.png">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&family=Press+Start+2P&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vibexa.css">
-<link rel="stylesheet" href="voice-dj.css">
+<link rel="stylesheet" href="lolu-voice.css">
 </head>
 <body>
 
@@ -183,27 +183,6 @@
     <div class="home-greeting" id="home-greeting">Welcome </div>
     <div class="home-sub">Your playlists are automatically saved to this account.</div>
 
-    <!-- DJ — kartu kotak di Home yang membuka halaman penuh Voice AI DJ
-         (mirip kartu "DJ" ala Spotify). Klik di mana saja pada kartu, atau
-         tombol play bulat di kanan, akan memanggil openVoiceDjPage() (lihat
-         vibexa.js) yang menutup semua halaman lain lalu menampilkan
-         #voice-dj-page. Visual lingkaran birunya memakai voice-dj.js/css
-         yang sudah ada — dj-orb.gif hanya dipakai untuk tampilan animasi. -->
-    <div class="home-dj-card" id="home-dj-card" onclick="openVoiceDjPage()">
-      <div class="home-dj-card-orb">
-        <img src="dj-orb.gif" alt="" draggable="false">
-      </div>
-      <div class="home-dj-card-body">
-        <div class="home-dj-card-title-row">
-          <span class="home-dj-card-title">DJ</span>
-          <span class="home-dj-card-badge">BETA</span>
-        </div>
-        <p class="home-dj-card-desc" id="home-dj-card-desc">Ngomong aja, DJ yang muterin. Ketuk untuk mulai ngobrol pakai suara.</p>
-      </div>
-      <button class="home-dj-card-play" onclick="event.stopPropagation();openVoiceDjPage()" title="Buka Voice DJ" aria-label="Buka Voice DJ">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-      </button>
-    </div>
     <div class="home-section-title" style="display:none;">
       <span>All Playlists</span>
       <button class="home-new-pl-btn" onclick="openNewPlaylistModal()">
@@ -1173,7 +1152,30 @@
       </div>
     </div>
     <div class="ai-chat-messages" id="ai-chat-messages"></div>
+
+    <!-- LOLU VOICE DJ — bubble status ("Listening...", "Processing...", hasil
+         command) + tombol mic. Lihat lolu-voice.js untuk seluruh logika
+         (Speech Recognition, Intent Parser, Music/Playlist Search, Playback
+         Controller, UI State Manager, Text-to-Speech). -->
+    <div id="lolu-voice-bubble" class="lolu-voice-bubble" role="status" aria-live="polite">
+      <div class="lolu-voice-bubble-row">
+        <span class="lolu-voice-dot"></span>
+        <span class="lolu-voice-dot"></span>
+        <span class="lolu-voice-dot"></span>
+      </div>
+      <div id="lolu-voice-bubble-text" class="lolu-voice-bubble-text">Listening...</div>
+    </div>
+
     <div class="ai-chat-inputbar">
+      <button class="ai-chat-mic-btn" id="lolu-mic-btn" onclick="LoluVoiceDJ.toggleListening()" title="Ngobrol pakai suara">
+        <svg id="lolu-mic-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/>
+          <path d="M19 11a7 7 0 0 1-14 0"/>
+          <path d="M12 18v3"/>
+        </svg>
+        <span class="lolu-mic-pulse"></span>
+      </button>
+      <button class="ai-chat-mic-lang-btn" id="lolu-mic-lang-btn" onclick="LoluVoiceDJ.toggleLanguage(event)" title="Bahasa untuk voice command">ID</button>
       <textarea id="ai-chat-input" rows="1" placeholder="Minta playlist, rekomendasi lagu, atau ngobrol soal musik..." autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAIChatMessage();}"></textarea>
       <button class="ai-chat-send-btn" id="ai-chat-send-btn" onclick="sendAIChatMessage()" title="Send">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>
@@ -1693,43 +1695,6 @@
   <button id="lyr-select-continue-btn" onclick="openLyricsCardModal()" disabled>Lanjutkan</button>
 </div>
 
-<!-- ═══════════ VOICE AI DJ — halaman penuh (dibuka dari kartu "DJ" di
-     Home lewat openVoiceDjPage(), lihat vibexa.js). Referensi tampilan:
-     halaman "DJ" milik Spotify — orb animasi di tengah, judul besar,
-     tombol mic besar di bawah orb, transcript ucapan user + balasan DJ.
-     Semua warna memakai variabel tema yang sama dengan sisa web ini
-     (--bg/--card/--green/--border/dst, lihat vibexa.css) supaya menyatu,
-     bukan komponen tempelan. Interaksi suaranya memakai ulang mesin yang
-     sama persis dengan mic FAB kecil di pojok (voice-dj.js) — halaman ini
-     hanya menambah "wajah" baru untuk state yang sama (lihat UIStateManager
-     di voice-dj.js yang sudah diperluas supaya menulis ke elemen
-     #vdj-page-* di bawah ini juga). -->
-<div id="voice-dj-page">
-  <div class="vdj-header">
-    <button class="vdj-icon-btn" onclick="closeVoiceDjPage()" title="Tutup">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-    </button>
-    <div class="vdj-header-title">DJ</div>
-    <button class="vdj-icon-btn vdj-lang-btn" id="vdj-page-lang-btn" onclick="window.VoiceDJ && VoiceDJ.toggleLanguage()" title="Bahasa suara">EN</button>
-  </div>
-
-  <div class="vdj-body">
-    <div class="vdj-orb-wrap" id="vdj-page-orb">
-      <img class="vdj-orb-gif" src="dj-orb.gif" alt="" draggable="false">
-      <button class="vdj-mic-btn" id="vdj-page-mic-btn" onclick="window.VoiceDJ && VoiceDJ.toggle()" title="Tekan lalu bicara" aria-label="Bicara ke DJ">
-        <svg id="vdj-page-ico-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v4M8 23h8"/></svg>
-        <svg id="vdj-page-ico-stop" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>
-      </button>
-    </div>
-
-    <div class="vdj-status" id="vdj-page-status">Welcome</div>
-    <div class="vdj-sub" id="vdj-page-sub">DJ</div>
-    <div class="vdj-transcript" id="vdj-page-transcript"></div>
-
-    <p class="vdj-hint">Ketuk mic lalu ucapkan perintah, misalnya <em>&quot;putar lagu galau&quot;</em>, <em>&quot;skip lagu ini&quot;</em>, atau <em>&quot;muterin playlist ku&quot;</em>.</p>
-  </div>
-</div>
-
 <div id="mob-nav" style="display:none">
   <button class="mob-nav-btn on" id="mob-btn-home" onclick="mobNav('home')">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
@@ -1934,10 +1899,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
 
 <script src="vibexa.js"></script>
-<!-- Voice-controlled AI DJ (Web Speech API). Loaded after vibexa.js so it
-     can reuse the player's existing globals (curTrack, curQueue, YTP,
-     playlists, loadPlay, playNext, playPrev, toast, fetchItunesResults, ...)
-     without duplicating any player logic. -->
-<script src="voice-dj.js"></script>
+<script src="lolu-voice.js"></script>
 </body>
 </html>
