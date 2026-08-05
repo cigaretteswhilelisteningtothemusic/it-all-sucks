@@ -26,18 +26,39 @@
      Hugging Face saat runtime seperti biasa — jadi tetap tidak menambah
      ukuran repo.
 
-   Model voice: en_GB-semaine-medium (~63 MB .onnx + .onnx.json kecil)
+   PENTING — kenapa file library di-vendor (host sendiri), bukan dari CDN:
+   - Library resminya TIDAK punya opsi publik untuk memilih "speaker" pada
+     model multi-speaker seperti en_GB-semaine-medium (speakerId di-hardcode
+     ke 0 di dalam kodenya). Karena Anda minta suara "poppy" secara spesifik
+     (speaker index 3 pada model ini — urutan resminya: prudence=0, spike=1,
+     obadiah=2, poppy=3), saya tempel (patch) 4 baris kecil di salinan
+     dist/piper-tts-web.js supaya speakerId, noiseScale, noiseW, dan
+     lengthScale bisa diatur dari luar lewat TtsSession.speakerId dst — TANPA
+     mengubah logic inti/algoritma library sama sekali, cuma membuka 1 nilai
+     yang tadinya hardcode jadi bisa dikonfigurasi.
+   - File yang di-vendor (folder ./piper/) HANYA kode JS kecil (~320 KB total:
+     piper-tts-web.js yang sudah dipatch + phonemizer wasm loader + daftar
+     voice statis) — BUKAN model suara. Model .onnx (~63 MB) tetap diunduh
+     otomatis dari Hugging Face saat runtime seperti sebelumnya, TIDAK ikut
+     di-vendor/disertakan di source code.
+   - "Suara berubah-ubah" pada model VITS/Piper seperti semaine itu wajar:
+     model ini punya noise_scale/noise_w yang dipakai untuk memberi variasi
+     intonasi & tempo bicara secara acak di tiap generate (supaya tidak
+     terdengar monoton) — bukan bug, tapi juga bukan speaker yang berpindah
+     (speakerId memang selalu 0/prudence sebelum dipatch, TIDAK pernah acak).
+     Karena semaine dilatih dari rekaman akting emosional (proyek SEMAINE),
+     variasi ini terasa lebih kentara dibanding model lain. Saya turunkan
+     noiseScale & noiseW di bawah supaya hasil bicara Lolu lebih konsisten
+     antar-kalimat; kalau masih terasa kurang stabil, kecilkan lagi angkanya
+     (0 = paling datar/monoton, mendekati nilai asli model = paling ekspresif
+     tapi paling bervariasi).
+
+   Model voice: en_GB-semaine-medium — speaker "poppy" (~63 MB .onnx + .onnx.json kecil)
    - Model TIDAK disertakan di source code. Library ini otomatis mengunduh
      model dari Hugging Face (repo publik rhasspy/piper-voices — file:
      en/en_GB/semaine/medium/en_GB-semaine-medium.onnx dan .onnx.json) pada
      pemakaian pertama, lalu menyimpannya di Origin Private File System (OPFS)
      milik browser. Pemakaian berikutnya membaca dari OPFS, TIDAK unduh ulang.
-   - Kalau suatu saat ingin self-host model sendiri (mis. supaya tidak
-     bergantung ke Hugging Face), unduh manual kedua file itu dari:
-       https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/semaine/medium
-     lalu host di server/CDN sendiri — tapi ini butuh menyesuaikan opsi
-     custom base URL pada library (cek dokumentasi/README versi library yang
-     dipakai untuk nama opsi persisnya sebelum mengubah kode ini).
 
    PENTING — dependency 'onnxruntime-web':
    - piper-tts-web.js melakukan `import ... from 'onnxruntime-web'` di dalam
@@ -52,9 +73,23 @@
 (function () {
   'use strict';
 
-  // Versi dipin supaya perilaku konsisten. Naikkan manual kalau perlu update.
-  var PIPER_CDN_URL = 'https://cdn.jsdelivr.net/npm/@mintplex-labs/piper-tts-web@1.0.4/dist/piper-tts-web.js';
+  // File lokal (di-vendor, hasil patch kecil — lihat komentar di atas).
+  // Path relatif terhadap lolu-piper-tts.js sendiri TIDAK dipakai di sini;
+  // ini path relatif terhadap vibexa.html (folder ./piper/ ada di sebelah
+  // vibexa.html). Sesuaikan kalau struktur folder Anda berbeda.
+  var PIPER_MODULE_URL = './piper/piper-tts-web.js';
   var VOICE_ID = 'en_GB-semaine-medium';
+
+  // Speaker map resmi untuk en_GB-semaine-medium: prudence=0, spike=1,
+  // obadiah=2, poppy=3. Ganti angka ini kalau suatu saat ingin speaker lain
+  // dari model yang sama.
+  var SPEAKER_ID = 3; // poppy
+
+  // Redam variasi intonasi/tempo VITS supaya suara Lolu lebih konsisten
+  // antar-kalimat (lihat catatan panjang di atas). Set ke null kalau ingin
+  // pakai nilai bawaan model (lebih ekspresif, tapi lebih bervariasi).
+  var NOISE_SCALE = 0.35;   // bawaan model medium biasanya ~0.667
+  var NOISE_W = 0.4;        // bawaan model medium biasanya ~0.8
 
   var piperModulePromise = null;   // cache hasil import() library
   var modelReadyPromise = null;    // cache hasil "model sudah siap dipakai"
@@ -67,7 +102,17 @@
   // ── Load library Piper (sekali saja, lazy) ────────────────────────────
   function loadPiperModule() {
     if (!piperModulePromise) {
-      piperModulePromise = import(PIPER_CDN_URL).catch(function (err) {
+      piperModulePromise = import(PIPER_MODULE_URL).then(function (tts) {
+        // Set sekali di sini — TtsSession pakai pola singleton, dan nilai
+        // ini dibaca ulang tiap kali predict() dipanggil, jadi cukup di-set
+        // sekali saat modul pertama kali dimuat.
+        if (tts.TtsSession) {
+          tts.TtsSession.speakerId = SPEAKER_ID;
+          if (NOISE_SCALE !== null) tts.TtsSession.noiseScale = NOISE_SCALE;
+          if (NOISE_W !== null) tts.TtsSession.noiseW = NOISE_W;
+        }
+        return tts;
+      }).catch(function (err) {
         piperModulePromise = null; // biar bisa dicoba lagi lain waktu
         throw err;
       });
