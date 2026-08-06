@@ -235,6 +235,7 @@
   transition:opacity .18s ease;
 }
 #lolu-voice-page .lv-below-mic.lv-active .lv-idle-info{ opacity:0; pointer-events:none; }
+#lolu-voice-page .lv-below-mic.lv-active{ align-self:center; max-width:100%; }
 #lolu-voice-page .lv-title{
   font-size:1.3rem !important;
   font-weight:900 !important;
@@ -251,7 +252,8 @@
 
 #lolu-voice-page .lv-status-bubble{
   position:absolute; left:0; top:0; right:0;
-  display:none; align-items:center; gap:8px;
+  display:none; align-items:center; justify-content:center; gap:8px;
+  text-align:center;
   opacity:0; transform:translateY(4px);
   transition:opacity .18s ease, transform .18s ease;
 }
