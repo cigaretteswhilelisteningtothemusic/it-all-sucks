@@ -143,28 +143,44 @@
 }
 #lolu-voice-page.show{ display:flex; }
 
-/* ── Top bar: tombol kembali (kiri) + tombol mic (kanan) ─────────────── */
+/* ── Top bar: tombol keluar di kiri saja ──────────────────────────────── */
 .lv-topbar{
-  display:flex; align-items:center; justify-content:space-between;
-  padding:18px 18px 2px;
+  display:flex; align-items:center; justify-content:flex-start;
+  padding:18px 18px 0;
   flex-shrink:0;
 }
-.lv-back-btn, .lv-mic-top-btn{
-  width:38px; height:38px; border-radius:50%;
+.lv-back-btn{
+  width:36px; height:36px; border-radius:50%;
   border:none; background:transparent; color:var(--text,#fff);
   display:flex; align-items:center; justify-content:center;
   cursor:pointer; transition:background .15s ease, color .2s ease, transform .15s ease;
 }
-.lv-back-btn:hover, .lv-mic-top-btn:hover{ background:var(--hover,#282828); }
-.lv-back-btn:active, .lv-mic-top-btn:active{ transform:scale(.92); }
-.lv-mic-top-btn.listening{ color:#E0294B; }
-.lv-mic-top-btn.processing{ color:var(--green,#2E7DFF); }
-.lv-mic-top-btn.processing svg{ animation:loluMicProcessSpin 1s linear infinite; }
+.lv-back-btn:hover{ background:var(--hover,#282828); }
+.lv-back-btn:active{ transform:scale(.92); }
+
+/* ── Konten tengah: greeting -> burung -> mic -> teks di bawah mic ──────
+   Disusun jadi satu kolom flex yang mengisi sisa layar & ditengahkan,
+   persis seperti tata letak pada foto acuan. ───────────────────────────── */
+.lv-center{
+  flex:1; min-height:0;
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  padding:0 22px 32px;
+  gap:6px;
+  overflow-y:auto;
+}
+
+/* ── Teks sapaan "Good morning / Good night", berubah sesuai waktu ─────── */
+.lv-greeting{
+  font-size:1.7rem; font-weight:800; letter-spacing:-.01em;
+  text-align:center; color:#fff;
+  margin-bottom:18px;
+}
 
 /* ── Foto burung Lolu ──────────────────────────────────────────────── */
 .lv-bird-wrap{
   display:flex; align-items:center; justify-content:center;
-  padding:10px 24px 20px;
+  padding:0 24px 22px;
   flex-shrink:0;
 }
 .lv-bird-img{
@@ -173,88 +189,50 @@
   display:block;
 }
 
-/* ── Chat user <-> Lolu, bisa discroll (pakai class .ai-bubble-row/.ai-bubble
-     yang sama dengan Chat AI teks, supaya tampilannya konsisten). ───────── */
-.lv-chat-scroll{
-  flex:1; min-height:0;
-  overflow-y:auto; overflow-x:hidden;
-  padding:6px 20px 92px;
-  display:flex; flex-direction:column; gap:12px;
-  scrollbar-width:thin; scrollbar-color:var(--hover,#282828) transparent;
-  overscroll-behavior:contain; -webkit-overflow-scrolling:touch; touch-action:pan-y;
-}
-.lv-chat-empty{
-  margin:auto; text-align:center; color:var(--muted,#6a6a6a);
-  font-size:.85rem; padding:20px; max-width:280px;
-}
-
-/* ── Bubble status "Listening.../Processing..." khusus halaman ini ─────── */
-.lv-status-bubble{
-  position:absolute; left:22px; right:22px; bottom:120px;
-  max-width:calc(100% - 44px); margin:0 auto;
-  background:linear-gradient(135deg, var(--green,#2E7DFF), #6aa4ff);
-  color:#fff; border-radius:16px; padding:10px 14px;
-  font-size:.82rem; line-height:1.35;
-  box-shadow:0 8px 24px rgba(0,0,0,.35);
-  display:flex; align-items:center; gap:8px;
-  opacity:0; transform:translateY(8px) scale(.97); pointer-events:none;
-  transition:opacity .18s ease, transform .18s ease; z-index:30;
-}
-.lv-status-bubble.show{ opacity:1; transform:translateY(0) scale(1); }
-.lv-status-text{ word-break:break-word; }
-
-/* ── Kotak play: mirror ringkas dari kotak play utama (#bar) ───────────── */
-.lv-playbox{
-  flex-shrink:0;
-  margin:0 16px 18px;
-  padding:10px 12px;
-  border-radius:18px;
-  background:linear-gradient(135deg, #1DB954, #16a34a);
-  display:flex; align-items:center; gap:8px;
-  box-shadow:0 10px 26px rgba(0,0,0,.4);
-}
-.lv-playbox-track{
-  display:flex; align-items:center; gap:10px;
-  flex:1; min-width:0; cursor:pointer;
-}
-.lv-playbox-thumb{
-  width:44px; height:44px; border-radius:8px; flex-shrink:0;
-  background-color:rgba(0,0,0,.25);
-  background-position:center; background-size:cover; background-repeat:no-repeat;
-}
-.lv-playbox-info{ min-width:0; }
-.lv-playbox-title{
-  color:#fff; font-weight:700; font-size:.86rem;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-}
-.lv-playbox-artist{
-  color:rgba(255,255,255,.82); font-size:.74rem;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-}
-.lv-playbox-icon-btn{
-  position:relative;
-  width:30px; height:30px; border-radius:50%; border:none; background:transparent;
-  color:rgba(255,255,255,.85); display:flex; align-items:center; justify-content:center;
-  cursor:pointer; flex-shrink:0; transition:color .15s ease, transform .15s ease;
-}
-.lv-playbox-icon-btn:hover{ color:#fff; transform:scale(1.08); }
-.lv-playbox-icon-btn.liked{ color:#fff; }
-.lv-playbox-icon-btn.liked svg{ fill:#fff; }
-.lv-playbox-play-btn{
-  width:34px; height:34px; border-radius:50%; border:none;
-  background:#fff; color:#111;
+/* ── Tombol mic, sekarang jadi elemen utama di tengah halaman ─────────── */
+.lv-mic-top-btn{
+  width:52px; height:52px; border-radius:50%;
+  border:1px solid var(--border,rgba(255,255,255,.14));
+  background:var(--card,#181818); color:var(--text,#fff);
   display:flex; align-items:center; justify-content:center;
-  cursor:pointer; flex-shrink:0; transition:transform .15s ease;
+  cursor:pointer; flex-shrink:0;
+  transition:background .15s ease, color .2s ease, transform .15s ease, border-color .2s ease;
+  margin-bottom:22px;
 }
-.lv-playbox-play-btn:hover{ transform:scale(1.06); }
-.lv-playbox-play-btn:active{ transform:scale(.94); }
-.lv-playbox-mic-btn.listening{ color:#ffd7dd; }
-.lv-playbox-mic-btn.processing svg{ animation:loluMicProcessSpin 1s linear infinite; }
+.lv-mic-top-btn:hover{ transform:scale(1.05); border-color:var(--green,#2E7DFF); }
+.lv-mic-top-btn:active{ transform:scale(.94); }
+.lv-mic-top-btn.listening{ color:#fff; background:#E0294B; border-color:#E0294B; }
+.lv-mic-top-btn.processing{ color:#fff; background:var(--green,#2E7DFF); border-color:var(--green,#2E7DFF); }
+.lv-mic-top-btn.processing svg{ animation:loluMicProcessSpin 1s linear infinite; }
+
+/* ── Teks di bawah mic: judul + deskripsi (idle) atau bubble status ────── */
+.lv-below-mic{
+  position:relative;
+  width:100%; max-width:360px;
+  align-self:flex-start;
+  min-height:64px;
+}
+.lv-idle-info{
+  text-align:left;
+  transition:opacity .18s ease;
+}
+.lv-below-mic.lv-active .lv-idle-info{ opacity:0; pointer-events:none; }
+.lv-title{ font-size:1.15rem; font-weight:800; color:#fff; margin-bottom:6px; }
+.lv-subtitle{ font-size:.82rem; line-height:1.4; color:var(--muted,#9a9a9a); max-width:300px; }
+
+.lv-status-bubble{
+  position:absolute; left:0; top:0; right:0;
+  display:none; align-items:center; gap:8px;
+  opacity:0; transform:translateY(4px);
+  transition:opacity .18s ease, transform .18s ease;
+}
+.lv-status-bubble.show{ display:flex; opacity:1; transform:translateY(0); }
+.lv-status-text{ word-break:break-word; font-size:.92rem; color:#fff; }
 
 @media (max-width: 660px){
   .lv-topbar{ padding:14px 14px 0; }
+  .lv-center{ padding:0 16px 26px; }
+  .lv-greeting{ font-size:1.4rem; margin-bottom:14px; }
   .lv-bird-img{ width:min(54vw, 190px); }
-  .lv-chat-scroll{ padding:4px 14px 86px; }
-  .lv-status-bubble{ left:14px; right:14px; bottom:106px; font-size:.78rem; padding:9px 12px; }
-  .lv-playbox{ margin:0 12px 14px; }
+  .lv-below-mic{ max-width:100%; }
 }

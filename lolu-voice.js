@@ -394,18 +394,23 @@
     // halaman khusus #lolu-voice-page (lihat lolu-voice.css). Semua fungsi
     // di bawah sengaja menyasar KEDUANYA sekaligus lewat querySelectorAll,
     // supaya statusnya selalu sinkron di mana pun voice command dipicu.
-    function micBtns() { return document.querySelectorAll('#lolu-mic-btn, #lv-mic-top-btn, #lv-playbox-mic-btn'); }
+    function micBtns() { return document.querySelectorAll('#lolu-mic-btn, #lv-mic-top-btn'); }
     function bubbles() { return document.querySelectorAll('#lolu-voice-bubble, #lv-status-bubble'); }
     function bubbleTexts() { return document.querySelectorAll('#lolu-voice-bubble-text, #lv-status-text'); }
     // NOTE: #lv-bird-img SENGAJA tidak ikut disasar di sini — foto burung
     // Lolu di halaman Lolu Voice diam/statis (tidak ikut animasi pulsing)
     // sesuai permintaan, biar nyatu dengan halaman.
     function headIcons() { return document.querySelectorAll('#ai-chat-overlay .ai-chat-head-icon img'); }
+    // Wrapper teks di bawah mic pada #lolu-voice-page — dipakai untuk
+    // menyembunyikan judul+deskripsi idle ("Lolu dj...") selama bubble
+    // status ("Listening.../Processing...") sedang tampil.
+    function belowMicWrap() { return document.getElementById('lv-below-mic'); }
 
     function setIdle() {
       micBtns().forEach((b) => b.classList.remove('listening', 'processing'));
       bubbles().forEach((bub) => bub.classList.remove('show'));
       headIcons().forEach((hi) => hi.classList.remove('lolu-voice-pulsing'));
+      const w = belowMicWrap(); if (w) w.classList.remove('lv-active');
     }
     function setListening() {
       micBtns().forEach((b) => { b.classList.add('listening'); b.classList.remove('processing'); });
@@ -413,17 +418,23 @@
       bubbleTexts().forEach((txt) => { txt.textContent = label; });
       bubbles().forEach((bub) => bub.classList.add('show'));
       headIcons().forEach((hi) => hi.classList.add('lolu-voice-pulsing'));
+      const w = belowMicWrap(); if (w) w.classList.add('lv-active');
     }
     function setProcessing(heardText) {
       micBtns().forEach((b) => { b.classList.remove('listening'); b.classList.add('processing'); });
       const label = (currentLang === 'id-ID' ? 'Memproses: ' : 'Processing: ') + '“' + (heardText || '') + '”';
       bubbleTexts().forEach((txt) => { txt.textContent = label; });
       bubbles().forEach((bub) => bub.classList.add('show'));
+      const w = belowMicWrap(); if (w) w.classList.add('lv-active');
     }
     function setReply(text) {
       bubbleTexts().forEach((txt) => { txt.textContent = text; });
       bubbles().forEach((bub) => bub.classList.add('show'));
-      setTimeout(() => { bubbles().forEach((bub) => bub.classList.remove('show')); }, 3200);
+      const w = belowMicWrap(); if (w) w.classList.add('lv-active');
+      setTimeout(() => {
+        bubbles().forEach((bub) => bub.classList.remove('show'));
+        if (w) w.classList.remove('lv-active');
+      }, 3200);
       micBtns().forEach((b) => b.classList.remove('listening', 'processing'));
       headIcons().forEach((hi) => hi.classList.remove('lolu-voice-pulsing'));
     }
@@ -759,83 +770,30 @@
   //        LANGSUNG fungsi asli (toggleLikeCurrentTrack, toggleRepeatMode,
   //        _togglePlayPause) supaya perilakunya identik dengan kotak play
   //        asli, bukan implementasi terpisah.
+  //        (Kotak play & riwayat chat sudah DIHILANGKAN dari halaman ini
+  //        sesuai desain baru — lihat #lv-greeting/#lv-below-mic.)
   // ==========================================================================
-  let _lvSyncTimer = null;
-  let _lvLastChatLen = -1;
-
   function _lvPage() { return document.getElementById('lolu-voice-page'); }
 
-  // Render ulang bubble chat di halaman Lolu Voice dari aiChatDisplay milik
-  // vibexa.js — memakai class ai-bubble-row/ai-bubble yang SAMA dengan Chat
-  // AI berbasis teks (lihat vibexa.css) supaya tampilannya konsisten persis.
-  function _lvRenderChat(force) {
-    const c = document.getElementById('lv-chat-scroll');
-    if (!c) return;
-    if (typeof aiChatDisplay === 'undefined' || !Array.isArray(aiChatDisplay)) return;
-    if (!force && aiChatDisplay.length === _lvLastChatLen) return;
-    _lvLastChatLen = aiChatDisplay.length;
-
-    if (!aiChatDisplay.length) {
-      c.innerHTML = '<div class="lv-chat-empty">' +
-        reply('Tekan tombol mic lalu coba ngomong sesuatu ke Lolu.', 'Tap the mic button and try saying something to Lolu.') +
-        '</div>';
-      return;
+  // Teks sapaan "Good morning/afternoon/evening/night" (atau versi Indonesia)
+  // di atas foto Lolu, mengikuti jam perangkat saat halaman dibuka.
+  function _lvUpdateGreeting() {
+    const el = document.getElementById('lv-greeting');
+    if (!el) return;
+    const h = new Date().getHours();
+    let text;
+    if (currentLang === 'id-ID') {
+      text = (h >= 4 && h < 11) ? 'Selamat pagi'
+           : (h >= 11 && h < 15) ? 'Selamat siang'
+           : (h >= 15 && h < 18) ? 'Selamat sore'
+           : 'Selamat malam';
+    } else {
+      text = (h >= 4 && h < 11) ? 'Good morning'
+           : (h >= 11 && h < 15) ? 'Good afternoon'
+           : (h >= 15 && h < 18) ? 'Good evening'
+           : 'Good night';
     }
-    c.innerHTML = '';
-    aiChatDisplay.forEach((msg) => {
-      if (!msg || !msg.text) return;
-      const row = document.createElement('div');
-      row.className = 'ai-bubble-row ' + (msg.role === 'user' ? 'me' : 'ai');
-      const bub = document.createElement('div');
-      bub.className = 'ai-bubble';
-      bub.textContent = msg.text;
-      row.appendChild(bub);
-      c.appendChild(row);
-    });
-    c.scrollTop = c.scrollHeight;
-  }
-
-  // Cerminkan status kotak play utama (#bar, lihat vibexa.html/vibexa.js) ke
-  // kotak play versi ringkas di halaman Lolu Voice. Sengaja pakai polling
-  // ringan (bukan monkey-patch banyak fungsi vibexa.js) karena kotak play
-  // asli diupdate dari BANYAK tempat berbeda di vibexa.js.
-  function _lvSyncPlaybox() {
-    const titleSrc = document.getElementById('bar-title');
-    const artistSrc = document.getElementById('bar-artist');
-    const thumbSrc = document.getElementById('bar-thumb');
-    const t = document.getElementById('lv-playbox-title');
-    const a = document.getElementById('lv-playbox-artist');
-    const th = document.getElementById('lv-playbox-thumb');
-    if (t && titleSrc && t.textContent !== titleSrc.textContent) t.textContent = titleSrc.textContent;
-    if (a && artistSrc && a.textContent !== artistSrc.textContent) a.textContent = artistSrc.textContent;
-    if (th && thumbSrc) {
-      const bg = (thumbSrc.tagName === 'IMG' && thumbSrc.src) ? 'url("' + thumbSrc.src + '")' : 'none';
-      if (th.style.backgroundImage !== bg) th.style.backgroundImage = bg;
-    }
-
-    const playIco = document.getElementById('ico-play');
-    const pauseIco = document.getElementById('ico-pause');
-    const lvPlay = document.getElementById('lv-playbox-ico-play');
-    const lvPause = document.getElementById('lv-playbox-ico-pause');
-    if (playIco && lvPlay) lvPlay.style.display = playIco.style.display || 'block';
-    if (pauseIco && lvPause) lvPause.style.display = pauseIco.style.display || 'none';
-
-    const likeBtn = document.getElementById('btn-like');
-    const lvLike = document.getElementById('lv-playbox-like');
-    if (likeBtn && lvLike) {
-      lvLike.classList.toggle('liked', likeBtn.classList.contains('liked'));
-      lvLike.disabled = likeBtn.disabled;
-    }
-  }
-
-  function _lvStartSync() {
-    _lvStopSync();
-    _lvSyncPlaybox();
-    _lvRenderChat(true);
-    _lvSyncTimer = setInterval(() => { _lvSyncPlaybox(); _lvRenderChat(); }, 500);
-  }
-  function _lvStopSync() {
-    if (_lvSyncTimer) { clearInterval(_lvSyncTimer); _lvSyncTimer = null; }
+    el.textContent = text;
   }
 
   // Buka halaman Lolu Voice (dipanggil dari tombol mic di halaman Chat AI)
@@ -846,7 +804,7 @@
     const page = _lvPage();
     if (page) {
       page.classList.add('show');
-      _lvStartSync();
+      _lvUpdateGreeting();
     }
     startListening();
   }
@@ -857,7 +815,6 @@
   function closeVoicePage() {
     const page = _lvPage();
     if (page) page.classList.remove('show');
-    _lvStopSync();
     try { SpeechInput.stop(); } catch (e) {}
     try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) {}
     UIState.setIdle();

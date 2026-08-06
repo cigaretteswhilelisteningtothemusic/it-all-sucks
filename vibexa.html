@@ -1207,65 +1207,44 @@
      ========================================================================== -->
 <div id="lolu-voice-page">
   <div class="lv-topbar">
-    <button class="lv-back-btn" id="lv-back-btn" onclick="LoluVoiceDJ.closeVoicePage()" title="Kembali">
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    <button class="lv-back-btn" id="lv-back-btn" onclick="LoluVoiceDJ.closeVoicePage()" title="Keluar">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
     </button>
+  </div>
+
+  <div class="lv-center">
+    <div class="lv-greeting" id="lv-greeting">Good morning</div>
+
+    <div class="lv-bird-wrap">
+      <img id="lv-bird-img" class="lv-bird-img" src="lolu.png" alt="Lolu">
+    </div>
+
     <button class="lv-mic-top-btn" id="lv-mic-top-btn" onclick="LoluVoiceDJ.toggleListening()" title="Ngobrol pakai suara">
-      <svg id="lv-mic-top-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <svg id="lv-mic-top-icon" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/>
         <path d="M19 11a7 7 0 0 1-14 0"/>
         <path d="M12 18v3"/>
       </svg>
     </button>
-  </div>
 
-  <div class="lv-bird-wrap">
-    <img id="lv-bird-img" class="lv-bird-img" src="lolu.png" alt="Lolu">
-  </div>
+    <!-- Teks di bawah mikrofon: default menampilkan judul + deskripsi Lolu DJ
+         (lihat foto acuan). Saat sedang listening/processing/reply, konten ini
+         digantikan sementara oleh bubble status lewat lolu-voice.js. -->
+    <div class="lv-below-mic" id="lv-below-mic">
+      <div class="lv-idle-info" id="lv-idle-info">
+        <div class="lv-title">Lolu dj</div>
+        <div class="lv-subtitle">Lolu DJ is an AI DJ that plays music, takes voice commands, and chats with you</div>
+      </div>
 
-  <div class="lv-chat-scroll" id="lv-chat-scroll"></div>
-
-  <!-- Bubble status "Listening.../Processing.../<balasan Lolu>", versi khusus
-       halaman Lolu Voice (bubble milik Chat AI tetap ada terpisah, lihat
-       #lolu-voice-bubble di dalam #ai-chat-overlay). -->
-  <div id="lv-status-bubble" class="lv-status-bubble" role="status" aria-live="polite">
-    <div class="lolu-voice-bubble-row">
-      <span class="lolu-voice-dot"></span>
-      <span class="lolu-voice-dot"></span>
-      <span class="lolu-voice-dot"></span>
-    </div>
-    <div id="lv-status-text" class="lv-status-text">Listening...</div>
-  </div>
-
-  <!-- "Kotak play" — mirror ringkas dari kotak play utama (#bar) supaya user
-       tetap lihat & bisa kontrol lagu yang sedang diputar tanpa keluar dari
-       halaman Lolu Voice. Disinkronkan otomatis lewat lolu-voice.js. -->
-  <div class="lv-playbox" id="lv-playbox">
-    <div class="lv-playbox-track" onclick="openNP()" title="Buka Now Playing">
-      <div class="lv-playbox-thumb" id="lv-playbox-thumb"></div>
-      <div class="lv-playbox-info">
-        <div class="lv-playbox-title" id="lv-playbox-title">No Song Playing</div>
-        <div class="lv-playbox-artist" id="lv-playbox-artist">—</div>
+      <div id="lv-status-bubble" class="lv-status-bubble" role="status" aria-live="polite">
+        <div class="lolu-voice-bubble-row">
+          <span class="lolu-voice-dot"></span>
+          <span class="lolu-voice-dot"></span>
+          <span class="lolu-voice-dot"></span>
+        </div>
+        <div id="lv-status-text" class="lv-status-text">Listening...</div>
       </div>
     </div>
-    <button class="lv-playbox-icon-btn" id="lv-playbox-like" onclick="event.stopPropagation();toggleLikeCurrentTrack()" title="Save to Liked Songs">
-      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-    </button>
-    <button class="lv-playbox-icon-btn np-mob-repeat-btn" id="lv-playbox-repeat" onclick="event.stopPropagation();toggleRepeatMode()" title="Repeat">
-      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
-      <span class="np-mob-repeat-one-dot">1</span>
-    </button>
-    <button class="lv-playbox-play-btn" id="lv-playbox-play" onclick="event.stopPropagation();_togglePlayPause()" title="Play/Pause">
-      <svg id="lv-playbox-ico-play" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-      <svg id="lv-playbox-ico-pause" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-    </button>
-    <button class="lv-playbox-icon-btn lv-playbox-mic-btn" id="lv-playbox-mic-btn" onclick="event.stopPropagation();LoluVoiceDJ.toggleListening()" title="Ngobrol pakai suara">
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/>
-        <path d="M19 11a7 7 0 0 1-14 0"/>
-        <path d="M12 18v3"/>
-      </svg>
-    </button>
   </div>
 </div>
 
