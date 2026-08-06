@@ -388,36 +388,41 @@
   //    tahu apa-apa soal player atau parsing — cuma render state.
   // ==========================================================================
   const UIState = (function () {
-    function micBtn() { return document.getElementById('lolu-mic-btn'); }
-    function bubble() { return document.getElementById('lolu-voice-bubble'); }
-    function bubbleText() { return document.getElementById('lolu-voice-bubble-text'); }
-    function headIcon() { return document.querySelector('#ai-chat-overlay .ai-chat-head-icon img'); }
+    // NOTE: sekarang ada DUA "tempat" tombol mic + bubble status bisa
+    // dipakai — bubble/tombol lama di dalam #ai-chat-overlay (tetap
+    // dipertahankan biar tidak mengubah perilaku lama), dan yang baru di
+    // halaman khusus #lolu-voice-page (lihat lolu-voice.css). Semua fungsi
+    // di bawah sengaja menyasar KEDUANYA sekaligus lewat querySelectorAll,
+    // supaya statusnya selalu sinkron di mana pun voice command dipicu.
+    function micBtns() { return document.querySelectorAll('#lolu-mic-btn, #lv-mic-top-btn, #lv-playbox-mic-btn'); }
+    function bubbles() { return document.querySelectorAll('#lolu-voice-bubble, #lv-status-bubble'); }
+    function bubbleTexts() { return document.querySelectorAll('#lolu-voice-bubble-text, #lv-status-text'); }
+    function headIcons() { return document.querySelectorAll('#ai-chat-overlay .ai-chat-head-icon img, #lv-bird-img'); }
 
     function setIdle() {
-      const b = micBtn(); if (b) b.classList.remove('listening', 'processing');
-      const bub = bubble(); if (bub) bub.classList.remove('show');
-      const hi = headIcon(); if (hi) hi.classList.remove('lolu-voice-pulsing');
+      micBtns().forEach((b) => b.classList.remove('listening', 'processing'));
+      bubbles().forEach((bub) => bub.classList.remove('show'));
+      headIcons().forEach((hi) => hi.classList.remove('lolu-voice-pulsing'));
     }
     function setListening() {
-      const b = micBtn(); if (b) { b.classList.add('listening'); b.classList.remove('processing'); }
-      const bub = bubble(); const txt = bubbleText();
-      if (bub && txt) { txt.textContent = currentLang === 'id-ID' ? 'Mendengarkan...' : 'Listening...'; bub.classList.add('show'); }
-      const hi = headIcon(); if (hi) hi.classList.add('lolu-voice-pulsing');
+      micBtns().forEach((b) => { b.classList.add('listening'); b.classList.remove('processing'); });
+      const label = currentLang === 'id-ID' ? 'Mendengarkan...' : 'Listening...';
+      bubbleTexts().forEach((txt) => { txt.textContent = label; });
+      bubbles().forEach((bub) => bub.classList.add('show'));
+      headIcons().forEach((hi) => hi.classList.add('lolu-voice-pulsing'));
     }
     function setProcessing(heardText) {
-      const b = micBtn(); if (b) { b.classList.remove('listening'); b.classList.add('processing'); }
-      const bub = bubble(); const txt = bubbleText();
-      if (bub && txt) {
-        txt.textContent = (currentLang === 'id-ID' ? 'Memproses: ' : 'Processing: ') + '“' + (heardText || '') + '”';
-        bub.classList.add('show');
-      }
+      micBtns().forEach((b) => { b.classList.remove('listening'); b.classList.add('processing'); });
+      const label = (currentLang === 'id-ID' ? 'Memproses: ' : 'Processing: ') + '“' + (heardText || '') + '”';
+      bubbleTexts().forEach((txt) => { txt.textContent = label; });
+      bubbles().forEach((bub) => bub.classList.add('show'));
     }
     function setReply(text) {
-      const bub = bubble(); const txt = bubbleText();
-      if (bub && txt) { txt.textContent = text; bub.classList.add('show'); }
-      setTimeout(() => { const bub2 = bubble(); if (bub2) bub2.classList.remove('show'); }, 3200);
-      const b = micBtn(); if (b) b.classList.remove('listening', 'processing');
-      const hi = headIcon(); if (hi) hi.classList.remove('lolu-voice-pulsing');
+      bubbleTexts().forEach((txt) => { txt.textContent = text; });
+      bubbles().forEach((bub) => bub.classList.add('show'));
+      setTimeout(() => { bubbles().forEach((bub) => bub.classList.remove('show')); }, 3200);
+      micBtns().forEach((b) => b.classList.remove('listening', 'processing'));
+      headIcons().forEach((hi) => hi.classList.remove('lolu-voice-pulsing'));
     }
     function setError(text) { setReply(text); }
     function setLangBtnLabel(lang) {
@@ -741,6 +746,121 @@
   }
 
   // ==========================================================================
+  // 9) LOLU VOICE PAGE — halaman khusus (full page) untuk ngobrol pakai
+  //    suara, dibuka lewat tombol mic di halaman Chat AI. Berisi 3 bagian
+  //    yang disinkronkan dari data yang SUDAH ADA (bukan sumber data baru):
+  //      - chat user<->Lolu -> dicerminkan dari aiChatDisplay milik
+  //        vibexa.js (sama seperti AIChatBridge di atas)
+  //      - "kotak play" -> dicerminkan dari kotak play utama (#bar) milik
+  //        vibexa.js, plus tombol like/repeat/play-pause yang MEMANGGIL
+  //        LANGSUNG fungsi asli (toggleLikeCurrentTrack, toggleRepeatMode,
+  //        _togglePlayPause) supaya perilakunya identik dengan kotak play
+  //        asli, bukan implementasi terpisah.
+  // ==========================================================================
+  let _lvSyncTimer = null;
+  let _lvLastChatLen = -1;
+
+  function _lvPage() { return document.getElementById('lolu-voice-page'); }
+
+  // Render ulang bubble chat di halaman Lolu Voice dari aiChatDisplay milik
+  // vibexa.js — memakai class ai-bubble-row/ai-bubble yang SAMA dengan Chat
+  // AI berbasis teks (lihat vibexa.css) supaya tampilannya konsisten persis.
+  function _lvRenderChat(force) {
+    const c = document.getElementById('lv-chat-scroll');
+    if (!c) return;
+    if (typeof aiChatDisplay === 'undefined' || !Array.isArray(aiChatDisplay)) return;
+    if (!force && aiChatDisplay.length === _lvLastChatLen) return;
+    _lvLastChatLen = aiChatDisplay.length;
+
+    if (!aiChatDisplay.length) {
+      c.innerHTML = '<div class="lv-chat-empty">' +
+        reply('Tekan tombol mic lalu coba ngomong sesuatu ke Lolu.', 'Tap the mic button and try saying something to Lolu.') +
+        '</div>';
+      return;
+    }
+    c.innerHTML = '';
+    aiChatDisplay.forEach((msg) => {
+      if (!msg || !msg.text) return;
+      const row = document.createElement('div');
+      row.className = 'ai-bubble-row ' + (msg.role === 'user' ? 'me' : 'ai');
+      const bub = document.createElement('div');
+      bub.className = 'ai-bubble';
+      bub.textContent = msg.text;
+      row.appendChild(bub);
+      c.appendChild(row);
+    });
+    c.scrollTop = c.scrollHeight;
+  }
+
+  // Cerminkan status kotak play utama (#bar, lihat vibexa.html/vibexa.js) ke
+  // kotak play versi ringkas di halaman Lolu Voice. Sengaja pakai polling
+  // ringan (bukan monkey-patch banyak fungsi vibexa.js) karena kotak play
+  // asli diupdate dari BANYAK tempat berbeda di vibexa.js.
+  function _lvSyncPlaybox() {
+    const titleSrc = document.getElementById('bar-title');
+    const artistSrc = document.getElementById('bar-artist');
+    const thumbSrc = document.getElementById('bar-thumb');
+    const t = document.getElementById('lv-playbox-title');
+    const a = document.getElementById('lv-playbox-artist');
+    const th = document.getElementById('lv-playbox-thumb');
+    if (t && titleSrc && t.textContent !== titleSrc.textContent) t.textContent = titleSrc.textContent;
+    if (a && artistSrc && a.textContent !== artistSrc.textContent) a.textContent = artistSrc.textContent;
+    if (th && thumbSrc) {
+      const bg = (thumbSrc.tagName === 'IMG' && thumbSrc.src) ? 'url("' + thumbSrc.src + '")' : 'none';
+      if (th.style.backgroundImage !== bg) th.style.backgroundImage = bg;
+    }
+
+    const playIco = document.getElementById('ico-play');
+    const pauseIco = document.getElementById('ico-pause');
+    const lvPlay = document.getElementById('lv-playbox-ico-play');
+    const lvPause = document.getElementById('lv-playbox-ico-pause');
+    if (playIco && lvPlay) lvPlay.style.display = playIco.style.display || 'block';
+    if (pauseIco && lvPause) lvPause.style.display = pauseIco.style.display || 'none';
+
+    const likeBtn = document.getElementById('btn-like');
+    const lvLike = document.getElementById('lv-playbox-like');
+    if (likeBtn && lvLike) {
+      lvLike.classList.toggle('liked', likeBtn.classList.contains('liked'));
+      lvLike.disabled = likeBtn.disabled;
+    }
+  }
+
+  function _lvStartSync() {
+    _lvStopSync();
+    _lvSyncPlaybox();
+    _lvRenderChat(true);
+    _lvSyncTimer = setInterval(() => { _lvSyncPlaybox(); _lvRenderChat(); }, 500);
+  }
+  function _lvStopSync() {
+    if (_lvSyncTimer) { clearInterval(_lvSyncTimer); _lvSyncTimer = null; }
+  }
+
+  // Buka halaman Lolu Voice (dipanggil dari tombol mic di halaman Chat AI)
+  // lalu LANGSUNG mulai mendengarkan, persis seperti perilaku tombol mic
+  // sebelumnya — cuma sekarang sesi mendengarkannya berlangsung di halaman
+  // penuh ini, bukan di dalam overlay Chat AI.
+  function openVoicePage() {
+    const page = _lvPage();
+    if (page) {
+      page.classList.add('show');
+      _lvStartSync();
+    }
+    startListening();
+  }
+
+  // Tutup halaman Lolu Voice, kembali ke halaman Chat AI (yang tetap
+  // terbuka di baliknya — tidak ikut ditutup). Hentikan voice recognition
+  // & TTS yang mungkin masih berjalan.
+  function closeVoicePage() {
+    const page = _lvPage();
+    if (page) page.classList.remove('show');
+    _lvStopSync();
+    try { SpeechInput.stop(); } catch (e) {}
+    try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) {}
+    UIState.setIdle();
+  }
+
+  // ==========================================================================
   // PUBLIC API
   // ==========================================================================
   function toggleListening() {
@@ -803,7 +923,9 @@
     startListening,
     stopListening: SpeechInput.stop,
     toggleLanguage,
-    isSupported: SpeechInput.isSupported
+    isSupported: SpeechInput.isSupported,
+    openVoicePage,
+    closeVoicePage
   };
 
   // ── Init: label tombol bahasa sesuai preferensi tersimpan, dan hentikan
@@ -823,6 +945,12 @@
     window.closeAIChatOverlay = function () {
       try { SpeechInput.stop(); } catch (e) {}
       try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) {}
+      // Halaman Lolu Voice dibuka DI ATAS #ai-chat-overlay (bukan menggantikan
+      // -nya), jadi kalau Chat AI ditutup (mis. lewat tombol back atau ganti
+      // halaman lain), halaman Lolu Voice yang mungkin masih terbuka di
+      // atasnya harus ikut ditutup supaya tidak jadi overlay "hantu" yang
+      // menutupi halaman lain.
+      closeVoicePage();
       return _origCloseAIChatOverlay.apply(this, arguments);
     };
   }
