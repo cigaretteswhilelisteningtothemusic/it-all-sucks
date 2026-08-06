@@ -806,7 +806,9 @@
       page.classList.add('show');
       _lvUpdateGreeting();
     }
-    startListening();
+    // Sengaja TIDAK langsung startListening() -- halaman terbuka dalam
+    // kondisi idle, mic baru aktif kalau user menekan tombol mic sendiri.
+    UIState.setIdle();
   }
 
   // Tutup halaman Lolu Voice, kembali ke halaman Chat AI (yang tetap
@@ -824,7 +826,17 @@
   // PUBLIC API
   // ==========================================================================
   function toggleListening() {
-    if (SpeechInput.isListening()) { SpeechInput.stop(); return; }
+    if (SpeechInput.isListening()) {
+      SpeechInput.stop();
+      // onEnd bawaan SpeechInput.start() tidak reset tampilan (lihat
+      // komentar di startListening), jadi harus di-reset manual di sini
+      // supaya tombol mic & bubble status langsung balik ke idle begitu
+      // user menekan mic untuk MEMATIKANNYA (bukan cuma berhenti dengar
+      // di background tanpa update tampilan).
+      UIState.setIdle();
+      PlaybackController.restoreVolumeAfterDuck();
+      return;
+    }
     startListening();
   }
 
