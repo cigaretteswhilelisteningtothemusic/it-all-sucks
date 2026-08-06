@@ -29,7 +29,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icons/launchericon-192x192.png">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&family=Press+Start+2P&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vibexa.css">
-<link rel="stylesheet" href="lolu-voice.css">
+<link rel="stylesheet" href="lolu-voice.css?v=2">
 </head>
 <body>
 
@@ -1219,13 +1219,15 @@
       <img id="lv-bird-img" class="lv-bird-img" src="lolu.png" alt="Lolu">
     </div>
 
-    <button class="lv-mic-top-btn" id="lv-mic-top-btn" onclick="LoluVoiceDJ.toggleListening()" title="Ngobrol pakai suara">
-      <svg id="lv-mic-top-icon" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/>
-        <path d="M19 11a7 7 0 0 1-14 0"/>
-        <path d="M12 18v3"/>
-      </svg>
-    </button>
+    <div class="lv-mic-wrap">
+      <button class="lv-mic-top-btn" id="lv-mic-top-btn" onclick="LoluVoiceDJ.toggleListening()" title="Ngobrol pakai suara">
+        <svg id="lv-mic-top-icon" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/>
+          <path d="M19 11a7 7 0 0 1-14 0"/>
+          <path d="M12 18v3"/>
+        </svg>
+      </button>
+    </div>
 
     <!-- Teks di bawah mikrofon: default menampilkan judul + deskripsi Lolu DJ
          (lihat foto acuan). Saat sedang listening/processing/reply, konten ini
@@ -1963,6 +1965,6 @@
 
 <script src="vibexa.js"></script>
 <script src="lolu-piper-tts.js"></script>
-<script src="lolu-voice.js"></script>
+<script src="lolu-voice.js?v=2"></script>
 </body>
 </html>

@@ -144,95 +144,123 @@
 #lolu-voice-page.show{ display:flex; }
 
 /* ── Top bar: tombol keluar di kiri saja ──────────────────────────────── */
-.lv-topbar{
+#lolu-voice-page .lv-topbar{
   display:flex; align-items:center; justify-content:flex-start;
   padding:18px 18px 0;
   flex-shrink:0;
+  width:100%;
 }
-.lv-back-btn{
+#lolu-voice-page .lv-back-btn{
   width:36px; height:36px; border-radius:50%;
   border:none; background:transparent; color:var(--text,#fff);
   display:flex; align-items:center; justify-content:center;
   cursor:pointer; transition:background .15s ease, color .2s ease, transform .15s ease;
 }
-.lv-back-btn:hover{ background:var(--hover,#282828); }
-.lv-back-btn:active{ transform:scale(.92); }
+#lolu-voice-page .lv-back-btn:hover{ background:var(--hover,#282828); }
+#lolu-voice-page .lv-back-btn:active{ transform:scale(.92); }
 
 /* ── Konten tengah: greeting -> burung -> mic -> teks di bawah mic ──────
    Disusun jadi satu kolom flex yang mengisi sisa layar & ditengahkan,
-   persis seperti tata letak pada foto acuan. ───────────────────────────── */
-.lv-center{
-  flex:1; min-height:0;
+   persis seperti tata letak pada foto acuan. Setiap elemen JUGA diberi
+   width:100% + text-align/margin:auto sendiri-sendiri sebagai jaring
+   pengaman kalau centering lewat flex saja tidak konsisten di semua
+   browser/versi cache. ───────────────────────────── */
+#lolu-voice-page .lv-center{
+  flex:1; min-height:0; width:100%;
   display:flex; flex-direction:column;
   align-items:center; justify-content:center;
   padding:0 22px 32px;
   gap:6px;
   overflow-y:auto;
+  box-sizing:border-box;
 }
 
 /* ── Teks sapaan "Good morning / Good night", berubah sesuai waktu ─────── */
-.lv-greeting{
-  font-size:1.7rem; font-weight:800; letter-spacing:-.01em;
-  text-align:center; color:#fff;
-  margin-bottom:18px;
+#lolu-voice-page .lv-greeting{
+  display:block;
+  width:100%;
+  font-size:2rem !important;
+  font-weight:900 !important;
+  letter-spacing:-.01em;
+  text-align:center !important;
+  color:#fff;
+  margin:0 0 20px !important;
 }
 
 /* ── Foto burung Lolu ──────────────────────────────────────────────── */
-.lv-bird-wrap{
+#lolu-voice-page .lv-bird-wrap{
   display:flex; align-items:center; justify-content:center;
+  width:100%;
   padding:0 24px 22px;
   flex-shrink:0;
 }
-.lv-bird-img{
+#lolu-voice-page .lv-bird-img{
   width:min(46vw, 220px); height:auto;
   image-rendering:pixelated;
   display:block;
 }
 
-/* ── Tombol mic, sekarang jadi elemen utama di tengah halaman ─────────── */
-.lv-mic-top-btn{
-  width:52px; height:52px; border-radius:50%;
+/* ── Tombol mic, sekarang jadi elemen utama di tengah halaman — dibungkus
+   wrapper flex tersendiri supaya posisi tengah TIDAK bergantung sepenuhnya
+   pada align-items milik parent. ─────────────────────────────────────── */
+#lolu-voice-page .lv-mic-wrap{
+  display:flex; width:100%; justify-content:center;
+  margin-bottom:22px;
+}
+#lolu-voice-page .lv-mic-top-btn{
+  width:56px; height:56px; border-radius:50%;
   border:1px solid var(--border,rgba(255,255,255,.14));
   background:var(--card,#181818); color:var(--text,#fff);
   display:flex; align-items:center; justify-content:center;
-  cursor:pointer; flex-shrink:0;
+  cursor:pointer; flex-shrink:0; margin:0;
   transition:background .15s ease, color .2s ease, transform .15s ease, border-color .2s ease;
-  margin-bottom:22px;
 }
-.lv-mic-top-btn:hover{ transform:scale(1.05); border-color:var(--green,#2E7DFF); }
-.lv-mic-top-btn:active{ transform:scale(.94); }
-.lv-mic-top-btn.listening{ color:#fff; background:#E0294B; border-color:#E0294B; }
-.lv-mic-top-btn.processing{ color:#fff; background:var(--green,#2E7DFF); border-color:var(--green,#2E7DFF); }
-.lv-mic-top-btn.processing svg{ animation:loluMicProcessSpin 1s linear infinite; }
+#lolu-voice-page .lv-mic-top-btn:hover{ transform:scale(1.05); border-color:var(--green,#2E7DFF); }
+#lolu-voice-page .lv-mic-top-btn:active{ transform:scale(.94); }
+#lolu-voice-page .lv-mic-top-btn.listening{ color:#fff; background:#E0294B; border-color:#E0294B; }
+#lolu-voice-page .lv-mic-top-btn.processing{ color:#fff; background:var(--green,#2E7DFF); border-color:var(--green,#2E7DFF); }
+#lolu-voice-page .lv-mic-top-btn.processing svg{ animation:loluMicProcessSpin 1s linear infinite; }
 
 /* ── Teks di bawah mic: judul + deskripsi (idle) atau bubble status ────── */
-.lv-below-mic{
+#lolu-voice-page .lv-below-mic{
   position:relative;
   width:100%; max-width:360px;
   align-self:flex-start;
   min-height:64px;
+  box-sizing:border-box;
 }
-.lv-idle-info{
+#lolu-voice-page .lv-idle-info{
   text-align:left;
   transition:opacity .18s ease;
 }
-.lv-below-mic.lv-active .lv-idle-info{ opacity:0; pointer-events:none; }
-.lv-title{ font-size:1.15rem; font-weight:800; color:#fff; margin-bottom:6px; }
-.lv-subtitle{ font-size:.82rem; line-height:1.4; color:var(--muted,#9a9a9a); max-width:300px; }
+#lolu-voice-page .lv-below-mic.lv-active .lv-idle-info{ opacity:0; pointer-events:none; }
+#lolu-voice-page .lv-title{
+  font-size:1.3rem !important;
+  font-weight:900 !important;
+  color:#fff;
+  margin:0 0 6px !important;
+}
+#lolu-voice-page .lv-subtitle{
+  font-size:.8rem !important;
+  font-weight:400 !important;
+  line-height:1.45;
+  color:var(--muted,#9a9a9a);
+  max-width:300px;
+}
 
-.lv-status-bubble{
+#lolu-voice-page .lv-status-bubble{
   position:absolute; left:0; top:0; right:0;
   display:none; align-items:center; gap:8px;
   opacity:0; transform:translateY(4px);
   transition:opacity .18s ease, transform .18s ease;
 }
-.lv-status-bubble.show{ display:flex; opacity:1; transform:translateY(0); }
-.lv-status-text{ word-break:break-word; font-size:.92rem; color:#fff; }
+#lolu-voice-page .lv-status-bubble.show{ display:flex; opacity:1; transform:translateY(0); }
+#lolu-voice-page .lv-status-text{ word-break:break-word; font-size:.92rem; color:#fff; }
 
 @media (max-width: 660px){
-  .lv-topbar{ padding:14px 14px 0; }
-  .lv-center{ padding:0 16px 26px; }
-  .lv-greeting{ font-size:1.4rem; margin-bottom:14px; }
-  .lv-bird-img{ width:min(54vw, 190px); }
-  .lv-below-mic{ max-width:100%; }
+  #lolu-voice-page .lv-topbar{ padding:14px 14px 0; }
+  #lolu-voice-page .lv-center{ padding:0 16px 26px; }
+  #lolu-voice-page .lv-greeting{ font-size:1.6rem !important; margin-bottom:14px !important; }
+  #lolu-voice-page .lv-bird-img{ width:min(54vw, 190px); }
+  #lolu-voice-page .lv-below-mic{ max-width:100%; }
 }
