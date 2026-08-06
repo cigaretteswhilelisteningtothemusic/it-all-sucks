@@ -397,7 +397,10 @@
     function micBtns() { return document.querySelectorAll('#lolu-mic-btn, #lv-mic-top-btn, #lv-playbox-mic-btn'); }
     function bubbles() { return document.querySelectorAll('#lolu-voice-bubble, #lv-status-bubble'); }
     function bubbleTexts() { return document.querySelectorAll('#lolu-voice-bubble-text, #lv-status-text'); }
-    function headIcons() { return document.querySelectorAll('#ai-chat-overlay .ai-chat-head-icon img, #lv-bird-img'); }
+    // NOTE: #lv-bird-img SENGAJA tidak ikut disasar di sini — foto burung
+    // Lolu di halaman Lolu Voice diam/statis (tidak ikut animasi pulsing)
+    // sesuai permintaan, biar nyatu dengan halaman.
+    function headIcons() { return document.querySelectorAll('#ai-chat-overlay .ai-chat-head-icon img'); }
 
     function setIdle() {
       micBtns().forEach((b) => b.classList.remove('listening', 'processing'));

@@ -170,10 +170,8 @@
 .lv-bird-img{
   width:min(46vw, 220px); height:auto;
   image-rendering:pixelated;
-  filter:drop-shadow(0 14px 32px rgba(0,0,0,.55));
-  transition:transform .2s ease, filter .2s ease;
+  display:block;
 }
-.lv-bird-img.lolu-voice-pulsing{ animation:loluHeadIconPulse 1s ease-in-out infinite; }
 
 /* ── Chat user <-> Lolu, bisa discroll (pakai class .ai-bubble-row/.ai-bubble
      yang sama dengan Chat AI teks, supaya tampilannya konsisten). ───────── */
