@@ -96,6 +96,11 @@
   var audioUnlocked = false;       // sudah ada user-gesture yang unlock audio?
   var sharedAudioCtx = null;
   var currentAudio = null;
+  var currentAudioFinish = null; // fungsi "selesai" utk promise speakDJ yang
+                                  // lagi berjalan saat ini — dipanggil kalau
+                                  // audio itu di-interrupt oleh speakDJ()
+                                  // baru sebelum sempat 'ended', supaya
+                                  // promise LAMA tidak nge-hang selamanya
   var speakToken = 0;              // dipakai supaya speakDJ terbaru "menang"
                                     // kalau ada pemanggilan bertumpuk
 
@@ -207,6 +212,15 @@
   }
 
   // ── Fungsi utama: teks -> suara Piper -> diputar otomatis ──────────────
+  // PENTING: Promise yang dikembalikan fungsi ini BARU resolve setelah
+  // audio-nya BENERAN selesai diputar (event 'ended'), BUKAN cuma setelah
+  // audio.play() dipanggil. Sebelumnya fungsi ini resolve nyaris seketika
+  // begitu playback dimulai, jadi pemanggil yang perlu "menunggu Lolu
+  // selesai ngomong" (mis. LoluDJ._speakAwait, dipakai buat menahan lagu
+  // supaya tidak langsung bunyi bareng suara Lolu) diam-diam cuma menunggu
+  // estimasi kasar dari jumlah kata, bukan durasi asli — makanya lagu bisa
+  // kedengeran mulai duluan padahal Lolu masih ngomong. Sekarang pemanggil
+  // benar-benar menunggu sampai audio Piper selesai.
   function speakDJ(text) {
     if (!text) return Promise.resolve();
     var myToken = ++speakToken;
@@ -222,29 +236,71 @@
 
         if (currentAudio) {
           try { currentAudio.pause(); } catch (e) {}
+          // Audio LAMA di-interrupt sebelum sempat 'ended' -> selesaikan
+          // promise-nya sekarang juga supaya pemanggil sebelumnya (yang
+          // masih menunggu) tidak nge-hang selamanya.
+          if (typeof currentAudioFinish === 'function') {
+            try { currentAudioFinish(); } catch (e) {}
+          }
         }
         var url = URL.createObjectURL(wav);
         var audio = new Audio(url);
         currentAudio = audio;
-        audio.addEventListener('ended', function () { URL.revokeObjectURL(url); });
-        audio.addEventListener('error', function () { URL.revokeObjectURL(url); });
 
-        var playPromise = audio.play();
-        if (playPromise && typeof playPromise.catch === 'function') {
-          playPromise.catch(function () {
-            // Autoplay masih diblokir (belum ada gesture yang "nyantol").
-            // Tunggu satu klik/tap berikutnya untuk memutar ulang.
-            _setStatusUI('Ketuk layar untuk dengar balasan Lolu');
-            var resumeOnGesture = function () {
-              audio.play().catch(function () {});
-              _clearStatusUI();
-              document.removeEventListener('click', resumeOnGesture);
-              document.removeEventListener('touchend', resumeOnGesture);
-            };
-            document.addEventListener('click', resumeOnGesture, { once: true });
-            document.addEventListener('touchend', resumeOnGesture, { once: true });
-          });
-        }
+        return new Promise(function (resolve) {
+          var settled = false;
+          var safetyTimer = null;
+
+          function finish() {
+            if (settled) return;
+            settled = true;
+            clearTimeout(safetyTimer);
+            audio.removeEventListener('ended', finish);
+            audio.removeEventListener('error', finish);
+            try { URL.revokeObjectURL(url); } catch (e) {}
+            if (currentAudioFinish === finish) currentAudioFinish = null;
+            resolve();
+          }
+          currentAudioFinish = finish;
+
+          audio.addEventListener('ended', finish);
+          audio.addEventListener('error', finish);
+
+          // Jaring pengaman: kalau 'ended' entah kenapa tidak pernah
+          // ter-trigger (mis. autoplay diblokir & user TIDAK PERNAH nge-tap
+          // layar buat resume, atau decode gagal diam-diam), JANGAN tahan
+          // lagu selamanya. Begitu metadata audio kebaca, batasi maksimum
+          // tunggu = durasi asli + sedikit buffer; sebelum itu kebaca,
+          // pakai fallback flat 20 detik.
+          function armSafetyTimer() {
+            var estMs = (audio.duration && isFinite(audio.duration) && audio.duration > 0)
+              ? (audio.duration * 1000) + 2500
+              : 20000;
+            clearTimeout(safetyTimer);
+            safetyTimer = setTimeout(finish, estMs);
+          }
+          audio.addEventListener('loadedmetadata', armSafetyTimer);
+          armSafetyTimer();
+
+          var playPromise = audio.play();
+          if (playPromise && typeof playPromise.catch === 'function') {
+            playPromise.catch(function () {
+              // Autoplay masih diblokir (belum ada gesture yang "nyantol").
+              // Tunggu satu klik/tap berikutnya untuk memutar ulang. Promise
+              // speakDJ tetap menunggu (lewat safetyTimer di atas kalau user
+              // tidak pernah tap, atau lewat 'ended' begitu berhasil diputar).
+              _setStatusUI('Ketuk layar untuk dengar balasan Lolu');
+              var resumeOnGesture = function () {
+                audio.play().catch(function () {});
+                _clearStatusUI();
+                document.removeEventListener('click', resumeOnGesture);
+                document.removeEventListener('touchend', resumeOnGesture);
+              };
+              document.addEventListener('click', resumeOnGesture, { once: true });
+              document.addEventListener('touchend', resumeOnGesture, { once: true });
+            });
+          }
+        });
       })
       .catch(function (err) {
         console.error('[LoluPiperTTS] speakDJ gagal:', err);
