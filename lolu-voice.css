@@ -316,7 +316,7 @@
   /* Mobile: tetap fullscreen menutupi seluruh layar (tidak ada panel
      kiri/kanan yang perlu disisakan), sekaligus lepas dari alur #main
      supaya tidak ikut ter-scroll bareng konten halaman utama. */
-  #lolu-voice-page{ position:fixed; inset:0; z-index:500; border-radius:0; width:100vw; height:100vh; height:100dvh; }
+  #lolu-voice-page{ position:fixed; inset:0; z-index:99999; border-radius:0; width:100vw; height:100vh; height:100dvh; }
   #lolu-voice-page .lv-topbar{ padding:14px 14px 0; }
   #lolu-voice-page .lv-center{ padding:0 16px 26px; }
   #lolu-voice-page .lv-greeting{ font-size:1.6rem !important; margin-bottom:14px !important; }

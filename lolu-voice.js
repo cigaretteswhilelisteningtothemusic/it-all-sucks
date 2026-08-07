@@ -1041,6 +1041,18 @@
   function openVoicePage() {
     const page = _lvPage();
     if (page) {
+      // FIX FULLSCREEN MOBILE: #lolu-voice-page aslinya diletakkan di
+      // dalam <main id="main">. Kalau #main (atau parent lain di
+      // atasnya) punya CSS transform/filter/will-change, "position:fixed"
+      // milik halaman ini jadi terjebak relatif ke #main, bukan ke
+      // seluruh layar -- akibatnya search bar (.home-topbar) yang ada
+      // DI LUAR #main tetap kelihatan di atasnya, dan tombol back/mic di
+      // topbar halaman ini ikut ketutup/kepotong. Solusinya: pindahkan
+      // elemen ini jadi anak langsung <body> (sekali saja, aman dipanggil
+      // berkali-kali) supaya posisinya benar-benar relatif ke viewport.
+      if (page.parentElement !== document.body) {
+        document.body.appendChild(page);
+      }
       page.classList.add('show');
       _lvUpdateGreeting();
     }
