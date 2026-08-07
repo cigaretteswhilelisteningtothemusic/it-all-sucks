@@ -1189,6 +1189,13 @@
         <span class="lolu-mic-pulse"></span>
       </button>
       <button class="ai-chat-mic-lang-btn" id="lolu-mic-lang-btn" onclick="LoluVoiceDJ.toggleLanguage(event)" title="Bahasa untuk voice command">ID</button>
+      <button class="ai-chat-mic-btn lv-dj-toggle-btn" id="lolu-dj-toggle-btn-chat" onclick="LoluDJ.toggle()" title="Mode DJ">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 14v-3a8 8 0 0 1 16 0v3"/>
+          <path d="M20 14a2 2 0 0 1-2 2h-1v-5h1a2 2 0 0 1 2 2v1z"/>
+          <path d="M4 14a2 2 0 0 0 2 2h1v-5H6a2 2 0 0 0-2 2v1z"/>
+        </svg>
+      </button>
       <textarea id="ai-chat-input" rows="1" placeholder="Minta playlist, rekomendasi lagu, atau ngobrol soal musik..." autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAIChatMessage();}"></textarea>
       <button class="ai-chat-send-btn" id="ai-chat-send-btn" onclick="sendAIChatMessage()" title="Send">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>
@@ -1210,9 +1217,25 @@
     <button class="lv-back-btn" id="lv-back-btn" onclick="LoluVoiceDJ.closeVoicePage()" title="Keluar">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
     </button>
+    <!-- Toggle "Mode DJ" — lihat lolu-dj.js. Menyalakan sesi radio DJ otomatis
+         (queue lagu + komentar suara Lolu di antara lagu), terpisah dari
+         voice command satu-kali biasa. -->
+    <button class="lv-dj-toggle-btn" id="lolu-dj-toggle-btn" onclick="LoluDJ.toggle()" title="Nyalakan mode DJ">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 14v-3a8 8 0 0 1 16 0v3"/>
+        <path d="M20 14a2 2 0 0 1-2 2h-1v-5h1a2 2 0 0 1 2 2v1z"/>
+        <path d="M4 14a2 2 0 0 0 2 2h1v-5H6a2 2 0 0 0-2 2v1z"/>
+      </svg>
+      <span>DJ</span>
+    </button>
   </div>
 
   <div class="lv-center">
+    <!-- Indikator "ON AIR" — cuma tampil selagi mode DJ (lolu-dj.js) aktif. -->
+    <div class="lv-onair-badge" id="lv-onair-badge">
+      <span class="dot"></span>
+      <span id="lv-onair-badge-text">ON AIR</span>
+    </div>
     <div class="lv-greeting" id="lv-greeting">Good morning</div>
 
     <div class="lv-bird-wrap">
@@ -1236,6 +1259,22 @@
       <div class="lv-idle-info" id="lv-idle-info">
         <div class="lv-title">Lolu dj</div>
         <div class="lv-subtitle">Lolu DJ is an AI DJ that plays music, takes voice commands, and chats with you</div>
+      </div>
+
+      <!-- Mood/vibe chips — cuma tampil selagi mode DJ aktif (lihat lolu-dj.js
+           LoluDJ.setMood). Tap salah satu = ganti vibe musik langsung tanpa
+           bikin playlist baru, setara ucapan "play something chill" dst. -->
+      <div class="lv-mood-chips" id="lv-mood-chips">
+        <button class="lv-mood-chip" data-mood="favorites" onclick="LoluDJ.setMood('favorites')">✨ For You</button>
+        <button class="lv-mood-chip" data-mood="chill" onclick="LoluDJ.setMood('chill')">😌 Chill</button>
+        <button class="lv-mood-chip" data-mood="happy" onclick="LoluDJ.setMood('happy')">🙂 Happy</button>
+        <button class="lv-mood-chip" data-mood="workout" onclick="LoluDJ.setMood('workout')">💪 Workout</button>
+        <button class="lv-mood-chip" data-mood="focus" onclick="LoluDJ.setMood('focus')">🎯 Focus</button>
+        <button class="lv-mood-chip" data-mood="party" onclick="LoluDJ.setMood('party')">🎉 Party</button>
+        <button class="lv-mood-chip" data-mood="romantic" onclick="LoluDJ.setMood('romantic')">💗 Romantic</button>
+        <button class="lv-mood-chip" data-mood="sad" onclick="LoluDJ.setMood('sad')">🌧️ Sad</button>
+        <button class="lv-mood-chip" data-mood="throwback" onclick="LoluDJ.setMood('throwback')">⏪ Throwback</button>
+        <button class="lv-mood-chip" data-mood="surprise" onclick="LoluDJ.setMood('surprise')">🎲 Surprise Me</button>
       </div>
 
       <div id="lv-status-bubble" class="lv-status-bubble" role="status" aria-live="polite">
@@ -1965,6 +2004,13 @@
 
 <script src="vibexa.js"></script>
 <script src="lolu-piper-tts.js"></script>
-<script src="lolu-voice.js?v=3"></script>
+<script src="lolu-voice.js?v=4"></script>
+<!-- LOLU DJ — mode "AI DJ" ala Spotify (queue lagu otomatis + komentar suara
+     Lolu di antara lagu, ganti mood/vibe, ngobrol soal lagu yang lagi
+     diputar). Dimuat SETELAH vibexa.js & lolu-voice.js karena memakai ulang
+     fungsi/state keduanya (loadPlay, curTrack, curQueue, favoriteArtists,
+     fetchItunesResults, fetchArtistTopTracks, fetchRecommendedSongs,
+     _aiCallGemini, LoluVoiceDJ.parseIntent, LoluPiperTTS), lihat lolu-dj.js. -->
+<script src="lolu-dj.js?v=1"></script>
 </body>
 </html>

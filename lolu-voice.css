@@ -267,3 +267,77 @@
   #lolu-voice-page .lv-bird-img{ width:min(54vw, 190px); }
   #lolu-voice-page .lv-below-mic{ max-width:100%; }
 }
+
+/* ==========================================================================
+   LOLU DJ — mode "AI DJ" ala Spotify (lihat lolu-dj.js). Tombol toggle DJ
+   (topbar halaman Lolu Voice + input bar Chat AI), badge "ON AIR", dan
+   chip mood/vibe di bawah mic. Ditambahkan sebagai bagian akhir file supaya
+   tidak mengubah/menggeser style lolu-voice yang sudah ada di atas.
+   ========================================================================== */
+
+/* ── Tombol toggle DJ di topbar #lolu-voice-page ─────────────────────────── */
+#lolu-voice-page .lv-dj-toggle-btn{
+  margin-left:auto;
+  display:flex; align-items:center; gap:6px;
+  padding:7px 13px; border-radius:16px;
+  border:1px solid var(--border,rgba(255,255,255,.15));
+  background:transparent; color:var(--muted,#9a9a9a);
+  font-family:var(--f,inherit); font-size:.72rem; font-weight:800; letter-spacing:.03em;
+  cursor:pointer;
+  transition:background .2s ease, color .2s ease, border-color .2s ease, transform .15s ease;
+}
+#lolu-voice-page .lv-dj-toggle-btn:hover{ color:#fff; border-color:#E8951C; transform:scale(1.03); }
+#lolu-voice-page .lv-dj-toggle-btn:active{ transform:scale(.95); }
+#lolu-voice-page .lv-dj-toggle-btn.active{
+  background:linear-gradient(135deg,#E8951C,#E15A6B); color:#fff; border-color:transparent;
+  box-shadow:0 4px 14px rgba(225,90,107,.35);
+}
+
+/* ── Tombol toggle DJ versi kecil di input bar Chat AI (dipakai bareng
+   style .ai-chat-mic-btn yang sudah ada, cuma override warna saat aktif) ── */
+.ai-chat-mic-btn.lv-dj-toggle-btn.active{
+  background:linear-gradient(135deg,#E8951C,#E15A6B); color:#fff; border-color:transparent;
+}
+
+/* ── Badge "ON AIR" di atas foto/greeting, cuma tampil selagi mode DJ aktif ── */
+#lolu-voice-page .lv-onair-badge{
+  display:none; align-items:center; gap:6px;
+  margin:0 auto 12px; padding:5px 12px; border-radius:12px;
+  background:rgba(224,41,75,.16); color:#E15A6B;
+  font-family:var(--f,inherit); font-size:.68rem; font-weight:900; letter-spacing:.08em;
+  width:fit-content;
+}
+#lolu-voice-page .lv-onair-badge.show{ display:flex; }
+#lolu-voice-page .lv-onair-badge .dot{
+  width:6px; height:6px; border-radius:50%; background:#E15A6B;
+  animation:loluVoiceDotBounce 1.1s ease-in-out infinite;
+}
+
+/* ── Chip mood/vibe di bawah mic (ganti suasana musik tanpa bikin playlist
+   baru — setara ucapan "play something chill" dkk, lihat LoluDJ.setMood) ── */
+#lolu-voice-page .lv-mood-chips{
+  display:none; gap:8px; flex-wrap:wrap; justify-content:center;
+  width:100%; max-width:340px; margin:0 auto;
+}
+#lolu-voice-page .lv-below-mic.lv-dj-active .lv-idle-info{ display:none; }
+#lolu-voice-page .lv-below-mic.lv-dj-active .lv-mood-chips{ display:flex; }
+#lolu-voice-page .lv-below-mic.lv-active .lv-mood-chips{ opacity:0; pointer-events:none; }
+
+.lv-mood-chip{
+  padding:6px 12px; border-radius:14px;
+  border:1px solid var(--border,rgba(255,255,255,.15));
+  background:rgba(255,255,255,.06); color:var(--muted,#9a9a9a);
+  font-family:var(--f,inherit); font-size:.72rem; font-weight:700;
+  cursor:pointer;
+  transition:background .15s ease, color .15s ease, border-color .15s ease, transform .15s ease;
+}
+.lv-mood-chip:hover{ color:#fff; border-color:var(--green,#2E7DFF); transform:scale(1.04); }
+.lv-mood-chip:active{ transform:scale(.95); }
+.lv-mood-chip.active{ background:var(--green,#2E7DFF); color:#fff; border-color:var(--green,#2E7DFF); }
+
+@media (max-width: 660px){
+  #lolu-voice-page .lv-dj-toggle-btn span{ display:none; } /* cuma ikon di layar sempit */
+  #lolu-voice-page .lv-dj-toggle-btn{ padding:8px; border-radius:50%; }
+  #lolu-voice-page .lv-mood-chips{ max-width:100%; }
+  .lv-mood-chip{ font-size:.68rem; padding:5px 10px; }
+}

@@ -116,6 +116,35 @@
   //    LLM (mis. _aiCallGemini yang sudah ada di vibexa.js) sebagai fallback
   //    untuk ucapan yang lebih rumit/ambigu — lihat fallback di bagian bawah.
   // ==========================================================================
+  // ── Pola DJ (dipakai IntentParser di bawah, dan dipakai ulang oleh
+  // lolu-dj.js lewat LoluVoiceDJ.parseIntent buat mengenali permintaan DJ
+  // yang DIKETIK di Chat AI juga, bukan cuma diucapkan). Dwibahasa ID/EN. ──
+  const DJ_START_RE = /\b(start dj mode|turn on dj mode|jadi(kan)? dj|mulai (mode )?dj|aktifkan (mode )?dj|nyalakan (mode )?dj|dj mode on)\b/i;
+  const DJ_STOP_RE = /\b(stop dj mode|turn off dj mode|matikan (mode )?dj|berhenti (jadi|mode) dj|dj mode off|keluar dari mode dj)\b/i;
+  const DJ_ASK_RE = /(what('?s| is) (this|the) song|what song is (this|playing)|who (sings|is singing|made) this|tell me about (this (song|artist|track)|the artist)|lagu apa (ini|yang lagi diputar)|siapa (yang nyanyi|penyanyi|artis)(nya)?( ini)?|info(nya)? (tentang )?(lagu|artis) ini)/i;
+
+  // Kata pemicu supaya kata mood ambigu (mis. "sad") TIDAK ketangkep saat
+  // user cuma curhat biasa ("aku lagi sedih") — harus disertai kata
+  // permintaan lagu/musik dulu baru dianggap permintaan DJ.
+  const DJ_MOOD_TRIGGER_RE = /\b(play|putar|puterin|give me|kasih(kan)?( aku| saya)?|mau (dengar|denger)|pengen (dengar|denger)|i want|aku (mau|pengen)|music|lagu|songs?|playlist)\b/i;
+  const DJ_MOOD_DEFS = [
+    { mood: 'chill', re: /\b(chill|santai|tenang|calm|relax(ing)?|mellow)\b/i },
+    { mood: 'workout', re: /\b(work ?out|gym|olahraga|nge-?gym|semangat olahraga)\b/i },
+    { mood: 'party', re: /\b(party|pesta|dugem|nge-?dance)\b/i },
+    { mood: 'focus', re: /\b(focus|fokus|belajar|study(ing)?|nugas|deep work)\b/i },
+    { mood: 'romantic', re: /\b(romantic|romantis|honeymoon)\b/i },
+    { mood: 'throwback', re: /\b(throwback|nostalgia|jadul|lawas|zaman dulu)\b/i },
+    { mood: 'favorites', re: /\b(similar to my favorites|mirip (lagu )?favorit(ku)?|based on my taste|sesuai selera(ku)?|mirip (punya)?ku)\b/i },
+    { mood: 'surprise', re: /\b(surprise me|kejutkan (aku|saya)|terserah( kamu| lolu)?|whatever you want)\b/i },
+    { mood: 'happy', re: /\b(happy|senang|bahagia|ceria|mood booster)\b/i },
+    { mood: 'sad', re: /\b(sad|sedih|galau|patah hati|baper)\b/i }
+  ];
+  function _detectMood(t) {
+    if (!DJ_MOOD_TRIGGER_RE.test(t)) return null;
+    for (const def of DJ_MOOD_DEFS) { if (def.re.test(t)) return def.mood; }
+    return null;
+  }
+
   const IntentParser = (function () {
 
     function _clean(t) { return (t || '').trim().replace(/\s+/g, ' '); }
@@ -148,6 +177,17 @@
 
       if (/volume up|naikkan volume|volume naik|kencangkan|kenceng(in)?/i.test(t)) return { intent: 'volume_up', raw: text };
       if (/volume down|turunkan volume|volume turun|kecilkan|pelankan/i.test(t)) return { intent: 'volume_down', raw: text };
+
+      // ── LOLU DJ (lihat lolu-dj.js) — mode "AI DJ" ala Spotify: putar queue
+      // otomatis + komentar suara di antara lagu, ganti mood/vibe langsung,
+      // dan tanya-jawab soal lagu yang lagi diputar. Dicek SEBELUM pola
+      // "play X"/"putar X" generik supaya "play something chill" dkk tidak
+      // ketangkep jadi pencarian judul lagu literal. ──
+      if (DJ_START_RE.test(t)) return { intent: 'dj_start', raw: text };
+      if (DJ_STOP_RE.test(t)) return { intent: 'dj_stop', raw: text };
+      if (DJ_ASK_RE.test(t)) return { intent: 'dj_ask', raw: text };
+      const _djMood = _detectMood(t);
+      if (_djMood) return { intent: 'dj_mood', mood: _djMood, raw: text };
 
       // ── Search: "find songs by X" / "search for X" / "cari lagu X" ──
       m = text.match(/^(?:find songs by|cari lagu(?:nya)? dari|search for|cari)\s+(.+)$/i);
@@ -288,10 +328,10 @@
   // ==========================================================================
   const PlaybackController = (function () {
 
-    function _hasCurTrack() { return !!window.curTrack; }
+    function _hasCurTrack() { return !!curTrack; }
 
     function _playTrackAsQueue(track, queue) {
-      if (queue && queue.length) window.curQueue = queue;
+      if (queue && queue.length) curQueue = queue;
       if (typeof window.loadPlay === 'function') window.loadPlay(track, null);
     }
 
@@ -323,9 +363,9 @@
       // Acak antrian (curQueue) yang sedang berjalan, kalau ada, lalu lanjut
       // dari lagu yang sedang diputar. Ini best-effort karena Vibexa belum
       // punya toggle "shuffle mode" permanen di player utama.
-      if (Array.isArray(window.curQueue) && window.curQueue.length > 1 && typeof window._shuffleArray === 'function') {
-        const rest = window.curQueue.filter(t => !window.curTrack || t.title !== window.curTrack.title || t.artist !== window.curTrack.artist);
-        window.curQueue = [window.curTrack, ...window._shuffleArray(rest)].filter(Boolean);
+      if (Array.isArray(curQueue) && curQueue.length > 1 && typeof window._shuffleArray === 'function') {
+        const rest = curQueue.filter(t => !curTrack || t.title !== curTrack.title || t.artist !== curTrack.artist);
+        curQueue = [curTrack, ...window._shuffleArray(rest)].filter(Boolean);
         return true;
       }
       return false;
@@ -369,7 +409,7 @@
     function playSongTrack(track, queue) { _playTrackAsQueue(track, queue); }
     function playPlaylist(pl) {
       if (!pl || !pl.tracks || !pl.tracks.length) return false;
-      window.curQueue = [...pl.tracks];
+      curQueue = [...pl.tracks];
       if (typeof window.loadPlay === 'function') window.loadPlay(pl.tracks[0], pl.id);
       return true;
     }
@@ -698,6 +738,38 @@
           replyText = reply('Suara dinyalakan kembali.', 'Unmuted.');
           break;
 
+        // ── LOLU DJ (lihat lolu-dj.js) — mode AI DJ ala Spotify. Semua
+        // logika queue/rekomendasi/komentar suara ada di LoluDJ; di sini
+        // cuma memanggil API publiknya & menampilkan hasilnya seperti
+        // command lain. Aman dipanggil walau lolu-dj.js belum sempat
+        // dimuat (fallback pesan error singkat). ──
+        case 'dj_start':
+          UIState.setProcessing(reply('Menyalakan mode DJ...', 'Starting DJ mode...'));
+          replyText = window.LoluDJ
+            ? await window.LoluDJ.start()
+            : reply('Mode DJ belum siap, coba lagi ya.', 'DJ mode isn\'t ready yet, try again.');
+          break;
+
+        case 'dj_stop':
+          replyText = window.LoluDJ
+            ? window.LoluDJ.stop()
+            : reply('Mode DJ memang belum aktif.', 'DJ mode isn\'t active.');
+          break;
+
+        case 'dj_mood':
+          UIState.setProcessing(reply('Menyesuaikan vibe...', 'Switching up the vibe...'));
+          replyText = window.LoluDJ
+            ? await window.LoluDJ.setMood(intent.mood)
+            : reply('Mode DJ belum siap, coba lagi ya.', 'DJ mode isn\'t ready yet, try again.');
+          break;
+
+        case 'dj_ask':
+          UIState.setProcessing(reply('Lolu lagi mikir...', 'Lolu is thinking...'));
+          replyText = window.LoluDJ
+            ? await window.LoluDJ.askAboutCurrentSong(text)
+            : reply('Mode DJ belum siap, coba lagi ya.', 'DJ mode isn\'t ready yet, try again.');
+          break;
+
         // 'unknown' -> IntentParser nggak nemuin pola printah player yang
         // cocok, artinya ini kemungkinan besar OBROLAN BENERAN, bukan
         // command. Sambungkan ke AI Lolu (Gemini) yang sama dipakai Chat AI
@@ -888,6 +960,10 @@
     currentLang = langs[(idx + 1) % langs.length];
     localStorage.setItem(LANG_STORAGE_KEY, currentLang);
     UIState.setLangBtnLabel(currentLang);
+    // Lolu DJ (lolu-dj.js) punya kopi bahasa aktifnya sendiri (dipakai buat
+    // system prompt komentar DJ + balasan lokal) — sinkronkan setiap kali
+    // user ganti bahasa dari sini.
+    if (window.LoluDJ && typeof window.LoluDJ._setLang === 'function') window.LoluDJ._setLang(currentLang);
   }
 
   window.LoluVoiceDJ = {
@@ -897,7 +973,11 @@
     toggleLanguage,
     isSupported: SpeechInput.isSupported,
     openVoicePage,
-    closeVoicePage
+    closeVoicePage,
+    // Dipakai lolu-dj.js supaya permintaan DJ ("play something chill", "jadi
+    // dj", dst) yang DIKETIK di Chat AI bisa dikenali dengan pola yang SAMA
+    // persis dipakai voice command — tanpa duplikasi regex di dua tempat.
+    parseIntent: IntentParser.parse
   };
 
   // ── Init: label tombol bahasa sesuai preferensi tersimpan, dan hentikan
