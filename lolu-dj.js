@@ -81,6 +81,16 @@
     _djHoldPlaybackForSpeech = false;
     clearInterval(_djHoldWatchTimer);
     try {
+      // Halaman Now Playing sebenarnya SUDAH dibuka di baliknya sejak
+      // _djBeginHeldTrack() (lewat loadPlay -> openNP() milik vibexa.js) —
+      // cuma masih ketutup #lolu-voice-page yang z-index-nya lebih tinggi.
+      // Begitu Lolu selesai ngomong, tutup halaman Lolu DJ supaya user
+      // otomatis "pindah" melihat Now Playing dari lagu yang baru diputar.
+      if (window.LoluVoiceDJ && typeof window.LoluVoiceDJ.closeVoicePage === 'function') {
+        window.LoluVoiceDJ.closeVoicePage();
+      }
+    } catch (e) {}
+    try {
       if (window.LoluVoiceDJ && typeof window.LoluVoiceDJ.resume === 'function') window.LoluVoiceDJ.resume();
       else if (window.YTP && typeof window.YTP.playVideo === 'function') window.YTP.playVideo();
     } catch (e) {}
