@@ -18751,6 +18751,45 @@ async function _aiCallGemini(historyForApi, systemPrompt, maxRetriesPerUrl = 2){
   throw lastErr;
 }
 
+// ── Kolom ketik AI chat memanjang ke atas + tombol mic/bahasa menciut ──
+// Perilakunya sama seperti kolom ketik di halaman chat antarpengguna
+// (lihat autoResizeChatInput/updateChatInputBarState di atas): saat user
+// menekan kolom ketik, tombol mic ("ngobrol pakai suara") & tombol bahasa
+// di sebelah kiri otomatis menutup (lebar 0) supaya kolom ketik melebar
+// ke kiri; saat teksnya panjang, kolom ketik tumbuh ke atas sampai batas
+// AI_CHAT_INPUT_MAX_HEIGHT lalu discroll internal.
+const AI_CHAT_INPUT_MAX_HEIGHT = 132; // px, samakan dgn CSS max-height #ai-chat-input
+
+function autoResizeAIChatInput(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  const next = Math.min(el.scrollHeight, AI_CHAT_INPUT_MAX_HEIGHT);
+  el.style.height = next + 'px';
+  el.style.overflowY = el.scrollHeight > AI_CHAT_INPUT_MAX_HEIGHT ? 'auto' : 'hidden';
+}
+
+function updateAIChatInputBarState() {
+  const bar = document.getElementById('ai-chat-inputbar');
+  const inputEl = document.getElementById('ai-chat-input');
+  if (!bar || !inputEl) return;
+  const hasText = inputEl.value.trim().length > 0;
+  const isFocused = document.activeElement === inputEl;
+  bar.classList.toggle('ai-chat-inputbar--focused', hasText || isFocused);
+}
+
+function onAIChatInputFocus() {
+  updateAIChatInputBarState();
+}
+
+function onAIChatInputBlur() {
+  updateAIChatInputBarState();
+}
+
+function onAIChatInputTyping() {
+  autoResizeAIChatInput(document.getElementById('ai-chat-input'));
+  updateAIChatInputBarState();
+}
+
 async function sendAIChatMessage(){
   if (aiChatLoading) return;
   const inp = document.getElementById('ai-chat-input');
@@ -18758,6 +18797,8 @@ async function sendAIChatMessage(){
   const text = inp.value.trim();
   if (!text) return;
   inp.value = '';
+  autoResizeAIChatInput(inp);
+  updateAIChatInputBarState();
 
   aiChatDisplay.push({ role: 'user', text });
   aiApiHistory.push({ role: 'user', parts: [{ text }] });

@@ -4980,10 +4980,27 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   .ai-sticker-img{max-height:240px;}
 }
 
-.ai-chat-inputbar{display:flex;align-items:center;gap:10px;padding:14px 22px;border-top:1px solid var(--border);flex-shrink:0;}
-#ai-chat-input{flex:1;background:var(--card);border:1px solid var(--border);border-radius:50px;padding:11px 18px;color:var(--text);font-family:var(--f);font-size:.85rem;outline:none;transition:border-color .2s;resize:none;overflow:hidden;white-space:nowrap;line-height:1.3;}
+.ai-chat-inputbar{display:flex;align-items:flex-end;gap:10px;padding:14px 22px;border-top:1px solid var(--border);flex-shrink:0;}
+#ai-chat-input{flex:1;min-width:0;background:var(--card);border:1px solid var(--border);border-radius:24px;padding:11px 18px;color:var(--text);font-family:var(--f);font-size:.85rem;outline:none;transition:border-color .15s,height .1s ease;resize:none;overflow-y:hidden;white-space:pre-wrap;word-break:break-word;line-height:1.3;max-height:132px;}
 #ai-chat-input::placeholder{color:var(--muted);}
 #ai-chat-input:focus{border-color:var(--green);}
+/* Tombol mic (ngobrol pakai suara) & tombol bahasa di sebelah kiri kolom
+   ketik AI chat. Sama seperti .chat-attach-btn/.chat-gif-btn di halaman
+   chat antarpengguna: bentuk bulat, menciut ke lebar 0 saat kolom ketik
+   difokuskan/berisi teks (lihat .ai-chat-inputbar--focused di bawah). */
+.ai-chat-mic-btn,.ai-chat-mic-lang-btn{width:42px;height:42px;border-radius:50%;background:var(--card);border:1px solid var(--border);color:var(--sub);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;position:relative;transition:all .15s,width .18s ease,opacity .18s ease,margin .18s ease,border-width .18s ease,padding .18s ease;overflow:hidden;font-family:var(--f);font-size:.68rem;font-weight:800;letter-spacing:.3px;}
+.ai-chat-mic-btn:hover,.ai-chat-mic-lang-btn:hover{color:var(--green);border-color:var(--green);background:var(--hover);}
+.ai-chat-mic-btn svg{width:18px;height:18px;}
+.ai-chat-mic-btn .lolu-mic-pulse{position:absolute;inset:0;border-radius:50%;pointer-events:none;}
+.ai-chat-mic-btn.listening{color:var(--green);border-color:var(--green);background:var(--green-dim);}
+.ai-chat-mic-btn.listening .lolu-mic-pulse{box-shadow:0 0 0 0 rgba(29,185,84,.45);animation:aiChatMicPulse 1.4s ease-out infinite;}
+@keyframes aiChatMicPulse{0%{box-shadow:0 0 0 0 rgba(29,185,84,.45);}100%{box-shadow:0 0 0 10px rgba(29,185,84,0);}}
+/* Saat kolom ketik AI chat difokuskan (atau sudah ada teks), tombol mic &
+   bahasa otomatis menciut ke lebar 0 supaya kolom ketik melebar ke kiri
+   dan diisi oleh kolom pesan — mirip perilaku .chat-input-bar--focused di
+   halaman chat antarpengguna. */
+.ai-chat-inputbar--focused .ai-chat-mic-btn,
+.ai-chat-inputbar--focused .ai-chat-mic-lang-btn{width:0;min-width:0;margin:0;border-width:0;padding:0;opacity:0;pointer-events:none;}
 .ai-chat-send-btn{width:42px;height:42px;border-radius:50%;border:none;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:transform .15s;}
 .ai-chat-send-btn:hover{transform:scale(1.08);}
 .ai-chat-send-btn:disabled{opacity:.5;cursor:default;transform:none;}
