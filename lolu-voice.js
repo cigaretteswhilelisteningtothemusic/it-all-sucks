@@ -335,29 +335,40 @@
       if (typeof window.loadPlay === 'function') window.loadPlay(track, null);
     }
 
+    // CATATAN PENTING soal `playing`/`YTP`/`_repeatMode` di bawah ini:
+    // ketiganya dideklarasikan pakai `let` di top-level vibexa.js. Beda
+    // dengan `var`/`function`, deklarasi `let`/`const` di top-level script
+    // klasik TIDAK pernah otomatis jadi properti `window` — jadi
+    // `window.playing`, `window.YTP`, `window._repeatMode` SELALU undefined
+    // walau nilainya sudah berubah di vibexa.js, dan seluruh fungsi di
+    // bawah ini diam-diam tidak pernah bekerja. Karena lolu-voice.js dimuat
+    // lewat <script> biasa (bukan module) SETELAH vibexa.js di dokumen yang
+    // sama, cukup pakai identifier bare (`playing`, `YTP`, `_repeatMode`)
+    // supaya otomatis merujuk ke variabel global yang sama lewat scope
+    // chain — tanpa perlu ubah apa pun di vibexa.js.
     function pause() {
-      if (window.YTP && window.playing) { try { window.YTP.pauseVideo(); } catch (e) {} return true; }
+      if (YTP && playing) { try { YTP.pauseVideo(); } catch (e) {} return true; }
       return false;
     }
     function resume() {
       if (!_hasCurTrack()) return false;
-      if (window.YTP && !window.playing) { try { window.YTP.playVideo(); } catch (e) {} return true; }
-      if (!window.YTP && typeof window._togglePlayPause === 'function') { window._togglePlayPause(); return true; }
+      if (YTP && !playing) { try { YTP.playVideo(); } catch (e) {} return true; }
+      if (!YTP && typeof window._togglePlayPause === 'function') { window._togglePlayPause(); return true; }
       return false;
     }
     function stop() {
-      if (window.YTP) { try { window.YTP.pauseVideo(); window.YTP.seekTo(0); } catch (e) {} return true; }
+      if (YTP) { try { YTP.pauseVideo(); YTP.seekTo(0); } catch (e) {} return true; }
       return false;
     }
     function next() { if (typeof window.playNext === 'function') { window.playNext(); return true; } return false; }
     function prev() { if (typeof window.playPrev === 'function') { window.playPrev(); return true; } return false; }
-    function repeatToggle() { if (typeof window.toggleRepeatMode === 'function') { window.toggleRepeatMode(); return window._repeatMode; } return null; }
+    function repeatToggle() { if (typeof window.toggleRepeatMode === 'function') { window.toggleRepeatMode(); return _repeatMode; } return null; }
     function repeatOne() {
       // Paksa mode ke 'one' langsung (bukan cuma toggle bergilir)
       if (typeof window.toggleRepeatMode !== 'function') return null;
       let guard = 0;
-      while (window._repeatMode !== 'one' && guard < 3) { window.toggleRepeatMode(); guard++; }
-      return window._repeatMode;
+      while (_repeatMode !== 'one' && guard < 3) { window.toggleRepeatMode(); guard++; }
+      return _repeatMode;
     }
     function shuffle() {
       // Acak antrian (curQueue) yang sedang berjalan, kalau ada, lalu lanjut
@@ -377,8 +388,8 @@
       const el = _volEl();
       if (el) { el.value = v; el.dispatchEvent(new Event('input')); }
       else {
-        if (window.YTP) { try { window.YTP.setVolume(v); } catch (e) {} }
-        if (window.spAudio) { try { window.spAudio.volume = v / 100; } catch (e) {} }
+        if (YTP) { try { YTP.setVolume(v); } catch (e) {} } // lihat catatan `playing`/`YTP` di atas
+        if (spAudio) { try { spAudio.volume = v / 100; } catch (e) {} } // spAudio juga `let` top-level, sama kasusnya
       }
       return v;
     }

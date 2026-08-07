@@ -66,7 +66,20 @@
     _djHoldWatchTimer = setInterval(() => {
       if (!_djHoldPlaybackForSpeech) { clearInterval(_djHoldWatchTimer); return; }
       try {
-        if (window.playing && window.LoluVoiceDJ && typeof window.LoluVoiceDJ.pause === 'function') {
+        // PENTING: `playing` di sini SENGAJA dipakai sebagai identifier
+        // bare (bukan window.playing). `playing` dideklarasikan pakai
+        // `let playing = false;` di top-level vibexa.js — deklarasi
+        // let/const di top-level script klasik TIDAK pernah jadi properti
+        // `window` (beda dengan `var`/`function`), jadi `window.playing`
+        // selalu undefined walau lagunya beneran lagi jalan. Karena
+        // lolu-dj.js dimuat lewat <script> biasa (bukan module) SETELAH
+        // vibexa.js di dokumen yang sama, `playing` di sini otomatis
+        // merujuk ke variabel global yang sama lewat scope chain — ini
+        // yang bikin "tahan lagu sampai Lolu selesai ngomong" akhirnya
+        // beneran jalan (sebelumnya diam-diam selalu gagal karena
+        // window.playing selalu undefined -> pause() tidak pernah dipanggil
+        // -> lagu langsung bunyi bareng suara Lolu).
+        if (playing && window.LoluVoiceDJ && typeof window.LoluVoiceDJ.pause === 'function') {
           window.LoluVoiceDJ.pause();
         }
       } catch (e) {}
@@ -75,24 +88,29 @@
   function _djBeginHeldTrack(track) {
     _djHoldPlaybackForSpeech = true;
     if (typeof loadPlay === 'function') loadPlay(track, null); // loadPlay milik vibexa.js otomatis buka halaman Now Playing
+    // Tutup halaman Lolu Voice SEKARANG JUGA (bukan nunggu Lolu selesai
+    // ngomong dulu) — supaya user langsung "pindah pandangan" ke halaman
+    // Now Playing yang barusan dibuka loadPlay() di atas, sesuai flow yang
+    // diminta: minta lagu -> langsung diarahkan ke Now Playing. Audionya
+    // sendiri TETAP ditahan sampai Lolu selesai ngomong lewat
+    // _djWatchAndHoldPlayback() di bawah (independen dari halaman mana yang
+    // sedang tampil), jadi lagu TIDAK ikut kedengeran cuma karena halaman
+    // Lolu Voice-nya sudah ketutup.
+    try {
+      if (window.LoluVoiceDJ && typeof window.LoluVoiceDJ.closeVoicePage === 'function') {
+        window.LoluVoiceDJ.closeVoicePage();
+      }
+    } catch (e) {}
     _djWatchAndHoldPlayback();
   }
   function _djReleaseHeldTrack() {
     _djHoldPlaybackForSpeech = false;
     clearInterval(_djHoldWatchTimer);
-    try {
-      // Halaman Now Playing sebenarnya SUDAH dibuka di baliknya sejak
-      // _djBeginHeldTrack() (lewat loadPlay -> openNP() milik vibexa.js) —
-      // cuma masih ketutup #lolu-voice-page yang z-index-nya lebih tinggi.
-      // Begitu Lolu selesai ngomong, tutup halaman Lolu DJ supaya user
-      // otomatis "pindah" melihat Now Playing dari lagu yang baru diputar.
-      if (window.LoluVoiceDJ && typeof window.LoluVoiceDJ.closeVoicePage === 'function') {
-        window.LoluVoiceDJ.closeVoicePage();
-      }
-    } catch (e) {}
+    // Halaman Lolu Voice sudah ditutup dari awal (lihat _djBeginHeldTrack) —
+    // di sini tinggal melanjutkan lagu yang tadi ditahan.
     try {
       if (window.LoluVoiceDJ && typeof window.LoluVoiceDJ.resume === 'function') window.LoluVoiceDJ.resume();
-      else if (window.YTP && typeof window.YTP.playVideo === 'function') window.YTP.playVideo();
+      else if (YTP && typeof YTP.playVideo === 'function') YTP.playVideo(); // lihat catatan `playing` di atas — sama utk `YTP`
     } catch (e) {}
   }
 
@@ -354,6 +372,19 @@ ATURAN WAJIB:
         document.querySelectorAll('#lolu-voice-bubble, #lv-status-bubble').forEach((el) => el.classList.remove('show'));
         if (w) w.classList.remove('lv-active');
       }, 4200);
+    } catch (e) {}
+    // Bubble di atas ada di dalam #ai-chat-overlay/#lolu-voice-page — begitu
+    // halaman Lolu Voice ditutup lebih awal (lihat _djBeginHeldTrack) supaya
+    // user langsung pindah ke Now Playing, bubble itu ikut ketutup juga
+    // (z-index Now Playing lebih tinggi dari chat overlay). Pakai toast()
+    // global (elemen #toast, punya vibexa.js, z-index paling atas) sebagai
+    // fallback supaya kalimat DJ tetap kebaca di halaman mana pun.
+    try {
+      if (typeof window.toast === 'function' && text) {
+        const wordCount = text.trim().split(/\s+/).length;
+        const dur = Math.min(6000, Math.max(2700, wordCount * 260));
+        window.toast(text, dur);
+      }
     } catch (e) {}
   }
 
