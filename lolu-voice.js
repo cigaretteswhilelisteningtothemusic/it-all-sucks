@@ -519,7 +519,7 @@
     // halaman khusus #lolu-voice-page (lihat lolu-voice.css). Semua fungsi
     // di bawah sengaja menyasar KEDUANYA sekaligus lewat querySelectorAll,
     // supaya statusnya selalu sinkron di mana pun voice command dipicu.
-    function micBtns() { return document.querySelectorAll('#lolu-mic-btn, #lv-mic-top-btn'); }
+    function micBtns() { return document.querySelectorAll('#lolu-mic-btn, #lv-mic-top-btn, #lv-mic-topbar-btn'); }
     function bubbles() { return document.querySelectorAll('#lolu-voice-bubble, #lv-status-bubble'); }
     function bubbleTexts() { return document.querySelectorAll('#lolu-voice-bubble-text, #lv-status-text'); }
     // NOTE: #lv-bird-img SENGAJA tidak ikut disasar di sini — foto burung

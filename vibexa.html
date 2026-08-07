@@ -1221,6 +1221,19 @@
     <button class="lv-back-btn" id="lv-back-btn" onclick="LoluVoiceDJ.closeVoicePage()" title="Keluar">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
     </button>
+    <!-- Tombol mic di topbar — hanya tampil di tampilan mobile (lihat
+         @media max-width:660px di lolu-voice.css), menggantikan posisi
+         tombol mic yang di tengah (.lv-mic-wrap) supaya tata letak mobile
+         sama seperti foto acuan: back kiri, mic kanan atas. State
+         listening/processing disinkronkan bareng tombol mic lain lewat
+         micBtns() di lolu-voice.js. -->
+    <button class="lv-mic-topbar-btn" id="lv-mic-topbar-btn" onclick="LoluVoiceDJ.toggleListening()" title="Ngobrol pakai suara">
+      <svg id="lv-mic-topbar-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/>
+        <path d="M19 11a7 7 0 0 1-14 0"/>
+        <path d="M12 18v3"/>
+      </svg>
+    </button>
   </div>
 
   <div class="lv-center">

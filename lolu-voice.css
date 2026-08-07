@@ -149,22 +149,43 @@
 }
 #lolu-voice-page.show{ display:flex; }
 
-/* ── Top bar: tombol keluar di kiri saja ──────────────────────────────── */
+/* ── Top bar: tombol keluar di kiri, tombol mic (mobile) di kanan ────────
+   justify-content:space-between aman dipakai juga di desktop karena
+   .lv-mic-topbar-btn disembunyikan (display:none) by default di sana,
+   jadi tombol back tetap nempel kiri seperti sebelumnya. ────────────── */
 #lolu-voice-page .lv-topbar{
-  display:flex; align-items:center; justify-content:flex-start;
+  display:flex; align-items:center; justify-content:space-between;
   padding:18px 18px 0;
   flex-shrink:0;
   width:100%;
 }
 #lolu-voice-page .lv-back-btn{
   width:30px; height:30px; border-radius:8px;
-  border:none; background:transparent; color:#E15A6B;
+  border:none; background:transparent; color:#FF3131;
   display:flex; align-items:center; justify-content:center;
   cursor:pointer; padding:0;
   transition:opacity .15s ease, transform .15s ease;
 }
 #lolu-voice-page .lv-back-btn:hover{ opacity:.72; }
 #lolu-voice-page .lv-back-btn:active{ transform:scale(.9); }
+
+/* ── Tombol mic di topbar kanan — cuma dipakai di layout mobile, lihat
+   @media max-width:660px di bawah. Sama gayanya dengan .lv-mic-top-btn
+   (tombol mic tengah versi desktop) supaya konsisten. ────────────────── */
+#lolu-voice-page .lv-mic-topbar-btn{
+  display:none;
+  width:36px; height:36px; border-radius:50%;
+  border:none;
+  background:rgba(255,255,255,.08); color:#8FB0E0;
+  align-items:center; justify-content:center;
+  cursor:pointer; flex-shrink:0; margin:0; padding:0;
+  transition:background .15s ease, color .2s ease, transform .15s ease;
+}
+#lolu-voice-page .lv-mic-topbar-btn:hover{ transform:scale(1.06); color:#fff; }
+#lolu-voice-page .lv-mic-topbar-btn:active{ transform:scale(.94); }
+#lolu-voice-page .lv-mic-topbar-btn.listening{ color:#fff; background:#E0294B; }
+#lolu-voice-page .lv-mic-topbar-btn.processing{ color:#fff; background:var(--green,#2E7DFF); }
+#lolu-voice-page .lv-mic-topbar-btn.processing svg{ animation:loluMicProcessSpin 1s linear infinite; }
 
 /* ── Konten tengah: greeting -> burung -> mic -> teks di bawah mic ──────
    Disusun jadi satu kolom flex yang mengisi sisa layar & ditengahkan,
@@ -190,7 +211,7 @@
   font-weight:900 !important;
   letter-spacing:-.01em;
   text-align:center !important;
-  color:#E15A6B;
+  color:#fff;
   margin:0 0 24px !important;
 }
 
@@ -270,14 +291,14 @@
 #lolu-voice-page .lv-title{
   font-size:1.3rem !important;
   font-weight:900 !important;
-  color:#E8951C;
+  color:#fff;
   margin:0 0 6px !important;
 }
 #lolu-voice-page .lv-subtitle{
   font-size:.8rem !important;
   font-weight:400 !important;
   line-height:1.45;
-  color:var(--muted,#9a9a9a);
+  color:#fff;
   max-width:300px;
 }
 
@@ -295,13 +316,18 @@
   /* Mobile: tetap fullscreen menutupi seluruh layar (tidak ada panel
      kiri/kanan yang perlu disisakan), sekaligus lepas dari alur #main
      supaya tidak ikut ter-scroll bareng konten halaman utama. */
-  #lolu-voice-page{ position:fixed; z-index:500; border-radius:0; }
+  #lolu-voice-page{ position:fixed; inset:0; z-index:500; border-radius:0; width:100vw; height:100vh; height:100dvh; }
   #lolu-voice-page .lv-topbar{ padding:14px 14px 0; }
   #lolu-voice-page .lv-center{ padding:0 16px 26px; }
   #lolu-voice-page .lv-greeting{ font-size:1.6rem !important; margin-bottom:14px !important; }
   #lolu-voice-page .lv-bird-img{ width:min(54vw, 190px); }
   #lolu-voice-page .lv-voice-anim{ height:min(54vw, 190px); }
   #lolu-voice-page .lv-below-mic{ max-width:100%; }
+
+  /* Tombol mic pindah ke topbar kanan (sesuai foto acuan) — tombol mic
+     tengah (di bawah foto burung) disembunyikan supaya tidak dobel. */
+  #lolu-voice-page .lv-mic-topbar-btn{ display:flex; }
+  #lolu-voice-page .lv-mic-wrap{ display:none; }
 }
 
 /* ==========================================================================
@@ -340,7 +366,7 @@
 .lv-mood-chip{
   padding:6px 12px; border-radius:14px;
   border:1px solid var(--border,rgba(255,255,255,.15));
-  background:rgba(255,255,255,.06); color:var(--muted,#9a9a9a);
+  background:rgba(255,255,255,.06); color:#fff;
   font-family:var(--f,inherit); font-size:.72rem; font-weight:700;
   cursor:pointer;
   transition:background .15s ease, color .15s ease, border-color .15s ease, transform .15s ease;
