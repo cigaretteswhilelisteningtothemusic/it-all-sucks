@@ -341,3 +341,24 @@
   #lolu-voice-page .lv-mood-chips{ max-width:100%; }
   .lv-mood-chip{ font-size:.68rem; padding:5px 10px; }
 }
+
+/* ==========================================================================
+   GIF Lolu DJ di halaman Now Playing (#np-view), tepat di bawah tombol
+   Lyrics pada kontrol mobile (#np-mob-ctrl-row) — muncul HANYA selagi mode
+   Lolu DJ aktif (lihat _refreshUI() di lolu-dj.js, yang toggle class
+   `.show` di sini). Ukuran width/height DISAMAKAN OTOMATIS lewat JS ke
+   ukuran #ai-fab-sleep-gif (burung tidur di tombol FAB) — lihat
+   _djSyncGifSize() di lolu-dj.js. Nilai width/height di bawah ini HANYA
+   fallback kalau sinkronisasi ukuran itu gagal untuk alasan apa pun.
+   ========================================================================== */
+.np-dj-gif{
+  display:none;
+  width:72px; height:72px;
+  margin:8px auto 0;
+  object-fit:contain;
+  pointer-events:none;
+  opacity:0;
+  transform:scale(.92);
+  transition:opacity .25s ease, transform .25s ease;
+}
+.np-dj-gif.show{ display:block; opacity:1; transform:scale(1); }

@@ -135,7 +135,7 @@
     { mood: 'romantic', re: /\b(romantic|romantis|honeymoon)\b/i },
     { mood: 'throwback', re: /\b(throwback|nostalgia|jadul|lawas|zaman dulu)\b/i },
     { mood: 'favorites', re: /\b(similar to my favorites|mirip (lagu )?favorit(ku)?|based on my taste|sesuai selera(ku)?|mirip (punya)?ku)\b/i },
-    { mood: 'surprise', re: /\b(surprise me|kejutkan (aku|saya)|terserah( kamu| lolu)?|whatever you want)\b/i },
+    { mood: 'surprise', re: /\b(surprise me|kejutkan (aku|saya)|terserah( kamu| lolu)?|whatever you want|populer|trending|viral|top hits?|top chart|paling hits|paling rame|lagi hits|hits banget)\b/i },
     { mood: 'happy', re: /\b(happy|senang|bahagia|ceria|mood booster)\b/i },
     { mood: 'sad', re: /\b(sad|sedih|galau|patah hati|baper)\b/i }
   ];
@@ -621,6 +621,19 @@
     // _pushVoiceTurnToChatLog di bawah (yang cuma nulis versi "tampilan
     // doang", tanpa songs/sticker) TIDAK dobel-nambahin turn yang sama.
     let loggedViaAIChat = false;
+    // true kalau LoluDJ.playRequestedSong() sudah menangani suara & bubble
+    // balasannya sendiri (lihat lolu-dj.js) — blok TTS di bagian bawah
+    // fungsi ini WAJIB dilewati supaya balasannya tidak diucapkan dua kali.
+    let djHandledSpeech = false;
+
+    // User lagi ada di halaman Lolu DJ (#lolu-voice-page) -> permintaan
+    // "putar lagu ..." di sini otomatis masuk ke mode Lolu DJ: Now Playing
+    // langsung dibuka & Lolu ngomong dulu sebelum lagunya bunyi (lihat
+    // LoluDJ.playRequestedSong di lolu-dj.js), bukan langsung diputar diam2
+    // seperti command player biasa.
+    const page = _lvPage();
+    const onLoluDJPage = !!(page && page.classList.contains('show'));
+    const djAvailable = onLoluDJPage && window.LoluDJ && typeof window.LoluDJ.playRequestedSong === 'function';
 
     try {
       switch (intent.intent) {
@@ -630,8 +643,13 @@
           UIState.setProcessing(text);
           const { track, all } = await MusicFinder.findSong(intent.title, intent.artist);
           if (track) {
-            PlaybackController.playSongTrack(track, all);
-            replyText = reply(`Memutar ${track.title} dari ${track.artist}.`, `Playing ${track.title} by ${track.artist}.`);
+            if (djAvailable) {
+              replyText = await window.LoluDJ.playRequestedSong(track, all);
+              djHandledSpeech = true;
+            } else {
+              PlaybackController.playSongTrack(track, all);
+              replyText = reply(`Memutar ${track.title} dari ${track.artist}.`, `Playing ${track.title} by ${track.artist}.`);
+            }
           } else {
             replyText = reply(`Maaf, aku tidak menemukan lagu itu.`, `Sorry, I couldn't find that song.`);
           }
@@ -642,15 +660,25 @@
           // Coba sebagai judul lagu dulu
           const { track, all } = await MusicFinder.findSong(intent.query, '');
           if (track) {
-            PlaybackController.playSongTrack(track, all);
-            replyText = reply(`Memutar ${track.title} dari ${track.artist}.`, `Playing ${track.title} by ${track.artist}.`);
+            if (djAvailable) {
+              replyText = await window.LoluDJ.playRequestedSong(track, all);
+              djHandledSpeech = true;
+            } else {
+              PlaybackController.playSongTrack(track, all);
+              replyText = reply(`Memutar ${track.title} dari ${track.artist}.`, `Playing ${track.title} by ${track.artist}.`);
+            }
             break;
           }
           // Fallback: anggap sebagai nama artis
           const artistTracks = await MusicFinder.findArtistTracks(intent.query);
           if (artistTracks.length) {
-            PlaybackController.playSongTrack(artistTracks[0], artistTracks);
-            replyText = reply(`Memutar lagu-lagu dari ${intent.query}.`, `Playing songs by ${intent.query}.`);
+            if (djAvailable) {
+              replyText = await window.LoluDJ.playRequestedSong(artistTracks[0], artistTracks);
+              djHandledSpeech = true;
+            } else {
+              PlaybackController.playSongTrack(artistTracks[0], artistTracks);
+              replyText = reply(`Memutar lagu-lagu dari ${intent.query}.`, `Playing songs by ${intent.query}.`);
+            }
           } else {
             replyText = reply(`Maaf, aku tidak menemukan “${intent.query}”.`, `Sorry, I couldn't find “${intent.query}”.`);
           }
@@ -659,8 +687,13 @@
 
         case 'play_playlist': {
           const pl = PlaylistFinder.findByName(intent.playlist);
-          if (pl && PlaybackController.playPlaylist(pl)) {
-            replyText = reply(`Memutar playlist ${pl.name}.`, `Playing your ${pl.name} playlist.`);
+          if (pl && pl.tracks && pl.tracks.length) {
+            if (djAvailable) {
+              replyText = await window.LoluDJ.playRequestedSong(pl.tracks[0], pl.tracks);
+              djHandledSpeech = true;
+            } else if (PlaybackController.playPlaylist(pl)) {
+              replyText = reply(`Memutar playlist ${pl.name}.`, `Playing your ${pl.name} playlist.`);
+            }
           } else {
             replyText = reply(`Aku tidak menemukan playlist “${intent.playlist}”.`, `I couldn't find a playlist called “${intent.playlist}”.`);
           }
@@ -670,8 +703,13 @@
         case 'search': {
           const { all } = await MusicFinder.findSong(intent.query, '');
           if (all && all.length) {
-            PlaybackController.playSongTrack(all[0], all);
-            replyText = reply(`Ini hasil terbaik untuk “${intent.query}”: ${all[0].title}.`, `Here's the best match for “${intent.query}”: ${all[0].title}.`);
+            if (djAvailable) {
+              replyText = await window.LoluDJ.playRequestedSong(all[0], all);
+              djHandledSpeech = true;
+            } else {
+              PlaybackController.playSongTrack(all[0], all);
+              replyText = reply(`Ini hasil terbaik untuk “${intent.query}”: ${all[0].title}.`, `Here's the best match for “${intent.query}”: ${all[0].title}.`);
+            }
           } else {
             replyText = reply(`Tidak ada hasil untuk “${intent.query}”.`, `No results for “${intent.query}”.`);
           }
@@ -789,17 +827,23 @@
     }
 
     UIState.setReply(replyText);
-    // Balasan suara Lolu memakai Piper TTS client-side (lihat lolu-piper-tts.js).
-    // VoiceOutput (Web Speech API) HANYA dipakai sebagai fallback darurat kalau
-    // modul Piper gagal dimuat sama sekali (mis. browser tidak mendukung
-    // dynamic import / OPFS), supaya Lolu tetap "bersuara" walau kualitasnya
-    // turun — bukan pengganti Piper dalam kondisi normal.
-    if (window.LoluPiperTTS && typeof window.LoluPiperTTS.speakDJ === 'function') {
-      window.LoluPiperTTS.speakDJ(replyText).catch(function () {
+    // Kalau LoluDJ.playRequestedSong() sudah menangani suaranya sendiri
+    // (lihat djHandledSpeech di atas — itu juga yang menahan lagunya sampai
+    // Lolu selesai ngomong), JANGAN ucapkan replyText lagi di sini supaya
+    // tidak dobel bicara.
+    if (!djHandledSpeech) {
+      // Balasan suara Lolu memakai Piper TTS client-side (lihat lolu-piper-tts.js).
+      // VoiceOutput (Web Speech API) HANYA dipakai sebagai fallback darurat kalau
+      // modul Piper gagal dimuat sama sekali (mis. browser tidak mendukung
+      // dynamic import / OPFS), supaya Lolu tetap "bersuara" walau kualitasnya
+      // turun — bukan pengganti Piper dalam kondisi normal.
+      if (window.LoluPiperTTS && typeof window.LoluPiperTTS.speakDJ === 'function') {
+        window.LoluPiperTTS.speakDJ(replyText).catch(function () {
+          VoiceOutput.speak(replyText);
+        });
+      } else {
         VoiceOutput.speak(replyText);
-      });
-    } else {
-      VoiceOutput.speak(replyText);
+      }
     }
 
     // Kirim juga sebagai bubble chat di dalam obrolan Lolu (kalau overlay
@@ -977,7 +1021,12 @@
     // Dipakai lolu-dj.js supaya permintaan DJ ("play something chill", "jadi
     // dj", dst) yang DIKETIK di Chat AI bisa dikenali dengan pola yang SAMA
     // persis dipakai voice command — tanpa duplikasi regex di dua tempat.
-    parseIntent: IntentParser.parse
+    parseIntent: IntentParser.parse,
+    // Dipakai lolu-dj.js buat "menahan" lagu (pause sesaat setelah mulai
+    // dimuat, resume lagi setelah Lolu selesai ngomong) — reuse PlaybackController
+    // yang sama dipakai command "pause"/"resume" biasa, bukan logic baru.
+    pause: PlaybackController.pause,
+    resume: PlaybackController.resume
   };
 
   // ── Init: label tombol bahasa sesuai preferensi tersimpan, dan hentikan

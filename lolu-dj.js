@@ -53,6 +53,39 @@
   const DJ_COMMENTARY_COOLDOWN_MS = 20000; // jangan komentar tiap lagu kalau user lompat2 cepat
   const DJ_REFILL_THRESHOLD = 3; // isi ulang queue kalau tinggal N lagu lagi
 
+  // ── "Tahan" pemutaran sampai Lolu selesai ngomong — dipakai tiap kali sesi
+  // DJ baru dimulai/lagu baru diminta LANGSUNG oleh user (start(), setMood(),
+  // playRequestedSong()), supaya lagunya TIDAK langsung bunyi bareng suara
+  // Lolu. TIDAK dipakai untuk komentar ambient di tengah sesi (lihat
+  // _djOnNewTrackStarted) karena di situ lagunya memang sudah jalan duluan
+  // seperti siaran radio beneran. ──
+  let _djHoldPlaybackForSpeech = false;
+  let _djHoldWatchTimer = null;
+  function _djWatchAndHoldPlayback() {
+    clearInterval(_djHoldWatchTimer);
+    _djHoldWatchTimer = setInterval(() => {
+      if (!_djHoldPlaybackForSpeech) { clearInterval(_djHoldWatchTimer); return; }
+      try {
+        if (window.playing && window.LoluVoiceDJ && typeof window.LoluVoiceDJ.pause === 'function') {
+          window.LoluVoiceDJ.pause();
+        }
+      } catch (e) {}
+    }, 70);
+  }
+  function _djBeginHeldTrack(track) {
+    _djHoldPlaybackForSpeech = true;
+    if (typeof loadPlay === 'function') loadPlay(track, null); // loadPlay milik vibexa.js otomatis buka halaman Now Playing
+    _djWatchAndHoldPlayback();
+  }
+  function _djReleaseHeldTrack() {
+    _djHoldPlaybackForSpeech = false;
+    clearInterval(_djHoldWatchTimer);
+    try {
+      if (window.LoluVoiceDJ && typeof window.LoluVoiceDJ.resume === 'function') window.LoluVoiceDJ.resume();
+      else if (window.YTP && typeof window.YTP.playVideo === 'function') window.YTP.playVideo();
+    } catch (e) {}
+  }
+
   // ==========================================================================
   // LABEL MOOD (dwibahasa, dipakai di komentar DJ & bubble UI)
   // ==========================================================================
@@ -285,6 +318,16 @@ ATURAN WAJIB:
     return _djAskGemini(prompt, fallback);
   }
 
+  // Komentar DJ buat lagu yang DIMINTA LANGSUNG oleh user (judul/artis
+  // spesifik, lewat suara/teks) selagi di halaman Lolu DJ — beda dari
+  // _djGenerateIntro (dipakai buat lagu pilihan DJ sendiri) karena di sini
+  // Lolu WAJIB konfirmasi kalau ini lagu request-an user.
+  async function _djGenerateRequestIntro(track) {
+    const fallback = _t(`Oke, ini dia ${_trackDesc(track)} yang kamu minta. Tunggu bentar, langsung diputer!`, `Alright, here's ${_trackDesc(track)} you asked for. Coming right up!`);
+    const prompt = `TUGAS: User baru saja MEMINTA LANGSUNG lagu ini diputar sambil dengerin radio DJ kamu: ${_trackDesc(track)}. Kasih komentar DJ singkat yang mengonfirmasi permintaan ini sebelum lagunya mulai (boleh sebut sedikit soal lagu/artisnya).`;
+    return _djAskGemini(prompt, fallback);
+  }
+
   // ==========================================================================
   // OUTPUT — suara (Piper TTS, reuse lolu-piper-tts.js) + teks singkat di
   // bubble status Lolu Voice kalau elemen-elemennya lagi ada di halaman.
@@ -328,6 +371,43 @@ ATURAN WAJIB:
     }
   }
 
+  // Versi _speak() yang mengembalikan Promise, baru resolve setelah Lolu
+  // BENERAN selesai ngomong — dipakai buat "menahan" lagu (lihat
+  // _djBeginHeldTrack/_djReleaseHeldTrack di atas) supaya musik baru mulai
+  // bunyi SETELAH komentar DJ selesai, bukan bebarengan. Dikombinasikan
+  // dengan estimasi durasi dari jumlah kata sebagai jaring pengaman kalau
+  // Promise dari LoluPiperTTS.speakDJ ternyata resolve lebih cepat dari
+  // audionya beneran selesai.
+  function _speakAwait(text) {
+    if (!text) return Promise.resolve();
+    _showBubble(text);
+    const wordCount = text.trim().split(/\s+/).length;
+    const estMs = Math.min(15000, Math.max(1600, wordCount * 380));
+    const minWait = new Promise((resolve) => setTimeout(resolve, estMs));
+
+    let ttsPromise;
+    if (window.LoluPiperTTS && typeof window.LoluPiperTTS.speakDJ === 'function') {
+      ttsPromise = window.LoluPiperTTS.speakDJ(text).catch(() => _speakBrowserTTSAwait(text));
+    } else {
+      ttsPromise = _speakBrowserTTSAwait(text);
+    }
+    return Promise.all([ttsPromise, minWait]);
+  }
+
+  function _speakBrowserTTSAwait(text) {
+    return new Promise((resolve) => {
+      if (!window.speechSynthesis) { resolve(); return; }
+      try {
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = _djLang; u.rate = 1.02; u.pitch = 1.05;
+        u.onend = () => resolve();
+        u.onerror = () => resolve();
+        window.speechSynthesis.speak(u);
+      } catch (e) { resolve(); }
+    });
+  }
+
   // ==========================================================================
   // UI SYNC — toggle DJ (topbar & input bar), badge "ON AIR", chip mood.
   // ==========================================================================
@@ -345,6 +425,23 @@ ATURAN WAJIB:
     document.querySelectorAll('.lv-mood-chip').forEach((c) => {
       c.classList.toggle('active', !!_djMood && c.dataset.mood === _djMood);
     });
+    const npGif = document.getElementById('np-dj-gif');
+    if (npGif) { npGif.classList.toggle('show', _djActive); if (_djActive) _djSyncGifSize(); }
+  }
+
+  // Samakan ukuran #np-dj-gif (halaman Now Playing) dengan ukuran
+  // #ai-fab-sleep-gif (burung tidur di tombol FAB) yang SUDAH ADA, supaya
+  // tidak perlu duplikasi angka px secara manual di sini — otomatis ikut
+  // kalau ukuran sleepbird.gif di CSS utama (vibexa.css) berubah suatu saat.
+  function _djSyncGifSize() {
+    try {
+      const ref = document.getElementById('ai-fab-sleep-gif');
+      const gif = document.getElementById('np-dj-gif');
+      if (!ref || !gif) return;
+      const cs = window.getComputedStyle(ref);
+      if (cs && cs.width && cs.width !== 'auto' && parseFloat(cs.width) > 0) gif.style.width = cs.width;
+      if (cs && cs.height && cs.height !== 'auto' && parseFloat(cs.height) > 0) gif.style.height = cs.height;
+    } catch (e) {}
   }
 
   // ==========================================================================
@@ -420,13 +517,14 @@ ATURAN WAJIB:
     curQueue = queue;
     _djSuppressNextAutoCommentary = true;
     _djLastCommentaryAt = Date.now();
-    if (typeof loadPlay === 'function') loadPlay(queue[0], null);
+    _djBeginHeldTrack(queue[0]); // buka Now Playing + tahan audio sampai Lolu selesai ngomong
 
     const commentary = isMoodStart
       ? await _djGenerateMoodSwitch(queue[0], mood)
       : await _djGenerateIntro(queue[0], true);
     _refreshUI();
-    _speak(commentary);
+    await _speakAwait(commentary);
+    _djReleaseHeldTrack();
     return commentary;
   }
 
@@ -446,11 +544,43 @@ ATURAN WAJIB:
     curQueue = queue;
     _djSuppressNextAutoCommentary = true;
     _djLastCommentaryAt = Date.now();
-    if (typeof loadPlay === 'function') loadPlay(queue[0], null);
+    _djBeginHeldTrack(queue[0]); // buka Now Playing + tahan audio sampai Lolu selesai ngomong
 
     const commentary = await _djGenerateMoodSwitch(queue[0], mood);
     _refreshUI();
-    _speak(commentary);
+    await _speakAwait(commentary);
+    _djReleaseHeldTrack();
+    return commentary;
+  }
+
+  // Dipanggil dari lolu-voice.js ketika user MEMINTA LANGSUNG suatu lagu
+  // (judul/artis, playlist, atau hasil pencarian) selagi berada di halaman
+  // Lolu DJ (#lolu-voice-page) — beda dari start()/setMood() yang isi
+  // queue-nya dipilihkan sendiri oleh DJ. Di sini queue-nya sudah
+  // ditentukan dari luar (`track` = lagu yang diminta, `queueList` = daftar
+  // terkait yang sudah ditemukan MusicFinder di lolu-voice.js, dipakai buat
+  // next/prev). Otomatis: (1) nyalain mode DJ kalau belum aktif, (2) buka
+  // halaman Now Playing lagu tsb, (3) TAHAN audio sampai Lolu selesai
+  // ngomong duluan, baru lagunya bunyi.
+  async function playRequestedSong(track, queueList) {
+    if (!track) {
+      const t = _t('Maaf, Lolu nggak nemu lagunya.', "Sorry, I couldn't find that song.");
+      _showBubble(t);
+      return t;
+    }
+    _djActive = true;
+    _djMood = null;
+    _refreshUI();
+
+    curQueue = (Array.isArray(queueList) && queueList.length) ? queueList.map(_ensureQuery) : [_ensureQuery(track)];
+    _djSuppressNextAutoCommentary = true;
+    _djLastCommentaryAt = Date.now();
+    _djBeginHeldTrack(_ensureQuery(track)); // buka Now Playing + tahan audio sampai Lolu selesai ngomong
+
+    const commentary = await _djGenerateRequestIntro(track);
+    _refreshUI();
+    await _speakAwait(commentary);
+    _djReleaseHeldTrack();
     return commentary;
   }
 
@@ -462,6 +592,7 @@ ATURAN WAJIB:
     }
     _djActive = false;
     _djMood = null;
+    if (_djHoldPlaybackForSpeech) { _djHoldPlaybackForSpeech = false; clearInterval(_djHoldWatchTimer); }
     _refreshUI();
     const t = _t('Oke, mode DJ Lolu matiin dulu ya. Panggil lagi kapan aja kalau mau nyala lagi!', 'Alright, turning DJ mode off for now. Call me back anytime!');
     _showBubble(t);
@@ -488,7 +619,7 @@ ATURAN WAJIB:
 
   window.LoluDJ = {
     start, stop, toggle, setMood, isActive,
-    askAboutCurrentSong,
+    askAboutCurrentSong, playRequestedSong,
     _setLang: _setLang
   };
 
