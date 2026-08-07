@@ -340,4 +340,20 @@
     setSpeakingHandlers: setSpeakingHandlers,
     VOICE_ID: VOICE_ID
   };
+
+  // ── PERCEPAT KEMUNCULAN SUARA LOLU ──────────────────────────────────────
+  // Sebelumnya preload() cuma dipanggil dari lolu-voice.js, dan itu pun
+  // masih menunggu event (DOMContentLoaded + requestIdleCallback timeout
+  // 4 detik, atau baru saat user buka halaman Voice/Chat AI/pencet mic).
+  // Jadi ada jeda "nganggur" sebelum unduhan model (~63 MB) mulai sama
+  // sekali, padahal fetch/download TIDAK butuh user-gesture & TIDAK
+  // memblokir render halaman.
+  //
+  // Sekarang preload() langsung dipanggil DI SINI, begitu file
+  // lolu-piper-tts.js ini sendiri selesai di-parse browser — paling awal
+  // yang mungkin, tanpa nunggu event/timeout apa pun lagi. ensureModel()
+  // sudah cache Promise-nya (lihat di atas), jadi aman/idempotent walau
+  // lolu-voice.js & halaman lain masih ikut memanggil preload() lagi
+  // nanti (tidak akan dobel unduh, cuma reuse Promise yang sama).
+  preload();
 })();

@@ -1238,25 +1238,15 @@
     }
 
     // ── Percepat "loading suara Lolu" ────────────────────────────────────
-    // Sebelumnya model Piper (~63MB) baru mulai diunduh begitu user PENCET
-    // tombol mic — jadi permintaan suara PERTAMA selalu nunggu lama (unduh
-    // + load library + baru bisa ngomong). Sekarang mulai unduh/siapkan
-    // model di BACKGROUND sedini mungkin (begitu halaman selesai dimuat &
-    // browser lagi idle), supaya begitu user beneran pencet mic nanti,
-    // modelnya kemungkinan besar SUDAH ada di cache OPFS browser -> suara
-    // Lolu langsung keluar tanpa nunggu unduhan sama sekali. Tidak butuh
-    // user-gesture (fetch/download memang tidak butuh interaksi user,
-    // beda dengan audio.play() yang butuh — itu tetap ditangani terpisah
-    // lewat unlockAudio() saat mic dipencet).
-    const _preloadPiper = () => {
-      if (window.LoluPiperTTS && typeof window.LoluPiperTTS.preload === 'function') {
-        window.LoluPiperTTS.preload();
-      }
-    };
-    if (typeof window.requestIdleCallback === 'function') {
-      window.requestIdleCallback(_preloadPiper, { timeout: 4000 });
-    } else {
-      setTimeout(_preloadPiper, 1500);
+    // Model Piper (~63MB) sekarang sudah mulai diunduh SEDINI MUNGKIN,
+    // langsung dari lolu-piper-tts.js sendiri begitu file itu di-parse
+    // browser (lihat baris "PERCEPAT KEMUNCULAN SUARA LOLU" di ujung
+    // lolu-piper-tts.js) — TIDAK nunggu requestIdleCallback/timeout lagi.
+    // Panggilan preload() di sini cuma dipertahankan sebagai jaring
+    // pengaman (mis. kalau lolu-piper-tts.js gagal load duluan lalu baru
+    // berhasil belakangan) — aman & idempotent, tidak dobel unduh.
+    if (window.LoluPiperTTS && typeof window.LoluPiperTTS.preload === 'function') {
+      window.LoluPiperTTS.preload();
     }
   });
 

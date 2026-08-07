@@ -26,6 +26,12 @@
 <link rel="preconnect" href="https://cdn-lfs.huggingface.co" crossorigin>
 <link rel="preconnect" href="https://cdn-lfs-us-1.hf.co" crossorigin>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<!-- Modulepreload: mulai fetch file library Piper (./piper/piper-tts-web.js,
+     ~320 KB) SEDINI MUNGKIN, paralel dengan parsing HTML — bukan menunggu
+     tag <script src="lolu-piper-tts.js"> di bawah <body> baru dieksekusi
+     baru browser mulai fetch modul ini. Bagian dari percepatan "loading
+     suara Lolu"; lihat juga preload() otomatis di ujung lolu-piper-tts.js. -->
+<link rel="modulepreload" href="./piper/piper-tts-web.js">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Vibexa — Music Player</title>
 <!-- PWA -->
