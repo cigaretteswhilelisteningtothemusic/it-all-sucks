@@ -1200,13 +1200,6 @@
         <span class="lolu-mic-pulse"></span>
       </button>
       <button class="ai-chat-mic-lang-btn" id="lolu-mic-lang-btn" onclick="LoluVoiceDJ.toggleLanguage(event)" title="Bahasa untuk voice command">ID</button>
-      <button class="ai-chat-mic-btn lv-dj-toggle-btn" id="lolu-dj-toggle-btn-chat" onclick="LoluDJ.toggle()" title="Mode DJ">
-        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4 14v-3a8 8 0 0 1 16 0v3"/>
-          <path d="M20 14a2 2 0 0 1-2 2h-1v-5h1a2 2 0 0 1 2 2v1z"/>
-          <path d="M4 14a2 2 0 0 0 2 2h1v-5H6a2 2 0 0 0-2 2v1z"/>
-        </svg>
-      </button>
       <textarea id="ai-chat-input" rows="1" placeholder="Minta playlist, rekomendasi lagu, atau ngobrol soal musik..." autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAIChatMessage();}"></textarea>
       <button class="ai-chat-send-btn" id="ai-chat-send-btn" onclick="sendAIChatMessage()" title="Send">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>
@@ -1214,30 +1207,19 @@
     </div>
   </div>
 
-</main>
-
 <!-- ==========================================================================
      LOLU VOICE — halaman khusus voice chat dengan Lolu, dibuka lewat tombol
-     mic di halaman Chat AI (lihat #lolu-mic-btn di atas). Sengaja fixed
-     menutupi seluruh layar (bukan cuma di dalam #main) supaya benar-benar
-     jadi "halaman" tersendiri baik di desktop maupun mobile. Seluruh logika
-     buka/tutup, sinkronisasi chat & kotak play ada di lolu-voice.js.
+     mic di halaman Chat AI (lihat #lolu-mic-btn di atas). Diletakkan di
+     dalam #main (sama seperti #ai-chat-overlay di atas) supaya di PC cuma
+     menutupi area halaman utama saja — panel kiri & kanan tetap terlihat,
+     senada dengan halaman Chat AI. Khusus di layar sempit (mobile), fixed
+     menutupi seluruh layar lewat media query di lolu-voice.css. Seluruh
+     logika buka/tutup, sinkronisasi chat & kotak play ada di lolu-voice.js.
      ========================================================================== -->
 <div id="lolu-voice-page">
   <div class="lv-topbar">
     <button class="lv-back-btn" id="lv-back-btn" onclick="LoluVoiceDJ.closeVoicePage()" title="Keluar">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-    </button>
-    <!-- Toggle "Mode DJ" — lihat lolu-dj.js. Menyalakan sesi radio DJ otomatis
-         (queue lagu + komentar suara Lolu di antara lagu), terpisah dari
-         voice command satu-kali biasa. -->
-    <button class="lv-dj-toggle-btn" id="lolu-dj-toggle-btn" onclick="LoluDJ.toggle()" title="Nyalakan mode DJ">
-      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M4 14v-3a8 8 0 0 1 16 0v3"/>
-        <path d="M20 14a2 2 0 0 1-2 2h-1v-5h1a2 2 0 0 1 2 2v1z"/>
-        <path d="M4 14a2 2 0 0 0 2 2h1v-5H6a2 2 0 0 0-2 2v1z"/>
-      </svg>
-      <span>DJ</span>
     </button>
   </div>
 
@@ -1305,6 +1287,8 @@
     </div>
   </div>
 </div>
+
+</main>
 
 <!-- IMAGE VIEWER FULLSCREEN -->
 <div id="img-viewer" onclick="closeImgViewer()">

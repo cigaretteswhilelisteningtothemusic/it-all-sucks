@@ -134,12 +134,18 @@
    permintaan: back/mic di atas -> foto burung -> chat (bisa discroll) ->
    kotak play di paling bawah.
    ========================================================================== */
+/* Di PC: absolute mengikuti area #main (persis seperti #ai-chat-overlay),
+   jadi cuma menutupi halaman utama — panel kiri & kanan tetap terlihat.
+   Di mobile (lihat @media max-width:660px di bawah): fixed menutupi
+   seluruh layar, karena tidak ada panel kiri/kanan yang perlu tetap
+   terlihat di layar sempit. */
 #lolu-voice-page{
-  position:fixed; inset:0; z-index:500;
+  position:absolute; inset:0; z-index:60;
   display:none; flex-direction:column;
   background:var(--bg,#000);
   color:var(--text,#fff);
   font-family:var(--f,inherit);
+  border-radius:var(--r);
 }
 #lolu-voice-page.show{ display:flex; }
 
@@ -286,6 +292,10 @@
 #lolu-voice-page .lv-status-text{ word-break:break-word; font-size:.92rem; color:#fff; }
 
 @media (max-width: 660px){
+  /* Mobile: tetap fullscreen menutupi seluruh layar (tidak ada panel
+     kiri/kanan yang perlu disisakan), sekaligus lepas dari alur #main
+     supaya tidak ikut ter-scroll bareng konten halaman utama. */
+  #lolu-voice-page{ position:fixed; z-index:500; border-radius:0; }
   #lolu-voice-page .lv-topbar{ padding:14px 14px 0; }
   #lolu-voice-page .lv-center{ padding:0 16px 26px; }
   #lolu-voice-page .lv-greeting{ font-size:1.6rem !important; margin-bottom:14px !important; }
@@ -300,30 +310,6 @@
    chip mood/vibe di bawah mic. Ditambahkan sebagai bagian akhir file supaya
    tidak mengubah/menggeser style lolu-voice yang sudah ada di atas.
    ========================================================================== */
-
-/* ── Tombol toggle DJ di topbar #lolu-voice-page ─────────────────────────── */
-#lolu-voice-page .lv-dj-toggle-btn{
-  margin-left:auto;
-  display:flex; align-items:center; gap:6px;
-  padding:7px 13px; border-radius:16px;
-  border:1px solid var(--border,rgba(255,255,255,.15));
-  background:transparent; color:var(--muted,#9a9a9a);
-  font-family:var(--f,inherit); font-size:.72rem; font-weight:800; letter-spacing:.03em;
-  cursor:pointer;
-  transition:background .2s ease, color .2s ease, border-color .2s ease, transform .15s ease;
-}
-#lolu-voice-page .lv-dj-toggle-btn:hover{ color:#fff; border-color:#E8951C; transform:scale(1.03); }
-#lolu-voice-page .lv-dj-toggle-btn:active{ transform:scale(.95); }
-#lolu-voice-page .lv-dj-toggle-btn.active{
-  background:linear-gradient(135deg,#E8951C,#E15A6B); color:#fff; border-color:transparent;
-  box-shadow:0 4px 14px rgba(225,90,107,.35);
-}
-
-/* ── Tombol toggle DJ versi kecil di input bar Chat AI (dipakai bareng
-   style .ai-chat-mic-btn yang sudah ada, cuma override warna saat aktif) ── */
-.ai-chat-mic-btn.lv-dj-toggle-btn.active{
-  background:linear-gradient(135deg,#E8951C,#E15A6B); color:#fff; border-color:transparent;
-}
 
 /* ── Badge "ON AIR" di atas foto/greeting, cuma tampil selagi mode DJ aktif ── */
 #lolu-voice-page .lv-onair-badge{
@@ -340,13 +326,15 @@
 }
 
 /* ── Chip mood/vibe di bawah mic (ganti suasana musik tanpa bikin playlist
-   baru — setara ucapan "play something chill" dkk, lihat LoluDJ.setMood) ── */
+   baru — setara ucapan "play something chill" dkk, lihat LoluDJ.setMood).
+   Sekarang tampil dari awal berbarengan dengan judul+deskripsi (sesuai foto
+   acuan), tidak lagi menunggu tombol toggle DJ yang sudah dihapus — mode DJ
+   otomatis nyala begitu salah satu chip di-tap (lihat LoluDJ.setMood). ── */
 #lolu-voice-page .lv-mood-chips{
-  display:none; gap:8px; flex-wrap:wrap; justify-content:center;
-  width:100%; max-width:340px; margin:0 auto;
+  display:flex; gap:8px; flex-wrap:wrap; justify-content:center;
+  width:100%; max-width:340px; margin:10px auto 0;
 }
 #lolu-voice-page .lv-below-mic.lv-dj-active .lv-idle-info{ display:none; }
-#lolu-voice-page .lv-below-mic.lv-dj-active .lv-mood-chips{ display:flex; }
 #lolu-voice-page .lv-below-mic.lv-active .lv-mood-chips{ opacity:0; pointer-events:none; }
 
 .lv-mood-chip{
@@ -362,8 +350,6 @@
 .lv-mood-chip.active{ background:var(--green,#2E7DFF); color:#fff; border-color:var(--green,#2E7DFF); }
 
 @media (max-width: 660px){
-  #lolu-voice-page .lv-dj-toggle-btn span{ display:none; } /* cuma ikon di layar sempit */
-  #lolu-voice-page .lv-dj-toggle-btn{ padding:8px; border-radius:50%; }
   #lolu-voice-page .lv-mood-chips{ max-width:100%; }
   .lv-mood-chip{ font-size:.68rem; padding:5px 10px; }
 }
