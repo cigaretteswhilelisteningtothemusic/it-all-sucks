@@ -15,6 +15,17 @@
   }
 }
 </script>
+<!-- Preconnect (DNS+TLS lebih awal, sebelum benar-benar fetch dimulai) ke
+     host yang dipakai unduhan model suara Lolu Piper (lolu-piper-tts.js):
+     huggingface.co untuk metadata/redirect model, dan CDN jsdelivr yang
+     sudah dipakai importmap onnxruntime-web di atas. Ini bagian dari
+     percepatan "loading suara Lolu" — begitu unduhan model beneran mulai
+     (dipicu preload() sedini mungkin, lihat lolu-voice.js), koneksinya
+     sudah tidak perlu nunggu DNS lookup + TLS handshake dari nol lagi. -->
+<link rel="preconnect" href="https://huggingface.co" crossorigin>
+<link rel="preconnect" href="https://cdn-lfs.huggingface.co" crossorigin>
+<link rel="preconnect" href="https://cdn-lfs-us-1.hf.co" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Vibexa — Music Player</title>
 <!-- PWA -->

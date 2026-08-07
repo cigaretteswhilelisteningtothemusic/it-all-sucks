@@ -933,6 +933,13 @@
       page.classList.add('show');
       _lvUpdateGreeting();
     }
+    // Pastikan model Piper sudah/lagi disiapkan di background begitu
+    // halaman ini dibuka — jangan tunggu sampai user pencet mic (lihat
+    // catatan "Percepat loading suara Lolu" di init DOMContentLoaded di
+    // bawah). Aman dipanggil berkali-kali, tidak dobel unduh.
+    if (window.LoluPiperTTS && typeof window.LoluPiperTTS.preload === 'function') {
+      window.LoluPiperTTS.preload();
+    }
     // Sengaja TIDAK langsung startListening() -- halaman terbuka dalam
     // kondisi idle, mic baru aktif kalau user menekan tombol mic sendiri.
     UIState.setIdle();
@@ -1048,7 +1055,45 @@
       const b = document.getElementById('lolu-mic-btn');
       if (b) { b.disabled = true; b.title = 'Voice command tidak didukung browser ini'; b.classList.add('unsupported'); }
     }
+
+    // ── Percepat "loading suara Lolu" ────────────────────────────────────
+    // Sebelumnya model Piper (~63MB) baru mulai diunduh begitu user PENCET
+    // tombol mic — jadi permintaan suara PERTAMA selalu nunggu lama (unduh
+    // + load library + baru bisa ngomong). Sekarang mulai unduh/siapkan
+    // model di BACKGROUND sedini mungkin (begitu halaman selesai dimuat &
+    // browser lagi idle), supaya begitu user beneran pencet mic nanti,
+    // modelnya kemungkinan besar SUDAH ada di cache OPFS browser -> suara
+    // Lolu langsung keluar tanpa nunggu unduhan sama sekali. Tidak butuh
+    // user-gesture (fetch/download memang tidak butuh interaksi user,
+    // beda dengan audio.play() yang butuh — itu tetap ditangani terpisah
+    // lewat unlockAudio() saat mic dipencet).
+    const _preloadPiper = () => {
+      if (window.LoluPiperTTS && typeof window.LoluPiperTTS.preload === 'function') {
+        window.LoluPiperTTS.preload();
+      }
+    };
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(_preloadPiper, { timeout: 4000 });
+    } else {
+      setTimeout(_preloadPiper, 1500);
+    }
   });
+
+  // Sinyal lebih awal lagi: begitu user buka halaman Chat AI (sebelum
+  // sempat mikir buat pencet mic), langsung pastikan preload sudah/lagi
+  // jalan. Aman dipanggil berkali-kali — ensureModel() di lolu-piper-tts.js
+  // sudah nge-cache Promise-nya, jadi tidak dobel unduh.
+  const _origOpenAIChatOverlay = window.openAIChatOverlay;
+  if (typeof _origOpenAIChatOverlay === 'function') {
+    window.openAIChatOverlay = function () {
+      try {
+        if (window.LoluPiperTTS && typeof window.LoluPiperTTS.preload === 'function') {
+          window.LoluPiperTTS.preload();
+        }
+      } catch (e) {}
+      return _origOpenAIChatOverlay.apply(this, arguments);
+    };
+  }
 
   // Bungkus closeAIChatOverlay yang sudah ada supaya voice recognition ikut
   // berhenti begitu halaman Chat AI ditutup (tanpa mengubah file vibexa.js).
