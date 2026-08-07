@@ -200,6 +200,31 @@
   image-rendering:pixelated;
   display:block;
 }
+/* Disembunyikan (bukan dilepas dari DOM) selagi animasi voice recognition
+   tampil, lihat .lv-voice-anim di bawah & lolu-voice.js
+   _lvShowSpeakingAnim/_lvHideSpeakingAnim. */
+#lolu-voice-page .lv-bird-img.lv-hidden{ display:none; }
+
+/* ── Animasi "voice recognition" (Lottie, Voice_recognition.json) —
+   menggantikan foto burung Lolu (.lv-bird-img) tepat di posisi yang sama
+   SELAMA suara Lolu Piper lagi diputar (lihat lolu-voice.js & hook
+   setSpeakingHandlers di lolu-piper-tts.js). Disembunyikan by default
+   (baru ditambah class .show saat Piper mulai bicara). Disamakan
+   TINGGINYA dengan .lv-bird-img (bukan lebarnya) supaya area burung tidak
+   "melompat" naik/turun secara mencolok saat bertukar dengan foto burung —
+   lebar mengikuti otomatis lewat aspect-ratio asli file animasinya
+   (700x300), dibatasi max-width supaya tidak meluber di layar sempit. ── */
+#lolu-voice-page .lv-voice-anim{
+  display:none;
+  height:min(46vw, 220px);
+  width:auto;
+  aspect-ratio:700 / 300;
+  max-width:92vw;
+}
+#lolu-voice-page .lv-voice-anim.show{ display:block; }
+#lolu-voice-page .lv-voice-anim svg{
+  display:block; width:100% !important; height:auto !important;
+}
 
 /* ── Tombol mic, sekarang jadi elemen utama di tengah halaman — dibungkus
    wrapper flex tersendiri supaya posisi tengah TIDAK bergantung sepenuhnya
@@ -265,6 +290,7 @@
   #lolu-voice-page .lv-center{ padding:0 16px 26px; }
   #lolu-voice-page .lv-greeting{ font-size:1.6rem !important; margin-bottom:14px !important; }
   #lolu-voice-page .lv-bird-img{ width:min(54vw, 190px); }
+  #lolu-voice-page .lv-voice-anim{ height:min(54vw, 190px); }
   #lolu-voice-page .lv-below-mic{ max-width:100%; }
 }
 

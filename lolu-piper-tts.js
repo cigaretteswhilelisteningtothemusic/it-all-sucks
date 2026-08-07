@@ -104,6 +104,19 @@
   var speakToken = 0;              // dipakai supaya speakDJ terbaru "menang"
                                     // kalau ada pemanggilan bertumpuk
 
+  // ── Speaking start/end hooks — dipakai UI lain (lihat lolu-voice.js:
+  // animasi "voice recognition" yang menggantikan foto burung Lolu di
+  // halaman Lolu Voice selagi Piper BENERAN sedang bersuara) supaya tahu
+  // kapan tepatnya audio Piper mulai & selesai diputar, TANPA modul ini
+  // perlu tahu apa pun soal DOM/UI pemanggilnya. Dipanggil lewat
+  // setSpeakingHandlers() di window.LoluPiperTTS (lihat bawah file). ──
+  var onSpeakStart = null;
+  var onSpeakEnd = null;
+  function setSpeakingHandlers(onStart, onEnd) {
+    onSpeakStart = typeof onStart === 'function' ? onStart : null;
+    onSpeakEnd = typeof onEnd === 'function' ? onEnd : null;
+  }
+
   // ── Load library Piper (sekali saja, lazy) ────────────────────────────
   function loadPiperModule() {
     if (!piperModulePromise) {
@@ -246,6 +259,11 @@
         var url = URL.createObjectURL(wav);
         var audio = new Audio(url);
         currentAudio = audio;
+        // Audio Piper BENERAN mulai diputar dari sini — panggil hook "mulai
+        // bicara" sekarang (bukan di 'ended'/'error' seperti onSpeakEnd),
+        // supaya UI (mis. animasi voice recognition) muncul tepat saat
+        // suaranya mau bunyi, bukan nunggu playback event lebih lanjut.
+        if (onSpeakStart) { try { onSpeakStart(); } catch (e) {} }
 
         return new Promise(function (resolve) {
           var settled = false;
@@ -259,6 +277,12 @@
             audio.removeEventListener('error', finish);
             try { URL.revokeObjectURL(url); } catch (e) {}
             if (currentAudioFinish === finish) currentAudioFinish = null;
+            // Audio ini BENERAN selesai (baik sukses 'ended', error, atau
+            // di-interrupt oleh speakDJ() baru) — panggil hook "selesai
+            // bicara" persis sekali di sini, cocok dengan resolve() promise
+            // ini juga (lihat catatan besar di atas fungsi speakDJ soal
+            // promise baru resolve setelah BENERAN selesai).
+            if (onSpeakEnd) { try { onSpeakEnd(); } catch (e) {} }
             resolve();
           }
           currentAudioFinish = finish;
@@ -313,6 +337,7 @@
     speakDJ: speakDJ,
     preload: preload,
     unlockAudio: unlockAudio,
+    setSpeakingHandlers: setSpeakingHandlers,
     VOICE_ID: VOICE_ID
   };
 })();

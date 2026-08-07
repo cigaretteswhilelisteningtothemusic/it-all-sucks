@@ -53,64 +53,28 @@
   const DJ_COMMENTARY_COOLDOWN_MS = 20000; // jangan komentar tiap lagu kalau user lompat2 cepat
   const DJ_REFILL_THRESHOLD = 3; // isi ulang queue kalau tinggal N lagu lagi
 
-  // ── "Tahan" pemutaran sampai Lolu selesai ngomong — dipakai tiap kali sesi
-  // DJ baru dimulai/lagu baru diminta LANGSUNG oleh user (start(), setMood(),
-  // playRequestedSong()), supaya lagunya TIDAK langsung bunyi bareng suara
-  // Lolu. TIDAK dipakai untuk komentar ambient di tengah sesi (lihat
+  // ── Urutan yang diminta: user minta lagu -> user TETAP di halaman Lolu
+  // Voice selagi Lolu ngomong (komentar DJ) -> BARU begitu Lolu BENERAN
+  // selesai ngomong, halaman Now Playing dibuka & halaman Lolu Voice
+  // ditutup. Dipakai tiap kali sesi DJ baru dimulai/lagu baru diminta
+  // LANGSUNG oleh user (start(), setMood(), playRequestedSong()). TIDAK
+  // dipakai untuk komentar ambient di tengah sesi (lihat
   // _djOnNewTrackStarted) karena di situ lagunya memang sudah jalan duluan
-  // seperti siaran radio beneran. ──
-  let _djHoldPlaybackForSpeech = false;
-  let _djHoldWatchTimer = null;
-  function _djWatchAndHoldPlayback() {
-    clearInterval(_djHoldWatchTimer);
-    _djHoldWatchTimer = setInterval(() => {
-      if (!_djHoldPlaybackForSpeech) { clearInterval(_djHoldWatchTimer); return; }
-      try {
-        // PENTING: `playing` di sini SENGAJA dipakai sebagai identifier
-        // bare (bukan window.playing). `playing` dideklarasikan pakai
-        // `let playing = false;` di top-level vibexa.js — deklarasi
-        // let/const di top-level script klasik TIDAK pernah jadi properti
-        // `window` (beda dengan `var`/`function`), jadi `window.playing`
-        // selalu undefined walau lagunya beneran lagi jalan. Karena
-        // lolu-dj.js dimuat lewat <script> biasa (bukan module) SETELAH
-        // vibexa.js di dokumen yang sama, `playing` di sini otomatis
-        // merujuk ke variabel global yang sama lewat scope chain — ini
-        // yang bikin "tahan lagu sampai Lolu selesai ngomong" akhirnya
-        // beneran jalan (sebelumnya diam-diam selalu gagal karena
-        // window.playing selalu undefined -> pause() tidak pernah dipanggil
-        // -> lagu langsung bunyi bareng suara Lolu).
-        if (playing && window.LoluVoiceDJ && typeof window.LoluVoiceDJ.pause === 'function') {
-          window.LoluVoiceDJ.pause();
-        }
-      } catch (e) {}
-    }, 70);
-  }
-  function _djBeginHeldTrack(track) {
-    _djHoldPlaybackForSpeech = true;
+  // seperti siaran radio beneran, halaman Now Playing juga sudah terbuka. ──
+  async function _djSpeakThenGoToNowPlaying(track, commentary) {
+    // Lolu ngomong dulu di sini — halaman yang tampil masih #lolu-voice-page
+    // (belum ada pemanggilan loadPlay/closeVoicePage sama sekali), jadi
+    // user beneran tetap melihat halaman Lolu Voice sampai suaranya kelar.
+    await _speakAwait(commentary);
+    // Suara Lolu sudah selesai -> baru sekarang arahkan ke Now Playing &
+    // tutup halaman Lolu Voice. Lagu otomatis mulai bunyi begitu loadPlay()
+    // dipanggil (perilaku asli loadPlay milik vibexa.js), jadi urutannya
+    // pas: Lolu ngomong dulu -> baru lagunya bunyi & halaman berpindah.
     if (typeof loadPlay === 'function') loadPlay(track, null); // loadPlay milik vibexa.js otomatis buka halaman Now Playing
-    // Tutup halaman Lolu Voice SEKARANG JUGA (bukan nunggu Lolu selesai
-    // ngomong dulu) — supaya user langsung "pindah pandangan" ke halaman
-    // Now Playing yang barusan dibuka loadPlay() di atas, sesuai flow yang
-    // diminta: minta lagu -> langsung diarahkan ke Now Playing. Audionya
-    // sendiri TETAP ditahan sampai Lolu selesai ngomong lewat
-    // _djWatchAndHoldPlayback() di bawah (independen dari halaman mana yang
-    // sedang tampil), jadi lagu TIDAK ikut kedengeran cuma karena halaman
-    // Lolu Voice-nya sudah ketutup.
     try {
       if (window.LoluVoiceDJ && typeof window.LoluVoiceDJ.closeVoicePage === 'function') {
         window.LoluVoiceDJ.closeVoicePage();
       }
-    } catch (e) {}
-    _djWatchAndHoldPlayback();
-  }
-  function _djReleaseHeldTrack() {
-    _djHoldPlaybackForSpeech = false;
-    clearInterval(_djHoldWatchTimer);
-    // Halaman Lolu Voice sudah ditutup dari awal (lihat _djBeginHeldTrack) —
-    // di sini tinggal melanjutkan lagu yang tadi ditahan.
-    try {
-      if (window.LoluVoiceDJ && typeof window.LoluVoiceDJ.resume === 'function') window.LoluVoiceDJ.resume();
-      else if (YTP && typeof YTP.playVideo === 'function') YTP.playVideo(); // lihat catatan `playing` di atas — sama utk `YTP`
     } catch (e) {}
   }
 
@@ -374,11 +338,12 @@ ATURAN WAJIB:
       }, 4200);
     } catch (e) {}
     // Bubble di atas ada di dalam #ai-chat-overlay/#lolu-voice-page — begitu
-    // halaman Lolu Voice ditutup lebih awal (lihat _djBeginHeldTrack) supaya
-    // user langsung pindah ke Now Playing, bubble itu ikut ketutup juga
-    // (z-index Now Playing lebih tinggi dari chat overlay). Pakai toast()
-    // global (elemen #toast, punya vibexa.js, z-index paling atas) sebagai
-    // fallback supaya kalimat DJ tetap kebaca di halaman mana pun.
+    // Lolu selesai ngomong & halaman Lolu Voice ditutup (lihat
+    // _djSpeakThenGoToNowPlaying, dipanggil SETELAH ngomong selesai), bubble
+    // itu ikut ketutup juga (z-index Now Playing lebih tinggi dari chat
+    // overlay). Pakai toast() global (elemen #toast, punya vibexa.js,
+    // z-index paling atas) sebagai fallback supaya kalimat DJ tetap kebaca
+    // di halaman mana pun.
     try {
       if (typeof window.toast === 'function' && text) {
         const wordCount = text.trim().split(/\s+/).length;
@@ -413,12 +378,12 @@ ATURAN WAJIB:
   }
 
   // Versi _speak() yang mengembalikan Promise, baru resolve setelah Lolu
-  // BENERAN selesai ngomong — dipakai buat "menahan" lagu (lihat
-  // _djBeginHeldTrack/_djReleaseHeldTrack di atas) supaya musik baru mulai
-  // bunyi SETELAH komentar DJ selesai, bukan bebarengan. Dikombinasikan
-  // dengan estimasi durasi dari jumlah kata sebagai jaring pengaman kalau
-  // Promise dari LoluPiperTTS.speakDJ ternyata resolve lebih cepat dari
-  // audionya beneran selesai.
+  // BENERAN selesai ngomong — dipakai oleh _djSpeakThenGoToNowPlaying() di
+  // atas supaya Now Playing (& lagunya) baru dibuka SETELAH komentar DJ
+  // selesai diucapkan, bukan bebarengan/lebih dulu. Dikombinasikan dengan
+  // estimasi durasi dari jumlah kata sebagai jaring pengaman kalau Promise
+  // dari LoluPiperTTS.speakDJ ternyata resolve lebih cepat dari audionya
+  // beneran selesai.
   function _speakAwait(text) {
     if (!text) return Promise.resolve();
     _showBubble(text);
@@ -558,14 +523,16 @@ ATURAN WAJIB:
     curQueue = queue;
     _djSuppressNextAutoCommentary = true;
     _djLastCommentaryAt = Date.now();
-    _djBeginHeldTrack(queue[0]); // buka Now Playing + tahan audio sampai Lolu selesai ngomong
+    _refreshUI();
 
+    // Tetap di halaman Lolu Voice selama komentar dibuat & diucapkan; Now
+    // Playing baru dibuka setelah Lolu selesai ngomong (lihat
+    // _djSpeakThenGoToNowPlaying).
     const commentary = isMoodStart
       ? await _djGenerateMoodSwitch(queue[0], mood)
       : await _djGenerateIntro(queue[0], true);
     _refreshUI();
-    await _speakAwait(commentary);
-    _djReleaseHeldTrack();
+    await _djSpeakThenGoToNowPlaying(queue[0], commentary);
     return commentary;
   }
 
@@ -585,12 +552,13 @@ ATURAN WAJIB:
     curQueue = queue;
     _djSuppressNextAutoCommentary = true;
     _djLastCommentaryAt = Date.now();
-    _djBeginHeldTrack(queue[0]); // buka Now Playing + tahan audio sampai Lolu selesai ngomong
+    _refreshUI();
 
+    // Tetap di halaman Lolu Voice selama komentar dibuat & diucapkan; Now
+    // Playing baru dibuka setelah Lolu selesai ngomong.
     const commentary = await _djGenerateMoodSwitch(queue[0], mood);
     _refreshUI();
-    await _speakAwait(commentary);
-    _djReleaseHeldTrack();
+    await _djSpeakThenGoToNowPlaying(queue[0], commentary);
     return commentary;
   }
 
@@ -616,12 +584,13 @@ ATURAN WAJIB:
     curQueue = (Array.isArray(queueList) && queueList.length) ? queueList.map(_ensureQuery) : [_ensureQuery(track)];
     _djSuppressNextAutoCommentary = true;
     _djLastCommentaryAt = Date.now();
-    _djBeginHeldTrack(_ensureQuery(track)); // buka Now Playing + tahan audio sampai Lolu selesai ngomong
+    _refreshUI();
 
+    // Tetap di halaman Lolu Voice selama komentar dibuat & diucapkan; Now
+    // Playing baru dibuka setelah Lolu selesai ngomong.
     const commentary = await _djGenerateRequestIntro(track);
     _refreshUI();
-    await _speakAwait(commentary);
-    _djReleaseHeldTrack();
+    await _djSpeakThenGoToNowPlaying(_ensureQuery(track), commentary);
     return commentary;
   }
 
@@ -633,7 +602,6 @@ ATURAN WAJIB:
     }
     _djActive = false;
     _djMood = null;
-    if (_djHoldPlaybackForSpeech) { _djHoldPlaybackForSpeech = false; clearInterval(_djHoldWatchTimer); }
     _refreshUI();
     const t = _t('Oke, mode DJ Lolu matiin dulu ya. Panggil lagi kapan aja kalau mau nyala lagi!', 'Alright, turning DJ mode off for now. Call me back anytime!');
     _showBubble(t);

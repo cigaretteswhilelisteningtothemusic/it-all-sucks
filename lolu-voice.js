@@ -637,14 +637,16 @@
     // fungsi ini WAJIB dilewati supaya balasannya tidak diucapkan dua kali.
     let djHandledSpeech = false;
 
-    // User lagi ada di halaman Lolu DJ (#lolu-voice-page) -> permintaan
-    // "putar lagu ..." di sini otomatis masuk ke mode Lolu DJ: Now Playing
-    // langsung dibuka & Lolu ngomong dulu sebelum lagunya bunyi (lihat
-    // LoluDJ.playRequestedSong di lolu-dj.js), bukan langsung diputar diam2
-    // seperti command player biasa.
-    const page = _lvPage();
-    const onLoluDJPage = !!(page && page.classList.contains('show'));
-    const djAvailable = onLoluDJPage && window.LoluDJ && typeof window.LoluDJ.playRequestedSong === 'function';
+    // Lolu Voice & Lolu DJ SENGAJA disatukan: SETIAP permintaan "putar lagu
+    // ..." lewat voice (play_song/play_query/play_playlist/search di bawah)
+    // otomatis masuk ke mode Lolu DJ — bukan cuma kalau user kebetulan lagi
+    // di halaman Lolu DJ. LoluDJ.playRequestedSong() (lolu-dj.js) yang
+    // menangani semuanya: user TETAP di halaman Lolu Voice selagi Lolu
+    // ngomong duluan, baru SETELAH suaranya selesai halaman Now Playing
+    // dibuka & halaman Lolu Voice ditutup — bukan langsung diputar diam2
+    // seperti command player biasa (pause/resume/next/dst tetap seperti
+    // biasa, tidak lewat DJ).
+    const djAvailable = window.LoluDJ && typeof window.LoluDJ.playRequestedSong === 'function';
 
     try {
       switch (intent.intent) {
@@ -955,6 +957,64 @@
     try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) {}
     UIState.setIdle();
   }
+
+  // ==========================================================================
+  // 10) VOICE RECOGNITION ANIMATION — menggantikan foto burung Lolu
+  //     (#lv-bird-img di halaman Lolu Voice) dengan animasi Lottie "voice
+  //     recognition" (Voice_recognition.json) SELAMA suara Lolu Piper
+  //     BENERAN sedang diputar, lalu balik lagi ke foto burung begitu
+  //     suaranya selesai. Terhubung lewat LoluPiperTTS.setSpeakingHandlers()
+  //     (lolu-piper-tts.js) supaya otomatis berlaku di MANA PUN suara Piper
+  //     dipicu — voice command satu-kali biasa di file ini, AIChatBridge
+  //     (obrolan bebas), maupun komentar Lolu DJ (lolu-dj.js) — TANPA
+  //     lolu-piper-tts.js perlu tahu apa pun soal DOM/UI halaman ini.
+  // ==========================================================================
+  const VOICE_RECOGNITION_LOTTIE_URL = 'Voice_recognition.json';
+  let _lvVoiceAnim = null; // instance lottie, dimuat sekali (lazy) saat pertama dibutuhkan
+
+  function _lvVoiceAnimEl() { return document.getElementById('lv-voice-anim'); }
+  function _lvBirdImgEl() { return document.getElementById('lv-bird-img'); }
+
+  function _lvShowSpeakingAnim() {
+    try {
+      const anim = _lvVoiceAnimEl();
+      const bird = _lvBirdImgEl();
+      if (!anim) return;
+      if (!_lvVoiceAnim) {
+        if (typeof lottie === 'undefined') return; // lottie-web belum/tidak dimuat -> aman diabaikan, foto burung tetap tampil
+        _lvVoiceAnim = lottie.loadAnimation({
+          container: anim,
+          renderer: 'svg',
+          loop: true,
+          autoplay: true,
+          path: VOICE_RECOGNITION_LOTTIE_URL
+        });
+      } else {
+        try { _lvVoiceAnim.play(); } catch (e) {}
+      }
+      if (bird) bird.classList.add('lv-hidden');
+      anim.classList.add('show');
+    } catch (e) {}
+  }
+
+  function _lvHideSpeakingAnim() {
+    try {
+      const anim = _lvVoiceAnimEl();
+      const bird = _lvBirdImgEl();
+      if (anim) anim.classList.remove('show');
+      if (bird) bird.classList.remove('lv-hidden');
+      // Dijeda (bukan destroy) selagi tidak kelihatan — hemat CPU tapi
+      // instance-nya tetap disimpan supaya kemunculan berikutnya langsung
+      // play() lagi tanpa perlu reload file JSON-nya dari server.
+      if (_lvVoiceAnim) { try { _lvVoiceAnim.pause(); } catch (e) {} }
+    } catch (e) {}
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    if (window.LoluPiperTTS && typeof window.LoluPiperTTS.setSpeakingHandlers === 'function') {
+      window.LoluPiperTTS.setSpeakingHandlers(_lvShowSpeakingAnim, _lvHideSpeakingAnim);
+    }
+  });
 
   // ==========================================================================
   // PUBLIC API

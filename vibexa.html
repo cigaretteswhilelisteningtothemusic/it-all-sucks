@@ -1251,6 +1251,12 @@
 
     <div class="lv-bird-wrap">
       <img id="lv-bird-img" class="lv-bird-img" src="lolu.png" alt="Lolu">
+      <!-- Animasi "voice recognition" (Lottie, Voice_recognition.json) —
+           menggantikan foto burung Lolu di atas SELAMA suara Lolu Piper
+           lagi diputar, otomatis balik ke foto burung begitu suaranya
+           selesai. Dimuat lazy & dikontrol dari lolu-voice.js, terhubung
+           lewat LoluPiperTTS.setSpeakingHandlers() (lolu-piper-tts.js). -->
+      <div id="lv-voice-anim" class="lv-voice-anim"></div>
     </div>
 
     <div class="lv-mic-wrap">
