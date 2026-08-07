@@ -1410,6 +1410,19 @@
         <div class="lyr-albums-scroll" id="lyr-albums-scroll"></div>
       </div>
 
+      <!-- Kotak "Next Song" (khusus PC, di bawah kotak Other Albums di atas) —
+           ANTRIAN REAL lagu yang bakal diputar berurutan (curQueue), HANYA
+           muncul selagi mode Lolu DJ aktif (lihat LoluDJ.isActive() &
+           _renderLyrNextSongBox() di vibexa.js). Dipakai terutama saat DJ
+           diminta memutar banyak lagu sekaligus lewat Lolu Voice, mis.
+           "putarkan 20 lagu dari Oasis" / "putarkan 15 lagu yang lagi
+           populer" (lihat lolu-voice.js). Disembunyikan (display:none) by
+           default lewat inline style, ditoggle dari JS. -->
+      <div class="lyr-nextsong-box" id="lyr-nextsong-box" style="display:none;">
+        <div class="lyr-albums-label">Next Song</div>
+        <div class="lyr-nextsong-scroll" id="lyr-nextsong-scroll"></div>
+      </div>
+
       <!-- Kotak "Next Up" (lagu selanjutnya yang akan diputar), khusus PC —
            panel #lyr ini otomatis tersembunyi di tampilan mobile. Bisa
            discroll sama seperti kotak Other Albums di atas. -->
@@ -1672,6 +1685,18 @@
         <div class="np-card" id="np-card-albums">
           <div class="np-card-head"><h4>Albums</h4></div>
           <div class="np-albums-list" id="np-albums-list"></div>
+        </div>
+        <!-- Kotak "Next Song" (khusus tampilan mobile, di bawah kotak Albums
+             di atas) — ANTRIAN REAL lagu yang bakal diputar berurutan
+             (curQueue), HANYA muncul selagi mode Lolu DJ aktif (lihat
+             LoluDJ.isActive() & _renderNPNextSongBox() di vibexa.js). Dipakai
+             terutama saat DJ diminta memutar banyak lagu sekaligus lewat
+             Lolu Voice, mis. "putarkan 20 lagu dari Oasis" / "putarkan 15
+             lagu yang lagi populer" (lihat lolu-voice.js). Disembunyikan
+             (display:none) by default lewat inline style, ditoggle dari JS. -->
+        <div class="np-card" id="np-card-nextsong" style="display:none;">
+          <div class="np-card-head"><h4>Next Song</h4></div>
+          <div class="np-nextsong-list" id="np-nextsong-list"></div>
         </div>
         <div class="np-card" id="np-card-playlists">
           <div class="np-card-head"><h4>Your Playlists</h4><span class="np-showall" onclick="closeNP();showHomeView()">Show all</span></div>

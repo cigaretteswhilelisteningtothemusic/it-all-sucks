@@ -465,6 +465,15 @@ ATURAN WAJIB:
     });
     const npGif = document.getElementById('np-dj-gif');
     if (npGif) { npGif.classList.toggle('show', _djActive); if (_djActive) _djSyncGifSize(); }
+    // Kotak "Next Song" (mobile #np-card-nextsong & panel kanan PC
+    // #lyr-nextsong-box, lihat vibexa.js) HANYA muncul selagi mode DJ
+    // aktif — refresh keduanya di sini juga supaya langsung
+    // muncul/hilang begitu mode DJ dinyalakan/dimatikan (mis. lewat
+    // stop()/toggle()), tanpa perlu menunggu lagu baru dimuat lewat
+    // loadPlay() (yang sudah otomatis memanggil ini lewat openNP()/
+    // _updateArtistWidgets()).
+    if (typeof window._renderNPNextSongBox === 'function') window._renderNPNextSongBox();
+    if (typeof window._renderLyrNextSongBox === 'function') window._renderLyrNextSongBox();
   }
 
   // Samakan ukuran #np-dj-gif (halaman Now Playing) dengan ukuran

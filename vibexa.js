@@ -7296,6 +7296,7 @@ function openNP(track){
   _updateNPAlbumsBox(track);
   _renderNPPlaylists();
   _renderNPNextUp();
+  _renderNPNextSongBox();
   // Reset posisi scroll & jalankan ulang animasi header setiap kali halaman Now Playing dibuka
   const scrollEl=document.getElementById('np-scroll');
   if(scrollEl) scrollEl.scrollTop=0;
@@ -7918,6 +7919,61 @@ function _renderNPNextUp(){
     c.appendChild(d);
   });
 }
+
+// ==========================================================================
+// Kotak "Next Song" — ANTRIAN REAL (curQueue) lagu yang bakal diputar
+// berurutan, HANYA muncul selagi mode Lolu DJ aktif (lihat LoluDJ.isActive()
+// di lolu-dj.js). Beda dengan kotak "Jelajahi <Artis>" (_renderNPNextUp/
+// _renderLyrNextUp di atas) yang isinya REKOMENDASI preview dari artis yang
+// sama — kotak ini isinya lagu-lagu yang MEMANG akan diputar berikutnya,
+// dipakai terutama saat DJ diminta memutar banyak lagu sekaligus lewat Lolu
+// Voice (mis. "putarkan 20 lagu dari Oasis"/"putarkan 15 lagu yang lagi
+// populer" — lihat lolu-voice.js & lolu-dj.js). Datanya dipakai ulang dari
+// _getUpcomingTracks() yang SUDAH ADA (dipakai juga oleh kotak "Jelajahi
+// <Artis>" versi lama sebagai fallback Top Songs) supaya urutannya selalu
+// konsisten dengan apa yang BENERAN akan diputar player.
+// ==========================================================================
+function _djModeActive(){
+  return !!(window.LoluDJ && typeof window.LoluDJ.isActive === 'function' && window.LoluDJ.isActive());
+}
+function _renderNextSongRows(containerId, prefix){
+  const c=document.getElementById(containerId);
+  if(!c) return;
+  const list=(typeof _getUpcomingTracks==='function') ? _getUpcomingTracks(50) : [];
+  if(!list.length){ c.innerHTML=`<div class="${prefix}-empty">Belum ada lagu berikutnya</div>`; return; }
+  c.innerHTML='';
+  list.forEach((t,i)=>{
+    const d=document.createElement('div');
+    d.className=prefix+'-row';
+    d.innerHTML=`
+      <span class="${prefix}-num">${i+2}</span>
+      ${t.thumb ? `<img class="${prefix}-cover" src="${esc(t.thumb)}" alt="" loading="lazy" onerror="this.style.display='none'">` : `<div class="${prefix}-cover-ph"></div>`}
+      <div class="${prefix}-info">
+        <div class="${prefix}-title">${esc(t.title)}</div>
+        <div class="${prefix}-artist">${esc(t.artist || '')}</div>
+      </div>
+    `;
+    d.addEventListener('click', (e)=>{ e.stopPropagation(); if(typeof loadPlay==='function') loadPlay(t, null); });
+    c.appendChild(d);
+  });
+}
+// Kotak mobile (#np-card-nextsong, di dalam halaman Now Playing #np-view)
+function _renderNPNextSongBox(){
+  const card=document.getElementById('np-card-nextsong');
+  if(!card) return;
+  const active=_djModeActive();
+  card.style.display = active ? '' : 'none';
+  if(active) _renderNextSongRows('np-nextsong-list', 'np-nextsong');
+}
+// Kotak panel kanan PC (#lyr-nextsong-box, di dalam panel #lyr)
+function _renderLyrNextSongBox(){
+  const box=document.getElementById('lyr-nextsong-box');
+  if(!box) return;
+  const active=_djModeActive();
+  box.style.display = active ? 'block' : 'none';
+  if(active) _renderNextSongRows('lyr-nextsong-scroll', 'lyr-nextsong');
+}
+
 function _fsInstHTML(){return'<span class="inst-notes"><span style="height:8px"></span><span style="height:18px"></span><span style="height:10px"></span><span style="height:20px"></span><span style="height:12px"></span></span>';}
 let _fsLyrBuiltFor = null;
 let _fsLyrTransSig = null;
@@ -8994,6 +9050,8 @@ function _updateArtistWidgets(track) {
   _updateLyrArtistBox(track);
   // Panel kanan: kotak "Next Up" (lagu selanjutnya, khusus PC)
   _renderLyrNextUp();
+  // Panel kanan: kotak "Next Song" — antrian real, khusus mode Lolu DJ aktif
+  _renderLyrNextSongBox();
 }
 
 // ─── Kotak "Tentang Artis" + Daftar Album di panel lirik kanan ──

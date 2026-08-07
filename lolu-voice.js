@@ -145,6 +145,45 @@
     return null;
   }
 
+  // ── "Putar BANYAK lagu sekaligus" — dipakai supaya DJ bisa langsung
+  // mengisi antrian (kotak "Next Song" di Now Playing, lihat vibexa.js
+  // _renderNPNextSongBox()/_renderLyrNextSongBox()) dengan banyak lagu
+  // sekaligus, bukan cuma 1 lagu. Dua bentuk yang didukung:
+  //   1. "putarkan/putar N lagu dari/oleh <artis>" (EN: "play N songs
+  //      from/by <artist>") -> mode 'artist'
+  //   2. "putarkan/putar N lagu yang (sedang) populer/hits/trending/viral"
+  //      (EN: "play N popular/trending/hit/top songs") -> mode 'popular'
+  // Angka N OPSIONAL di kedua bentuk — kalau user tidak menyebut angka sama
+  // sekali, count dikembalikan null (di-default-kan ke 20 lagu oleh
+  // pemanggilnya, lihat DEFAULT_PLAY_MANY_COUNT di handleRecognizedText).
+  // Dicek SEBELUM deteksi mood ("surprise" juga cocok dengan kata
+  // "populer/trending") supaya "putarkan 15 lagu yang sedang populer"
+  // ditangani sebagai daftar banyak lagu, bukan cuma ganti vibe/mood biasa. ──
+  const MANY_POPULAR_RE = /\b(?:yang\s+)?(?:sedang\s+)?(populer|hits?|trending|viral|top\s*hits?|top\s*chart|paling\s+(?:rame|hits)|lagi\s+hits)\b/i;
+  function _parsePlayMany(text) {
+    // ID: "putar(kan)/puterin [N] lagu(-lagu)(nya) dari/oleh <artis>"
+    let m = text.match(/^(?:putar(?:kan)?|puterin)\s+(\d+)?\s*lagu(?:-lagu)?(?:nya)?\s+(?:dari|oleh)\s+(.+)$/i);
+    if (m && m[2] && m[2].trim()) return { mode: 'artist', count: m[1] ? parseInt(m[1], 10) : null, artist: m[2].trim() };
+
+    // EN: "play [N] songs from/by <artist>"
+    m = text.match(/^play\s+(\d+)?\s*songs?\s+(?:from|by)\s+(.+)$/i);
+    if (m && m[2] && m[2].trim()) return { mode: 'artist', count: m[1] ? parseInt(m[1], 10) : null, artist: m[2].trim() };
+
+    // ID: "putar(kan)/puterin [N] lagu(-lagu)(nya) ... populer/hits/trending/viral"
+    m = text.match(/^(?:putar(?:kan)?|puterin)\s+(\d+)?\s*lagu(?:-lagu)?(?:nya)?\s+.+$/i);
+    if (m && MANY_POPULAR_RE.test(text)) {
+      return { mode: 'popular', count: m[1] ? parseInt(m[1], 10) : null };
+    }
+
+    // EN: "play [N] popular/trending/hit/top songs"
+    m = text.match(/^play\s+(\d+)?\s*(?:popular|trending|viral|hit|top)\s*songs?\b/i);
+    if (m) return { mode: 'popular', count: m[1] ? parseInt(m[1], 10) : null };
+    m = text.match(/^play\s+(\d+)?\s*songs?\s+(?:that\s+are\s+)?(?:popular|trending|viral|hits?)\b/i);
+    if (m) return { mode: 'popular', count: m[1] ? parseInt(m[1], 10) : null };
+
+    return null;
+  }
+
   const IntentParser = (function () {
 
     function _clean(t) { return (t || '').trim().replace(/\s+/g, ' '); }
@@ -177,6 +216,14 @@
 
       if (/volume up|naikkan volume|volume naik|kencangkan|kenceng(in)?/i.test(t)) return { intent: 'volume_up', raw: text };
       if (/volume down|turunkan volume|volume turun|kecilkan|pelankan/i.test(t)) return { intent: 'volume_down', raw: text };
+
+      // ── "Putar BANYAK lagu sekaligus" (lihat _parsePlayMany di atas) —
+      // dicek SEBELUM deteksi mood/vibe DJ di bawah supaya "putarkan 15
+      // lagu yang sedang populer" / "putarkan 20 lagu dari Oasis" ditangani
+      // sebagai daftar banyak lagu berurutan (mengisi kotak "Next Song"),
+      // bukan dianggap ganti mood/vibe biasa. ──
+      const many = _parsePlayMany(text);
+      if (many) return { intent: 'play_many', mode: many.mode, count: many.count, artist: many.artist || null, raw: text };
 
       // ── LOLU DJ (lihat lolu-dj.js) — mode "AI DJ" ala Spotify: putar queue
       // otomatis + komentar suara di antara lagu, ganti mood/vibe langsung,
@@ -292,7 +339,34 @@
       } catch (e) { return []; }
     }
 
-    return { findSong, findArtistTracks };
+    // Ambil N lagu TERATAS yang sedang populer/trending, dipakai fitur DJ
+    // "putarkan N lagu yang sedang populer". Pakai cache Top Songs (chart
+    // Deezer) yang SUDAH ADA di vibexa.js (_ensureTopSongsFullCache/
+    // _topSongToTrack) supaya konsisten dengan daftar "Top Songs" di Home —
+    // bukan sumber data baru.
+    async function findPopularTracks(count) {
+      try {
+        if (typeof window._ensureTopSongsFullCache !== 'function' || typeof window._topSongToTrack !== 'function') return [];
+        const list = await window._ensureTopSongsFullCache();
+        return (list || []).slice(0, count).map(window._topSongToTrack);
+      } catch (e) { return []; }
+    }
+
+    // Sama seperti findArtistTracks() di atas, tapi jumlah lagunya bisa
+    // ditentukan (dipakai fitur DJ "putarkan N lagu dari <artis>").
+    async function findArtistTracksCount(artistName, count) {
+      try {
+        if (typeof window.fetchArtistTopTracks !== 'function') return [];
+        const tracks = await fetchArtistTopTracks(artistName, count);
+        return (tracks || []).map(t => ({
+          title: t.title, artist: t.artist, thumb: t.thumb, album: '',
+          preview: t.preview || null, videoId: null, photo: null,
+          duration: t.duration, _query: `${t.artist}|||${t.title}|||${t.id}`
+        }));
+      } catch (e) { return []; }
+    }
+
+    return { findSong, findArtistTracks, findPopularTracks, findArtistTracksCount };
   })();
 
   // ==========================================================================
@@ -694,6 +768,41 @@
             }
           } else {
             replyText = reply(`Maaf, aku tidak menemukan “${intent.query}”.`, `Sorry, I couldn't find “${intent.query}”.`);
+          }
+          break;
+        }
+
+        case 'play_many': {
+          // "putarkan 15 lagu yang sedang populer" / "putarkan 20 lagu dari
+          // Oasis" dkk (lihat _parsePlayMany di IntentParser) — kalau user
+          // tidak menyebut angka sama sekali, default ke 20 lagu.
+          const DEFAULT_PLAY_MANY_COUNT = 20;
+          const count = (intent.count && intent.count > 0) ? Math.min(intent.count, 100) : DEFAULT_PLAY_MANY_COUNT;
+          replyText = intent.mode === 'artist'
+            ? reply(`Menyiapkan ${count} lagu dari ${intent.artist}...`, `Lining up ${count} songs by ${intent.artist}...`)
+            : reply(`Menyiapkan ${count} lagu yang lagi populer...`, `Lining up ${count} popular songs...`);
+          UIState.setProcessing(text);
+          const manyTracks = intent.mode === 'artist'
+            ? await MusicFinder.findArtistTracksCount(intent.artist, count)
+            : await MusicFinder.findPopularTracks(count);
+          if (manyTracks.length) {
+            if (djAvailable) {
+              // playRequestedSong() mengisi curQueue dengan SELURUH daftar
+              // (manyTracks) & otomatis menyalakan mode DJ kalau belum aktif
+              // -> kotak "Next Song" di halaman Now Playing (mobile & PC)
+              // otomatis terisi & tampil, lagu diputar berurutan dari sini.
+              replyText = await window.LoluDJ.playRequestedSong(manyTracks[0], manyTracks);
+              djHandledSpeech = true;
+            } else {
+              PlaybackController.playSongTrack(manyTracks[0], manyTracks);
+              replyText = intent.mode === 'artist'
+                ? reply(`Memutar ${manyTracks.length} lagu dari ${intent.artist}.`, `Playing ${manyTracks.length} songs by ${intent.artist}.`)
+                : reply(`Memutar ${manyTracks.length} lagu yang lagi populer.`, `Playing ${manyTracks.length} popular songs.`);
+            }
+          } else {
+            replyText = intent.mode === 'artist'
+              ? reply(`Maaf, aku tidak menemukan lagu dari ${intent.artist}.`, `Sorry, I couldn't find songs by ${intent.artist}.`)
+              : reply(`Maaf, lagi nggak nemu lagu populer sekarang.`, `Sorry, I couldn't find popular songs right now.`);
           }
           break;
         }
