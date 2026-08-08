@@ -1058,10 +1058,13 @@
   });
 
   // Teks sapaan "Good morning/afternoon/evening/night" (atau versi Indonesia)
-  // di atas foto Lolu, mengikuti jam perangkat saat halaman dibuka.
+  // di atas foto Lolu, mengikuti jam perangkat saat halaman dibuka. Dipakai
+  // untuk DUA tempat sekaligus: #lv-greeting (di dalam halaman Lolu Voice
+  // penuh) dan #lvh-greeting (kotak promo Lolu Voice di halaman Home, HANYA
+  // tampil di mobile — lihat .lolu-voice-home-card di lolu-voice.css).
   function _lvUpdateGreeting() {
-    const el = document.getElementById('lv-greeting');
-    if (!el) return;
+    const els = [document.getElementById('lv-greeting'), document.getElementById('lvh-greeting')];
+    if (!els.some(Boolean)) return;
     const h = new Date().getHours();
     let text;
     if (currentLang === 'id-ID') {
@@ -1075,7 +1078,7 @@
            : (h >= 15 && h < 18) ? 'Good evening'
            : 'Good night';
     }
-    el.textContent = text;
+    els.forEach((el) => { if (el) el.textContent = text; });
   }
 
   // Buka halaman Lolu Voice (dipanggil dari tombol mic di halaman Chat AI)
@@ -1172,6 +1175,10 @@
     if (window.LoluPiperTTS && typeof window.LoluPiperTTS.setSpeakingHandlers === 'function') {
       window.LoluPiperTTS.setSpeakingHandlers(_lvShowSpeakingAnim, _lvHideSpeakingAnim);
     }
+    // Isi sapaan "Good morning" dst di kotak promo Lolu Voice (#lvh-greeting,
+    // halaman Home) sedari awal — jangan tunggu user membuka halaman Lolu
+    // Voice penuh dulu (openVoicePage() baru memanggil ini juga).
+    _lvUpdateGreeting();
   });
 
   // ==========================================================================

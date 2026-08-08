@@ -46,7 +46,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icons/launchericon-192x192.png">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&family=Press+Start+2P&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vibexa.css">
-<link rel="stylesheet" href="lolu-voice.css?v=4">
+<link rel="stylesheet" href="lolu-voice.css?v=5">
 </head>
 <body>
 
@@ -422,6 +422,28 @@
         </div>
       </div>
       <div class="dm-grid" id="sad-playlist-grid"></div>
+    </div>
+
+    <!-- LOLU VOICE — kotak promo halaman Lolu Voice, HANYA tampil di tampilan
+         mobile (lihat @media max-width:660px di lolu-voice.css; disembunyikan
+         total di PC), diletakkan tepat di bawah Fresh Picks. Tap di mana saja
+         di kotak ini ATAU tombol play merah di kanan bawah -> langsung buka
+         halaman Lolu Voice lewat LoluVoiceDJ.openVoicePage() (fungsi yang
+         sama dipakai tombol mic di halaman Chat AI, lihat lolu-voice.js). -->
+    <div class="lolu-voice-home-card" id="lolu-voice-home-card" onclick="LoluVoiceDJ.openVoicePage()" role="button" tabindex="0">
+      <div class="lvh-greeting" id="lvh-greeting">Good morning</div>
+      <div class="lvh-bird-wrap">
+        <img src="lolu.png" alt="Lolu" class="lvh-bird-img">
+      </div>
+      <div class="lvh-bottom">
+        <div class="lvh-info">
+          <div class="lvh-title">Lolu dj</div>
+          <div class="lvh-subtitle">Lolu DJ is an AI DJ that plays music, takes voice commands, and chats with you</div>
+        </div>
+        <button class="lvh-play-btn" id="lvh-play-btn" onclick="event.stopPropagation();LoluVoiceDJ.openVoicePage()" title="Buka Lolu Voice">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="#fff"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+      </div>
     </div>
 
     <!-- FOOTER: credit sumber data + copyright, di paling bawah halaman Home -->
@@ -2053,7 +2075,7 @@
 
 <script src="vibexa.js"></script>
 <script src="lolu-piper-tts.js"></script>
-<script src="lolu-voice.js?v=4"></script>
+<script src="lolu-voice.js?v=5"></script>
 <!-- LOLU DJ — mode "AI DJ" ala Spotify (queue lagu otomatis + komentar suara
      Lolu di antara lagu, ganti mood/vibe, ngobrol soal lagu yang lagi
      diputar). Dimuat SETELAH vibexa.js & lolu-voice.js karena memakai ulang
