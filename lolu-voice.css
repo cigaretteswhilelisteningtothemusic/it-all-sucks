@@ -426,11 +426,25 @@
   display:none; /* default disembunyikan, dimunculkan khusus mobile di bawah */
 }
 
+/* Judul "Lolu dj" di atas kotak promo — sama gaya dengan judul section lain
+   di halaman Home (.pub-section-title), HANYA tampil bareng kotaknya di
+   mobile (lihat @media max-width:660px di bawah). */
+.lvh-section-title{
+  display:none;
+}
+
 @media (max-width: 660px){
+  .lvh-section-title{
+    display:flex; align-items:center; gap:8px;
+    font-family:var(--f,inherit);
+    font-size:1rem; font-weight:700;
+    color:var(--text,#fff);
+    margin-top:20px; margin-bottom:14px;
+  }
   .lolu-voice-home-card{
     display:flex; flex-direction:column;
     position:relative;
-    margin-top:20px;
+    margin-top:0;
     padding:20px 18px 18px;
     border-radius:22px;
     background:#000;

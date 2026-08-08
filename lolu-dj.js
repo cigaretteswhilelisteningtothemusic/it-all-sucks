@@ -51,6 +51,112 @@
   let _djSuppressNextAutoCommentary = false;
   const DJ_REFILL_THRESHOLD = 3; // isi ulang queue kalau tinggal N lagu lagi
 
+  // ==========================================================================
+  // PREWARM — siapkan komentar (Gemini) + suara Piper untuk lagu BERIKUTNYA
+  // LEBIH AWAL (beberapa detik sebelum lagu yang sedang jalan habis), supaya
+  // begitu lagu beneran berganti (_djAmbientTrackChange di bawah), suara
+  // Lolu Piper LANGSUNG bisa diputar tanpa loading — kedua langkah yang
+  // biasanya baru mulai SETELAH lagu berganti (generate komentar via
+  // Gemini, lalu sintesis suara via Piper predict()) sudah selesai duluan
+  // di background selagi lagu SEKARANG masih diputar.
+  //
+  // Lagu "berikutnya" diambil dari curQueue (curQueue[idx+1]) — pola yang
+  // SAMA dengan _prefetchNext() milik vibexa.js (dipakai untuk prefetch
+  // videoId+lirik lagu berikutnya), jadi valid dipakai di sini juga karena
+  // urutan lagu selagi DJ aktif memang mengikuti curQueue.
+  //
+  // Dipicu oleh interval kecil (_djPrewarmWatcherId) yang HANYA jalan
+  // selagi mode DJ aktif — dinyalakan di start()/setMood()/
+  // playRequestedSong(), dimatikan di stop().
+  // ==========================================================================
+  const DJ_PREWARM_LEAD_SEC = 15; // mulai siapkan begitu sisa lagu <= 15 detik
+  let _djPrewarmWatcherId = null;
+  let _djPrewarmedForQuery = null;     // _query lagu SEKARANG yang sudah
+                                        // memicu prewarm (guard: 1 lagu
+                                        // cuma memicu prewarm 1x, bukan tiap
+                                        // tick interval)
+  let _djPreparedNextQuery = null;     // _query lagu BERIKUTNYA yang
+                                        // komentar+suaranya SUDAH disiapkan
+  let _djPreparedNextCommentary = null; // teks komentar yang sudah disiapkan
+                                         // (WAJIB dipakai apa adanya saat
+                                         // lagu itu beneran mulai — supaya
+                                         // cocok dengan suara Piper yang
+                                         // sudah disintesis dari teks ini
+                                         // juga lewat LoluPiperTTS.prepare())
+
+  // Intip lagu berikutnya dari curQueue tanpa mengubah state apa pun —
+  // dipakai buat tahu lagu APA yang perlu disiapkan komentarnya duluan.
+  function _djPeekNextTrack() {
+    try {
+      if (!Array.isArray(curQueue) || !curQueue.length || !curTrack) return null;
+      const i = curQueue.findIndex((t) => t._query === curTrack._query);
+      if (i === -1) return null;
+      return curQueue[(i + 1) % curQueue.length];
+    } catch (e) { return null; }
+  }
+
+  // Generate komentar buat lagu berikutnya + langsung sintesis suaranya
+  // lewat LoluPiperTTS.prepare() — dipanggil di background, TIDAK menahan
+  // apa pun (lagu sekarang tetap lanjut bunyi seperti biasa selagi ini
+  // berjalan).
+  async function _djPrewarmNextCommentary() {
+    const next = _djPeekNextTrack();
+    if (!next || !_djActive) return;
+    if (_djPreparedNextQuery === next._query) return; // sudah siap/lagi disiapkan
+    try {
+      const commentary = await _djGenerateIntro(next, false);
+      // DJ bisa saja dimatikan ATAU lagu berikutnya "sebenarnya" berubah
+      // (mis. user manual pindah track) selagi Gemini masih memproses di
+      // atas — cek ulang next track supaya tidak menyimpan cache buat lagu
+      // yang sudah tidak relevan lagi.
+      if (!_djActive) return;
+      const stillNext = _djPeekNextTrack();
+      if (!stillNext || stillNext._query !== next._query) return;
+      _djPreparedNextQuery = next._query;
+      _djPreparedNextCommentary = commentary;
+      if (window.LoluPiperTTS && typeof window.LoluPiperTTS.prepare === 'function') {
+        window.LoluPiperTTS.prepare(commentary);
+      }
+    } catch (e) {
+      // Gagal prewarm -> aman diabaikan, nanti _djAmbientTrackChange akan
+      // fallback generate komentar+suara seperti biasa (jalur lama).
+    }
+  }
+
+  // Dicek tiap beberapa detik (lihat _djStartPrewarmWatcher) selagi mode DJ
+  // aktif — begitu sisa waktu lagu SEKARANG (`tot`/`cur`, milik vibexa.js,
+  // diakses lewat scope chain seperti identifier bare lain di file ini)
+  // sudah <= DJ_PREWARM_LEAD_SEC, picu prewarm SEKALI untuk lagu SEKARANG
+  // ini (guard lewat _djPrewarmedForQuery).
+  function _djPrewarmTick() {
+    try {
+      if (!_djActive || !curTrack) return;
+      if (typeof tot !== 'number' || !tot || typeof cur !== 'number') return;
+      const remaining = tot - cur;
+      if (remaining > 0 && remaining <= DJ_PREWARM_LEAD_SEC && _djPrewarmedForQuery !== curTrack._query) {
+        _djPrewarmedForQuery = curTrack._query;
+        _djPrewarmNextCommentary();
+      }
+    } catch (e) {}
+  }
+
+  function _djStartPrewarmWatcher() {
+    if (_djPrewarmWatcherId) clearInterval(_djPrewarmWatcherId);
+    // Reset cache lama — kalau ini dipanggil karena queue baru dibuat
+    // (mood berganti/lagu diminta langsung), lagu "berikutnya" yang lama
+    // sudah tidak relevan lagi.
+    _djPrewarmedForQuery = null;
+    _djPreparedNextQuery = null;
+    _djPreparedNextCommentary = null;
+    _djPrewarmWatcherId = setInterval(_djPrewarmTick, 2000);
+  }
+  function _djStopPrewarmWatcher() {
+    if (_djPrewarmWatcherId) { clearInterval(_djPrewarmWatcherId); _djPrewarmWatcherId = null; }
+    _djPrewarmedForQuery = null;
+    _djPreparedNextQuery = null;
+    _djPreparedNextCommentary = null;
+  }
+
   // ── Urutan yang diminta: user minta lagu -> lagu lama dipause -> user
   // TETAP di halaman Lolu Voice selagi Lolu ngomong (komentar DJ) -> BARU
   // begitu Lolu BENERAN selesai ngomong, halaman Now Playing dibuka & lagu
@@ -561,7 +667,26 @@ ATURAN WAJIB:
     if (window.LoluVoiceDJ && typeof window.LoluVoiceDJ.openVoicePage === 'function') {
       window.LoluVoiceDJ.openVoicePage();
     }
-    const commentary = await _djGenerateIntro(track, false);
+    let commentary;
+    if (_djPreparedNextQuery === track._query && _djPreparedNextCommentary) {
+      // Komentar (& suaranya lewat LoluPiperTTS.prepare()) untuk lagu ini
+      // SUDAH disiapkan lebih awal selagi lagu SEBELUMNYA masih jalan
+      // (lihat _djPrewarmNextCommentary) -> WAJIB pakai teks yang SAMA
+      // PERSIS di sini (bukan generate ulang), supaya cocok dengan wav yang
+      // sudah disintesis Piper untuk teks itu juga. speakDJ() di bawah
+      // (lewat _speakAwait) akan otomatis mendeteksi & memakai suara yang
+      // sudah siap ini, jadi TIDAK ada loading Gemini maupun Piper lagi di
+      // sini — suara Lolu langsung muncul.
+      commentary = _djPreparedNextCommentary;
+    } else {
+      commentary = await _djGenerateIntro(track, false);
+    }
+    // Kosongkan cache prewarm — slot ini sudah "dipakai" (atau memang tidak
+    // cocok). _djPrewarmTick akan memicu prewarm baru lagi begitu lagu ini
+    // beneran mulai jalan, untuk menyiapkan lagu SETELAH ini.
+    _djPreparedNextQuery = null;
+    _djPreparedNextCommentary = null;
+    _djPrewarmedForQuery = null;
     if (!_djActive) {
       // User keburu matiin DJ selagi komentar disiapkan -> lanjut main lagu
       // seperti biasa tanpa nahan di halaman Lolu Voice.
@@ -609,6 +734,7 @@ ATURAN WAJIB:
     _djMood = mood || null;
     curQueue = queue;
     _djSuppressNextAutoCommentary = true;
+    _djStartPrewarmWatcher(); // queue baru -> reset & mulai lagi watcher prewarm
     _refreshUI();
 
     // Tetap di halaman Lolu Voice selama komentar dibuat & diucapkan; Now
@@ -637,6 +763,7 @@ ATURAN WAJIB:
     _djMood = mood;
     curQueue = queue;
     _djSuppressNextAutoCommentary = true;
+    _djStartPrewarmWatcher(); // queue baru -> reset & mulai lagi watcher prewarm
     _refreshUI();
 
     // Tetap di halaman Lolu Voice selama komentar dibuat & diucapkan; Now
@@ -668,6 +795,7 @@ ATURAN WAJIB:
 
     curQueue = (Array.isArray(queueList) && queueList.length) ? queueList.map(_ensureQuery) : [_ensureQuery(track)];
     _djSuppressNextAutoCommentary = true;
+    _djStartPrewarmWatcher(); // queue baru -> reset & mulai lagi watcher prewarm
     _refreshUI();
 
     // Tetap di halaman Lolu Voice selama komentar dibuat & diucapkan; Now
@@ -686,6 +814,7 @@ ATURAN WAJIB:
     }
     _djActive = false;
     _djMood = null;
+    _djStopPrewarmWatcher(); // DJ mati -> stop interval & buang cache prewarm
     _refreshUI();
     const t = _t('Oke, mode DJ Lolu matiin dulu ya. Panggil lagi kapan aja kalau mau nyala lagi!', 'Alright, turning DJ mode off for now. Call me back anytime!');
     _showBubble(t);

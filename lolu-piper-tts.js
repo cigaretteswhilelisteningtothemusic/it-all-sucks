@@ -104,6 +104,42 @@
   var speakToken = 0;              // dipakai supaya speakDJ terbaru "menang"
                                     // kalau ada pemanggilan bertumpuk
 
+  // ── Cache "prepared" — hasil predict() yang disiapkan LEBIH AWAL lewat
+  // prepare(text), SEBELUM speakDJ(text) beneran dipanggil untuk teks yang
+  // sama. Dipakai LoluDJ (lolu-dj.js) untuk menyiapkan suara komentar lagu
+  // BERIKUTNYA selagi lagu SEKARANG masih diputar, supaya begitu lagu
+  // beneran berganti, speakDJ() tidak perlu nunggu ensureModel()+predict()
+  // lagi dari nol — tinggal pakai wav yang sudah jadi, suara langsung
+  // muncul. Hanya menyimpan SATU slot (teks terakhir yang disiapkan) karena
+  // DJ cuma perlu menyiapkan SATU lagu berikutnya di satu waktu. ─────────
+  var preparedText = null;
+  var preparedWavPromise = null;
+
+  // Siapkan (sintesis) audio Piper untuk `text` LEBIH AWAL, tanpa
+  // memutarnya. Aman dipanggil kapan saja (mis. beberapa detik sebelum lagu
+  // berikutnya mulai) — hasilnya disimpan sampai speakDJ() dipanggil dengan
+  // teks yang SAMA PERSIS, atau sampai prepare() dipanggil lagi dengan teks
+  // lain (menggantikan slot lama). Tidak melempar error ke pemanggil kalau
+  // gagal — speakDJ() akan tetap fallback ke jalur biasa (generate saat itu
+  // juga) kalau prepare() ini gagal/tidak dipanggil sama sekali.
+  function prepare(text) {
+    if (!text) return Promise.resolve();
+    if (preparedText === text && preparedWavPromise) return preparedWavPromise; // sudah disiapkan/lagi disiapkan
+    preparedText = text;
+    preparedWavPromise = ensureModel()
+      .then(function (tts) {
+        return tts.predict({ text: text, voiceId: VOICE_ID });
+      })
+      .catch(function (err) {
+        console.warn('[LoluPiperTTS] prepare() gagal:', err);
+        // Biar tidak nyangkut sebagai cache basi — slot dikosongkan lagi
+        // supaya speakDJ() nanti fallback generate biasa.
+        if (preparedText === text) { preparedText = null; preparedWavPromise = null; }
+        throw err;
+      });
+    return preparedWavPromise;
+  }
+
   // ── Speaking start/end hooks — dipakai UI lain (lihat lolu-voice.js:
   // animasi "voice recognition" yang menggantikan foto burung Lolu di
   // halaman Lolu Voice selagi Piper BENERAN sedang bersuara) supaya tahu
@@ -239,11 +275,26 @@
     var myToken = ++speakToken;
     unlockAudio();
 
-    return ensureModel()
-      .then(function (tts) {
+    // Kalau teks ini SUDAH disiapkan lebih awal lewat prepare() (mis. oleh
+    // LoluDJ selagi lagu sebelumnya masih jalan), langsung pakai wav yang
+    // sudah/lagi disintesis itu — SKIP ensureModel()+predict() dari nol di
+    // sini, supaya suara Lolu bisa langsung muncul begitu dipanggil, tanpa
+    // loading tambahan. Kalau tidak ada yang cocok (mis. prepare() belum
+    // sempat dipanggil, gagal, atau teksnya beda), fallback ke jalur lama:
+    // ensureModel()+predict() seperti biasa.
+    var wavPromise;
+    if (preparedText === text && preparedWavPromise) {
+      wavPromise = preparedWavPromise;
+      preparedText = null;
+      preparedWavPromise = null; // slot sudah "dipakai", kosongkan
+    } else {
+      wavPromise = ensureModel().then(function (tts) {
         if (myToken !== speakToken) return null; // sudah ada speakDJ lebih baru
         return tts.predict({ text: text, voiceId: VOICE_ID });
-      })
+      });
+    }
+
+    return wavPromise
       .then(function (wav) {
         if (!wav || myToken !== speakToken) return;
 
@@ -335,6 +386,7 @@
 
   window.LoluPiperTTS = {
     speakDJ: speakDJ,
+    prepare: prepare,
     preload: preload,
     unlockAudio: unlockAudio,
     setSpeakingHandlers: setSpeakingHandlers,
