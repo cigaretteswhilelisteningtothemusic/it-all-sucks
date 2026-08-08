@@ -151,7 +151,17 @@
 #lolu-voice-page{
   position:absolute; inset:0; z-index:60;
   display:none; flex-direction:column;
-  background:var(--bg,#000);
+  /* Background foto (space/planet) yang diminta user — dipasang lewat
+     linear-gradient gelap DI ATAS foto (bukan elemen/pseudo terpisah)
+     supaya teks & tombol di atasnya (putih, awalnya didesain untuk latar
+     polos var(--bg,#000)) tetap kebaca dengan kontras yang cukup, sekaligus
+     foto tetap terlihat "menyatu" dari atas ke bawah halaman. cover+center
+     menjaga foto selalu memenuhi & terpotong rapi di semua ukuran layar
+     (mobile & desktop), fixed supaya tidak ikut scroll kalau kontennya
+     sampai lebih tinggi dari layar. */
+  background:
+    linear-gradient(180deg, rgba(0,0,0,.35) 0%, rgba(0,0,0,.55) 55%, rgba(0,0,0,.8) 100%),
+    var(--bg,#000) url('lolu-voice-bg.png') center center / cover no-repeat;
   color:var(--text,#fff);
   font-family:var(--f,inherit);
   border-radius:var(--r);

@@ -639,16 +639,60 @@ ATURAN WAJIB:
     _djPrevStartedAt = Date.now();
   }
 
+  // Cek apakah `track` termasuk lagu yang MEMANG ada di antrian mode DJ
+  // (curQueue) — yaitu lagu-lagu yang juga ditampilkan di kotak "Next Song"
+  // (#np-card-nextsong / #lyr-nextsong-box, lihat _getUpcomingTracks &
+  // _renderNextSongRows di vibexa.js). Dicocokkan lewat `_query` (identifier
+  // unik yang sama dipakai di seluruh app untuk track), dengan fallback
+  // cocokkan judul+artis kalau track yang dikirim belum sempat diberi
+  // `_query` oleh pemanggilnya (mis. hasil pencarian).
+  function _djTrackInQueue(track) {
+    try {
+      if (!track || !Array.isArray(curQueue) || !curQueue.length) return false;
+      if (track._query) return curQueue.some((t) => t._query === track._query);
+      const title = (track.title || '').toLowerCase();
+      const artist = (track.artist || '').toLowerCase();
+      if (!title && !artist) return false;
+      return curQueue.some((t) => (t.title || '').toLowerCase() === title && (t.artist || '').toLowerCase() === artist);
+    } catch (e) { return false; }
+  }
+
+  // Matikan mode DJ secara otomatis (TANPA bubble suara Lolu di halaman
+  // Lolu Voice — beda dengan stop() manual, ini dipicu diam-diam di
+  // belakang layar) — dipakai saat user memutar lagu DI LUAR daftar lagu
+  // mode DJ (curQueue/kotak "Next Song"), lihat hook loadPlay di bawah.
+  function _djAutoStopForOutsideTrack() {
+    _djActive = false;
+    _djMood = null;
+    _djStopPrewarmWatcher();
+    _refreshUI();
+    try {
+      if (typeof toast === 'function') {
+        toast(_t('Mode DJ dimatikan karena kamu muter lagu di luar daftar lagu DJ.', 'DJ mode turned off because you played a song outside the DJ queue.'));
+      }
+    } catch (e) {}
+  }
+
   const _origLoadPlay = window.loadPlay;
   if (typeof _origLoadPlay === 'function') {
     window.loadPlay = function (track, fromPlId) {
       _djRecordPrevTrackFeedback();
       if (_djActive && !_djSuppressNextAutoCommentary) {
-        // Mode DJ aktif & ini BUKAN pergantian yang sudah ditangani sendiri
-        // oleh start()/setMood()/playRequestedSong() (ditandai flag di
-        // atas) -> ini pergantian "ambient": next/prev/lagu abis
-        // sendiri/klik lagu lain. Alihkan ke alur pause -> Lolu Voice ->
-        // Now Playing (lihat _djAmbientTrackChange).
+        if (!_djTrackInQueue(track)) {
+          // User memutar lagu lain di luar daftar lagu mode DJ (bukan dari
+          // kotak "Next Song") -> mode DJ langsung nonaktif otomatis, lagu
+          // yang dipilih user diputar seperti biasa TANPA menahan di
+          // halaman Lolu Voice / tanpa komentar Lolu.
+          _djAutoStopForOutsideTrack();
+          _djMarkTrackStarted(track);
+          return _origLoadPlay.apply(this, arguments);
+        }
+        // Mode DJ aktif & lagu ini MEMANG ada di antrian DJ (next/prev/lagu
+        // abis sendiri/klik lagu dari kotak "Next Song") -> ini BUKAN
+        // pergantian yang sudah ditangani sendiri oleh
+        // start()/setMood()/playRequestedSong() (ditandai flag di atas) ->
+        // alihkan ke alur pause -> Lolu Voice -> Now Playing (lihat
+        // _djAmbientTrackChange).
         _djAmbientTrackChange(track, fromPlId);
         return;
       }
