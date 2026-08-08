@@ -519,7 +519,11 @@
     // halaman khusus #lolu-voice-page (lihat lolu-voice.css). Semua fungsi
     // di bawah sengaja menyasar KEDUANYA sekaligus lewat querySelectorAll,
     // supaya statusnya selalu sinkron di mana pun voice command dipicu.
-    function micBtns() { return document.querySelectorAll('#lolu-mic-btn, #lv-mic-top-btn, #lv-mic-topbar-btn'); }
+    // NOTE: dulu ada #lolu-mic-btn (mic di halaman Chat AI) & #lv-mic-topbar-btn
+    // (mic khusus mobile di topbar) — keduanya sudah dihapus dari HTML
+    // (lihat vibexa.html), sekarang tombol mic cuma satu: #lv-mic-top-btn,
+    // di tengah bawah foto burung, konsisten di semua ukuran layar.
+    function micBtns() { return document.querySelectorAll('#lv-mic-top-btn'); }
     function bubbles() { return document.querySelectorAll('#lolu-voice-bubble, #lv-status-bubble'); }
     function bubbleTexts() { return document.querySelectorAll('#lolu-voice-bubble-text, #lv-status-text'); }
     // NOTE: #lv-bird-img SENGAJA tidak ikut disasar di sini — foto burung
@@ -565,8 +569,14 @@
     }
     function setError(text) { setReply(text); }
     function setLangBtnLabel(lang) {
-      const b = document.getElementById('lolu-mic-lang-btn');
-      if (b) b.textContent = SUPPORTED_LANGS[lang] || 'ID';
+      // Dulu cuma ada satu tombol bahasa (#lolu-mic-lang-btn di halaman
+      // Chat AI, sudah dihapus). Sekarang tombol bahasa ada di halaman
+      // Lolu Voice (#lv-lang-btn, kanan atas topbar) — querySelectorAll
+      // dipakai (bukan getElementById) supaya aman kalau suatu saat ada
+      // lebih dari satu tombol bahasa lagi di tempat lain.
+      document.querySelectorAll('#lv-lang-btn').forEach((b) => {
+        b.textContent = SUPPORTED_LANGS[lang] || 'ID';
+      });
     }
     return { setIdle, setListening, setProcessing, setReply, setError, setLangBtnLabel };
   })();
@@ -1277,7 +1287,10 @@
   document.addEventListener('DOMContentLoaded', () => {
     UIState.setLangBtnLabel(currentLang);
     if (!SpeechInput.isSupported()) {
-      const b = document.getElementById('lolu-mic-btn');
+      // #lolu-mic-btn (dulu di halaman Chat AI) sudah dihapus — sekarang
+      // tombol mic satu-satunya adalah #lv-mic-top-btn di halaman Lolu
+      // Voice (tengah, bawah foto burung).
+      const b = document.getElementById('lv-mic-top-btn');
       if (b) { b.disabled = true; b.title = 'Voice command tidak didukung browser ini'; b.classList.add('unsupported'); }
     }
 
