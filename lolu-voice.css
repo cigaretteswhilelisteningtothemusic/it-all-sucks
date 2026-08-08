@@ -128,17 +128,26 @@
 
 /* ==========================================================================
    LOLU VOICE — halaman penuh khusus voice chat, dibuka dari tombol mic di
-   halaman Chat AI (#lolu-mic-btn). Fixed menutupi SELURUH layar (desktop &
-   mobile) supaya benar-benar berdiri sebagai halaman tersendiri, di atas
-   #ai-chat-overlay yang tetap terbuka di baliknya. Urutan tampilan sesuai
-   permintaan: back/mic di atas -> foto burung -> chat (bisa discroll) ->
-   kotak play di paling bawah.
-   ========================================================================== */
-/* Di PC: absolute mengikuti area #main (persis seperti #ai-chat-overlay),
-   jadi cuma menutupi halaman utama — panel kiri & kanan tetap terlihat.
+   halaman Chat AI (#lolu-mic-btn), berdiri sebagai halaman tersendiri di
+   atas #ai-chat-overlay yang tetap terbuka di baliknya. Urutan tampilan
+   sesuai permintaan: back/mic di atas -> foto burung -> chat (bisa
+   discroll) -> kotak play di paling bawah.
+
+   Di PC: absolute mengikuti area #main (persis seperti #ai-chat-overlay),
+   jadi HANYA menutupi halaman utama — panel kiri & kanan tetap terlihat,
+   senada dengan halaman Chat AI. Elemen ini tetap jadi anak <main
+   id="main"> supaya inset:0 di bawah terhitung relatif ke area #main
+   (lihat #main{position:relative} di vibexa.css), bukan ke seluruh
+   viewport.
+
    Di mobile (lihat @media max-width:660px di bawah): fixed menutupi
-   seluruh layar, karena tidak ada panel kiri/kanan yang perlu tetap
-   terlihat di layar sempit. */
+   SELURUH layar, karena tidak ada panel kiri/kanan yang perlu tetap
+   terlihat di layar sempit. Supaya position:fixed ini benar-benar
+   relatif ke viewport (bukan "terjebak" relatif ke #main kalau #main
+   punya CSS transform/filter/will-change), elemen ini dipindahkan
+   sementara jadi anak langsung <body> khusus saat mobile — lihat
+   _lvSyncPageParent() di lolu-voice.js, dipanggil tiap kali halaman ini
+   dibuka & tiap kali jendela di-resize selagi halaman ini terbuka. */
 #lolu-voice-page{
   position:absolute; inset:0; z-index:60;
   display:none; flex-direction:column;

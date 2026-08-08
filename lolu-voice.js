@@ -1013,6 +1013,50 @@
   // ==========================================================================
   function _lvPage() { return document.getElementById('lolu-voice-page'); }
 
+  // Breakpoint SAMA PERSIS dengan @media (max-width:660px) di lolu-voice.css
+  // yang mengubah #lolu-voice-page jadi position:fixed (mobile). Dipakai
+  // untuk menentukan induk elemen yang tepat, lihat _lvSyncPageParent().
+  const LV_MOBILE_MQ = '(max-width: 660px)';
+
+  // Pastikan #lolu-voice-page berada di induk yang tepat sesuai lebar layar
+  // saat ini:
+  //  - Desktop (>660px): tetap jadi anak <main id="main"> supaya
+  //    position:absolute miliknya (lihat lolu-voice.css) mengikuti area
+  //    #main saja -- panel kiri & kanan tetap terlihat, senada halaman
+  //    Chat AI.
+  //  - Mobile (<=660px): dipindah jadi anak langsung <body> supaya
+  //    position:fixed miliknya benar2 relatif ke viewport (bukan
+  //    "terjebak" relatif ke #main kalau #main/ancestor punya CSS
+  //    transform/filter/will-change), jadi tetap fullscreen menutupi
+  //    seluruh layar termasuk search bar (.home-topbar) di luar #main.
+  // Aman dipanggil berkali-kali (idempotent) & dipanggil ulang saat resize
+  // supaya kalau user mengubah ukuran jendela browser selagi halaman ini
+  // terbuka, posisinya otomatis menyesuaikan tanpa perlu ditutup dulu.
+  function _lvSyncPageParent() {
+    const page = _lvPage();
+    if (!page) return;
+    const isMobile = window.matchMedia(LV_MOBILE_MQ).matches;
+    if (isMobile) {
+      if (page.parentElement !== document.body) {
+        document.body.appendChild(page);
+      }
+    } else {
+      const main = document.getElementById('main');
+      if (main && page.parentElement !== main) {
+        main.appendChild(page);
+      }
+    }
+  }
+
+  // Jaga posisi tetap benar kalau user resize jendela browser selagi
+  // halaman Lolu Voice sedang terbuka (mis. dari lebar desktop ke sempit
+  // atau sebaliknya) — cukup sinkron ulang induknya, tidak perlu tutup
+  // halaman.
+  window.addEventListener('resize', function () {
+    const page = _lvPage();
+    if (page && page.classList.contains('show')) _lvSyncPageParent();
+  });
+
   // Teks sapaan "Good morning/afternoon/evening/night" (atau versi Indonesia)
   // di atas foto Lolu, mengikuti jam perangkat saat halaman dibuka.
   function _lvUpdateGreeting() {
@@ -1041,18 +1085,11 @@
   function openVoicePage() {
     const page = _lvPage();
     if (page) {
-      // FIX FULLSCREEN MOBILE: #lolu-voice-page aslinya diletakkan di
-      // dalam <main id="main">. Kalau #main (atau parent lain di
-      // atasnya) punya CSS transform/filter/will-change, "position:fixed"
-      // milik halaman ini jadi terjebak relatif ke #main, bukan ke
-      // seluruh layar -- akibatnya search bar (.home-topbar) yang ada
-      // DI LUAR #main tetap kelihatan di atasnya, dan tombol back/mic di
-      // topbar halaman ini ikut ketutup/kepotong. Solusinya: pindahkan
-      // elemen ini jadi anak langsung <body> (sekali saja, aman dipanggil
-      // berkali-kali) supaya posisinya benar-benar relatif ke viewport.
-      if (page.parentElement !== document.body) {
-        document.body.appendChild(page);
-      }
+      // Taruh #lolu-voice-page di induk yang tepat SEBELUM ditampilkan:
+      // anak <body> khusus mobile (fix fullscreen, lihat komentar di
+      // _lvSyncPageParent) atau tetap anak #main di desktop supaya cuma
+      // menutupi area halaman utama & panel kiri/kanan tetap terlihat.
+      _lvSyncPageParent();
       page.classList.add('show');
       _lvUpdateGreeting();
     }
