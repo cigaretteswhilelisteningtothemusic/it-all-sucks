@@ -46,7 +46,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icons/launchericon-192x192.png">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&family=Press+Start+2P&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vibexa.css">
-<link rel="stylesheet" href="lolu-voice.css?v=5">
+<link rel="stylesheet" href="lolu-voice.css?v=6">
 </head>
 <body>
 
@@ -359,6 +359,28 @@
       <div class="dm-grid" id="daily-mix-grid"></div>
     </div>
 
+    <!-- LOLU VOICE — kotak promo halaman Lolu Voice, HANYA tampil di tampilan
+         mobile (lihat @media max-width:660px di lolu-voice.css; disembunyikan
+         total di PC), diletakkan tepat di bawah Daily Mix. Tap di mana saja
+         di kotak ini ATAU tombol play merah di kanan bawah -> langsung buka
+         halaman Lolu Voice lewat LoluVoiceDJ.openVoicePage() (fungsi yang
+         sama dipakai tombol mic di halaman Chat AI, lihat lolu-voice.js). -->
+    <div class="lolu-voice-home-card" id="lolu-voice-home-card" onclick="LoluVoiceDJ.openVoicePage()" role="button" tabindex="0">
+      <div class="lvh-greeting" id="lvh-greeting">Good morning</div>
+      <div class="lvh-bird-wrap">
+        <img src="lolu.png" alt="Lolu" class="lvh-bird-img">
+      </div>
+      <div class="lvh-bottom">
+        <div class="lvh-info">
+          <div class="lvh-title">Lolu dj</div>
+          <div class="lvh-subtitle">Lolu DJ is an AI DJ that plays music, takes voice commands, and chats with you</div>
+        </div>
+        <button class="lvh-play-btn" id="lvh-play-btn" onclick="event.stopPropagation();LoluVoiceDJ.openVoicePage()" title="Buka Lolu Voice">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="#fff"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+      </div>
+    </div>
+
     <!-- MIX TAHUNAN (9 playlist tetap: Hits that defined 1980/1990/1995/2000/2005/2010/2015/2020/2026,
          masing-masing 30 lagu yang populer di tahun tsb. Isinya DIKURASI MANUAL (statis),
          BUKAN hasil generate ulang tiap hari, dan SAMA untuk semua user — sekali di-resolve
@@ -422,28 +444,6 @@
         </div>
       </div>
       <div class="dm-grid" id="sad-playlist-grid"></div>
-    </div>
-
-    <!-- LOLU VOICE — kotak promo halaman Lolu Voice, HANYA tampil di tampilan
-         mobile (lihat @media max-width:660px di lolu-voice.css; disembunyikan
-         total di PC), diletakkan tepat di bawah Fresh Picks. Tap di mana saja
-         di kotak ini ATAU tombol play merah di kanan bawah -> langsung buka
-         halaman Lolu Voice lewat LoluVoiceDJ.openVoicePage() (fungsi yang
-         sama dipakai tombol mic di halaman Chat AI, lihat lolu-voice.js). -->
-    <div class="lolu-voice-home-card" id="lolu-voice-home-card" onclick="LoluVoiceDJ.openVoicePage()" role="button" tabindex="0">
-      <div class="lvh-greeting" id="lvh-greeting">Good morning</div>
-      <div class="lvh-bird-wrap">
-        <img src="lolu.png" alt="Lolu" class="lvh-bird-img">
-      </div>
-      <div class="lvh-bottom">
-        <div class="lvh-info">
-          <div class="lvh-title">Lolu dj</div>
-          <div class="lvh-subtitle">Lolu DJ is an AI DJ that plays music, takes voice commands, and chats with you</div>
-        </div>
-        <button class="lvh-play-btn" id="lvh-play-btn" onclick="event.stopPropagation();LoluVoiceDJ.openVoicePage()" title="Buka Lolu Voice">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="#fff"><path d="M8 5v14l11-7z"/></svg>
-        </button>
-      </div>
     </div>
 
     <!-- FOOTER: credit sumber data + copyright, di paling bawah halaman Home -->
