@@ -46,6 +46,13 @@
   let currentLang = localStorage.getItem(LANG_STORAGE_KEY) || 'id-ID';
   if (!SUPPORTED_LANGS[currentLang]) currentLang = 'id-ID';
 
+  // Balasan teks yang lagi "menunggu" suara Piper BENERAN mulai diputar
+  // (lihat UIState.setThinking() & bagian 10 - _lvShowSpeakingAnim). Selagi
+  // ini ter-isi, bubble status masih menampilkan "Lolu lagi mikir..."
+  // (BUKAN teks balasannya) supaya user tahu Lolu masih menyiapkan suara,
+  // bukan diam tanpa tanda apa pun. Di-null-kan lagi begitu sudah dipakai.
+  let _lvPendingReplyText = null;
+
   // ==========================================================================
   // 1) SPEECH INPUT — Speech-to-Text lewat Web Speech API browser (tidak
   //    butuh server sama sekali). Sengaja continuous=false + interimResults
@@ -556,6 +563,20 @@
       bubbles().forEach((bub) => bub.classList.add('show'));
       const w = belowMicWrap(); if (w) w.classList.add('lv-active');
     }
+    // Dipakai SELAGI teks balasan sudah ada TAPI suara Piper-nya belum
+    // benar-benar mulai diputar (model/predict Piper masih berjalan) —
+    // supaya user tetap lihat tanda "Lolu masih menyiapkan sesuatu", bukan
+    // halaman diam tiba-tiba tanpa indikasi apa pun. TIDAK auto-hide seperti
+    // setReply() — baru diganti ke teks balasan asli begitu suara Piper
+    // BENERAN mulai (lihat _lvShowSpeakingAnim di bagian 10 file ini).
+    function setThinking() {
+      micBtns().forEach((b) => { b.classList.remove('listening'); b.classList.add('processing'); });
+      const label = currentLang === 'id-ID' ? 'Lolu lagi mikir...' : 'Lolu is thinking...';
+      bubbleTexts().forEach((txt) => { txt.textContent = label; });
+      bubbles().forEach((bub) => bub.classList.add('show'));
+      headIcons().forEach((hi) => hi.classList.add('lolu-voice-pulsing'));
+      const w = belowMicWrap(); if (w) w.classList.add('lv-active');
+    }
     function setReply(text) {
       bubbleTexts().forEach((txt) => { txt.textContent = text; });
       bubbles().forEach((bub) => bub.classList.add('show'));
@@ -578,7 +599,7 @@
         b.textContent = SUPPORTED_LANGS[lang] || 'ID';
       });
     }
-    return { setIdle, setListening, setProcessing, setReply, setError, setLangBtnLabel };
+    return { setIdle, setListening, setProcessing, setThinking, setReply, setError, setLangBtnLabel };
   })();
 
   // ==========================================================================
@@ -958,24 +979,35 @@
       replyText = reply('Waduh, ada gangguan. Coba lagi ya.', 'Oops, something went wrong. Try again.');
     }
 
-    UIState.setReply(replyText);
     // Kalau LoluDJ.playRequestedSong() sudah menangani suaranya sendiri
     // (lihat djHandledSpeech di atas — itu juga yang menahan lagunya sampai
-    // Lolu selesai ngomong), JANGAN ucapkan replyText lagi di sini supaya
-    // tidak dobel bicara.
-    if (!djHandledSpeech) {
+    // Lolu selesai ngomong), suaranya SUDAH selesai diucapkan sebelum baris
+    // ini jalan -> langsung tampilkan balasan final seperti biasa, JANGAN
+    // ucapkan replyText lagi di sini supaya tidak dobel bicara.
+    if (djHandledSpeech) {
+      UIState.setReply(replyText);
+    } else if (window.LoluPiperTTS && typeof window.LoluPiperTTS.speakDJ === 'function') {
       // Balasan suara Lolu memakai Piper TTS client-side (lihat lolu-piper-tts.js).
-      // VoiceOutput (Web Speech API) HANYA dipakai sebagai fallback darurat kalau
-      // modul Piper gagal dimuat sama sekali (mis. browser tidak mendukung
-      // dynamic import / OPFS), supaya Lolu tetap "bersuara" walau kualitasnya
-      // turun — bukan pengganti Piper dalam kondisi normal.
-      if (window.LoluPiperTTS && typeof window.LoluPiperTTS.speakDJ === 'function') {
-        window.LoluPiperTTS.speakDJ(replyText).catch(function () {
-          VoiceOutput.speak(replyText);
-        });
-      } else {
+      // Sintesis suaranya (model/predict) bisa makan waktu beberapa detik —
+      // selagi itu berjalan, tampilkan dulu tanda "Lolu is thinking..."
+      // (BUKAN langsung teks balasannya) supaya user tahu Lolu masih
+      // menyiapkan suara, bukan diam tanpa tanda apa pun. Begitu suara Piper
+      // BENERAN mulai diputar, _lvShowSpeakingAnim (bagian 10 di bawah) akan
+      // otomatis mengganti bubble ini ke teks balasan aslinya lewat
+      // _lvPendingReplyText.
+      UIState.setThinking();
+      _lvPendingReplyText = replyText;
+      window.LoluPiperTTS.speakDJ(replyText).catch(function () {
+        // Piper gagal total (mis. modul gagal dimuat) -> fallback VoiceOutput
+        // (Web Speech API bawaan browser), tampilkan balasan final sekarang juga.
+        _lvPendingReplyText = null;
+        UIState.setReply(replyText);
         VoiceOutput.speak(replyText);
-      }
+      });
+    } else {
+      // Modul Piper tidak tersedia sama sekali -> fallback VoiceOutput langsung.
+      UIState.setReply(replyText);
+      VoiceOutput.speak(replyText);
     }
 
     // Kirim juga sebagai bubble chat di dalam obrolan Lolu (kalau overlay
@@ -1148,6 +1180,15 @@
 
   function _lvShowSpeakingAnim() {
     try {
+      // Suara Piper BENERAN mulai diputar sekarang — kalau ada balasan yang
+      // tadi "ditahan" lewat UIState.setThinking() (lihat pemanggil
+      // speakDJ() di bagian 8), ganti bubble dari "Lolu is thinking..." ke
+      // teks balasan aslinya persis di momen ini, supaya teksnya muncul
+      // serempak dengan suaranya, bukan lebih dulu/lebih lambat.
+      if (_lvPendingReplyText) {
+        UIState.setReply(_lvPendingReplyText);
+        _lvPendingReplyText = null;
+      }
       const anim = _lvVoiceAnimEl();
       const bird = _lvBirdImgEl();
       if (!anim) return;

@@ -6025,14 +6025,31 @@ async function loadPlay(track, fromPlId){
   // adanya (tanpa intro logo/animasi tambahan seperti pada video musik resmi), sehingga
   // durasinya jauh lebih konsisten dengan timestamp .lrc → lirik lebih seirama dengan
   // musik tanpa perlu koreksi offset sama sekali.
-  toast(' Searching video...');
   // Deteksi apakah songs ini speed up atau slowed, lalu sesuaikan timing lirik
   _curSpeedFactor = detectSpeedFactor(track.title);
   const cl=cleanT(track.title);
-  // resolveVidByDuration mencari video yang durasinya mendekati durasi resmi
-  // lagu (dari data lirik); kalau tidak ada yang cocok, otomatis fallback ke
-  // query "... lyrics" → "... official audio" → judul+artis polos.
-  const {videoId,lines}=await resolveVidByDuration(track.artist, track.title, cl, track.duration);
+  // Kalau lagu ini SUDAH disiapkan lebih awal lewat _prefetchNext() (dipanggil
+  // otomatis tiap kali lagu SEBELUMNYA mulai PLAYING — jauh sebelum lagu itu
+  // habis), langsung pakai videoId+lirik yang sudah di-cache itu — SKIP
+  // resolveVidByDuration (pencarian video+lirik lewat network) sepenuhnya,
+  // supaya lagu berikutnya bisa langsung diputar TANPA loading sama sekali.
+  // Ini terutama penting untuk mode DJ yang otomatis pindah lagu sendiri
+  // (lihat lolu-dj.js _djAmbientTrackChange -> _origLoadPlay -> fungsi ini),
+  // supaya user tidak perlu menunggu tiap kali lagu berganti.
+  let videoId, lines;
+  const _cachedNext = _prefetchCache[track._query];
+  if(_cachedNext && _cachedNext.videoId){
+    delete _prefetchCache[track._query];
+    videoId = _cachedNext.videoId;
+    lines = _cachedNext.lyrs;
+  } else {
+    if(_cachedNext) delete _prefetchCache[track._query]; // cache basi (videoId gagal ditemukan) -> buang, coba cari ulang
+    toast(' Searching video...');
+    // resolveVidByDuration mencari video yang durasinya mendekati durasi resmi
+    // lagu (dari data lirik); kalau tidak ada yang cocok, otomatis fallback ke
+    // query "... lyrics" → "... official audio" → judul+artis polos.
+    ({videoId,lines}=await resolveVidByDuration(track.artist, track.title, cl, track.duration));
+  }
   if(videoId){
     toast(' Memutar songs...');
     curTrack.videoId = videoId;

@@ -91,6 +91,16 @@
   var NOISE_SCALE = 0.35;   // bawaan model medium biasanya ~0.667
   var NOISE_W = 0.4;        // bawaan model medium biasanya ~0.8
 
+  // Suara hasil Piper (model en_GB-semaine-medium) secara natural terdengar
+  // cukup pelan dibanding audio lain di halaman. Elemen <audio> biasa cuma
+  // bisa diset volume MAKSIMAL 1.0 (100%, sudah dipakai bawaan/default) —
+  // tidak bisa dibuat lebih kencang dari itu lewat `audio.volume` saja.
+  // Untuk benar-benar MENAIKKAN kekencangan di atas 100%, audio Piper
+  // dialirkan lewat Web Audio API (GainNode) — lihat _boostVoiceGain() di
+  // bawah. Naikkan/turunkan angka ini kalau masih kurang/kelewat kencang
+  // (1.0 = tidak ada boost sama sekali, sama seperti sebelumnya).
+  var VOICE_GAIN = 1.8;
+
   var piperModulePromise = null;   // cache hasil import() library
   var modelReadyPromise = null;    // cache hasil "model sudah siap dipakai"
   var audioUnlocked = false;       // sudah ada user-gesture yang unlock audio?
@@ -198,6 +208,32 @@
       }
     } catch (e) { /* aman diabaikan */ }
     audioUnlocked = true;
+  }
+
+  // ── Naikkan volume audio Piper lewat Web Audio API (GainNode) — dipanggil
+  // sekali per elemen <audio> baru yang dibuat di speakDJ(), SEBELUM
+  // audio.play() dipanggil. Aman/tidak melempar error kalau gagal (mis.
+  // browser sangat lama yang tidak dukung Web Audio API sama sekali) —
+  // audio tetap diputar normal lewat elemen <audio>-nya apa adanya, cuma
+  // tanpa boost volume tambahan.
+  function _boostVoiceGain(audioEl) {
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      if (!sharedAudioCtx) sharedAudioCtx = new Ctx();
+      if (sharedAudioCtx.state === 'suspended') { sharedAudioCtx.resume().catch(function () {}); }
+      var src = sharedAudioCtx.createMediaElementSource(audioEl);
+      var gain = sharedAudioCtx.createGain();
+      gain.gain.value = VOICE_GAIN;
+      // Compressor kecil setelah gain supaya boost volume tidak gampang
+      // clipping/pecah suara di kalimat yang kebetulan sudah cukup keras.
+      var comp = sharedAudioCtx.createDynamicsCompressor();
+      src.connect(gain);
+      gain.connect(comp);
+      comp.connect(sharedAudioCtx.destination);
+    } catch (e) {
+      // Aman diabaikan — fallback ke volume normal (tanpa boost).
+    }
   }
 
   // ── Loading state kecil — numpang di bubble "lolu-voice-bubble" yang
@@ -309,6 +345,7 @@
         }
         var url = URL.createObjectURL(wav);
         var audio = new Audio(url);
+        _boostVoiceGain(audio); // naikkan volume di atas 100% bawaan (lihat VOICE_GAIN)
         currentAudio = audio;
         // Audio Piper BENERAN mulai diputar dari sini — panggil hook "mulai
         // bicara" sekarang (bukan di 'ended'/'error' seperti onSpeakEnd),
