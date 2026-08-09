@@ -78,18 +78,70 @@
   // ini path relatif terhadap vibexa.html (folder ./piper/ ada di sebelah
   // vibexa.html). Sesuaikan kalau struktur folder Anda berbeda.
   var PIPER_MODULE_URL = './piper/piper-tts-web.js';
-  var VOICE_ID = 'en_GB-semaine-medium';
 
-  // Speaker map resmi untuk en_GB-semaine-medium: prudence=0, spike=1,
-  // obadiah=2, poppy=3. Ganti angka ini kalau suatu saat ingin speaker lain
-  // dari model yang sama.
-  var SPEAKER_ID = 3; // poppy
+  // ── Profil suara PER BAHASA — Lolu sekarang punya suara Piper terpisah
+  // untuk Indonesia (bukan lagi cuma satu suara Inggris dipakai untuk semua
+  // bahasa). Kunci di sini SAMA PERSIS dengan kode bahasa yang dipakai
+  // lolu-voice.js (`currentLang`: 'id-ID' / 'en-US'), jadi tinggal disambung
+  // lewat setLanguage() (dipanggil dari toggleLanguage() di lolu-voice.js)
+  // untuk otomatis pakai suara yang tepat sesuai bahasa yang lagi aktif.
+  //
+  //  - EN tetap pakai en_GB-semaine-medium speaker "poppy" seperti sebelumnya.
+  //  - ID pakai id_ID-news_tts-medium — SATU-SATUNYA suara Bahasa Indonesia
+  //    yang tersedia gratis & open-source untuk Piper saat ini (dari
+  //    rhasspy/piper-voices di Hugging Face, lisensi bebas dipakai, model
+  //    ~63MB, jalan 100% di browser lewat WASM+ONNX Runtime — sama seperti
+  //    suara EN, TIDAK butuh API berbayar/server sama sekali). Modelnya
+  //    sendiri direkam gaya pembaca berita (netral/formal), jadi supaya
+  //    kedengaran lebih "imut & interaktif" sesuai request, parameternya
+  //    di-tuning di bawah (bukan ganti model, karena memang tidak ada
+  //    pilihan model ID lain yang gratis) — lihat noiseScale/noiseW yang
+  //    dinaikkan (lebih ekspresif/tidak monoton kayak berita), lengthScale
+  //    yang dipercepat sedikit (lebih semangat), dan pitchBoost (lihat
+  //    _applyCutePitch di bawah — trik playbackRate+preservesPitch=false
+  //    yang menaikkan nada suara sedikit, kesannya jadi lebih muda/imut,
+  //    mirip teknik "chipmunk voice" yang umum dipakai buat karakter lucu).
+  var VOICE_PROFILES = {
+    'id-ID': {
+      voiceId: 'id_ID-news_tts-medium',
+      speakerId: 0,       // model ini single-speaker (cuma speaker_0)
+      noiseScale: 0.75,   // dinaikkan dari bawaan (~0.667) -> intonasi lebih hidup/ceria, tidak datar kayak berita
+      noiseW: 0.85,       // dinaikkan dari bawaan (~0.8) -> variasi tempo antar-suku kata lebih "ngobrol", tidak kaku
+      lengthScale: 0.92,  // sedikit lebih cepat dari normal (1.0) -> kesan lebih semangat & interaktif
+      pitchBoost: 1.12    // naikkan nada+tempo bareng ~12% (lihat _applyCutePitch) -> suara lebih imut/muda
+    },
+    'en-US': {
+      voiceId: 'en_GB-semaine-medium',
+      speakerId: 3,       // poppy — lihat speaker map di komentar atas file
+      noiseScale: 0.35,
+      noiseW: 0.4,
+      lengthScale: null,  // pakai default model (tidak diubah)
+      pitchBoost: 1.0     // tidak diubah — suara EN sudah oke apa adanya
+    }
+  };
+  var DEFAULT_LANG = 'id-ID';
+  var _activeLang = DEFAULT_LANG;
+  // File ini dimuat SEBELUM lolu-voice.js (lihat urutan <script> di
+  // vibexa.html), jadi preload() di ujung file ini akan jalan DULUAN
+  // sebelum lolu-voice.js sempat memanggil setLanguage(). Supaya voice yang
+  // di-preload dari awal tetap sesuai pilihan bahasa terakhir user (bukan
+  // selalu default), baca langsung localStorage key YANG SAMA dipakai
+  // lolu-voice.js di sini juga.
+  try {
+    var _storedLang = localStorage.getItem('vibexa_lolu_voice_lang');
+    if (_storedLang && VOICE_PROFILES[_storedLang]) _activeLang = _storedLang;
+  } catch (e) {}
 
-  // Redam variasi intonasi/tempo VITS supaya suara Lolu lebih konsisten
-  // antar-kalimat (lihat catatan panjang di atas). Set ke null kalau ingin
-  // pakai nilai bawaan model (lebih ekspresif, tapi lebih bervariasi).
-  var NOISE_SCALE = 0.35;   // bawaan model medium biasanya ~0.667
-  var NOISE_W = 0.4;        // bawaan model medium biasanya ~0.8
+  // Dipanggil dari lolu-voice.js (toggleLanguage() & saat load awal) supaya
+  // suara Piper yang dipakai otomatis mengikuti bahasa voice command yang
+  // lagi aktif — TIDAK perlu pemanggil tahu apa pun soal daftar voice/model
+  // di atas, cukup kirim kode bahasa yang sudah ada ('id-ID'/'en-US').
+  function setLanguage(lang) {
+    if (VOICE_PROFILES[lang]) _activeLang = lang;
+  }
+  function _activeProfile() {
+    return VOICE_PROFILES[_activeLang] || VOICE_PROFILES[DEFAULT_LANG];
+  }
 
   // Suara hasil Piper (model en_GB-semaine-medium) secara natural terdengar
   // cukup pelan dibanding audio lain di halaman. Elemen <audio> biasa cuma
@@ -98,11 +150,13 @@
   // Untuk benar-benar MENAIKKAN kekencangan di atas 100%, audio Piper
   // dialirkan lewat Web Audio API (GainNode) — lihat _boostVoiceGain() di
   // bawah. Naikkan/turunkan angka ini kalau masih kurang/kelewat kencang
-  // (1.0 = tidak ada boost sama sekali, sama seperti sebelumnya).
+  // (1.0 = tidak ada boost sama sekali, sama seperti sebelumnya). Berlaku
+  // untuk SEMUA bahasa/suara.
   var VOICE_GAIN = 1.8;
 
   var piperModulePromise = null;   // cache hasil import() library
-  var modelReadyPromise = null;    // cache hasil "model sudah siap dipakai"
+  var modelReadyPromises = {};     // voiceId -> Promise "model ini sudah siap dipakai"
+                                    // (per-voice, karena sekarang ada >1 model/bahasa)
   var audioUnlocked = false;       // sudah ada user-gesture yang unlock audio?
   var sharedAudioCtx = null;
   var currentAudio = null;
@@ -121,30 +175,39 @@
   // beneran berganti, speakDJ() tidak perlu nunggu ensureModel()+predict()
   // lagi dari nol — tinggal pakai wav yang sudah jadi, suara langsung
   // muncul. Hanya menyimpan SATU slot (teks terakhir yang disiapkan) karena
-  // DJ cuma perlu menyiapkan SATU lagu berikutnya di satu waktu. ─────────
-  var preparedText = null;
+  // DJ cuma perlu menyiapkan SATU lagu berikutnya di satu waktu. Kuncinya
+  // menyertakan bahasa aktif (bukan cuma teks) supaya kalau user kebetulan
+  // ganti bahasa PAS lagi di-prepare, slot lama otomatis dianggap tidak
+  // cocok lagi (tidak salah pakai suara). ─────────────────────────────────
+  var preparedKey = null;   // format: `${lang}::${text}`
   var preparedWavPromise = null;
+
+  function _keyFor(text) { return _activeLang + '::' + text; }
 
   // Siapkan (sintesis) audio Piper untuk `text` LEBIH AWAL, tanpa
   // memutarnya. Aman dipanggil kapan saja (mis. beberapa detik sebelum lagu
   // berikutnya mulai) — hasilnya disimpan sampai speakDJ() dipanggil dengan
-  // teks yang SAMA PERSIS, atau sampai prepare() dipanggil lagi dengan teks
-  // lain (menggantikan slot lama). Tidak melempar error ke pemanggil kalau
-  // gagal — speakDJ() akan tetap fallback ke jalur biasa (generate saat itu
-  // juga) kalau prepare() ini gagal/tidak dipanggil sama sekali.
+  // teks yang SAMA PERSIS (& bahasa aktif yang sama), atau sampai prepare()
+  // dipanggil lagi dengan teks lain (menggantikan slot lama). Tidak
+  // melempar error ke pemanggil kalau gagal — speakDJ() akan tetap fallback
+  // ke jalur biasa (generate saat itu juga) kalau prepare() ini gagal/tidak
+  // dipanggil sama sekali.
   function prepare(text) {
     if (!text) return Promise.resolve();
-    if (preparedText === text && preparedWavPromise) return preparedWavPromise; // sudah disiapkan/lagi disiapkan
-    preparedText = text;
-    preparedWavPromise = ensureModel()
+    var key = _keyFor(text);
+    if (preparedKey === key && preparedWavPromise) return preparedWavPromise; // sudah disiapkan/lagi disiapkan
+    var profile = _activeProfile();
+    preparedKey = key;
+    preparedWavPromise = ensureModel(profile.voiceId)
       .then(function (tts) {
-        return tts.predict({ text: text, voiceId: VOICE_ID });
+        _applyVoiceParams(tts, profile);
+        return tts.predict({ text: text, voiceId: profile.voiceId });
       })
       .catch(function (err) {
         console.warn('[LoluPiperTTS] prepare() gagal:', err);
         // Biar tidak nyangkut sebagai cache basi — slot dikosongkan lagi
         // supaya speakDJ() nanti fallback generate biasa.
-        if (preparedText === text) { preparedText = null; preparedWavPromise = null; }
+        if (preparedKey === key) { preparedKey = null; preparedWavPromise = null; }
         throw err;
       });
     return preparedWavPromise;
@@ -163,20 +226,23 @@
     onSpeakEnd = typeof onEnd === 'function' ? onEnd : null;
   }
 
+  // Terapkan speakerId/noiseScale/noiseW/lengthScale dari sebuah profil
+  // suara (lihat VOICE_PROFILES) ke TtsSession (singleton milik library —
+  // nilainya dibaca ulang tiap kali predict() dipanggil, jadi aman diubah
+  // tepat sebelum tiap predict() untuk pakai profil suara yang berbeda-beda
+  // gantian, mis. ID lalu EN lalu ID lagi tanpa perlu reload modul).
+  function _applyVoiceParams(tts, profile) {
+    if (!tts || !tts.TtsSession) return;
+    tts.TtsSession.speakerId = profile.speakerId || 0;
+    if (profile.noiseScale != null) tts.TtsSession.noiseScale = profile.noiseScale;
+    if (profile.noiseW != null) tts.TtsSession.noiseW = profile.noiseW;
+    if (profile.lengthScale != null) tts.TtsSession.lengthScale = profile.lengthScale;
+  }
+
   // ── Load library Piper (sekali saja, lazy) ────────────────────────────
   function loadPiperModule() {
     if (!piperModulePromise) {
-      piperModulePromise = import(PIPER_MODULE_URL).then(function (tts) {
-        // Set sekali di sini — TtsSession pakai pola singleton, dan nilai
-        // ini dibaca ulang tiap kali predict() dipanggil, jadi cukup di-set
-        // sekali saat modul pertama kali dimuat.
-        if (tts.TtsSession) {
-          tts.TtsSession.speakerId = SPEAKER_ID;
-          if (NOISE_SCALE !== null) tts.TtsSession.noiseScale = NOISE_SCALE;
-          if (NOISE_W !== null) tts.TtsSession.noiseW = NOISE_W;
-        }
-        return tts;
-      }).catch(function (err) {
+      piperModulePromise = import(PIPER_MODULE_URL).catch(function (err) {
         piperModulePromise = null; // biar bisa dicoba lagi lain waktu
         throw err;
       });
@@ -236,6 +302,25 @@
     }
   }
 
+  // ── Naikkan nada+tempo audio bareng ("chipmunk trick") lewat
+  // playbackRate + preservesPitch=false — dipakai supaya suara Piper
+  // Indonesia (model "news_tts" yang aslinya bernada pembaca berita) bisa
+  // kedengaran lebih imut/muda/interaktif TANPA perlu model suara baru
+  // (yang memang tidak tersedia gratis untuk Bahasa Indonesia saat ini —
+  // lihat catatan panjang di VOICE_PROFILES di atas). rate>1 menaikkan
+  // nada & sedikit mempercepat tempo bicara BERSAMAAN (itu sebabnya efeknya
+  // suka disebut "chipmunk voice") — untuk profile.pitchBoost=1.0 (mis.
+  // suara EN yang sudah oke), fungsi ini otomatis tidak melakukan apa-apa.
+  function _applyCutePitch(audioEl, profile) {
+    if (!profile || !profile.pitchBoost || profile.pitchBoost === 1.0) return;
+    try {
+      audioEl.preservesPitch = false;
+      audioEl.mozPreservesPitch = false;
+      audioEl.webkitPreservesPitch = false;
+      audioEl.playbackRate = profile.pitchBoost;
+    } catch (e) { /* aman diabaikan — audio tetap diputar dg nada asli */ }
+  }
+
   // ── Loading state kecil — numpang di bubble "lolu-voice-bubble" yang
   //    sudah ada di UI (elemen sama yang dipakai lolu-voice.js untuk
   //    "Listening.../Processing..."), supaya TIDAK perlu menambah elemen UI
@@ -255,22 +340,28 @@
     } catch (e) {}
   }
 
-  // ── Pastikan model voice sudah terunduh & tersimpan di OPFS. Kalau sudah
-  //    pernah (dicek lewat tts.stored()), TIDAK unduh ulang — langsung pakai
-  //    cache. Kalau belum, unduh sekali sambil menampilkan progress. ───────
-  function ensureModel() {
-    if (modelReadyPromise) return modelReadyPromise;
+  // ── Pastikan model voice `voiceId` sudah terunduh & tersimpan di OPFS.
+  //    Kalau sudah pernah (dicek lewat tts.stored()), TIDAK unduh ulang —
+  //    langsung pakai cache. Kalau belum, unduh sekali sambil menampilkan
+  //    progress. Di-cache PER voiceId (bukan lagi satu variabel global)
+  //    supaya suara ID & EN bisa dipakai gantian tanpa unduh ulang tiap
+  //    pindah bahasa. ─────────────────────────────────────────────────────
+  function ensureModel(voiceId) {
+    if (modelReadyPromises[voiceId]) return modelReadyPromises[voiceId];
 
-    modelReadyPromise = loadPiperModule().then(function (tts) {
+    modelReadyPromises[voiceId] = loadPiperModule().then(function (tts) {
       return tts.stored().catch(function () { return []; }).then(function (stored) {
-        if (stored && stored.indexOf(VOICE_ID) !== -1) {
+        if (stored && stored.indexOf(voiceId) !== -1) {
           return tts; // sudah ada di cache OPFS, langsung pakai
         }
-        _setStatusUI('Menyiapkan suara Lolu… 0%');
-        return tts.download(VOICE_ID, function (progress) {
+        var label = (voiceId.indexOf('id_ID') === 0)
+          ? 'Menyiapkan suara Lolu (ID)… 0%'
+          : 'Menyiapkan suara Lolu… 0%';
+        _setStatusUI(label);
+        return tts.download(voiceId, function (progress) {
           if (progress && progress.total) {
             var pct = Math.round((progress.loaded * 100) / progress.total);
-            _setStatusUI('Menyiapkan suara Lolu… ' + pct + '%');
+            _setStatusUI(label.replace('0%', pct + '%'));
           }
         }).then(function () {
           _clearStatusUI();
@@ -278,20 +369,27 @@
         });
       });
     }).catch(function (err) {
-      modelReadyPromise = null; // biar bisa dicoba lagi (mis. koneksi sempat putus)
+      delete modelReadyPromises[voiceId]; // biar bisa dicoba lagi (mis. koneksi sempat putus)
       _clearStatusUI();
       throw err;
     });
 
-    return modelReadyPromise;
+    return modelReadyPromises[voiceId];
   }
 
-  // Panggil ini lebih awal (mis. begitu user pencet tombol mic pertama kali)
-  // supaya model sudah ter-download di background SEBELUM Lolu benar-benar
-  // perlu bicara — jadi balasan pertama tidak nunggu lama. Aman dipanggil
-  // berkali-kali; unduhan tidak akan dobel.
+  // Panggil ini lebih awal (mis. begitu user pencet tombol mic pertama kali,
+  // atau begitu file ini sendiri selesai di-parse — lihat preload() di
+  // bagian paling bawah file) supaya model SUARA YANG SEDANG AKTIF sudah
+  // ter-download di background SEBELUM Lolu benar-benar perlu bicara, jadi
+  // balasan pertama tidak nunggu lama. Sengaja HANYA menyiapkan suara bahasa
+  // yang aktif sekarang (bukan ID+EN sekaligus) — tiap model ~63MB, jadi
+  // menyiapkan keduanya di awal cuma buang-buang kuota kalau user ternyata
+  // tidak pernah pindah bahasa. Begitu user ganti bahasa (toggleLanguage()
+  // di lolu-voice.js -> setLanguage() di sini), model suara yang BARU akan
+  // otomatis diunduh sendiri saat dibutuhkan (lewat ensureModel() di
+  // speakDJ()/prepare()) — aman dipanggil berkali-kali, unduhan tidak dobel.
   function preload() {
-    ensureModel().catch(function (err) {
+    ensureModel(_activeProfile().voiceId).catch(function (err) {
       console.warn('[LoluPiperTTS] Gagal preload model:', err);
     });
   }
@@ -309,24 +407,30 @@
   function speakDJ(text) {
     if (!text) return Promise.resolve();
     var myToken = ++speakToken;
+    var profile = _activeProfile(); // suara bahasa yang aktif SEKARANG dikunci di awal panggilan
+                                     // ini, supaya konsisten dari sini sampai audio selesai diputar
+                                     // walau user sempat ganti bahasa lagi di tengah proses.
     unlockAudio();
 
     // Kalau teks ini SUDAH disiapkan lebih awal lewat prepare() (mis. oleh
-    // LoluDJ selagi lagu sebelumnya masih jalan), langsung pakai wav yang
-    // sudah/lagi disintesis itu — SKIP ensureModel()+predict() dari nol di
-    // sini, supaya suara Lolu bisa langsung muncul begitu dipanggil, tanpa
-    // loading tambahan. Kalau tidak ada yang cocok (mis. prepare() belum
-    // sempat dipanggil, gagal, atau teksnya beda), fallback ke jalur lama:
-    // ensureModel()+predict() seperti biasa.
+    // LoluDJ selagi lagu sebelumnya masih jalan) DENGAN BAHASA YANG SAMA,
+    // langsung pakai wav yang sudah/lagi disintesis itu — SKIP
+    // ensureModel()+predict() dari nol di sini, supaya suara Lolu bisa
+    // langsung muncul begitu dipanggil, tanpa loading tambahan. Kalau tidak
+    // ada yang cocok (mis. prepare() belum sempat dipanggil, gagal, teksnya
+    // beda, atau bahasa sempat berubah), fallback ke jalur lama:
+    // ensureModel()+predict() seperti biasa untuk voiceId bahasa aktif.
     var wavPromise;
-    if (preparedText === text && preparedWavPromise) {
+    var key = _keyFor(text);
+    if (preparedKey === key && preparedWavPromise) {
       wavPromise = preparedWavPromise;
-      preparedText = null;
+      preparedKey = null;
       preparedWavPromise = null; // slot sudah "dipakai", kosongkan
     } else {
-      wavPromise = ensureModel().then(function (tts) {
+      wavPromise = ensureModel(profile.voiceId).then(function (tts) {
         if (myToken !== speakToken) return null; // sudah ada speakDJ lebih baru
-        return tts.predict({ text: text, voiceId: VOICE_ID });
+        _applyVoiceParams(tts, profile);
+        return tts.predict({ text: text, voiceId: profile.voiceId });
       });
     }
 
@@ -345,7 +449,8 @@
         }
         var url = URL.createObjectURL(wav);
         var audio = new Audio(url);
-        _boostVoiceGain(audio); // naikkan volume di atas 100% bawaan (lihat VOICE_GAIN)
+        _boostVoiceGain(audio);       // naikkan volume di atas 100% bawaan (lihat VOICE_GAIN)
+        _applyCutePitch(audio, profile); // naikkan nada biar imut, khusus suara yang punya pitchBoost (lihat VOICE_PROFILES)
         currentAudio = audio;
         // Audio Piper BENERAN mulai diputar dari sini — panggil hook "mulai
         // bicara" sekarang (bukan di 'ended'/'error' seperti onSpeakEnd),
@@ -427,7 +532,11 @@
     preload: preload,
     unlockAudio: unlockAudio,
     setSpeakingHandlers: setSpeakingHandlers,
-    VOICE_ID: VOICE_ID
+    // Dipanggil dari lolu-voice.js (toggleLanguage() + saat load awal)
+    // supaya suara Piper otomatis mengikuti bahasa voice command yang aktif
+    // ('id-ID' -> suara Indonesia, 'en-US' -> suara Inggris "poppy").
+    setLanguage: setLanguage,
+    get VOICE_ID() { return _activeProfile().voiceId; } // voice yang SEDANG aktif (bukan lagi tetap satu)
   };
 
   // ── PERCEPAT KEMUNCULAN SUARA LOLU ──────────────────────────────────────
