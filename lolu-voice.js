@@ -1226,13 +1226,6 @@
     if (window.LoluPiperTTS && typeof window.LoluPiperTTS.setSpeakingHandlers === 'function') {
       window.LoluPiperTTS.setSpeakingHandlers(_lvShowSpeakingAnim, _lvHideSpeakingAnim);
     }
-    // Pastikan suara Piper yang aktif sinkron dengan pilihan bahasa terakhir
-    // user (lolu-piper-tts.js sudah menebak lewat localStorage sendiri saat
-    // preload pertamanya, tapi dipanggil ulang di sini juga sebagai jaring
-    // pengaman supaya selalu konsisten dengan currentLang di file ini).
-    if (window.LoluPiperTTS && typeof window.LoluPiperTTS.setLanguage === 'function') {
-      window.LoluPiperTTS.setLanguage(currentLang);
-    }
     // Isi sapaan "Good morning" dst di kotak promo Lolu Voice (#lvh-greeting,
     // halaman Home) sedari awal — jangan tunggu user membuka halaman Lolu
     // Voice penuh dulu (openVoicePage() baru memanggil ini juga).
@@ -1309,10 +1302,6 @@
     // system prompt komentar DJ + balasan lokal) — sinkronkan setiap kali
     // user ganti bahasa dari sini.
     if (window.LoluDJ && typeof window.LoluDJ._setLang === 'function') window.LoluDJ._setLang(currentLang);
-    // Suara Piper (lolu-piper-tts.js) juga punya suara terpisah per bahasa
-    // (ID pakai suara Indonesia sendiri, EN tetap "poppy") — sinkronkan juga
-    // supaya Lolu langsung bicara pakai suara yang sesuai bahasa barunya.
-    if (window.LoluPiperTTS && typeof window.LoluPiperTTS.setLanguage === 'function') window.LoluPiperTTS.setLanguage(currentLang);
   }
 
   window.LoluVoiceDJ = {
