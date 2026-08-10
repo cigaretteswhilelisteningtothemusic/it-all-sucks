@@ -5303,7 +5303,7 @@ async function resolveVidList(query, max=10){
 // live, konser, akustik, cover, karaoke, remix, dsb. Video dengan judul yang
 // mengandung salah satu dari ini DIBUANG dari kandidat pencocokan durasi,
 // supaya yang kepilih benar-benar rilisan resmi/studio dari lagu tsb.
-const _DIRTY_TITLE_REGEX = /\b(live|konser|concert|acoustic|akustik|unplugged|cover|karaoke|instrumental|remix|reaction|tutorial|behind[\s_-]?the[\s_-]?scenes?|teaser|trailer|interview|dance\s*practice|piano\s*version|orchestra|symphony|session|mashup|parody|rehearsal)\b/i;
+const _DIRTY_TITLE_REGEX = /\b(live|konser|concert|acoustic|akustik|unplugged|cover|karaoke|instrumental|remix|reaction|tutorial|behind[\s_-]?the[\s_-]?scenes?|teaser|trailer|interview|dance\s*practice|piano\s*version|orchestra|symphony|session|mashup|parody|rehearsal|slowed|slow(?:ed)?\s*(?:\+|and|&)?\s*reverb|reverb(?:ed)?|sped\s*up|speed\s*up|nightcore|daycore|8d\s*audio|bass\s*boost(?:ed)?|lo-?fi|chipmunk(?:ed)?|tik\s*tok|tiktok(?:\s*version)?|extended|loop(?:ed)?|1\s*hour|amv|fan\s*made|fanmade)\b/i;
 
 // Buang kandidat yang judulnya mengandung kata kunci "kotor" di atas.
 function _filterCleanVideos(results){
@@ -5397,7 +5397,7 @@ const VIDEO_DURATION_TOLERANCE = 3;
 // Return {videoId, lines} — lines dipakai langsung supaya tidak perlu fetchLyr lagi.
 async function resolveVidByDuration(artist, title, cleanTitleForLyrics, knownDuration){
   const [lyricsQueryResults, lyricsData] = await Promise.all([
-    resolveVidList(`${title} ${artist} lyrics`),
+    resolveVidList(`${artist} ${title} lyrics`),
     fetchLyr(cleanTitleForLyrics, artist, knownDuration)
   ]);
   let lines = (lyricsData && lyricsData.lines) || [];
@@ -5408,7 +5408,7 @@ async function resolveVidByDuration(artist, title, cleanTitleForLyrics, knownDur
   // query polos "judul - artist" sebagai gantinya.
   let rawResults = lyricsQueryResults;
   if(!rawResults || !rawResults.length){
-    rawResults = await resolveVidList(`${title} ${artist}`);
+    rawResults = await resolveVidList(`${artist} ${title}`);
   }
 
   const cleanResults = _filterCleanVideos(rawResults);
@@ -5419,14 +5419,14 @@ async function resolveVidByDuration(artist, title, cleanTitleForLyrics, knownDur
   let pickedFrom = relevantResults;
 
   if(!videoId){
-    const plainResults = await resolveVidList(`${title} ${artist}`);
+    const plainResults = await resolveVidList(`${artist} ${title}`);
     const cleanPlainResults = _filterCleanVideos(plainResults);
     const relevantPlainResults = _bestRelevantCandidates(cleanPlainResults.length ? cleanPlainResults : plainResults, artist, title);
     videoId = (relevantPlainResults[0] && relevantPlainResults[0].videoId) || null;
     pickedFrom = relevantPlainResults;
   }
   if(!videoId){
-    const audioResults = await resolveVidList(`${title} ${artist} official audio`);
+    const audioResults = await resolveVidList(`${artist} ${title} official audio`);
     const relevantAudioResults = _bestRelevantCandidates(audioResults, artist, title);
     videoId = (relevantAudioResults[0] && relevantAudioResults[0].videoId) || null;
     pickedFrom = relevantAudioResults;
