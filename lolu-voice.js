@@ -1165,7 +1165,24 @@
     // 8 di atas). _lvResetLoadingSequence() memastikan tampilan balik
     // bersih ke foto DJ + gif tersembunyi, membatalkan sisa urutan gif lama
     // kalau halaman ini sempat ditutup di tengah jalan sebelumnya.
-    _lvResetLoadingSequence();
+    // PENTING: openVoicePage() dipanggil BUKAN cuma sekali waktu user
+    // pertama masuk halaman ini — lolu-dj.js (_djSpeakThenGoToNowPlaying)
+    // JUGA memanggil ulang fungsi ini setiap kali start()/setMood()/
+    // playRequestedSong() jalan, walau halaman ini sudah terbuka (mis.
+    // lewat voice command yang urutan gif loading-nya sedang berjalan).
+    // Kalau _lvResetLoadingSequence() & UIState.setIdle() tetap dipanggil
+    // tanpa syarat di sini, urutan gif (openn->think->ending) yang sedang
+    // berjalan akan DIBATALKAN paksa & foto burung DJ dipaksa muncul lagi
+    // di tengah jalan -- itulah sebabnya foto DJ sempat "menyelip" tepat
+    // setelah ending__2_.gif menghilang, sebelum animasi voice recognition
+    // tampil. Makanya reset & setIdle cuma dijalankan kalau MEMANG tidak
+    // ada urutan gif loading yang sedang aktif.
+    if (!_lvLoadingActive) {
+      _lvResetLoadingSequence();
+      // Sengaja TIDAK langsung startListening() -- halaman terbuka dalam
+      // kondisi idle, mic baru aktif kalau user menekan tombol mic sendiri.
+      UIState.setIdle();
+    }
     // Tetap siapkan model Piper di background dari sekarang, diam-diam
     // TANPA menampilkan gif apa pun, supaya begitu user pencet mic &
     // ngomong permintaan pertama, prosesnya tidak perlu unduh model dari
@@ -1173,9 +1190,6 @@
     if (window.LoluPiperTTS && typeof window.LoluPiperTTS.preload === 'function') {
       window.LoluPiperTTS.preload();
     }
-    // Sengaja TIDAK langsung startListening() -- halaman terbuka dalam
-    // kondisi idle, mic baru aktif kalau user menekan tombol mic sendiri.
-    UIState.setIdle();
   }
 
   // Tutup halaman Lolu Voice, kembali ke halaman Chat AI (yang tetap
@@ -1487,6 +1501,15 @@
     isSupported: SpeechInput.isSupported,
     openVoicePage,
     closeVoicePage,
+    // Dipakai lolu-dj.js supaya aksi DJ yang dipicu LANGSUNG dari tombol/
+    // chip UI (mis. mood "For You", "Chill", dst — bukan lewat voice
+    // command) JUGA menampilkan urutan gif loading (openn->think->ending),
+    // bukan cuma diam menampilkan foto DJ selama proses berlangsung.
+    // isLoadingSequenceActive() dipakai supaya lolu-dj.js tidak memicu
+    // sequence baru kalau satu sudah berjalan (mis. dipicu lebih dulu oleh
+    // voice command lewat handleRecognizedText).
+    showLoadingSequence: _lvShowLoadingSequence,
+    isLoadingSequenceActive: function () { return _lvLoadingActive; },
     // Dipakai lolu-dj.js supaya permintaan DJ ("play something chill", "jadi
     // dj", dst) yang DIKETIK di Chat AI bisa dikenali dengan pola yang SAMA
     // persis dipakai voice command — tanpa duplikasi regex di dua tempat.

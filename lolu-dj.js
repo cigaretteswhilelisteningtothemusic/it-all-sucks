@@ -765,6 +765,21 @@ ATURAN WAJIB:
     _djActive = true;
     _refreshUI();
 
+    // Buka halaman Lolu Voice & tampilkan urutan gif loading SEDINI
+    // MUNGKIN (sebelum queue/komentar AI disiapkan, yang bisa makan
+    // beberapa detik) — supaya openn.gif kelihatan dari awal, bukan
+    // telat muncul setelah komentar sudah siap. Dilewati kalau sequence
+    // SUDAH berjalan (mis. dipicu lebih dulu oleh voice command lewat
+    // handleRecognizedText di lolu-voice.js) supaya tidak restart dari
+    // nol / dobel trigger.
+    if (window.LoluVoiceDJ) {
+      if (typeof window.LoluVoiceDJ.openVoicePage === 'function') window.LoluVoiceDJ.openVoicePage();
+      const alreadyLoading = typeof window.LoluVoiceDJ.isLoadingSequenceActive === 'function' && window.LoluVoiceDJ.isLoadingSequenceActive();
+      if (!alreadyLoading && typeof window.LoluVoiceDJ.showLoadingSequence === 'function') {
+        window.LoluVoiceDJ.showLoadingSequence();
+      }
+    }
+
     let queue, isMoodStart = !!mood;
     queue = mood ? await _djBuildMoodQueue(mood) : await _djBuildDefaultQueue();
 
@@ -796,6 +811,17 @@ ATURAN WAJIB:
     _showBubble(_t('Menyesuaikan vibe...', 'Switching up the vibe...'));
     _djActive = true;
     _refreshUI();
+
+    // Sama seperti di start(): buka halaman & tampilkan gif loading sedini
+    // mungkin supaya klik chip mood (mis. "For You") juga dapat animasi
+    // openn/think/ending, bukan cuma diam menampilkan foto DJ.
+    if (window.LoluVoiceDJ) {
+      if (typeof window.LoluVoiceDJ.openVoicePage === 'function') window.LoluVoiceDJ.openVoicePage();
+      const alreadyLoading = typeof window.LoluVoiceDJ.isLoadingSequenceActive === 'function' && window.LoluVoiceDJ.isLoadingSequenceActive();
+      if (!alreadyLoading && typeof window.LoluVoiceDJ.showLoadingSequence === 'function') {
+        window.LoluVoiceDJ.showLoadingSequence();
+      }
+    }
 
     const queue = await _djBuildMoodQueue(mood);
     if (!queue || !queue.length) {
@@ -836,6 +862,19 @@ ATURAN WAJIB:
     _djActive = true;
     _djMood = null;
     _refreshUI();
+
+    // Sama seperti start()/setMood(): kalau fungsi ini dipicu LANGSUNG dari
+    // UI (bukan lewat voice command yang gif-nya sudah jalan duluan di
+    // handleRecognizedText), pastikan urutan gif loading tetap tampil.
+    // isLoadingSequenceActive() mencegah trigger dobel untuk jalur voice
+    // command yang paling umum.
+    if (window.LoluVoiceDJ) {
+      if (typeof window.LoluVoiceDJ.openVoicePage === 'function') window.LoluVoiceDJ.openVoicePage();
+      const alreadyLoading = typeof window.LoluVoiceDJ.isLoadingSequenceActive === 'function' && window.LoluVoiceDJ.isLoadingSequenceActive();
+      if (!alreadyLoading && typeof window.LoluVoiceDJ.showLoadingSequence === 'function') {
+        window.LoluVoiceDJ.showLoadingSequence();
+      }
+    }
 
     curQueue = (Array.isArray(queueList) && queueList.length) ? queueList.map(_ensureQuery) : [_ensureQuery(track)];
     _djSuppressNextAutoCommentary = true;
