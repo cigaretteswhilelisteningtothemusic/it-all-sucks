@@ -1942,6 +1942,19 @@ body.np-page-open #bar{
 .np-mob-queue-btn{display:flex;align-items:center;gap:7px;background:none;border:none;color:rgba(255,255,255,.68);font-family:var(--f);font-weight:700;font-size:.72rem;letter-spacing:.2px;cursor:pointer;padding:9px 16px;border-radius:20px;transition:all .18s;}
 .np-mob-queue-btn:hover{color:#fff;background:rgba(255,255,255,.08)}
 .np-mob-queue-btn svg{width:18px;height:18px}
+/* Foto Lolu mode DJ, sebelahan tombol Queue (lihat .np-mob-top-actions di
+   HTML). display:none by default -> baru muncul lewat class "show" yang
+   di-toggle dari LoluDJ._refreshUI() (lolu-dj.js) SELAGI mode DJ aktif.
+   width/height default di bawah cuma fallback SEBELUM JS sempat
+   menyamakan ukurannya ke #ai-fab-sleep-gif lewat _djSyncGifSize() —
+   begitu itu jalan, ukurannya otomatis ikut ukuran sleepbird.gif (jadi
+   TIDAK perlu diubah manual di sini kalau ukuran sleepbird.gif berubah).
+   Karena elemen ini ada DI DALAM .np-mob-top-actions -> .np-mob-controls
+   (yang sendirinya sudah display:none di desktop, baru flex di
+   @media(max-width:660px)), foto ini otomatis TIDAK PERNAH kelihatan di
+   tampilan desktop, cuma mobile — tidak perlu media query tambahan. */
+.np-dj-png{display:none;width:36px;height:36px;object-fit:contain;border-radius:8px;flex-shrink:0;pointer-events:none;}
+.np-dj-png.show{display:block;}
 /* Sembunyikan seluruh blok kontrol mobile ini saat mode Fullscreen aktif —
    mode Fullscreen sengaja dibuat minimal (hanya foto album+judul+artis). */
 #np-view.np-fullscreen .np-mob-controls,
@@ -5144,4 +5157,24 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   .vdj-mic-btn svg{ width:21px;height:21px; }
   .vdj-status{ font-size:1.25rem; }
   .vdj-hint{ margin-top:20px; }
+}
+
+/* ==========================================================================
+   TOMBOL "MATIKAN MODE DJ" — pojok kanan atas halaman Lolu Voice, sebelahan
+   tombol bahasa (#lv-lang-btn). Ditaruh di vibexa.css (bukan lolu-voice.css)
+   karena file lolu-voice.css tidak ikut diedit di sini — kalau nanti mau
+   dipindah supaya menyatu dengan sisa gaya #lv-topbar/.lv-lang-btn lainnya,
+   aman dipindah ke lolu-voice.css, aturan di bawah cukup dihapus dari sini.
+   Class .lv-dj-toggle-btn & title-nya disinkronkan dari
+   LoluDJ._refreshUI() (lolu-dj.js); class "show" (tampil/sembunyi) HANYA
+   selagi mode DJ beneran aktif.
+   ========================================================================== */
+.lv-topbar-right{display:flex;align-items:center;gap:8px;}
+.lv-dj-toggle-btn{display:none;align-items:center;gap:6px;background:rgba(255,70,90,.14);border:1px solid rgba(255,70,90,.4);color:#ff6b81;font-family:var(--f);font-weight:700;font-size:.72rem;letter-spacing:.3px;padding:7px 13px;border-radius:20px;cursor:pointer;transition:all .18s;}
+.lv-dj-toggle-btn:hover{background:rgba(255,70,90,.26);color:#fff;}
+.lv-dj-toggle-btn.show{display:flex;}
+.lv-dj-toggle-btn svg{width:14px;height:14px;flex-shrink:0;}
+@media(max-width:660px){
+  .lv-dj-toggle-btn span{display:none;}
+  .lv-dj-toggle-btn{padding:8px;}
 }

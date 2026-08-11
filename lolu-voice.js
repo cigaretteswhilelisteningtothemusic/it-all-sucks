@@ -1235,16 +1235,27 @@
   const LV_LOADING_GIF_OPEN = 'openn.gif';
   const LV_LOADING_GIF_THINK = 'think.gif';
   const LV_LOADING_GIF_ENDING = 'ending__2_.gif';
-  const LV_LOADING_OPEN_MS = 4000;   // durasi tetap gif openn.gif
-  const LV_LOADING_ENDING_MS = 1000; // durasi tetap gif ending__2_.gif
+  // DIPERCEPAT: sebelumnya openn.gif SELALU tampil 4 detik PENUH & ending
+  // gif SELALU tampil 1 detik PENUH, TIDAK PEDULI apakah model suara Piper
+  // & balasannya sudah beneran siap lebih cepat dari itu — jadi user
+  // SELALU nunggu minimal ~5 detik tiap kali fitur Lolu Voice ATAU Lolu DJ
+  // dipakai (lolu-dj.js manggil sequence yang SAMA lewat openVoicePage()),
+  // bahkan kalau prosesnya sendiri jauh lebih cepat. Angka di bawah
+  // dipangkas jadi cuma cukup supaya animasinya tetap sempat kelihatan
+  // sekilas (bukan "meng-hilang tiba-tiba"), TANPA jadi jeda buatan yang
+  // berasa lambat. Kalau model/balasannya ternyata belum siap, alur tetap
+  // otomatis nunggu di gif "think" (lihat readyPromise di bawah) — itu
+  // bagian yang MEMANG perlu, bukan bagian yang dipercepat di sini.
+  const LV_LOADING_OPEN_MS = 700;    // durasi tetap gif openn.gif (dulu 4000)
+  const LV_LOADING_ENDING_MS = 350;  // durasi tetap gif ending__2_.gif (dulu 1000)
   // Jaga-jaga: kalau preload() tidak pernah "selesai" dengan benar (mis.
   // error jaringan yang tidak reject Promise-nya), jangan biarkan
   // think.gif nyangkut selamanya — anggap siap paksa setelah ini.
-  const LV_LOADING_MAX_WAIT_MS = 20000;
+  const LV_LOADING_MAX_WAIT_MS = 12000; // dulu 20000 — user tidak perlu nunggu selama itu utk fallback
   // Kalau LoluPiperTTS.preload() ternyata tidak mengembalikan Promise sama
   // sekali (API-nya beda), tetap kasih jeda singkat supaya think.gif
   // sempat kelihatan sebelum lanjut ke ending.gif.
-  const LV_LOADING_FALLBACK_WAIT_MS = 1200;
+  const LV_LOADING_FALLBACK_WAIT_MS = 500; // dulu 1200
 
   let _lvLoadingToken = 0;   // dinaikkan tiap kali sequence baru dimulai/dibatalkan
   let _lvLoadingActive = false;

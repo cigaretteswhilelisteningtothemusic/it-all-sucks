@@ -1250,15 +1250,30 @@
     <button class="lv-back-btn" id="lv-back-btn" onclick="LoluVoiceDJ.closeVoicePage()" title="Keluar">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
     </button>
-    <!-- Tombol bahasa untuk voice command — selalu tampil di kanan atas
-         (baik desktop maupun mobile), berseberangan dengan tombol back di
-         kiri (lihat .lv-topbar{justify-content:space-between} di
-         lolu-voice.css). Menggantikan slot yang sebelumnya dipakai tombol
-         mic khusus mobile (#lv-mic-topbar-btn) — sekarang tombol mic HANYA
-         ada satu, di tengah bawah foto burung (#lv-mic-top-btn di bawah),
-         konsisten di semua ukuran layar. Label teks (ID/EN) disinkronkan
-         lewat UIState.setLangBtnLabel() di lolu-voice.js. -->
-    <button class="lv-lang-btn" id="lv-lang-btn" onclick="LoluVoiceDJ.toggleLanguage(event)" title="Bahasa untuk voice command">ID</button>
+    <!-- Grup tombol kanan atas: bahasa + (baru) tombol matikan mode DJ.
+         Dibungkus 1 div supaya tetap 2 "anak" langsung di dalam .lv-topbar
+         (tombol back di kiri, grup ini di kanan) — jadi
+         .lv-topbar{justify-content:space-between} di lolu-voice.css tidak
+         perlu diubah sama sekali. -->
+    <div class="lv-topbar-right" id="lv-topbar-right">
+      <!-- Tombol bahasa untuk voice command — selalu tampil di kanan atas
+           (baik desktop maupun mobile), berseberangan dengan tombol back di
+           kiri (lihat .lv-topbar{justify-content:space-between} di
+           lolu-voice.css). Menggantikan slot yang sebelumnya dipakai tombol
+           mic khusus mobile (#lv-mic-topbar-btn) — sekarang tombol mic HANYA
+           ada satu, di tengah bawah foto burung (#lv-mic-top-btn di bawah),
+           konsisten di semua ukuran layar. Label teks (ID/EN) disinkronkan
+           lewat UIState.setLangBtnLabel() di lolu-voice.js. -->
+      <button class="lv-lang-btn" id="lv-lang-btn" onclick="LoluVoiceDJ.toggleLanguage(event)" title="Bahasa untuk voice command">ID</button>
+      <!-- BARU: tombol matikan mode DJ, di kanan atas halaman Lolu Voice,
+           sebelahan tombol bahasa. Cuma tampil selagi mode DJ (lolu-dj.js)
+           beneran aktif (class "show" di-toggle dari LoluDJ._refreshUI(),
+           lihat lolu-dj.js) — klik langsung memanggil LoluDJ.stop(). -->
+      <button class="lv-dj-toggle-btn" id="lv-dj-off-btn" onclick="LoluDJ.stop()" title="Matikan mode DJ">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        <span>DJ</span>
+      </button>
+    </div>
   </div>
 
   <div class="lv-center">
@@ -1661,6 +1676,16 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h10"/><path d="m18 15 3 3-3 3" /></svg>
             <span>Queue</span>
           </button>
+          <!-- Foto Lolu mode DJ — diletakkan tepat di sebelah tombol Queue
+               di atas. Muncul HANYA selagi mode Lolu DJ aktif (lihat
+               LoluDJ._refreshUI di lolu-dj.js, yang toggle class "show" di
+               sini) DAN cuma pernah kelihatan di tampilan mobile, karena
+               baris ini (.np-mob-top-actions, induk dari
+               .np-mob-controls) memang display:none di desktop & baru
+               flex di breakpoint mobile (lihat vibexa.css). Ukurannya
+               disamakan otomatis ke ukuran sleepbird.gif (#ai-fab-sleep-gif)
+               lewat JS (_djSyncGifSize() di lolu-dj.js). -->
+          <img id="np-dj-png" class="np-dj-png" src="lolu-dj-mode.webp" alt="Lolu sedang dalam mode DJ">
           <button class="np-mob-add-btn" id="np-mob-add-btn" onclick="event.stopPropagation();openAddSongModal(curTrack)" title="Add to Playlist">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
           </button>
@@ -1691,10 +1716,6 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4M9 22h6"/></svg>
           </button>
         </div>
-        <!-- Muncul HANYA selagi mode Lolu DJ aktif (lihat LoluDJ._refreshUI di
-             lolu-dj.js) — ukurannya disamakan otomatis ke ukuran sleepbird.gif
-             (#ai-fab-sleep-gif) lewat JS. -->
-        <img id="np-dj-png" class="np-dj-png" src="lolu-dj-mode.webp" alt="Lolu sedang dalam mode DJ">
         <!-- Khusus tampilan mobile: garis pendek + nama artis lagu yang sedang
              diputar, ditampilkan di bawah baris tombol play (gaya Now Playing Spotify di HP) -->
         <div class="np-mob-bottom-handle">

@@ -579,8 +579,17 @@ ATURAN WAJIB:
     document.querySelectorAll('.lv-mood-chip').forEach((c) => {
       c.classList.toggle('active', !!_djMood && c.dataset.mood === _djMood);
     });
-    const npGif = document.getElementById('np-dj-gif');
-    if (npGif) { npGif.classList.toggle('show', _djActive); if (_djActive) _djSyncGifSize(); }
+    // Foto Lolu mode DJ (#np-dj-png, halaman Now Playing mobile, sebelahan
+    // tombol Queue) — id BENAR di vibexa.html adalah "np-dj-png" (foto
+    // statis .webp), bukan "np-dj-gif" (sisa penamaan lama dari versi gif
+    // sebelumnya) — pakai id yang benar supaya show/hide & sinkron ukuran
+    // beneran jalan.
+    const npPhoto = document.getElementById('np-dj-png');
+    if (npPhoto) { npPhoto.classList.toggle('show', _djActive); if (_djActive) _djSyncGifSize(); }
+    // Tombol "matikan mode DJ" di pojok kanan atas halaman Lolu Voice —
+    // cuma muncul selagi mode DJ beneran aktif.
+    const djOffBtn = document.getElementById('lv-dj-off-btn');
+    if (djOffBtn) djOffBtn.classList.toggle('show', _djActive);
     // Kotak "Next Song" (mobile #np-card-nextsong & panel kanan PC
     // #lyr-nextsong-box, lihat vibexa.js) HANYA muncul selagi mode DJ
     // aktif — refresh keduanya di sini juga supaya langsung
@@ -592,18 +601,19 @@ ATURAN WAJIB:
     if (typeof window._renderLyrNextSongBox === 'function') window._renderLyrNextSongBox();
   }
 
-  // Samakan ukuran #np-dj-gif (halaman Now Playing) dengan ukuran
-  // #ai-fab-sleep-gif (burung tidur di tombol FAB) yang SUDAH ADA, supaya
-  // tidak perlu duplikasi angka px secara manual di sini — otomatis ikut
-  // kalau ukuran sleepbird.gif di CSS utama (vibexa.css) berubah suatu saat.
+  // Samakan ukuran #np-dj-png (foto Lolu mode DJ, halaman Now Playing)
+  // dengan ukuran #ai-fab-sleep-gif (burung tidur di tombol FAB) yang
+  // SUDAH ADA, supaya tidak perlu duplikasi angka px secara manual di sini
+  // — otomatis ikut kalau ukuran sleepbird.gif di CSS utama (vibexa.css)
+  // berubah suatu saat.
   function _djSyncGifSize() {
     try {
       const ref = document.getElementById('ai-fab-sleep-gif');
-      const gif = document.getElementById('np-dj-gif');
-      if (!ref || !gif) return;
+      const photo = document.getElementById('np-dj-png');
+      if (!ref || !photo) return;
       const cs = window.getComputedStyle(ref);
-      if (cs && cs.width && cs.width !== 'auto' && parseFloat(cs.width) > 0) gif.style.width = cs.width;
-      if (cs && cs.height && cs.height !== 'auto' && parseFloat(cs.height) > 0) gif.style.height = cs.height;
+      if (cs && cs.width && cs.width !== 'auto' && parseFloat(cs.width) > 0) photo.style.width = cs.width;
+      if (cs && cs.height && cs.height !== 'auto' && parseFloat(cs.height) > 0) photo.style.height = cs.height;
     } catch (e) {}
   }
 
