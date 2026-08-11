@@ -1242,6 +1242,27 @@
   function _lvLoadingGifEl() { return document.getElementById('lv-loading-gif'); }
   function _lvSleep(ms) { return new Promise(function (resolve) { setTimeout(resolve, ms); }); }
 
+  // ── PENDING-SPEAK — jembatan antara urutan gif loading & pembungkus
+  // window.LoluPiperTTS.speakDJ (bagian 9.6 di bawah) ────────────────────
+  // Model Piper bisa saja SUDAH siap (preload() selesai) padahal teks
+  // balasan yang SEBENARNYA (replyText/commentary) belum diketahui sama
+  // sekali — itu baru muncul belakangan, sesudah intent diproses / AI chat
+  // / komentar DJ selesai digenerate. Kalau think.gif cuma menunggu model
+  // siap, gerbang suara bisa terbuka lebih awal padahal predict() utk teks
+  // balasan itu SENDIRI belum mulai — hasilnya celah kosong (gif sudah
+  // hilang, tapi speakDJ() baru mulai sintesis suara sesudahnya).
+  // Begitu speakDJ(text) BENERAN dipanggil (dari file ini atau dari
+  // lolu-dj.js), pembungkusnya langsung memanggil LoluPiperTTS.prepare(text)
+  // SEKARANG JUGA (tidak menunggu gerbang) & mendaftarkan promise-nya di
+  // sini lewat _lvRegisterPendingSpeak() — supaya sintesisnya jalan
+  // PARALEL dengan sisa waktu think.gif, dan _lvTrueReadyPromise() di bawah
+  // bisa ikut menunggunya sebelum pindah ke gif ending.
+  let _lvPendingSpeakPromise = null;
+
+  function _lvRegisterPendingSpeak(promise) {
+    _lvPendingSpeakPromise = (promise && typeof promise.then === 'function') ? promise : null;
+  }
+
   // ── GERBANG suara Piper ────────────────────────────────────────────────
   // "Tertutup" (Promise pending) selama urutan gif loading masih berjalan,
   // "terbuka" (resolve) tepat setelah ending__2_.gif selesai tampil 1
@@ -1278,6 +1299,28 @@
     return _lvSleep(LV_LOADING_FALLBACK_WAIT_MS);
   }
 
+  // "Siap SEBENARNYA" = model Piper sudah bisa dipakai DAN (kalau ada)
+  // suara utk teks balasan yang didaftarkan lewat _lvRegisterPendingSpeak()
+  // sudah selesai disintesis. Karena teks balasan sering baru diketahui
+  // BELAKANGAN (sesudah AI chat/pencarian lagu selesai, yang bisa terjadi
+  // kapan saja selagi think.gif masih tampil ATAU bahkan sesudah model
+  // saja sudah siap), fungsi ini polling singkat menunggu pendaftaran itu
+  // muncul dulu sebelum ikut menunggu wav-nya — dibatasi LV_LOADING_MAX_WAIT_MS
+  // total supaya tidak nyangkut selamanya kalau speakDJ() ternyata tidak
+  // pernah dipanggil sama sekali di siklus ini (mis. djHandledSpeech atau
+  // fallback non-Piper, yang keduanya sudah membuka gerbang sendiri lewat
+  // _lvResetLoadingSequence()/_lvLoadingGateOpen() langsung).
+  async function _lvTrueReadyPromise() {
+    const deadline = Date.now() + LV_LOADING_MAX_WAIT_MS;
+    await _lvPiperReadyPromise(); // minimum: model harus siap dulu
+    while (!_lvPendingSpeakPromise && Date.now() < deadline) {
+      await _lvSleep(150);
+    }
+    if (_lvPendingSpeakPromise) {
+      await _lvPendingSpeakPromise.then(function () {}, function () {});
+    }
+  }
+
   async function _lvShowLoadingSequence() {
     const gif = _lvLoadingGifEl();
     const bird = _lvBirdImgEl();
@@ -1286,14 +1329,17 @@
     const token = ++_lvLoadingToken;
     _lvLoadingActive = true;
     _lvLoadingGateClose(); // tutup gerbang suara Piper selama sequence ini berjalan
+    _lvPendingSpeakPromise = null; // reset dari siklus sebelumnya
 
     if (bird) bird.classList.add('lv-hidden');
     gif.src = LV_LOADING_GIF_OPEN;
     gif.classList.remove('lv-hidden');
 
     // Mulai siapkan model Piper SEKARANG, paralel dengan tahap openn.gif
-    // di bawah (bukan menunggu openn.gif selesai dulu baru mulai).
-    const readyPromise = _lvPiperReadyPromise();
+    // di bawah (bukan menunggu openn.gif selesai dulu baru mulai). SEKALIAN
+    // menunggu suara utk teks balasan sebenarnya (lihat _lvTrueReadyPromise
+    // di atas) — bukan cuma model-nya saja.
+    const readyPromise = _lvTrueReadyPromise();
 
     await _lvSleep(LV_LOADING_OPEN_MS);
     if (token !== _lvLoadingToken) return; // dibatalkan (halaman ditutup/dibuka ulang)
@@ -1333,6 +1379,7 @@
   function _lvResetLoadingSequence() {
     _lvLoadingToken++;
     _lvLoadingActive = false;
+    _lvPendingSpeakPromise = null;
     const gif = _lvLoadingGifEl();
     const bird = _lvBirdImgEl();
     if (gif) gif.classList.add('lv-hidden');
@@ -1352,6 +1399,17 @@
     if (window.LoluPiperTTS && typeof window.LoluPiperTTS.speakDJ === 'function' && !window.LoluPiperTTS.speakDJ._lvGated) {
       const _origSpeakDJ = window.LoluPiperTTS.speakDJ.bind(window.LoluPiperTTS);
       const _gatedSpeakDJ = function (text) {
+        // Segera mulai sintesis suara utk teks ini SEKARANG JUGA (tidak
+        // menunggu gerbang) & daftarkan ke urutan gif loading (kalau ada
+        // yang sedang berjalan) lewat _lvRegisterPendingSpeak() — supaya
+        // predict()-nya jalan paralel dengan sisa waktu think.gif, bukan
+        // baru mulai sesudah gerbang kebuka (itu penyebab celah kosongnya).
+        // _origSpeakDJ di bawah nanti otomatis memakai wav yang sudah/lagi
+        // disiapkan ini (lihat cek preparedText di lolu-piper-tts.js),
+        // JADI TIDAK sintesis dua kali.
+        if (typeof window.LoluPiperTTS.prepare === 'function') {
+          try { _lvRegisterPendingSpeak(window.LoluPiperTTS.prepare(text)); } catch (e) {}
+        }
         return _lvLoadingGateReady().then(function () { return _origSpeakDJ(text); });
       };
       _gatedSpeakDJ._lvGated = true;
