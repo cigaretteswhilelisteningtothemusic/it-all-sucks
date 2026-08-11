@@ -1314,10 +1314,13 @@
     // antara gif dan animasi bicara. Foto DJ baru muncul lagi nanti lewat
     // _lvHideSpeakingAnim() begitu Lolu selesai bicara (balik ke idle).
     _lvLoadingActive = false;
-    // ending__2_.gif baru saja selesai tampil 1 detik penuh — baru SEKARANG
-    // gerbang suara Piper dibuka, jadi speakDJ() yang tertahan (lihat
-    // pembungkus di bawah) baru mulai benar-benar bersuara + memicu
-    // animasi "voice recognition" setelah titik ini.
+    // ending__2_.gif baru saja selesai tampil 1 detik PENUH — itu SATU-
+    // SATUNYA alasan jeda ini ada (supaya gif ending sempat kelihatan
+    // dulu). Di titik ini suara Lolu Piper (readyPromise di atas sudah
+    // resolve) SUDAH SEPENUHNYA siap, tidak ada proses lagi yang ditunggu
+    // — jadi begitu 1 detik ini lewat, gerbang suara langsung dibuka dan
+    // speakDJ() yang tertahan (lihat pembungkus di bawah) langsung mulai
+    // bersuara + memicu animasi "voice recognition" TANPA jeda tambahan.
     _lvLoadingGateOpen();
   }
 
