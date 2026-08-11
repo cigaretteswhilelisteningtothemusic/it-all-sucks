@@ -265,15 +265,45 @@
    sekeliling burungnya di dalam kanvas gif — kalau lebar CSS-nya disamakan
    persis, burung di dalam gif akan terlihat lebih kecil daripada foto.
    mix-blend-mode:screen "menghapus" latar hitam bawaan gif-nya secara
-   visual — piksel hitam tidak menyumbang cahaya apa pun ke hasil blend,
-   sehingga menyatu dengan latar gelap halaman (html{background:#0A0A0A}
-   di vibexa.css) tanpa perlu edit ulang file gif-nya. ------------------- */
+   visual — piksel hitam tidak menyumbang cahaya apa pun ke hasil blend.
+   PENTING: trik screen-blend ini HANYA benar kalau yang ada DI BALIK
+   gif ini warna gelap solid & rata. Di halaman Lolu Voice, latar
+   belakangnya BUKAN warna solid — ada foto bumi/luar angkasa yang terang
+   (biru/hijau/putih). Kalau .lv-loading-gif langsung di-screen-blend ke
+   foto itu, warna terang fotonya ikut "bocor"/menyala lewat gif (muncul
+   sebagai garis/silau diagonal aneh menutupi burung). Makanya di bawah
+   ditambahkan backdrop gelap solid buatan sendiri (::before, HANYA aktif
+   selagi gif ini kelihatan lewat :has()) supaya screen-blend cuma
+   "melihat" warna gelap itu, bukan foto asli di baliknya — burung foto
+   & animasi voice recognition di state lain TIDAK ikut kena backdrop ini
+   karena selector-nya disyaratkan gif sedang tampil (:not(.lv-hidden)). */
+#lolu-voice-page .lv-bird-wrap:has(.lv-loading-gif:not(.lv-hidden)){
+  position:relative;
+  isolation:isolate;
+}
+#lolu-voice-page .lv-bird-wrap:has(.lv-loading-gif:not(.lv-hidden))::before{
+  content:"";
+  position:absolute;
+  left:50%; top:50%;
+  transform:translate(-50%, -50%);
+  /* Perkirakan area kanvas gif (kira-kira persegi) -- kalau garis/silau
+     masih sedikit terlihat di tepi setelah dites, besarkan sedikit angka
+     width/height di bawah (mis. 72vw/330px) supaya backdrop menutup penuh
+     kanvas gif yang sebenarnya. */
+  width:min(64vw, 310px);
+  height:min(64vw, 310px);
+  background:#0A0A0A;
+  border-radius:24px;
+  z-index:0;
+}
 #lolu-voice-page .lv-loading-gif{
   width:min(64vw, 310px); height:auto;
   image-rendering:pixelated;
   display:block;
   mix-blend-mode:screen;
   pointer-events:none;
+  position:relative;
+  z-index:1;
 }
 #lolu-voice-page .lv-loading-gif.lv-hidden{ display:none; }
 

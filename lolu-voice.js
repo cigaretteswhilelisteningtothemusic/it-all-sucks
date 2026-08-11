@@ -1148,6 +1148,10 @@
   // penuh ini, bukan di dalam overlay Chat AI.
   function openVoicePage() {
     const page = _lvPage();
+    // Cek status SEBELUM 'show' ditambahkan -- ini dipakai untuk
+    // membedakan "user benar-benar baru masuk halaman ini dari kondisi
+    // tertutup" vs "dipanggil ulang selagi halaman sudah terbuka".
+    const wasAlreadyOpen = !!(page && page.classList.contains('show'));
     if (page) {
       // Taruh #lolu-voice-page di induk yang tepat SEBELUM ditampilkan:
       // anak <body> khusus mobile (fix fullscreen, lihat komentar di
@@ -1162,22 +1166,24 @@
     // think -> ending) TIDAK lagi dipicu di sini. Sekarang gif itu cuma
     // dipicu tiap kali ada permintaan user yang mulai diproses (lihat
     // _lvShowLoadingSequence() dipanggil dari handleRecognizedText, bagian
-    // 8 di atas). _lvResetLoadingSequence() memastikan tampilan balik
-    // bersih ke foto DJ + gif tersembunyi, membatalkan sisa urutan gif lama
-    // kalau halaman ini sempat ditutup di tengah jalan sebelumnya.
+    // 8 di atas, dan dari lolu-dj.js untuk aksi lewat tombol/chip).
+    //
     // PENTING: openVoicePage() dipanggil BUKAN cuma sekali waktu user
-    // pertama masuk halaman ini — lolu-dj.js (_djSpeakThenGoToNowPlaying)
-    // JUGA memanggil ulang fungsi ini setiap kali start()/setMood()/
-    // playRequestedSong() jalan, walau halaman ini sudah terbuka (mis.
-    // lewat voice command yang urutan gif loading-nya sedang berjalan).
-    // Kalau _lvResetLoadingSequence() & UIState.setIdle() tetap dipanggil
-    // tanpa syarat di sini, urutan gif (openn->think->ending) yang sedang
-    // berjalan akan DIBATALKAN paksa & foto burung DJ dipaksa muncul lagi
-    // di tengah jalan -- itulah sebabnya foto DJ sempat "menyelip" tepat
-    // setelah ending__2_.gif menghilang, sebelum animasi voice recognition
-    // tampil. Makanya reset & setIdle cuma dijalankan kalau MEMANG tidak
-    // ada urutan gif loading yang sedang aktif.
-    if (!_lvLoadingActive) {
+    // pertama masuk halaman ini — lolu-dj.js (_djSpeakThenGoToNowPlaying,
+    // juga awal start()/setMood()/playRequestedSong()) memanggil ulang
+    // fungsi ini SETIAP KALI walau halaman ini sudah terbuka. Kalau reset
+    // di bawah dijalankan tanpa syarat tiap kali itu terjadi, foto DJ akan
+    // dipaksa muncul balik SETIAP re-entry -- baik selagi gif openn/think/
+    // ending masih jalan, MAUPUN di jeda setelah gif itu selesai tapi
+    // sebelum suara Piper beneran mulai (proses generate komentar AI +
+    // build queue lagu seringkali lebih lambat dari total durasi gif,
+    // jadi jeda ini nyata & sering terjadi). Makanya syaratnya BUKAN
+    // "apakah gif sedang aktif" (_lvLoadingActive bisa saja sudah balik
+    // false di jeda itu), melainkan "apakah halaman ini MEMANG baru
+    // dibuka dari kondisi tertutup" -- reset & foto DJ cuma boleh tampil
+    // di titik itu, bukan di re-entry mana pun di tengah satu siklus
+    // permintaan yang sedang berjalan.
+    if (!wasAlreadyOpen) {
       _lvResetLoadingSequence();
       // Sengaja TIDAK langsung startListening() -- halaman terbuka dalam
       // kondisi idle, mic baru aktif kalau user menekan tombol mic sendiri.
