@@ -729,6 +729,15 @@
   // ==========================================================================
   async function handleRecognizedText(text) {
     UIState.setProcessing(text);
+    // Mulai urutan gif loading (openn -> think -> ending) TIAP KALI ada
+    // permintaan user yang mulai diproses — BUKAN lagi saat halaman Lolu
+    // Voice pertama dibuka (lihat openVoicePage() di bagian 9). Foto Lolu
+    // Voice DJ (#lv-bird-img) sengaja disembunyikan sepanjang urutan gif
+    // ini (lihat _lvShowLoadingSequence di bagian 9.5) supaya TIDAK muncul
+    // sama sekali selagi loading/memproses — baru suara Piper + animasi
+    // "voice recognition" (_lvShowSpeakingAnim, bagian 10) yang tampil
+    // begitu gif ending selesai.
+    _lvShowLoadingSequence();
 
     const intent = IntentParser.parse(text);
     let replyText = '';
@@ -1003,11 +1012,21 @@
         _lvPendingReplyText = null;
         UIState.setReply(replyText);
         VoiceOutput.speak(replyText);
+        // Karena speakDJ gagal, _lvShowSpeakingAnim() (bagian 10) tidak
+        // pernah sempat jalan -> foto Lolu Voice DJ bisa nyangkut
+        // tersembunyi dari _lvShowLoadingSequence() (bagian 9.5). Paksa
+        // balik ke idle (foto DJ tampil lagi) di sini sebagai jaring
+        // pengaman.
+        _lvResetLoadingSequence();
       });
     } else {
       // Modul Piper tidak tersedia sama sekali -> fallback VoiceOutput langsung.
       UIState.setReply(replyText);
       VoiceOutput.speak(replyText);
+      // Sama seperti di atas: tidak ada speakDJ yang jalan sama sekali di
+      // jalur ini, jadi pastikan foto DJ balik tampil (bukan nyangkut
+      // tersembunyi dari urutan gif loading).
+      _lvResetLoadingSequence();
     }
 
     // Kirim juga sebagai bubble chat di dalam obrolan Lolu (kalau overlay
@@ -1138,14 +1157,22 @@
       page.classList.add('show');
       _lvUpdateGreeting();
     }
-    // Pastikan model Piper sudah/lagi disiapkan di background begitu
-    // halaman ini dibuka — jangan tunggu sampai user pencet mic (lihat
-    // catatan "Percepat loading suara Lolu" di init DOMContentLoaded di
-    // bawah). Aman dipanggil berkali-kali, tidak dobel unduh. Panggilan
-    // preload() aslinya sekarang terjadi DI DALAM _lvShowLoadingSequence()
-    // (lewat _lvPiperReadyPromise), jadi cukup jalankan urutan gif loading
-    // di sini — lihat bagian 9.5) di bawah.
-    _lvShowLoadingSequence();
+    // Foto Lolu Voice DJ (#lv-bird-img) SELALU yang pertama kali tampil
+    // begitu user baru masuk ke halaman ini — urutan gif loading (openn ->
+    // think -> ending) TIDAK lagi dipicu di sini. Sekarang gif itu cuma
+    // dipicu tiap kali ada permintaan user yang mulai diproses (lihat
+    // _lvShowLoadingSequence() dipanggil dari handleRecognizedText, bagian
+    // 8 di atas). _lvResetLoadingSequence() memastikan tampilan balik
+    // bersih ke foto DJ + gif tersembunyi, membatalkan sisa urutan gif lama
+    // kalau halaman ini sempat ditutup di tengah jalan sebelumnya.
+    _lvResetLoadingSequence();
+    // Tetap siapkan model Piper di background dari sekarang, diam-diam
+    // TANPA menampilkan gif apa pun, supaya begitu user pencet mic &
+    // ngomong permintaan pertama, prosesnya tidak perlu unduh model dari
+    // nol. Aman dipanggil berkali-kali, tidak dobel unduh.
+    if (window.LoluPiperTTS && typeof window.LoluPiperTTS.preload === 'function') {
+      window.LoluPiperTTS.preload();
+    }
     // Sengaja TIDAK langsung startListening() -- halaman terbuka dalam
     // kondisi idle, mic baru aktif kalau user menekan tombol mic sendiri.
     UIState.setIdle();
@@ -1260,7 +1287,12 @@
     if (token !== _lvLoadingToken) return;
 
     gif.classList.add('lv-hidden');
-    if (bird) bird.classList.remove('lv-hidden');
+    // SENGAJA TIDAK menampilkan lagi foto Lolu Voice DJ (bird) di sini —
+    // begitu gif ending selesai, yang harus langsung tampil berikutnya
+    // adalah suara Piper + animasi "voice recognition" (_lvShowSpeakingAnim,
+    // bagian 10 di bawah), BUKAN foto DJ yang numpang lewat sebentar di
+    // antara gif dan animasi bicara. Foto DJ baru muncul lagi nanti lewat
+    // _lvHideSpeakingAnim() begitu Lolu selesai bicara (balik ke idle).
     _lvLoadingActive = false;
     // ending__2_.gif baru saja selesai tampil 1 detik penuh — baru SEKARANG
     // gerbang suara Piper dibuka, jadi speakDJ() yang tertahan (lihat
