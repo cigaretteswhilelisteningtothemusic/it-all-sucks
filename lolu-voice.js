@@ -1247,7 +1247,7 @@
   // otomatis nunggu di gif "think" (lihat readyPromise di bawah) — itu
   // bagian yang MEMANG perlu, bukan bagian yang dipercepat di sini.
   const LV_LOADING_OPEN_MS = 700;    // durasi tetap gif openn.gif (dulu 4000)
-  const LV_LOADING_ENDING_MS = 350;  // durasi tetap gif ending__2_.gif (dulu 1000)
+  const LV_LOADING_ENDING_MS = 1000; // durasi tetap gif ending__2_.gif — dikembalikan ke 1 detik penuh (sempat dipangkas ke 350ms, tapi jadi sering kelewatan/tidak sempat kelihatan)
   // Jaga-jaga: kalau preload() tidak pernah "selesai" dengan benar (mis.
   // error jaringan yang tidak reject Promise-nya), jangan biarkan
   // think.gif nyangkut selamanya — anggap siap paksa setelah ini.
