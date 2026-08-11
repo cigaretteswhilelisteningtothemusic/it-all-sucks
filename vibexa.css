@@ -1953,8 +1953,10 @@ body.np-page-open #bar{
    (yang sendirinya sudah display:none di desktop, baru flex di
    @media(max-width:660px)), foto ini otomatis TIDAK PERNAH kelihatan di
    tampilan desktop, cuma mobile — tidak perlu media query tambahan. */
-.np-dj-png{display:none;width:36px;height:36px;object-fit:contain;border-radius:8px;flex-shrink:0;pointer-events:none;}
+.np-dj-png{display:none;width:36px;height:36px;object-fit:contain;border-radius:8px;flex-shrink:0;cursor:pointer;transition:transform .15s;}
 .np-dj-png.show{display:block;}
+.np-dj-png:hover{transform:scale(1.08);}
+.np-dj-png:active{transform:scale(.94);}
 /* Sembunyikan seluruh blok kontrol mobile ini saat mode Fullscreen aktif —
    mode Fullscreen sengaja dibuat minimal (hanya foto album+judul+artis). */
 #np-view.np-fullscreen .np-mob-controls,

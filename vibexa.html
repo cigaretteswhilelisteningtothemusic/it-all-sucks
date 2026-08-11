@@ -1685,7 +1685,7 @@
                flex di breakpoint mobile (lihat vibexa.css). Ukurannya
                disamakan otomatis ke ukuran sleepbird.gif (#ai-fab-sleep-gif)
                lewat JS (_djSyncGifSize() di lolu-dj.js). -->
-          <img id="np-dj-png" class="np-dj-png" src="lolu-dj-mode.webp" alt="Lolu sedang dalam mode DJ">
+          <img id="np-dj-png" class="np-dj-png" src="lolu-dj-mode.webp" alt="Lolu sedang dalam mode DJ — pencet untuk buka Lolu Voice" onclick="event.stopPropagation();LoluVoiceDJ.openVoicePage()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();LoluVoiceDJ.openVoicePage();}" role="button" tabindex="0" title="Buka Lolu Voice">
           <button class="np-mob-add-btn" id="np-mob-add-btn" onclick="event.stopPropagation();openAddSongModal(curTrack)" title="Add to Playlist">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
           </button>
