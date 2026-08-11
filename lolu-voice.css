@@ -252,6 +252,29 @@
    _lvShowSpeakingAnim/_lvHideSpeakingAnim. */
 #lolu-voice-page .lv-bird-img.lv-hidden{ display:none; }
 
+/* ── GIF loading suara Lolu (openn.gif / think.gif / ending__2_.gif) ─────
+   Ditumpuk TEPAT di posisi foto burung Lolu (.lv-bird-img) lewat
+   position:absolute di dalam .lv-bird-wrap (sudah position:relative lewat
+   rule di bawah), jadi tidak menggeser tata letak apa pun. Ukurannya
+   disamakan persis dengan .lv-bird-img supaya area tidak "melompat" saat
+   ditukar. Urutan tampil/ganti src dikontrol dari lolu-voice.js
+   (_lvShowLoadingSequence). mix-blend-mode:screen "menghapus" latar hitam
+   bawaan gif-nya secara visual — piksel hitam tidak menyumbang cahaya apa
+   pun ke hasil blend, sehingga menyatu dengan latar gelap halaman
+   (html{background:#0A0A0A} di vibexa.css) tanpa perlu edit ulang file
+   gif-nya. -------------------------------------------------------------- */
+#lolu-voice-page .lv-bird-wrap{ position:relative; }
+#lolu-voice-page .lv-loading-gif{
+  position:absolute; left:50%; top:50%;
+  transform:translate(-50%, -50%);
+  width:min(46vw, 220px); height:auto;
+  image-rendering:pixelated;
+  display:block;
+  mix-blend-mode:screen;
+  pointer-events:none;
+}
+#lolu-voice-page .lv-loading-gif.lv-hidden{ display:none; }
+
 /* ── Animasi "voice recognition" (Lottie, Voice_recognition.json) —
    menggantikan foto burung Lolu (.lv-bird-img) tepat di posisi yang sama
    SELAMA suara Lolu Piper lagi diputar (lihat lolu-voice.js & hook
@@ -341,6 +364,7 @@
   #lolu-voice-page .lv-center{ padding:0 16px 26px; }
   #lolu-voice-page .lv-greeting{ font-size:1.6rem !important; margin-bottom:14px !important; }
   #lolu-voice-page .lv-bird-img{ width:min(54vw, 190px); }
+  #lolu-voice-page .lv-loading-gif{ width:min(54vw, 190px); }
   #lolu-voice-page .lv-voice-anim{ height:min(54vw, 190px); }
   #lolu-voice-page .lv-below-mic{ max-width:100%; }
 

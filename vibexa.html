@@ -1271,6 +1271,15 @@
 
     <div class="lv-bird-wrap">
       <img id="lv-bird-img" class="lv-bird-img" src="lolu-voice-dj.png" alt="Lolu">
+      <!-- GIF loading suara Lolu — menggantikan foto burung Lolu (#lv-bird-img)
+           TEPAT di posisi yang sama, SELAMA suara Lolu Piper lagi disiapkan
+           (preload model, dipicu openVoicePage()). Urutan: openn.gif (4 detik)
+           -> think.gif (sampai modelnya siap) -> ending__2_.gif (1 detik) ->
+           balik ke foto burung. src diganti-ganti secara dinamis lewat
+           lolu-voice.js (lihat _lvShowLoadingSequence). Background gif
+           dihilangkan lewat mix-blend-mode:screen di lolu-voice.css supaya
+           menyatu dengan latar gelap halaman. -->
+      <img id="lv-loading-gif" class="lv-loading-gif lv-hidden" src="openn.gif" alt="Lolu sedang menyiapkan suara">
       <!-- Animasi "voice recognition" (Lottie, Voice_recognition.json) —
            menggantikan foto burung Lolu di atas SELAMA suara Lolu Piper
            lagi diputar, otomatis balik ke foto burung begitu suaranya

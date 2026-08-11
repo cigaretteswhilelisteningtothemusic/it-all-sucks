@@ -1141,10 +1141,11 @@
     // Pastikan model Piper sudah/lagi disiapkan di background begitu
     // halaman ini dibuka — jangan tunggu sampai user pencet mic (lihat
     // catatan "Percepat loading suara Lolu" di init DOMContentLoaded di
-    // bawah). Aman dipanggil berkali-kali, tidak dobel unduh.
-    if (window.LoluPiperTTS && typeof window.LoluPiperTTS.preload === 'function') {
-      window.LoluPiperTTS.preload();
-    }
+    // bawah). Aman dipanggil berkali-kali, tidak dobel unduh. Panggilan
+    // preload() aslinya sekarang terjadi DI DALAM _lvShowLoadingSequence()
+    // (lewat _lvPiperReadyPromise), jadi cukup jalankan urutan gif loading
+    // di sini — lihat bagian 9.5) di bawah.
+    _lvShowLoadingSequence();
     // Sengaja TIDAK langsung startListening() -- halaman terbuka dalam
     // kondisi idle, mic baru aktif kalau user menekan tombol mic sendiri.
     UIState.setIdle();
@@ -1158,7 +1159,104 @@
     if (page) page.classList.remove('show');
     try { SpeechInput.stop(); } catch (e) {}
     try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) {}
+    _lvResetLoadingSequence();
     UIState.setIdle();
+  }
+
+  // ==========================================================================
+  // 9.5) LOADING GIF SEQUENCE — menggantikan foto burung Lolu (#lv-bird-img)
+  //      TEPAT di posisi yang sama dengan #lv-loading-gif SELAMA model suara
+  //      Lolu Piper lagi disiapkan (dipicu tiap kali openVoicePage() jalan).
+  //      Urutan tampil:
+  //        openn.gif (4 detik, tetap) -> think.gif (sampai model Piper
+  //        SIAP, lihat _lvPiperReadyPromise) -> ending__2_.gif (1 detik) ->
+  //        balik ke foto burung seperti biasa.
+  //      Kalau halaman ditutup/dibuka ulang di tengah jalan, urutan yang
+  //      lama otomatis dibatalkan lewat token (_lvLoadingToken) supaya
+  //      tidak "menimpa" urutan yang baru dengan tampilan basi.
+  // ==========================================================================
+  const LV_LOADING_GIF_OPEN = 'openn.gif';
+  const LV_LOADING_GIF_THINK = 'think.gif';
+  const LV_LOADING_GIF_ENDING = 'ending__2_.gif';
+  const LV_LOADING_OPEN_MS = 4000;   // durasi tetap gif openn.gif
+  const LV_LOADING_ENDING_MS = 1000; // durasi tetap gif ending__2_.gif
+  // Jaga-jaga: kalau preload() tidak pernah "selesai" dengan benar (mis.
+  // error jaringan yang tidak reject Promise-nya), jangan biarkan
+  // think.gif nyangkut selamanya — anggap siap paksa setelah ini.
+  const LV_LOADING_MAX_WAIT_MS = 20000;
+  // Kalau LoluPiperTTS.preload() ternyata tidak mengembalikan Promise sama
+  // sekali (API-nya beda), tetap kasih jeda singkat supaya think.gif
+  // sempat kelihatan sebelum lanjut ke ending.gif.
+  const LV_LOADING_FALLBACK_WAIT_MS = 1200;
+
+  let _lvLoadingToken = 0;   // dinaikkan tiap kali sequence baru dimulai/dibatalkan
+  let _lvLoadingActive = false;
+
+  function _lvLoadingGifEl() { return document.getElementById('lv-loading-gif'); }
+  function _lvSleep(ms) { return new Promise(function (resolve) { setTimeout(resolve, ms); }); }
+
+  // Promise yang resolve begitu suara Lolu (model Piper) siap dipakai.
+  // Sekalian memicu LoluPiperTTS.preload() di sini (bukan cuma menunggu),
+  // supaya proses unduh/siapnya beneran mulai di titik yang sama dengan
+  // munculnya gif openn.gif.
+  function _lvPiperReadyPromise() {
+    try {
+      if (window.LoluPiperTTS && typeof window.LoluPiperTTS.preload === 'function') {
+        const p = window.LoluPiperTTS.preload();
+        if (p && typeof p.then === 'function') {
+          return Promise.race([
+            p.then(function () {}, function () {}), // resolve baik sukses maupun gagal
+            _lvSleep(LV_LOADING_MAX_WAIT_MS)
+          ]);
+        }
+      }
+    } catch (e) {}
+    return _lvSleep(LV_LOADING_FALLBACK_WAIT_MS);
+  }
+
+  async function _lvShowLoadingSequence() {
+    const gif = _lvLoadingGifEl();
+    const bird = _lvBirdImgEl();
+    if (!gif) return;
+
+    const token = ++_lvLoadingToken;
+    _lvLoadingActive = true;
+
+    if (bird) bird.classList.add('lv-hidden');
+    gif.src = LV_LOADING_GIF_OPEN;
+    gif.classList.remove('lv-hidden');
+
+    // Mulai siapkan model Piper SEKARANG, paralel dengan tahap openn.gif
+    // di bawah (bukan menunggu openn.gif selesai dulu baru mulai).
+    const readyPromise = _lvPiperReadyPromise();
+
+    await _lvSleep(LV_LOADING_OPEN_MS);
+    if (token !== _lvLoadingToken) return; // dibatalkan (halaman ditutup/dibuka ulang)
+
+    gif.src = LV_LOADING_GIF_THINK;
+    await readyPromise;
+    if (token !== _lvLoadingToken) return;
+
+    gif.src = LV_LOADING_GIF_ENDING;
+    await _lvSleep(LV_LOADING_ENDING_MS);
+    if (token !== _lvLoadingToken) return;
+
+    gif.classList.add('lv-hidden');
+    if (bird) bird.classList.remove('lv-hidden');
+    _lvLoadingActive = false;
+  }
+
+  // Batalkan sequence yang sedang berjalan & langsung balik ke tampilan
+  // idle (foto burung tampil, gif loading disembunyikan) — dipanggil saat
+  // halaman Lolu Voice ditutup supaya kalau dibuka lagi nanti mulai bersih
+  // dari awal, bukan "nyangkut" di tengah gif sebelumnya.
+  function _lvResetLoadingSequence() {
+    _lvLoadingToken++;
+    _lvLoadingActive = false;
+    const gif = _lvLoadingGifEl();
+    const bird = _lvBirdImgEl();
+    if (gif) gif.classList.add('lv-hidden');
+    if (bird) bird.classList.remove('lv-hidden');
   }
 
   // ==========================================================================
