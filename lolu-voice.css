@@ -253,21 +253,23 @@
 #lolu-voice-page .lv-bird-img.lv-hidden{ display:none; }
 
 /* ── GIF loading suara Lolu (openn.gif / think.gif / ending__2_.gif) ─────
-   Ditumpuk TEPAT di posisi foto burung Lolu (.lv-bird-img) lewat
-   position:absolute di dalam .lv-bird-wrap (sudah position:relative lewat
-   rule di bawah), jadi tidak menggeser tata letak apa pun. Ukurannya
-   disamakan persis dengan .lv-bird-img supaya area tidak "melompat" saat
-   ditukar. Urutan tampil/ganti src dikontrol dari lolu-voice.js
-   (_lvShowLoadingSequence). mix-blend-mode:screen "menghapus" latar hitam
-   bawaan gif-nya secara visual — piksel hitam tidak menyumbang cahaya apa
-   pun ke hasil blend, sehingga menyatu dengan latar gelap halaman
-   (html{background:#0A0A0A} di vibexa.css) tanpa perlu edit ulang file
-   gif-nya. -------------------------------------------------------------- */
-#lolu-voice-page .lv-bird-wrap{ position:relative; }
+   Menggantikan foto burung Lolu (.lv-bird-img) di ALUR TATA LETAK YANG
+   SAMA (bukan position:absolute lagi — versi absolute sebelumnya bikin
+   tinggi .lv-bird-wrap kolaps saat foto burung disembunyikan, sehingga
+   tombol mic & teks di bawahnya "naik" menimpa gif). Sama seperti
+   .lv-bird-img/.lv-voice-anim, cuma SATU dari ketiganya yang display:block
+   di satu waktu lewat class .lv-hidden, jadi tinggi wrapper tetap benar
+   & posisinya otomatis pas menggantikan tempat foto burung.
+   Ukurannya SENGAJA dibuat lebih besar dari .lv-bird-img (bukan disamakan
+   persis) karena ketiga file gif ini punya banyak ruang kosong/hitam di
+   sekeliling burungnya di dalam kanvas gif — kalau lebar CSS-nya disamakan
+   persis, burung di dalam gif akan terlihat lebih kecil daripada foto.
+   mix-blend-mode:screen "menghapus" latar hitam bawaan gif-nya secara
+   visual — piksel hitam tidak menyumbang cahaya apa pun ke hasil blend,
+   sehingga menyatu dengan latar gelap halaman (html{background:#0A0A0A}
+   di vibexa.css) tanpa perlu edit ulang file gif-nya. ------------------- */
 #lolu-voice-page .lv-loading-gif{
-  position:absolute; left:50%; top:50%;
-  transform:translate(-50%, -50%);
-  width:min(46vw, 220px); height:auto;
+  width:min(64vw, 310px); height:auto;
   image-rendering:pixelated;
   display:block;
   mix-blend-mode:screen;
@@ -364,7 +366,7 @@
   #lolu-voice-page .lv-center{ padding:0 16px 26px; }
   #lolu-voice-page .lv-greeting{ font-size:1.6rem !important; margin-bottom:14px !important; }
   #lolu-voice-page .lv-bird-img{ width:min(54vw, 190px); }
-  #lolu-voice-page .lv-loading-gif{ width:min(54vw, 190px); }
+  #lolu-voice-page .lv-loading-gif{ width:min(75vw, 265px); }
   #lolu-voice-page .lv-voice-anim{ height:min(54vw, 190px); }
   #lolu-voice-page .lv-below-mic{ max-width:100%; }
 

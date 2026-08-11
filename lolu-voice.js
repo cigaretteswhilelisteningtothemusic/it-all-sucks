@@ -1195,6 +1195,23 @@
   function _lvLoadingGifEl() { return document.getElementById('lv-loading-gif'); }
   function _lvSleep(ms) { return new Promise(function (resolve) { setTimeout(resolve, ms); }); }
 
+  // ── GERBANG suara Piper ────────────────────────────────────────────────
+  // "Tertutup" (Promise pending) selama urutan gif loading masih berjalan,
+  // "terbuka" (resolve) tepat setelah ending__2_.gif selesai tampil 1
+  // detik. Dipakai untuk MENAHAN suara Lolu Piper & animasi "voice
+  // recognition" supaya tidak mulai lebih dulu daripada gif loading
+  // selesai — lihat pembungkus window.LoluPiperTTS.speakDJ di bawah.
+  let _lvLoadingGateResolve = null;
+  let _lvLoadingGatePromise = Promise.resolve(); // default terbuka: tidak ada gif loading yang menahan
+
+  function _lvLoadingGateReady() { return _lvLoadingGatePromise; }
+  function _lvLoadingGateClose() {
+    _lvLoadingGatePromise = new Promise(function (resolve) { _lvLoadingGateResolve = resolve; });
+  }
+  function _lvLoadingGateOpen() {
+    if (_lvLoadingGateResolve) { _lvLoadingGateResolve(); _lvLoadingGateResolve = null; }
+  }
+
   // Promise yang resolve begitu suara Lolu (model Piper) siap dipakai.
   // Sekalian memicu LoluPiperTTS.preload() di sini (bukan cuma menunggu),
   // supaya proses unduh/siapnya beneran mulai di titik yang sama dengan
@@ -1221,6 +1238,7 @@
 
     const token = ++_lvLoadingToken;
     _lvLoadingActive = true;
+    _lvLoadingGateClose(); // tutup gerbang suara Piper selama sequence ini berjalan
 
     if (bird) bird.classList.add('lv-hidden');
     gif.src = LV_LOADING_GIF_OPEN;
@@ -1244,12 +1262,19 @@
     gif.classList.add('lv-hidden');
     if (bird) bird.classList.remove('lv-hidden');
     _lvLoadingActive = false;
+    // ending__2_.gif baru saja selesai tampil 1 detik penuh — baru SEKARANG
+    // gerbang suara Piper dibuka, jadi speakDJ() yang tertahan (lihat
+    // pembungkus di bawah) baru mulai benar-benar bersuara + memicu
+    // animasi "voice recognition" setelah titik ini.
+    _lvLoadingGateOpen();
   }
 
   // Batalkan sequence yang sedang berjalan & langsung balik ke tampilan
   // idle (foto burung tampil, gif loading disembunyikan) — dipanggil saat
   // halaman Lolu Voice ditutup supaya kalau dibuka lagi nanti mulai bersih
-  // dari awal, bukan "nyangkut" di tengah gif sebelumnya.
+  // dari awal, bukan "nyangkut" di tengah gif sebelumnya. Gerbang suara
+  // Piper JUGA dibuka paksa di sini supaya tidak ada speakDJ() yang
+  // nyangkut menunggu selamanya kalau halaman ditutup di tengah sequence.
   function _lvResetLoadingSequence() {
     _lvLoadingToken++;
     _lvLoadingActive = false;
@@ -1257,7 +1282,27 @@
     const bird = _lvBirdImgEl();
     if (gif) gif.classList.add('lv-hidden');
     if (bird) bird.classList.remove('lv-hidden');
+    _lvLoadingGateOpen();
   }
+
+  // ==========================================================================
+  // 9.6) BUNGKUS window.LoluPiperTTS.speakDJ — satu-satunya pintu masuk
+  //      suara Lolu Piper BENERAN diputar (dipanggil dari file ini & dari
+  //      lolu-dj.js) — supaya setiap panggilan menunggu _lvLoadingGateReady()
+  //      dulu sebelum benar-benar memanggil versi aslinya. Kalau tidak ada
+  //      gif loading yang sedang tampil, gerbangnya sudah terbuka (resolve)
+  //      jadi TIDAK ada delay tambahan sama sekali di kondisi normal.
+  // ==========================================================================
+  document.addEventListener('DOMContentLoaded', function () {
+    if (window.LoluPiperTTS && typeof window.LoluPiperTTS.speakDJ === 'function' && !window.LoluPiperTTS.speakDJ._lvGated) {
+      const _origSpeakDJ = window.LoluPiperTTS.speakDJ.bind(window.LoluPiperTTS);
+      const _gatedSpeakDJ = function (text) {
+        return _lvLoadingGateReady().then(function () { return _origSpeakDJ(text); });
+      };
+      _gatedSpeakDJ._lvGated = true;
+      window.LoluPiperTTS.speakDJ = _gatedSpeakDJ;
+    }
+  });
 
   // ==========================================================================
   // 10) VOICE RECOGNITION ANIMATION — menggantikan foto burung Lolu
