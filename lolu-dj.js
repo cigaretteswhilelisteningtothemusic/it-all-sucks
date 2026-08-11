@@ -30,20 +30,29 @@
                                                       lolu-voice.js intents;
                                                       teks: wrap
                                                       sendAIChatMessage()
-     9. DJ Personality per bahasa/budaya         -> _djSystemPrompt() beda
-                                                      nada ID (gaul santai)
-                                                      vs EN, suara Piper yang
-                                                      sama dgn Lolu chat AI
+     9. DJ Personality                            -> _djSystemPrompt() SELALU
+                                                      Bahasa Inggris (ikut
+                                                      aturan Lolu Voice), tapi
+                                                      tetap paham input user
+                                                      Bahasa Indonesia/lain,
+                                                      suara Piper yang sama
+                                                      dgn Lolu chat AI
    ========================================================================== */
 (function () {
   'use strict';
 
-  // ── Bahasa aktif — mengikuti bahasa voice command Lolu (lolu-voice.js),
-  // disinkronkan lewat LoluVoiceDJ.toggleLanguage() -> LoluDJ._setLang(). ──
-  const LANG_STORAGE_KEY = 'vibexa_lolu_voice_lang';
-  let _djLang = localStorage.getItem(LANG_STORAGE_KEY) || 'id-ID';
-  function _setLang(lang) { _djLang = lang; }
-  function _t(idText, enText) { return _djLang === 'en-US' ? enText : idText; }
+  // ── Bahasa Lolu DJ — SEKARANG FIXED ke Bahasa Inggris. Lolu DJ selalu
+  // dibuka lewat halaman Lolu Voice (lihat openVoicePage() yang dipanggil
+  // di start()/setMood()/dst di bawah), jadi ikut aturan yang sama: fitur
+  // Lolu Voice cuma balas Bahasa Inggris, meski tetap paham kalau user
+  // ngomong/ngetik pakai Bahasa Indonesia atau bahasa lain. Tombol toggle
+  // "ID/EN" di lolu-voice.js sudah dihilangkan, jadi tidak ada lagi yang
+  // bisa mengganti ini.
+  const _djLang = 'en-US';
+  // _setLang dipertahankan sebagai no-op (bukan dihapus) supaya tetap aman
+  // dipanggil kalau ada kode lama lain yang masih memanggilnya.
+  function _setLang(lang) { /* no-op — bahasa Lolu DJ sudah fixed Inggris */ }
+  function _t(idText, enText) { return enText; }
 
   // ── State sesi DJ ──────────────────────────────────────────────────────
   let _djActive = false;
@@ -382,9 +391,10 @@
   // singkat, bukan chat panjang) supaya cepat & pas didengar lewat TTS.
   // ==========================================================================
   function _djSystemPrompt() {
-    const langNote = _djLang === 'en-US'
-      ? 'Balas dalam Bahasa Inggris, gaya radio DJ yang santai & energik.'
-      : 'Balas dalam Bahasa Indonesia gaul sehari-hari (bukan bahasa baku/formal), gaya radio DJ anak muda yang santai & energik.';
+    // Fitur Lolu Voice (termasuk Lolu DJ) sekarang SELALU balas Bahasa
+    // Inggris — tapi tetap harus paham kalau user ngomong/ngetik pakai
+    // Bahasa Indonesia atau bahasa lain.
+    const langNote = 'SELALU balas dalam Bahasa Inggris, gaya radio DJ yang santai & energik, APAPUN bahasa yang dipakai user (Bahasa Indonesia, bahasa lain, atau campuran) — kamu tetap harus paham isi omongan/ketikan usernya, cuma balasannya yang wajib Bahasa Inggris.';
     return `Kamu adalah "Lolu" — persona yang sama seperti asisten chat AI Vibexa, tapi sekarang lagi "on air" sebagai AI DJ yang muterin lagu buat user di aplikasi musik Vibexa. ${langNote}
 ATURAN WAJIB:
 - Balasan HARUS berupa JSON murni: {"message": "..."} — tanpa markdown, tanpa backtick, tanpa teks apa pun di luar JSON itu.

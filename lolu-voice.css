@@ -207,6 +207,20 @@
 #lolu-voice-page .lv-lang-btn:hover{ transform:scale(1.06); color:#fff; border-color:rgba(255,255,255,.32); }
 #lolu-voice-page .lv-lang-btn:active{ transform:scale(.94); }
 
+/* ── Fitur toggle bahasa DIHILANGKAN — Lolu Voice sekarang cuma balas
+   Bahasa Inggris, jadi tidak ada lagi yang perlu di-toggle. Aturan di atas
+   dipertahankan (biar gampang dibalikin kalau suatu saat dibutuhkan lagi),
+   tapi dipaksa disembunyikan lewat rule !important di bawah ini sebagai
+   jaring pengaman kedua (selain UIState.hideLangBtn() di lolu-voice.js) —
+   kalau elemen #lv-lang-btn/.lv-lang-btn masih tersisa di markup HTML,
+   rule ini memastikan dia tidak pernah kelihatan lagi di halaman Lolu
+   Voice, baik desktop maupun mobile. Idealnya elemen tombolnya sendiri
+   juga dihapus langsung dari file HTML. ─────────────────────────────── */
+#lolu-voice-page .lv-lang-btn,
+#lolu-voice-page #lv-lang-btn{
+  display:none !important;
+}
+
 /* ── Konten tengah: greeting -> burung -> mic -> teks di bawah mic ──────
    Disusun jadi satu kolom flex yang mengisi sisa layar & ditengahkan,
    persis seperti tata letak pada foto acuan. Setiap elemen JUGA diberi

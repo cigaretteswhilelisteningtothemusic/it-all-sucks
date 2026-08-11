@@ -17980,8 +17980,21 @@ function _aiBuildUserMusicContext(){
 // tiap request ke Gemini otomatis "ingat" fakta soal user ini (nama, lagu/
 // genre favorit, dst) DAN otomatis tahu artis favorit & histori dengar
 // terbarunya (buat menyimpulkan mood & kasih rekomendasi yang relevan).
-function _aiBuildSystemPrompt(){
+function _aiBuildSystemPrompt(opts){
+  opts = opts || {};
   let prompt = AI_SYSTEM_PROMPT;
+
+  // ── Override KHUSUS fitur Lolu Voice (halaman Lolu Voice, termasuk mode
+  // Lolu DJ yang selalu dibuka lewat halaman itu) — dipanggil dengan
+  // { forceEnglish: true } dari lolu-voice.js. TIDAK memengaruhi Chat AI
+  // berbasis teks di halaman Lolu Chat sama sekali (chat teks tetap pakai
+  // aturan "BAHASA" bawaan di atas: ikut bahasa pesan terbaru user). ──────
+  if (opts.forceEnglish){
+    prompt += '\n\nATURAN BAHASA KHUSUS UNTUK SESI INI (fitur Lolu Voice — WAJIB PATUHI, MENGGANTIKAN aturan "BAHASA" di bagian KEPRIBADIAN di atas): '
+      + 'SELALU balas dalam Bahasa Inggris, APAPUN bahasa yang dipakai user buat ngomong/nulis ke kamu (Bahasa Indonesia, bahasa daerah, bahasa lain, ataupun campuran/slang). '
+      + 'Kamu WAJIB tetap paham & merespons isi omongan user dengan benar meskipun user ngomong pakai Bahasa Indonesia atau bahasa lain — cuma balasannya ("message") yang HARUS selalu Bahasa Inggris, jangan pernah balas pakai Bahasa Indonesia atau bahasa lain di sini walau usernya begitu. '
+      + 'Ikuti gaya ngomong Bahasa Inggris kayak yang dijelaskan di bagian "KHUSUS KALAU BALAS DALAM BAHASA INGGRIS" di atas (natural, kayak temen Gen Z chatting santai, boleh contraction & slang secukupnya, dikurangi kalau user lagi curhat berat/serius).';
+  }
 
   const tier = _aiAffectionTierText(aiAffection);
   prompt += '\n\nSTATUS EMOSI LOLU KE USER INI SAAT INI (nilai persisten, hasil akumulasi dari obrolan-obrolan sebelumnya — WAJIB dipatuhi sebelum nulis "message", lihat instruksi "RELASI EMOSIONAL DENGAN USER" di atas): '

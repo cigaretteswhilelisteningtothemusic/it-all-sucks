@@ -38,13 +38,19 @@
 (function () {
   'use strict';
 
-  // ── State bahasa aktif untuk voice command. Bisa di-toggle user lewat
-  // tombol "ID/EN" di sebelah mic (lihat toggleLanguage). Disimpan di
-  // localStorage supaya tetap ingat pilihan user antar sesi. ──────────────
-  const LANG_STORAGE_KEY = 'vibexa_lolu_voice_lang';
-  const SUPPORTED_LANGS = { 'id-ID': 'ID', 'en-US': 'EN' };
-  let currentLang = localStorage.getItem(LANG_STORAGE_KEY) || 'id-ID';
-  if (!SUPPORTED_LANGS[currentLang]) currentLang = 'id-ID';
+  // ── Bahasa fitur Lolu Voice — SEKARANG FIXED, tombol toggle "ID/EN" sudah
+  // dihilangkan (permintaan: Lolu Voice cuma balas Bahasa Inggris, tapi
+  // tetap harus paham kalau user ngomong pakai Bahasa Indonesia/bahasa
+  // lain). Dipisah jadi dua konstanta:
+  //   - RECOGNITION_LANG -> bahasa yang dipasang ke Web Speech API buat
+  //     dengerin (Speech-to-Text). Tetap 'id-ID' supaya ucapan Bahasa
+  //     Indonesia user tetap terdengar/ke-transkrip dengan akurat (intent
+  //     parser di bawah sudah dwibahasa ID/EN, jadi ucapan Inggris simpel
+  //     tetap kekenali juga lewat pola regex-nya).
+  //   - OUTPUT_LANG -> bahasa balasan Lolu (teks bubble + suara TTS),
+  //     SELALU Inggris, tidak bisa diganti user lagi.
+  const RECOGNITION_LANG = 'id-ID';
+  const OUTPUT_LANG = 'en-US';
 
   // Balasan teks yang lagi "menunggu" suara Piper BENERAN mulai diputar
   // (lihat UIState.setThinking() & bagian 10 - _lvShowSpeakingAnim). Selagi
@@ -72,7 +78,7 @@
       r.continuous = false;
       r.interimResults = false;
       r.maxAlternatives = 1;
-      r.lang = currentLang;
+      r.lang = RECOGNITION_LANG;
       return r;
     }
 
@@ -109,10 +115,9 @@
       if (recognizer && listening) { try { recognizer.stop(); } catch (e) {} }
     }
 
-    function setLang(lang) { currentLang = lang; }
     function isListening() { return listening; }
 
-    return { isSupported, start, stop, setLang, isListening };
+    return { isSupported, start, stop, isListening };
   })();
 
   // ==========================================================================
@@ -550,7 +555,7 @@
     }
     function setListening() {
       micBtns().forEach((b) => { b.classList.add('listening'); b.classList.remove('processing'); });
-      const label = currentLang === 'id-ID' ? 'Mendengarkan...' : 'Listening...';
+      const label = 'Listening...';
       bubbleTexts().forEach((txt) => { txt.textContent = label; });
       bubbles().forEach((bub) => bub.classList.add('show'));
       headIcons().forEach((hi) => hi.classList.add('lolu-voice-pulsing'));
@@ -558,7 +563,7 @@
     }
     function setProcessing(heardText) {
       micBtns().forEach((b) => { b.classList.remove('listening'); b.classList.add('processing'); });
-      const label = (currentLang === 'id-ID' ? 'Memproses: ' : 'Processing: ') + '“' + (heardText || '') + '”';
+      const label = 'Processing: ' + '“' + (heardText || '') + '”';
       bubbleTexts().forEach((txt) => { txt.textContent = label; });
       bubbles().forEach((bub) => bub.classList.add('show'));
       const w = belowMicWrap(); if (w) w.classList.add('lv-active');
@@ -571,7 +576,7 @@
     // BENERAN mulai (lihat _lvShowSpeakingAnim di bagian 10 file ini).
     function setThinking() {
       micBtns().forEach((b) => { b.classList.remove('listening'); b.classList.add('processing'); });
-      const label = currentLang === 'id-ID' ? 'Lolu lagi mikir...' : 'Lolu is thinking...';
+      const label = 'Lolu is thinking...';
       bubbleTexts().forEach((txt) => { txt.textContent = label; });
       bubbles().forEach((bub) => bub.classList.add('show'));
       headIcons().forEach((hi) => hi.classList.add('lolu-voice-pulsing'));
@@ -589,17 +594,21 @@
       headIcons().forEach((hi) => hi.classList.remove('lolu-voice-pulsing'));
     }
     function setError(text) { setReply(text); }
-    function setLangBtnLabel(lang) {
-      // Dulu cuma ada satu tombol bahasa (#lolu-mic-lang-btn di halaman
-      // Chat AI, sudah dihapus). Sekarang tombol bahasa ada di halaman
-      // Lolu Voice (#lv-lang-btn, kanan atas topbar) — querySelectorAll
-      // dipakai (bukan getElementById) supaya aman kalau suatu saat ada
-      // lebih dari satu tombol bahasa lagi di tempat lain.
-      document.querySelectorAll('#lv-lang-btn').forEach((b) => {
-        b.textContent = SUPPORTED_LANGS[lang] || 'ID';
+    // Tombol bahasa ("ID/EN", dulu #lv-lang-btn di topbar Lolu Voice) sudah
+    // DIHILANGKAN — fitur Lolu Voice sekarang cuma balas Bahasa Inggris,
+    // jadi tidak ada lagi yang perlu di-toggle. Fungsi ini dipertahankan
+    // (bukan setLangBtnLabel lagi) sebagai jaring pengaman: kalau markup
+    // HTML lama di halaman masih menyisakan elemen #lv-lang-btn/.lv-lang-btn
+    // (mis. belum sempat dihapus dari file HTML), sembunyikan total di sini
+    // lewat JS supaya tidak lagi tampil ke user.
+    function hideLangBtn() {
+      document.querySelectorAll('#lv-lang-btn, .lv-lang-btn').forEach((b) => {
+        b.style.display = 'none';
+        b.setAttribute('aria-hidden', 'true');
+        b.disabled = true;
       });
     }
-    return { setIdle, setListening, setProcessing, setThinking, setReply, setError, setLangBtnLabel };
+    return { setIdle, setListening, setProcessing, setThinking, setReply, setError, hideLangBtn };
   })();
 
   // ==========================================================================
@@ -615,7 +624,7 @@
       try {
         synth.cancel(); // hentikan ucapan sebelumnya kalau masih jalan
         const u = new SpeechSynthesisUtterance(text);
-        u.lang = currentLang;
+        u.lang = OUTPUT_LANG;
         u.rate = 1.02;
         u.pitch = 1.05;
         synth.speak(u);
@@ -675,7 +684,12 @@
       if (typeof _aiSetTyping === 'function') _aiSetTyping(true);
 
       try {
-        const systemPrompt = typeof _aiBuildSystemPrompt === 'function' ? _aiBuildSystemPrompt() : undefined;
+        // { forceEnglish: true } -> khusus fitur Lolu Voice: Lolu WAJIB selalu
+        // balas pakai Bahasa Inggris, meski tetap paham kalau user ngomong
+        // pakai Bahasa Indonesia/bahasa lain (lihat _aiBuildSystemPrompt di
+        // vibexa.js). Chat AI berbasis teks di halaman Lolu Chat TIDAK
+        // terpengaruh sama sekali — di sana tetap dipanggil tanpa opsi ini.
+        const systemPrompt = typeof _aiBuildSystemPrompt === 'function' ? _aiBuildSystemPrompt({ forceEnglish: true }) : undefined;
         const parsed = await _aiCallGemini(aiApiHistory, systemPrompt);
         const rawMessage = (parsed && typeof parsed.message === 'string' && parsed.message.trim()) || 'Oke!';
         const extracted = typeof _aiExtractStickerTag === 'function'
@@ -718,9 +732,12 @@
   })();
 
   // ==========================================================================
-  // Balasan teks Lolu untuk tiap intent — dwibahasa mengikuti bahasa aktif.
+  // Balasan teks Lolu untuk tiap intent — SELALU Bahasa Inggris (fitur Lolu
+  // Voice sekarang cuma balas Inggris). Parameter idText dipertahankan di
+  // semua pemanggil supaya diff-nya minimal & gampang dibalikin, tapi tidak
+  // lagi dipakai — enText yang selalu dipilih.
   // ==========================================================================
-  function reply(idText, enText) { return currentLang === 'id-ID' ? idText : enText; }
+  function reply(idText, enText) { return enText; }
 
   // ==========================================================================
   // ORKESTRATOR UTAMA — menjalankan 1 siklus penuh voice command sesuai flow
@@ -1127,18 +1144,11 @@
     const els = [document.getElementById('lv-greeting'), document.getElementById('lvh-greeting')];
     if (!els.some(Boolean)) return;
     const h = new Date().getHours();
-    let text;
-    if (currentLang === 'id-ID') {
-      text = (h >= 4 && h < 11) ? 'Selamat pagi'
-           : (h >= 11 && h < 15) ? 'Selamat siang'
-           : (h >= 15 && h < 18) ? 'Selamat sore'
-           : 'Selamat malam';
-    } else {
-      text = (h >= 4 && h < 11) ? 'Good morning'
-           : (h >= 11 && h < 15) ? 'Good afternoon'
-           : (h >= 15 && h < 18) ? 'Good evening'
-           : 'Good night';
-    }
+    // Fitur Lolu Voice sekarang cuma Bahasa Inggris — sapaan selalu Inggris.
+    const text = (h >= 4 && h < 11) ? 'Good morning'
+               : (h >= 11 && h < 15) ? 'Good afternoon'
+               : (h >= 15 && h < 18) ? 'Good evening'
+               : 'Good night';
     els.forEach((el) => { if (el) el.textContent = text; });
   }
 
@@ -1511,7 +1521,6 @@
       UIState.setError(reply('Browser ini tidak mendukung voice command.', 'This browser doesn\'t support voice commands.'));
       return;
     }
-    SpeechInput.setLang(currentLang);
     UIState.setListening();
     PlaybackController.duckVolume();
 
@@ -1547,17 +1556,15 @@
     );
   }
 
+  // Tombol bahasa "ID/EN" di halaman Lolu Voice SUDAH DIHILANGKAN — fitur
+  // ini sekarang cuma balas Bahasa Inggris (lihat OUTPUT_LANG), jadi tidak
+  // ada lagi yang perlu di-toggle. Fungsi ini dipertahankan sebagai no-op
+  // (bukan dihapus total) HANYA supaya markup HTML lama yang masih punya
+  // atribut onclick="LoluVoiceDJ.toggleLanguage(event)" (kalau ada & belum
+  // sempat dihapus dari file HTML) tidak error saat diklik — sekarang tidak
+  // melakukan apa-apa lagi.
   function toggleLanguage(e) {
     if (e) e.stopPropagation();
-    const langs = Object.keys(SUPPORTED_LANGS);
-    const idx = langs.indexOf(currentLang);
-    currentLang = langs[(idx + 1) % langs.length];
-    localStorage.setItem(LANG_STORAGE_KEY, currentLang);
-    UIState.setLangBtnLabel(currentLang);
-    // Lolu DJ (lolu-dj.js) punya kopi bahasa aktifnya sendiri (dipakai buat
-    // system prompt komentar DJ + balasan lokal) — sinkronkan setiap kali
-    // user ganti bahasa dari sini.
-    if (window.LoluDJ && typeof window.LoluDJ._setLang === 'function') window.LoluDJ._setLang(currentLang);
   }
 
   window.LoluVoiceDJ = {
@@ -1588,10 +1595,11 @@
     resume: PlaybackController.resume
   };
 
-  // ── Init: label tombol bahasa sesuai preferensi tersimpan, dan hentikan
-  // voice recognition otomatis kalau overlay Chat AI ditutup. ──────────────
+  // ── Init: sembunyikan sisa tombol bahasa (kalau masih ada di markup HTML
+  // lama) dan hentikan voice recognition otomatis kalau overlay Chat AI
+  // ditutup. ─────────────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', () => {
-    UIState.setLangBtnLabel(currentLang);
+    UIState.hideLangBtn();
     if (!SpeechInput.isSupported()) {
       // #lolu-mic-btn (dulu di halaman Chat AI) sudah dihapus — sekarang
       // tombol mic satu-satunya adalah #lv-mic-top-btn di halaman Lolu
