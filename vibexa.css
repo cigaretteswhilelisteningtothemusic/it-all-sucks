@@ -1668,14 +1668,23 @@ body.np-page-open #bar{
 
   /* All Playlists tetap menyamping (horizontal scroll) di mobile, kartu diperkecil */
   .pg-card{flex:0 0 128px;width:128px;}
-  .dm-card{flex:0 0 128px;width:128px;}
-  .fy-card{flex:0 0 128px;width:128px;}
+  /* Foto album di section-section rekomendasi berikut ini SENGAJA
+     dibuat seukuran foto album "Recently Played" (168px) di HP, alih-alih
+     ukuran kecil (128px) seperti sebelumnya — supaya "Make your day
+     better...", "Wednesday deserves a playlist...", "Recommended For You",
+     "You Might Also Like", "Based On Your Favorite Artists", "Daily Mix",
+     "Time Machine", "Made For You", "THIS IS!!", dan "Fresh Picks" tampil
+     lebih jelas & konsisten. Section "Public Playlists" (.pub-card di
+     atas) dan "Picked by Listeners" (.friend-fav-grid) SENGAJA TIDAK ikut
+     diperbesar. */
+  .dm-card{flex:0 0 168px;width:168px;}
+  .fy-card{flex:0 0 168px;width:168px;}
   .fy-cover-wrap{padding:12px 10px 12px;}
   .fy-card-top{font-size:.68rem;}
   .fy-name-below{font-size:.72rem;}
   .fy-title{font-size:.72rem;}
-  .reco-card{flex:0 0 128px;width:128px;}
-  .reco-grid.expanded{grid-template-columns:repeat(auto-fit,128px);}
+  .reco-card{flex:0 0 168px;width:168px;}
+  .reco-grid.expanded{grid-template-columns:repeat(auto-fit,168px);}
   .dm-badge-num{font-size:2rem;}
   .pg-card{padding:10px;border-radius:12px}
   .pg-cover{font-size:2.2rem;border-radius:8px;margin-bottom:8px}
@@ -1711,10 +1720,11 @@ body.np-page-open #bar{
   ════════════════════════════════ */
   .pub-grid{flex-direction:row;overflow-x:auto;gap:10px;flex-wrap:nowrap;}
   .pub-card{
-    /* Lebar kartu dinaikkan (dari 128px) supaya foto album di dalamnya
-       (cover-wrap = lebar kartu dikurangi padding 10px kiri-kanan) tampil
-       seukuran foto album di section "Recently Played" (168px) di HP. */
-    flex:0 0 188px;width:188px;
+    /* Lebar kartu dikembalikan ke ukuran semula (128px) — section ini
+       ("Public Playlists") SENGAJA TIDAK ikut diperbesar bersama
+       section rekomendasi lain (Daily Mix, You Might Also Like, dst),
+       sesuai permintaan user. */
+    flex:0 0 128px;width:128px;
     padding:10px;
     display:flex;flex-direction:column;align-items:stretch;
     gap:0;border-radius:12px;
