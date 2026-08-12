@@ -1539,7 +1539,12 @@ body.np-page-open #bar{
     top:60px !important;
     left:0 !important;
     right:0 !important;
-    bottom:56px !important;
+    /* 56px mob-nav + 76px kotak mini player (#bar) — beda dari halaman
+       Unduhan Offline yang mengambil bottom:56px saja (mini player-nya
+       disembunyikan). Di halaman "Yours" mini player TETAP ditampilkan
+       (lihat body.yours-mobile-open di bawah), jadi area halaman Yours
+       harus berhenti tepat di ATAS kotak itu supaya tidak menutupinya. */
+    bottom:calc(56px + 76px) !important;
     z-index:2500 !important;
   }
   body:has(#yours-view.show) .home-topbar,
@@ -1547,11 +1552,17 @@ body.np-page-open #bar{
     position:relative;
     z-index:3000;
   }
-  body.yours-mobile-open{
-    grid-template-rows:60px 1fr 56px !important;
-    grid-template-areas:"topbar""main""mob-nav" !important;
-  }
-  body.yours-mobile-open #bar{
+  /* Berbeda dari halaman Unduhan Offline/Chat/Streak di atas: halaman
+     "Yours" JUSTRU tetap menampilkan kotak mini player (#bar) yang sedang
+     memutar lagu, jadi grid barisnya dibiarkan sama seperti tampilan mobile
+     normal (lihat baris ~1327 di atas: topbar/main/bar/mob-nav) — tidak
+     perlu override grid-template-rows/areas maupun menyembunyikan #bar. */
+
+  /* Tombol Lolu (#ai-fab) beserta bubble sapaannya disembunyikan selama
+     halaman "Yours" terbuka di mobile, supaya tidak menumpuk/mengganggu
+     kotak mini player (#bar) yang sengaja tetap ditampilkan di atas. */
+  body.yours-mobile-open #ai-fab,
+  body.yours-mobile-open #ai-fab-bubble{
     display:none !important;
   }
 

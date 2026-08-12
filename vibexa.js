@@ -3883,6 +3883,7 @@ function showFinderView() {
 }
 
 function showPlaylistView(plId) {
+  _closeYoursViewIfOpen();
   if (currentPlaylistId !== plId) _reorderMode = false;
   currentPlaylistId = plId;
   currentPubPlaylist = null;
@@ -9330,6 +9331,7 @@ function formatFanCount(n) {
 // panel album kanan, atau kartu "Tentang Artis" di sidebar kiri.
 function openArtistView(artistName) {
   if (!artistName) { toast(' No song currently playing'); return; }
+  _closeYoursViewIfOpen();
   document.getElementById('home-view').classList.remove('active');
   document.getElementById('search-view').classList.remove('active');
   document.getElementById('finder-view').style.display = 'none';
@@ -17104,6 +17106,18 @@ function closeYoursView() {
   if (mainEl) mainEl.style.overflow = '';
   document.body.classList.remove('yours-mobile-open');
   _dlAllReorderMode = false; // keluar dari mode "Atur Urutan" tiap kali halaman Yours ditutup
+}
+
+// Dipanggil dari dalam aksi-aksi navigasi (buka playlist, buka profil artis,
+// dll) yang bisa dipicu DARI DALAM halaman "Yours" itu sendiri (mis. tekan
+// salah satu kartu di "All Playlists" / "Favorite Artists"). Beda dengan
+// listener klik-di-luar di atas (yang cuma menutup Yours kalau tekan sesuatu
+// DI LUAR halaman Yours), helper ini dipakai supaya menekan kartu DI DALAM
+// halaman Yours juga langsung menutup halaman Yours sebelum berpindah ke
+// halaman tujuan (profil artis / playlist), bukannya numpuk di atasnya.
+function _closeYoursViewIfOpen() {
+  const yView = document.getElementById('yours-view');
+  if (yView && yView.classList.contains('show')) closeYoursView();
 }
 
 // Sama seperti pola halaman Unduhan Offline: klik tombol navigasi apa pun
