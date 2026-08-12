@@ -3080,15 +3080,29 @@ function toggleFollowArtist(name, photo) {
   return nowFollowing;
 }
 
-// Render bagian "Artis Favorit" di Home: hanya foto + nama artis,
-// diklik akan membuka halaman profil artis tersebut.
+// Render bagian "Artis Favorit": hanya foto + nama artis, diklik akan
+// membuka halaman profil artis tersebut. Merender ke DUA tempat sekaligus
+// — section "Favorite Artists" bawaan di Home (dipakai di PC) dan grid
+// milik halaman "Yours" khusus mobile — supaya keduanya selalu sinkron.
 function renderFavoriteArtists() {
+  const list = Object.values(favoriteArtists);
+
   const section = document.getElementById('fav-artist-section');
   const grid = document.getElementById('fav-artist-grid');
-  if (!section || !grid) return;
-  const list = Object.values(favoriteArtists);
-  if (!list.length) { section.style.display = 'none'; grid.innerHTML = ''; return; }
-  section.style.display = 'block';
+  if (section && grid) {
+    if (!list.length) { section.style.display = 'none'; grid.innerHTML = ''; }
+    else { section.style.display = 'block'; _buildFavArtistGridInto(grid, list); }
+  }
+
+  const yTitle = document.getElementById('yours-fav-artist-title');
+  const yGrid = document.getElementById('yours-fav-artist-grid');
+  if (yGrid) {
+    if (yTitle) yTitle.style.display = list.length ? 'flex' : 'none';
+    _buildFavArtistGridInto(yGrid, list);
+  }
+}
+
+function _buildFavArtistGridInto(grid, list) {
   grid.innerHTML = '';
   list.forEach(a => {
     const card = document.createElement('div');
@@ -4390,8 +4404,17 @@ function renderSidebarPlaylists() {
 }
 
 // ─── Home Grid Render ─────────────────────────────────────
+// Merender ke DUA tempat sekaligus: grid "All Playlists" bawaan di Home
+// (dipakai di PC) dan grid milik halaman "Yours" khusus mobile (lihat
+// openYoursView()) — supaya keduanya selalu sinkron tanpa duplikasi logika.
 function renderHomeGrid() {
-  const c = document.getElementById('playlists-grid');
+  _buildPlaylistsGridInto('playlists-grid');
+  _buildPlaylistsGridInto('yours-playlists-grid');
+}
+
+function _buildPlaylistsGridInto(containerId) {
+  const c = document.getElementById(containerId);
+  if (!c) return;
   const keys = Object.keys(playlists);
   if (!keys.length) {
     c.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:40px 0"><i></i><h3>No Playlists Yet</h3><p>Click &quot;+ Create Playlist&quot; to get started</p></div>';
@@ -4422,6 +4445,7 @@ function renderHomeGrid() {
     c.appendChild(card);
   });
 }
+
 
 
 // ─── YouTube IFrame API ───────────────────────────────────
@@ -7020,7 +7044,7 @@ function initMobileNav(){
 // nav bawah (termasuk VibeProfile, Chat, Notif yang sebelumnya tidak pernah
 // ikut berubah warna sama sekali) supaya user langsung dapat feedback visual
 // begitu menekan tombol apa pun.
-const MOB_NAV_BTN_IDS = ['mob-btn-home','mob-btn-search','mob-btn-finder','mob-btn-songpreview','mob-btn-downloads','mob-btn-chat','mob-btn-notif'];
+const MOB_NAV_BTN_IDS = ['mob-btn-home','mob-btn-search','mob-btn-finder','mob-btn-songpreview','mob-btn-yours','mob-btn-chat','mob-btn-notif'];
 function setMobNavActive(activeId){
   MOB_NAV_BTN_IDS.forEach(id=>{
     const el = document.getElementById(id);
@@ -17007,6 +17031,37 @@ document.addEventListener('click', function(e){
   closeDownloadsView();
 }, true);
 
+// ── Halaman "YOURS" (khusus mobile) — sama sekali tidak dipakai di PC,
+// lihat CSS: #yours-view & tombol pemicunya (topbar + bottom-nav) hanya
+// tampil di lebar layar mobile. Membuka halaman ini SELALU merender ulang
+// grid playlist & artis favorit supaya datanya paling baru. ──────────────
+function openYoursView() {
+  renderHomeGrid();
+  renderFavoriteArtists();
+  document.getElementById('yours-view').classList.add('show');
+  if (typeof closeSongPreviewIfOpen === 'function') { closeSongPreviewIfOpen(); }
+  const mainEl = document.getElementById('main');
+  if (mainEl) { mainEl.scrollTop = 0; mainEl.style.overflow = 'hidden'; }
+  if (typeof isMobile === 'function' && isMobile()) document.body.classList.add('yours-mobile-open');
+}
+
+function closeYoursView() {
+  document.getElementById('yours-view').classList.remove('show');
+  const mainEl = document.getElementById('main');
+  if (mainEl) mainEl.style.overflow = '';
+  document.body.classList.remove('yours-mobile-open');
+}
+
+// Sama seperti pola halaman Unduhan Offline: klik tombol navigasi apa pun
+// di luar halaman "Yours" akan menutupnya lebih dulu, lalu aksi tombol
+// yang ditekan tetap berjalan seperti biasa.
+document.addEventListener('click', function(e){
+  const yView = document.getElementById('yours-view');
+  if (!yView || !yView.classList.contains('show')) return;
+  if (yView.contains(e.target)) return;
+  closeYoursView();
+}, true);
+
 // ── Import file MP3 dari perangkat ──────────────────────────────────────
 async function handleDownloadFilesPicked(event) {
   const files = Array.from(event.target.files || []).filter(f => /audio\/mpeg|\.mp3$/i.test(f.type) || /\.mp3$/i.test(f.name));
@@ -17034,30 +17089,61 @@ async function refreshDownloadsList() {
   _dlArtUrls = {};
   _dlList.forEach(t => { if (t.art) { try { _dlArtUrls[t.id] = URL.createObjectURL(t.art); } catch(e){} } });
 
+  const playAllBar = document.getElementById('dl-playall-bar');
   if (!_dlList.length) {
     grid.innerHTML = '';
     empty.style.display = 'flex';
+    if (playAllBar) playAllBar.style.display = 'none';
     return;
   }
   empty.style.display = 'none';
-  grid.innerHTML = _dlList.map(t => `
-    <div class="dl-card${t.id === _dlCurrentId ? ' playing' : ''}" data-id="${t.id}" onclick="playOfflineTrack('${t.id}')">
-      <div class="dl-card-cover">
-        ${_dlArtUrls[t.id] ? `<img src="${_dlArtUrls[t.id]}" alt="" style="width:100%;height:100%;object-fit:cover;">` : '🎵'}
-        <div class="dl-card-play-ov">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+  if (playAllBar) playAllBar.style.display = 'flex';
+
+  // Daftar lagu ditampilkan sebagai list vertikal (satu lagu per baris,
+  // seperti daftar lagu playlist) alih-alih grid kartu, supaya lebih mudah
+  // discan sekaligus menyediakan tempat untuk tombol "Putar Semua Lagu".
+  const rows = _dlList.map((t, i) => {
+    const isPlaying = t.id === _dlCurrentId;
+    const artUrl = _dlArtUrls[t.id];
+    return `
+    <div class="track-row${isPlaying ? ' playing' : ''}" data-id="${t.id}" onclick="playOfflineTrack('${t.id}')">
+      <div class="tr-num">${isPlaying ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="var(--green)"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3z"/></svg>' : (i + 1)}</div>
+      <div class="tr-info">
+        ${artUrl ? `<img class="tr-thumb" src="${artUrl}" alt="" onerror="this.style.display='none'">` : `<div class="tr-thumb-ph">🎵</div>`}
+        <div class="tr-text">
+          <div class="tr-title" title="${esc(t.name)}">${esc(t.name)}</div>
+          <div class="tr-artist" title="${esc(t.artist || '')}">${t.artist ? esc(t.artist) : _dlFormatSize(t.size)}</div>
         </div>
       </div>
-      <div class="dl-card-name" title="${esc(t.name)}">${esc(t.name)}</div>
-      <div class="dl-card-meta" title="${esc(t.artist || '')}">${t.artist ? esc(t.artist) : _dlFormatSize(t.size)}</div>
-      <button class="dl-card-addpl" title="Tambah ke Playlist" onclick="event.stopPropagation();openDlAddToPlaylistModal('${t.id}')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-      </button>
-      <button class="dl-card-del" title="Hapus" onclick="event.stopPropagation();deleteOfflineTrack('${t.id}')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-      </button>
+      <div class="dl-tr-actions">
+        <button class="dl-tr-add" title="Tambah ke Playlist" onclick="event.stopPropagation();openDlAddToPlaylistModal('${t.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <button class="dl-tr-del" title="Hapus" onclick="event.stopPropagation();deleteOfflineTrack('${t.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+  grid.innerHTML = `
+    <div class="track-list-header">
+      <div class="tl-h">#</div>
+      <div class="tl-h">Judul</div>
+      <div class="tl-h r">Aksi</div>
     </div>
-  `).join('');
+    ${rows}`;
+}
+
+// ── Putar SEMUA lagu di Unduhan Offline (tab "Semua Lagu"), berurutan
+// mulai dari yang paling atas. Memakai konteks "seluruh daftar unduhan"
+// (tanpa plId) yang sama seperti klik satu lagu dari tab ini, jadi
+// Next/Prev (termasuk auto-lanjut saat sebuah lagu selesai) otomatis
+// menyusuri seluruh daftar unduhan sesuai urutan yang tampil. ──────────
+function playAllDownloads() {
+  if (!_dlList || !_dlList.length) { toast(' Belum ada lagu offline'); return; }
+  _dlActivePlaylistId = null;
+  _dlActiveQueue = [];
+  playOfflineTrack(_dlList[0].id);
 }
 
 // ── Putar lagu offline — memakai mini player UTAMA (#bar), SAMA seperti

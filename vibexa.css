@@ -1332,12 +1332,15 @@ body.np-page-open #bar{
     padding:0;
   }
 
-  /* "All Playlists" + tombol "Create Playlist" disembunyikan di desktop
-     (lihat inline style="display:none" di HTML), tapi khusus di tampilan
-     mobile tetap dimunculkan seperti semula. */
+  /* "All Playlists" (+ tombol "Create Playlist") & "Favorite Artists" di
+     Home TIDAK lagi dimunculkan di mobile — keduanya sudah dipindah ke
+     halaman "Yours" tersendiri (lihat #yours-view) supaya Home lebih
+     ringkas. Di PC kedua section ini juga tetap tersembunyi seperti
+     semula (inline style="display:none" / dikontrol oleh JS). */
   .home-section-title,
-  #playlists-grid{
-    display:flex !important;
+  #playlists-grid,
+  #fav-artist-section{
+    display:none !important;
   }
   .home-topbar,#main{border-radius:0;border-width:0;}
   .home-topbar{border-bottom:1px solid var(--border);}
@@ -1401,7 +1404,7 @@ body.np-page-open #bar{
   .mob-nav-btn svg{width:20px;height:20px;transition:all .18s}
   .mob-nav-btn.on{color:var(--green)}
   .mob-nav-btn.on svg{filter:drop-shadow(0 0 6px rgba(46,125,255,.5))}
-  .mob-nav-downloads{position:relative;}
+  .mob-nav-yours{position:relative;}
   #mob-btn-search{display:none}
   #mob-btn-notif{display:none}
   /* Tombol Profil bawah dihilangkan khusus tampilan mobile (sudah ada akses
@@ -1426,7 +1429,7 @@ body.np-page-open #bar{
      persis di tengah dipindah ke SETELAH tombol Temukan (sebelum tombol
      Unduhan Offline), bukan lagi di antara Home & Temukan. */
   #mob-btn-finder{margin-right:36px}
-  .mob-nav-downloads{margin-left:36px}
+  .mob-nav-yours{margin-left:36px}
 
   /* ════════════════════════════════
      SONG PREVIEW — mobile full screen
@@ -1524,6 +1527,31 @@ body.np-page-open #bar{
     grid-template-areas:"topbar""main""mob-nav" !important;
   }
   body.downloads-mobile-open #bar{
+    display:none !important;
+  }
+
+  /* ════════════════════════════════
+     HALAMAN "YOURS" — mobile full screen (pola sama persis dengan
+     Halaman Unduhan Offline di atas)
+  ════════════════════════════════ */
+  #yours-view{
+    position:fixed !important;
+    top:60px !important;
+    left:0 !important;
+    right:0 !important;
+    bottom:56px !important;
+    z-index:2500 !important;
+  }
+  body:has(#yours-view.show) .home-topbar,
+  body:has(#yours-view.show) #mob-nav{
+    position:relative;
+    z-index:3000;
+  }
+  body.yours-mobile-open{
+    grid-template-rows:60px 1fr 56px !important;
+    grid-template-areas:"topbar""main""mob-nav" !important;
+  }
+  body.yours-mobile-open #bar{
     display:none !important;
   }
 
@@ -1683,7 +1711,10 @@ body.np-page-open #bar{
   ════════════════════════════════ */
   .pub-grid{flex-direction:row;overflow-x:auto;gap:10px;flex-wrap:nowrap;}
   .pub-card{
-    flex:0 0 128px;width:128px;
+    /* Lebar kartu dinaikkan (dari 128px) supaya foto album di dalamnya
+       (cover-wrap = lebar kartu dikurangi padding 10px kiri-kanan) tampil
+       seukuran foto album di section "Recently Played" (168px) di HP. */
+    flex:0 0 188px;width:188px;
     padding:10px;
     display:flex;flex-direction:column;align-items:stretch;
     gap:0;border-radius:12px;
@@ -4395,6 +4426,44 @@ textarea.sugg-form-input{resize:vertical;}
    akan mengubahnya jadi fixed fullscreen seperti pola halaman Streak. */
 #downloads-view{position:absolute;inset:0;z-index:25;background:var(--bg);display:none;flex-direction:column;}
 #downloads-view.show{display:flex;}
+
+/* ── HALAMAN "YOURS" (khusus mobile) — menampung "All Playlists" &
+   "Favorite Artists" milik user yang di HP dipindah ke sini supaya Home
+   lebih ringkas. Struktur & pola buka/tutupnya sengaja disamakan dengan
+   #downloads-view di atas supaya konsisten. Tidak pernah tampil di PC
+   (lihat @media(min-width:661px) di bawah). ── */
+#yours-view{position:absolute;inset:0;z-index:25;background:var(--bg);display:none;flex-direction:column;}
+#yours-view.show{display:flex;}
+@media(min-width:661px){
+  #yours-view.show{display:none !important;}
+  #mob-btn-yours{display:none !important;}
+}
+.yv-downloads-btn{
+  width:100%;display:flex;align-items:center;gap:14px;
+  background:var(--card);border:1px solid var(--border);border-radius:14px;
+  padding:14px 16px;margin-bottom:28px;cursor:pointer;text-align:left;
+  font-family:var(--f);color:var(--text);transition:all .18s;
+}
+.yv-downloads-btn:hover,.yv-downloads-btn:active{background:var(--hover);border-color:var(--green);}
+.yv-downloads-icon{
+  width:42px;height:42px;border-radius:50%;flex-shrink:0;
+  background:var(--green-dim);color:var(--green);
+  display:flex;align-items:center;justify-content:center;
+}
+.yv-downloads-icon svg{width:20px;height:20px;}
+.yv-downloads-text{flex:1;min-width:0;}
+.yv-downloads-title{font-size:.88rem;font-weight:700;margin-bottom:2px;}
+.yv-downloads-sub{font-size:.72rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.yv-downloads-chevron{width:18px;height:18px;color:var(--muted);flex-shrink:0;}
+.yv-section-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 14px;font-size:1rem;font-weight:700;}
+.yv-section-title + .yv-section-title{margin-top:0;}
+#yours-fav-artist-title{margin-top:30px;}
+.yv-playlists-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px 14px;margin-bottom:6px;}
+.yv-playlists-grid .pg-card{width:100% !important;flex:none !important;}
+.yv-playlists-grid .empty{grid-column:1/-1;}
+.yv-artist-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px 10px;justify-items:center;padding-bottom:6px;}
+.yv-artist-grid .fav-artist-card{width:100% !important;flex:none !important;}
+.yv-artist-grid .fav-artist-photo{width:100%;height:auto;aspect-ratio:1;}
 .dl-add-btn{display:flex;align-items:center;gap:8px;background:var(--green);border:none;border-radius:50px;padding:9px 18px;color:#fff;font-family:var(--f);font-weight:700;font-size:.8rem;cursor:pointer;transition:all .2s;flex-shrink:0;white-space:nowrap;}
 .dl-add-btn:hover{box-shadow:var(--green-glow);transform:translateY(-1px);}
 .dl-add-btn svg{width:16px;height:16px;flex-shrink:0;}
@@ -4402,6 +4471,21 @@ textarea.sugg-form-input{resize:vertical;}
 .dl-empty span{font-size:2.4rem;}
 .dl-empty p{font-size:.86rem;line-height:1.7;max-width:340px;}
 .dl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;}
+/* ── Daftar "Semua Lagu" di Unduhan Offline — ditampilkan sebagai list
+   vertikal (satu lagu per baris, memakai ulang gaya .track-row/.track-list-header
+   milik playlist) alih-alih grid kartu, supaya lebih mudah discan & konsisten
+   dengan tampilan daftar lagu playlist lainnya. ── */
+#dl-playall-bar{padding:0 0 14px;}
+.dl-tracklist{display:flex;flex-direction:column;}
+.dl-tracklist .track-row{grid-template-columns:32px 1fr 76px;}
+.dl-tr-actions{display:flex;align-items:center;justify-content:flex-end;gap:4px;}
+.dl-tr-add,.dl-tr-del{opacity:0;background:none;border:none;cursor:pointer;padding:4px;border-radius:4px;display:flex;align-items:center;transition:all .15s;}
+.track-row:hover .dl-tr-add,.track-row:hover .dl-tr-del{opacity:1;}
+.dl-tr-add{color:var(--green);}
+.dl-tr-add:hover{transform:scale(1.12);}
+.dl-tr-del{color:var(--muted);}
+.dl-tr-del:hover{color:#ff5555;}
+.dl-tr-add svg,.dl-tr-del svg{width:15px;height:15px;}
 .dl-card{background:var(--card);border-radius:var(--r);padding:14px;cursor:pointer;transition:background .18s;position:relative;}
 .dl-card:hover{background:var(--hover);}
 .dl-card.playing{outline:2px solid var(--green);}
@@ -4488,6 +4572,11 @@ textarea.sugg-form-input{resize:vertical;}
   .dl-card-del{right:8px;}
   .dl-card-addpl{left:8px;}
   .dl-card-del svg,.dl-card-addpl svg{width:12px;height:12px;}
+
+  .dl-tracklist .track-row{grid-template-columns:24px 1fr 58px;gap:8px;padding:8px 6px;}
+  .dl-tr-add,.dl-tr-del{opacity:1;} /* selalu tampil di HP karena tidak ada :hover */
+  #dl-playall-bar{padding:0 0 10px;}
+  #dl-playall-bar .pv-play-btn{width:48px;height:48px;}
 }
 
 /* ── CHAT (Instagram-style DM) ─────────────────────────────── */
