@@ -7192,7 +7192,13 @@ async function pickFSColor(track){
     } catch(e) { /* gagal ekstrak (mis. CORS) -> tetap pakai warna palet fallback di atas */ }
   }
 }
-function openFS(){if(!curTrack)return;document.getElementById('fs-lyr').classList.add('open');document.getElementById('fs-artist-name').textContent=curTrack.title;setFSNowPlayingInfo(curTrack);updateFSLyr();updateFSProg();updateFSPB(playing);_updateRepeatBtnUI();updateNPMobAddBtn(curTrack);}
+function openFS(){if(!curTrack)return;document.getElementById('fs-lyr').classList.add('open');document.getElementById('fs-artist-name').textContent=curTrack.title;setFSNowPlayingInfo(curTrack);updateFSLyr();updateFSProg();updateFSPB(playing);_updateRepeatBtnUI();updateNPMobAddBtn(curTrack);
+  // Halaman Lyrics baru saja tampil (dari display:none jadi kelihatan) —
+  // ulang cek marquee judul (#fs-np-title) sekarang layout-nya sudah final,
+  // biar tidak salah anggap judul pendek "overflow" gara2 kepotong sebelum
+  // halamannya benar2 kebuka.
+  if (typeof window.vbxRecheckMarquee === 'function') window.vbxRecheckMarquee();
+}
 function closeFS(){document.getElementById('fs-lyr').classList.remove('open');}
 // Tutup halaman lyrics (baik mode biasa maupun fullscreen/pure) kalau sedang terbuka.
 // Dipakai saat user pindah ke halaman lain (Home, Search, Artist, dll) supaya
@@ -8534,6 +8540,10 @@ function _fsMobileLayout(){
     }
     barLeft.classList.remove('fs-bar-left-in-nav');
   }
+  // Judul lagu baru saja dipindah/diberi ukuran barunya di atas — minta
+  // pengecekan marquee (vibexa.js, blok "MARQUEE OTOMATIS") diulang supaya
+  // tidak terjebak pakai lebar lama/salah dari sebelum perpindahan ini.
+  if (typeof window.vbxRecheckMarquee === 'function') window.vbxRecheckMarquee();
 }
 window.addEventListener('resize', _fsMobileLayout);
 window.addEventListener('orientationchange', _fsMobileLayout);
@@ -16156,6 +16166,14 @@ let _dlDragSrcIdx = null;
 let _dlTouchGhost = null;
 let _dlTouchDragIdx = null;
 
+// ── Urutan putar KUSTOM untuk SELURUH daftar Unduhan Offline (dipakai oleh
+// section "Downloaded Songs" di halaman Yours) — terpisah dari state reorder
+// milik satu playlist offline (_dlReorderMode dkk di atas) supaya kedua mode
+// atur-urutan ini tidak saling bentrok kalau kebetulan aktif "bersamaan".
+let _dlAllReorderMode = false;
+let _dlAllDragSrcIdx = null;
+let _dlAllTouchDragIdx = null;
+
 // ── Ambil foto sampul album yang sudah tertanam di dalam file MP3 (ID3v2 APIC) ──
 // Supaya lagu yang diimpor otomatis punya cover tanpa perlu user cari sendiri.
 // Gambar ini kemudian disimpan sebagai Blob terpisah di IndexedDB (field `art`)
@@ -16337,8 +16355,19 @@ function _dlGetAllMeta() {
       // Buang field blob AUDIO (besar) supaya list ringan; blob audio diambil
       // terpisah saat diputar. Blob foto album (`art`) tetap disertakan karena
       // jauh lebih kecil dan dibutuhkan untuk render cover di grid.
-      const list = (req.result || []).map(r => ({ id: r.id, name: r.name, artist: r.artist || '', size: r.size, addedAt: r.addedAt, art: r.art || null }));
-      list.sort((a, b) => b.addedAt - a.addedAt);
+      const list = (req.result || []).map(r => ({ id: r.id, name: r.name, artist: r.artist || '', size: r.size, addedAt: r.addedAt, art: r.art || null, order: (typeof r.order === 'number') ? r.order : null }));
+      // Lagu yang sudah punya `order` kustom (hasil "Atur Urutan" di halaman
+      // Yours) diurutkan naik sesuai angka itu & ditaruh lebih dulu; lagu yang
+      // belum pernah diatur (order masih null — mis. baru saja diunduh)
+      // ditaruh SETELAHNYA, diurutkan dari yang paling baru diunduh — supaya
+      // urutan yang sudah user susun sendiri tidak pernah kebalap otomatis.
+      list.sort((a, b) => {
+        const aHas = a.order !== null, bHas = b.order !== null;
+        if (aHas && bHas) return a.order - b.order;
+        if (aHas) return -1;
+        if (bHas) return 1;
+        return b.addedAt - a.addedAt;
+      });
       resolve(list);
     };
     req.onerror = (e) => reject(e.target.error);
@@ -16370,6 +16399,25 @@ function _dlDeleteRecord(id) {
   return _dlOpenDB().then(db => new Promise((resolve, reject) => {
     const tx = db.transaction(DL_STORE, 'readwrite');
     tx.objectStore(DL_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = (e) => reject(e.target.error);
+  }));
+}
+
+// ── Simpan urutan putar KUSTOM seluruh daftar Unduhan Offline — dipanggil
+// tiap kali user selesai menyeret lagu di mode "Atur Urutan" (halaman Yours).
+// `orderedIds` adalah array id lagu sesuai urutan tampil yang diinginkan;
+// tiap record diberi field `order` = posisinya (0 = diputar paling awal),
+// disimpan di store yang sama (`downloads`) supaya tetap ada tanpa perlu
+// tabel baru, dan otomatis ikut dibaca lagi oleh _dlGetAllMeta() di atas. ──
+function _dlPersistFullOrder(orderedIds) {
+  return _dlOpenDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(DL_STORE, 'readwrite');
+    const store = tx.objectStore(DL_STORE);
+    orderedIds.forEach((id, i) => {
+      const req = store.get(id);
+      req.onsuccess = () => { const rec = req.result; if (rec) { rec.order = i; store.put(rec); } };
+    });
     tx.oncomplete = () => resolve();
     tx.onerror = (e) => reject(e.target.error);
   }));
@@ -17035,9 +17083,14 @@ document.addEventListener('click', function(e){
 // lihat CSS: #yours-view & tombol pemicunya (topbar + bottom-nav) hanya
 // tampil di lebar layar mobile. Membuka halaman ini SELALU merender ulang
 // grid playlist & artis favorit supaya datanya paling baru. ──────────────
-function openYoursView() {
+async function openYoursView() {
   renderHomeGrid();
   renderFavoriteArtists();
+  // Pastikan daftar Unduhan Offline sudah termuat (kalau halaman Unduhan
+  // belum pernah dibuka sesi ini, _dlList masih kosong) baru render section
+  // "Downloaded Songs" — supaya section-nya tidak nampak kosong sesaat.
+  if (!_dlList.length) { try { _dlList = await _dlGetAllMeta(); _dlList.forEach(t => { if (t.art && !_dlArtUrls[t.id]) { try { _dlArtUrls[t.id] = URL.createObjectURL(t.art); } catch(e){} } }); } catch (e) {} }
+  renderYoursDownloads();
   document.getElementById('yours-view').classList.add('show');
   if (typeof closeSongPreviewIfOpen === 'function') { closeSongPreviewIfOpen(); }
   const mainEl = document.getElementById('main');
@@ -17050,6 +17103,7 @@ function closeYoursView() {
   const mainEl = document.getElementById('main');
   if (mainEl) mainEl.style.overflow = '';
   document.body.classList.remove('yours-mobile-open');
+  _dlAllReorderMode = false; // keluar dari mode "Atur Urutan" tiap kali halaman Yours ditutup
 }
 
 // Sama seperti pola halaman Unduhan Offline: klik tombol navigasi apa pun
@@ -17132,6 +17186,8 @@ async function refreshDownloadsList() {
       <div class="tl-h r">Aksi</div>
     </div>
     ${rows}`;
+
+  renderYoursDownloads();
 }
 
 // ── Putar SEMUA lagu di Unduhan Offline (tab "Semua Lagu"), berurutan
@@ -17144,6 +17200,202 @@ function playAllDownloads() {
   _dlActivePlaylistId = null;
   _dlActiveQueue = [];
   playOfflineTrack(_dlList[0].id);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// "Downloaded Songs" DI HALAMAN YOURS — daftar SEMUA lagu offline (sama
+// datanya dengan tab "Semua Lagu" di Unduhan Offline, lihat _dlList di atas),
+// ditaruh di bawah "Favorite Artists" sesuai permintaan, lengkap dengan
+// tombol "Play All" & mode "Atur Urutan" (seret untuk menentukan lagu mana
+// yang diputar duluan — urutannya PERMANEN tersimpan lewat _dlPersistFullOrder
+// & otomatis dipakai juga oleh Next/Prev, lihat _dlPlayAdjacent()).
+// ══════════════════════════════════════════════════════════════════════
+
+// Tombol "Play All" khusus di halaman Yours — memastikan datanya paling
+// baru dulu (kalau halaman baru dibuka & belum sempat refresh) baru putar.
+async function playAllDownloadsFromYours() {
+  if (!_dlList.length) { try { _dlList = await _dlGetAllMeta(); } catch (e) {} }
+  playAllDownloads();
+}
+
+function toggleYoursDlReorderMode() {
+  _dlAllReorderMode = !_dlAllReorderMode;
+  toast(_dlAllReorderMode ? ' Mode urutkan aktif — tahan ikon 🟰 lalu seret untuk mengubah urutan' : ' Urutan lagu disimpan');
+  renderYoursDownloads();
+}
+
+// Terapkan hasil seret (baik drag desktop maupun touch-drag mobile): pindah
+// posisi lagu di _dlList secara lokal dulu (biar responsif), lalu simpan
+// urutan barunya ke IndexedDB supaya permanen & ikut dipakai Next/Prev.
+async function _dlReorderAllTracks(fromIdx, toIdx) {
+  if (fromIdx === toIdx || fromIdx == null || toIdx == null) return;
+  if (fromIdx < 0 || fromIdx >= _dlList.length || toIdx < 0 || toIdx >= _dlList.length) return;
+  const moved = _dlList.splice(fromIdx, 1)[0];
+  _dlList.splice(toIdx, 0, moved);
+  renderYoursDownloads(); // update tampilan dulu supaya terasa instan
+  try { await _dlPersistFullOrder(_dlList.map(t => t.id)); } catch (e) { console.error(e); }
+}
+
+// Render list "Downloaded Songs" di halaman Yours. Dipanggil ulang tiap kali
+// daftar unduhan berubah (refreshDownloadsList — lihat pemanggilannya di
+// atas) supaya section ini otomatis ikut sinkron tanpa perlu buka-tutup
+// halaman Yours-nya lagi.
+function renderYoursDownloads() {
+  const titleEl = document.getElementById('yours-dl-title');
+  const listEl = document.getElementById('yours-dl-tracklist');
+  if (!titleEl || !listEl) return;
+
+  if (!_dlList.length) {
+    titleEl.style.display = 'none';
+    listEl.innerHTML = '';
+    _dlAllReorderMode = false;
+    return;
+  }
+  titleEl.style.display = 'flex';
+
+  const reorderBtn = document.getElementById('yours-dl-reorder-btn');
+  if (reorderBtn) reorderBtn.classList.toggle('active', _dlAllReorderMode);
+  listEl.classList.toggle('reorder-mode', _dlAllReorderMode);
+
+  listEl.innerHTML = '';
+  if (_dlAllReorderMode) {
+    const hint = document.createElement('div');
+    hint.className = 'reorder-hint';
+    hint.textContent = ' Tahan ikon 🟰 lalu seret untuk menentukan lagu mana yang diputar duluan';
+    listEl.appendChild(hint);
+  }
+
+  _dlList.forEach((meta, i) => {
+    const isPlaying = curTrack && curTrack.offline && curTrack.id === meta.id;
+    const row = document.createElement('div');
+    row.className = 'track-row' + (isPlaying ? ' playing' : '');
+    row.dataset.idx = i;
+    row.draggable = _dlAllReorderMode;
+    const artUrl = _dlArtUrls[meta.id];
+    row.innerHTML = `
+      <div class="tr-num">${isPlaying ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="var(--green)"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3z"/></svg>' : (i + 1)}</div>
+      <div class="tr-info">
+        ${artUrl ? `<img class="tr-thumb" src="${artUrl}" alt="" onerror="this.style.display='none'">` : `<div class="tr-thumb-ph">🎵</div>`}
+        <div class="tr-text">
+          <div class="tr-title" title="${esc(meta.name)}">${esc(meta.name)}</div>
+          ${meta.artist ? `<div class="tr-artist" title="${esc(meta.artist)}">${esc(meta.artist)}</div>` : ''}
+        </div>
+      </div>
+      <div class="tr-dur" style="display:flex;align-items:center;justify-content:flex-end;">
+        ${_dlAllReorderMode ? `<button class="tr-drag" title="Seret untuk urutkan"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 15h18v-2H3v2zm0 4h18v-2H3v2zm0-8h18V9H3v2zm0-6v2h18V5H3z"/></svg></button>` : ''}
+      </div>`;
+
+    row.addEventListener('click', () => {
+      if (_dlAllReorderMode) return;
+      playOfflineTrack(meta.id);
+    });
+
+    if (_dlAllReorderMode) {
+      // ── Desktop: drag & drop biasa di seluruh baris (mouse tidak
+      // bentrok dengan gestur scroll seperti di layar sentuh). ──
+      row.addEventListener('dragstart', (e) => {
+        _dlAllDragSrcIdx = i;
+        row.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(i));
+      });
+      row.addEventListener('dragend', () => {
+        row.classList.remove('dragging');
+        listEl.querySelectorAll('.track-row').forEach(r => r.classList.remove('drag-over'));
+      });
+      row.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        listEl.querySelectorAll('.track-row').forEach(r => r.classList.remove('drag-over'));
+        row.classList.add('drag-over');
+      });
+      row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+      row.addEventListener('drop', (e) => {
+        e.preventDefault();
+        row.classList.remove('drag-over');
+        const dstIdx = parseInt(row.dataset.idx);
+        _dlReorderAllTracks(_dlAllDragSrcIdx, dstIdx);
+      });
+
+      // ── Mobile: touch-drag KHUSUS lewat pegangan ⠿ (bukan seluruh
+      // baris) — lihat _yoursDlAttachTouchDrag untuk alasannya. ──
+      const handle = row.querySelector('.tr-drag');
+      if (handle) _yoursDlAttachTouchDrag(handle, row, i, meta, listEl);
+    }
+
+    listEl.appendChild(row);
+  });
+}
+
+// Geser otomatis daftar saat jari user mendekati tepi atas/bawah area yang
+// bisa di-scroll ketika sedang menyeret lagu (mode "Atur Urutan") — tanpa
+// ini, lagu yang ingin dipindah jauh ke atas/bawah jadi susah dijangkau
+// kalau daftarnya panjang & tidak muat satu layar penuh.
+function _yoursDlAutoScroll(clientY) {
+  const scrollEl = document.querySelector('#yours-view .aall-body');
+  if (!scrollEl) return;
+  const rect = scrollEl.getBoundingClientRect();
+  const edge = 56;
+  if (clientY - rect.top < edge) scrollEl.scrollTop -= 14;
+  else if (rect.bottom - clientY < edge) scrollEl.scrollTop += 14;
+}
+
+// ── Touch-drag khusus mobile untuk mode "Atur Urutan" di halaman Yours ──
+// Dipasang KHUSUS pada elemen pegangan ⠿ (bukan seluruh baris .track-row)
+// supaya menyentuh & menggeser bagian lain baris (foto, judul, dst) TETAP
+// bisa dipakai untuk scroll list seperti biasa — cuma menyentuh pegangan
+// ini yang memicu mode seret. Ini yang bikin fitur urutkan terasa "ramah"
+// dipakai di HP: tidak ada gestur yang saling rebutan antara scroll & seret.
+function _yoursDlAttachTouchDrag(handle, row, i, meta, listEl) {
+  handle.addEventListener('touchstart', (e) => {
+    e.preventDefault(); // cegah scroll ikut jalan begitu pegangan disentuh
+    _dlAllTouchDragIdx = i;
+    const touch = e.touches[0];
+    if (!_dlTouchGhost) {
+      _dlTouchGhost = document.createElement('div');
+      _dlTouchGhost.className = 'touch-drag-ghost';
+      document.body.appendChild(_dlTouchGhost);
+    }
+    _dlTouchGhost.textContent = '🟰 ' + meta.name;
+    _dlTouchGhost.style.display = 'block';
+    _dlTouchGhost.style.left = (touch.clientX + 14) + 'px';
+    _dlTouchGhost.style.top = (touch.clientY - 20) + 'px';
+    row.classList.add('dragging');
+  }, { passive: false });
+
+  handle.addEventListener('touchmove', (e) => {
+    if (_dlAllTouchDragIdx === null) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    if (_dlTouchGhost) {
+      _dlTouchGhost.style.left = (touch.clientX + 14) + 'px';
+      _dlTouchGhost.style.top = (touch.clientY - 20) + 'px';
+    }
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    const targetRow = el ? el.closest('.track-row') : null;
+    listEl.querySelectorAll('.track-row').forEach(r => r.classList.remove('drag-over'));
+    if (targetRow) targetRow.classList.add('drag-over');
+    _yoursDlAutoScroll(touch.clientY);
+  }, { passive: false });
+
+  handle.addEventListener('touchend', (e) => {
+    if (_dlAllTouchDragIdx === null) return;
+    listEl.querySelectorAll('.track-row').forEach(r => r.classList.remove('dragging', 'drag-over'));
+    if (_dlTouchGhost) _dlTouchGhost.style.display = 'none';
+    const touch = e.changedTouches[0];
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    const targetRow = el ? el.closest('.track-row') : null;
+    if (targetRow && targetRow.dataset.idx !== undefined) {
+      _dlReorderAllTracks(_dlAllTouchDragIdx, parseInt(targetRow.dataset.idx));
+    }
+    _dlAllTouchDragIdx = null;
+  }, { passive: false });
+
+  handle.addEventListener('touchcancel', () => {
+    listEl.querySelectorAll('.track-row').forEach(r => r.classList.remove('dragging', 'drag-over'));
+    if (_dlTouchGhost) _dlTouchGhost.style.display = 'none';
+    _dlAllTouchDragIdx = null;
+  }, { passive: true });
 }
 
 // ── Putar lagu offline — memakai mini player UTAMA (#bar), SAMA seperti
@@ -19048,6 +19300,20 @@ async function sendAIChatMessage(){
       return; // bukan di mobile, atau memang belum ada judul lagu — biarkan diam
     }
 
+    // FIX: kalau elemen ini belum ke-layout dengan benar (mis. halaman Lyrics
+    // baru saja dibuka & belum sempat dipindah ke posisi mobile-nya oleh
+    // _fsMobileLayout, atau lagi tersembunyi/display:none), clientWidth-nya
+    // bisa kebaca 0 (atau nilai sementara yang salah). Kalau itu dianggap
+    // "overflow", judul PENDEK pun jadi ke-wrap jadi marquee (dengan
+    // text-overflow:clip + mask fade) padahal sebenarnya muat — ini bikin
+    // judul singkat kelihatan "kepotong" padahal statis. Jadi: kalau lebar
+    // kotaknya belum masuk akal (0), jangan simpulkan overflow — coba lagi
+    // sebentar lagi sampai layout-nya beres.
+    if (el.clientWidth <= 0){
+      vbxSchedule(el, true);
+      return;
+    }
+
     var overflowPx = el.scrollWidth - el.clientWidth;
     if (overflowPx > 2){
       var distance = el.scrollWidth + VBX_MARQUEE_GAP_PX;
@@ -19055,9 +19321,9 @@ async function sendAIChatMessage(){
     }
   }
 
-  function vbxSchedule(el){
+  function vbxSchedule(el, isRetry){
     clearTimeout(el.__vbxTimer);
-    el.__vbxTimer = setTimeout(function(){ vbxEvaluate(el); }, 60);
+    el.__vbxTimer = setTimeout(function(){ vbxEvaluate(el); }, isRetry ? 120 : 60);
   }
 
   function vbxWatch(el){
@@ -19079,6 +19345,14 @@ async function sendAIChatMessage(){
     vbxWatch(document.getElementById('bar-title'));
     vbxWatch(document.getElementById('fs-np-title'));
   }
+
+  // Dipanggil dari luar (openFS() saat halaman Lyrics dibuka, & _fsMobileLayout()
+  // saat #fs-bar-left baru selesai dipindah ke posisi mobile-nya) supaya
+  // pengecekan overflow diulang PERSIS setelah layout-nya benar2 final,
+  // bukan cuma mengandalkan timer tetap 60ms yang bisa lebih cepat dari itu.
+  window.vbxRecheckMarquee = function(){
+    vbxTrackedEls.forEach(function(el){ vbxSchedule(el); });
+  };
 
   if (document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', vbxInit);
