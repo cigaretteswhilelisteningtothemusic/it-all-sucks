@@ -3080,30 +3080,117 @@ function toggleFollowArtist(name, photo) {
   return nowFollowing;
 }
 
+// ─── Modal "Add Favorite Artist" — cari artis lewat Deezer (nama + foto)
+// lalu tambahkan/hapus langsung dari "Favorite Artists" tanpa harus buka
+// halaman profil artisnya dulu. Dipicu tombol "+ Add Artist" di section
+// Favorite Artists (Home/PC & halaman "Yours" khusus mobile). ──────────
+let _favArtistSearchDebounce = null;
+let _favArtistSearchGen = 0;
+
+function openAddFavArtistModal() {
+  const modal = document.getElementById('add-fav-artist-modal');
+  if (!modal) return;
+  const input = document.getElementById('fav-artist-search-input');
+  const results = document.getElementById('fav-artist-search-results');
+  if (input) input.value = '';
+  if (results) results.innerHTML = '';
+  modal.style.display = 'flex';
+  setTimeout(() => { if (input) input.focus(); }, 100);
+}
+
+function closeAddFavArtistModal() {
+  const modal = document.getElementById('add-fav-artist-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function onFavArtistSearchInput(q) {
+  q = (q || '').trim();
+  clearTimeout(_favArtistSearchDebounce);
+  const results = document.getElementById('fav-artist-search-results');
+  if (!q) { if (results) results.innerHTML = ''; return; }
+  if (results) results.innerHTML = '<div class="empty" style="padding:20px 0;"><p>Searching...</p></div>';
+  _favArtistSearchDebounce = setTimeout(() => _runFavArtistSearch(q), 320);
+}
+
+async function _runFavArtistSearch(q) {
+  const myGen = ++_favArtistSearchGen;
+  let artists = [];
+  try {
+    const data = await _deezerJsonp('https://api.deezer.com/search/artist?q=' + encodeURIComponent(q) + '&limit=15');
+    const ql = q.toLowerCase();
+    artists = ((data && data.data) || []).filter(a => (a.name || '').toLowerCase().includes(ql)).slice(0, 15);
+  } catch (e) { artists = []; }
+  if (myGen !== _favArtistSearchGen) return; // hasil sudah usang (user mengetik query baru)
+  _renderFavArtistSearchResults(artists);
+}
+
+function _renderFavArtistSearchResults(artists) {
+  const results = document.getElementById('fav-artist-search-results');
+  if (!results) return;
+  if (!artists.length) {
+    results.innerHTML = '<div class="empty" style="padding:20px 0;"><p>No artists found</p></div>';
+    return;
+  }
+  results.innerHTML = '';
+  artists.forEach(a => {
+    const name = a.name || 'Unknown';
+    const photo = a.picture_medium || a.picture_big || a.picture || '';
+    const following = isArtistFavorited(name);
+    const item = document.createElement('div');
+    item.className = 'modal-pl-item';
+    item.innerHTML = `
+      ${photo ? `<img src="${esc(photo)}" alt="${esc(name)}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;" onerror="this.style.display='none'">` : `<div class="fav-artist-ph" style="width:36px;height:36px;border-radius:50%;background:var(--card);flex-shrink:0;">🎤</div>`}
+      <span style="flex:1;font-size:.85rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(name)}</span>
+      <button class="home-new-pl-btn" style="${following ? 'background:var(--green);color:#fff;' : ''}">${following ? 'Added' : 'Add'}</button>
+    `;
+    const btn = item.querySelector('button');
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const nowFollowing = toggleFollowArtist(name, photo);
+      btn.textContent = nowFollowing ? 'Added' : 'Add';
+      btn.style.background = nowFollowing ? 'var(--green)' : '';
+      btn.style.color = nowFollowing ? '#fff' : '';
+    });
+    results.appendChild(item);
+  });
+}
+
 // Render bagian "Artis Favorit": hanya foto + nama artis, diklik akan
 // membuka halaman profil artis tersebut. Merender ke DUA tempat sekaligus
 // — section "Favorite Artists" bawaan di Home (dipakai di PC) dan grid
 // milik halaman "Yours" khusus mobile — supaya keduanya selalu sinkron.
+// Section-nya SELALU ditampilkan (termasuk saat user belum follow artis
+// sama sekali) supaya tombol "+ Add Artist" tetap bisa ditekan untuk
+// mencari & menambahkan artis favorit pertama mereka.
 function renderFavoriteArtists() {
   const list = Object.values(favoriteArtists);
 
   const section = document.getElementById('fav-artist-section');
   const grid = document.getElementById('fav-artist-grid');
   if (section && grid) {
-    if (!list.length) { section.style.display = 'none'; grid.innerHTML = ''; }
-    else { section.style.display = 'block'; _buildFavArtistGridInto(grid, list); }
+    section.style.display = 'block';
+    _buildFavArtistGridInto(grid, list);
   }
 
   const yTitle = document.getElementById('yours-fav-artist-title');
   const yGrid = document.getElementById('yours-fav-artist-grid');
   if (yGrid) {
-    if (yTitle) yTitle.style.display = list.length ? 'flex' : 'none';
+    if (yTitle) yTitle.style.display = 'flex';
     _buildFavArtistGridInto(yGrid, list);
   }
 }
 
 function _buildFavArtistGridInto(grid, list) {
   grid.innerHTML = '';
+  if (!list.length) {
+    grid.innerHTML = `
+      <div class="empty" style="grid-column:1/-1;padding:24px 0;">
+        <i></i>
+        <h3>No Favorite Artists Yet</h3>
+        <p>Click &quot;+ Add Artist&quot; to search and follow your favorite artists</p>
+      </div>`;
+    return;
+  }
   list.forEach(a => {
     const card = document.createElement('div');
     card.className = 'fav-artist-card';
@@ -17253,19 +17340,33 @@ async function _dlReorderAllTracks(fromIdx, toIdx) {
 // Render list "Downloaded Songs" di halaman Yours. Dipanggil ulang tiap kali
 // daftar unduhan berubah (refreshDownloadsList — lihat pemanggilannya di
 // atas) supaya section ini otomatis ikut sinkron tanpa perlu buka-tutup
-// halaman Yours-nya lagi.
+// halaman Yours-nya lagi. Section ini SELALU ditampilkan (termasuk saat user
+// belum punya lagu offline sama sekali) — kalau kosong, tampilkan empty
+// state ramah + tombol "Tambah MP3" alih-alih menyembunyikan section-nya.
 function renderYoursDownloads() {
   const titleEl = document.getElementById('yours-dl-title');
   const listEl = document.getElementById('yours-dl-tracklist');
   if (!titleEl || !listEl) return;
 
+  titleEl.style.display = 'flex';
+  const dlActions = document.getElementById('yours-dl-actions');
+
   if (!_dlList.length) {
-    titleEl.style.display = 'none';
-    listEl.innerHTML = '';
+    if (dlActions) dlActions.style.display = 'none';
+    listEl.classList.remove('reorder-mode');
+    listEl.innerHTML = `
+      <div class="dl-empty" style="padding:36px 20px;">
+        <span>🎧</span>
+        <p>Belum ada lagu offline.<br>Tekan tombol di bawah lalu pilih file MP3 hasil unduhan kamu supaya bisa diputar di sini tanpa internet.</p>
+      </div>
+      <button class="dl-add-btn" style="margin:0 auto;" onclick="document.getElementById('dl-file-input').click()" title="Tambah file MP3">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        <span>Tambah MP3</span>
+      </button>`;
     _dlAllReorderMode = false;
     return;
   }
-  titleEl.style.display = 'flex';
+  if (dlActions) dlActions.style.display = 'flex';
 
   const reorderBtn = document.getElementById('yours-dl-reorder-btn');
   if (reorderBtn) reorderBtn.classList.toggle('active', _dlAllReorderMode);

@@ -907,7 +907,7 @@ body.np-page-open #bar{
 #vol::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;background:var(--text);border-radius:50%;cursor:pointer}
 
 /* MODAL */
-.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:1000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(5px);animation:fi .2s ease}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:3200;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(5px);animation:fi .2s ease}
 @keyframes fi{from{opacity:0}to{opacity:1}}
 .modal{background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:26px;width:340px;animation:su .22s ease;max-height:90vh;overflow-y:auto;}
 @keyframes su{from{transform:translateY(18px);opacity:0}to{transform:translateY(0);opacity:1}}

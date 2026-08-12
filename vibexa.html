@@ -229,11 +229,15 @@
     </div>
 
     <!-- ARTIS FAVORIT (artis yang diikuti user, foto + nama, klik untuk buka halaman artis) -->
-    <div class="pub-section" id="fav-artist-section" style="display:none;">
+    <div class="pub-section" id="fav-artist-section">
       <div class="pub-section-header">
         <div class="pub-section-title">
            Favorite Artists
         </div>
+        <button class="home-new-pl-btn" onclick="openAddFavArtistModal()">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+          Add Artist
+        </button>
       </div>
       <div class="fav-artist-grid" id="fav-artist-grid"></div>
     </div>
@@ -898,8 +902,12 @@
       </div>
       <div class="yv-playlists-grid" id="yours-playlists-grid"></div>
 
-      <div class="yv-section-title" id="yours-fav-artist-title" style="display:none;">
+      <div class="yv-section-title" id="yours-fav-artist-title">
         <span>Favorite Artists</span>
+        <button class="home-new-pl-btn" onclick="openAddFavArtistModal()">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+          Add Artist
+        </button>
       </div>
       <div class="yv-artist-grid" id="yours-fav-artist-grid"></div>
 
@@ -909,7 +917,7 @@
            di layar sentuh lewat pegangan ⠿ khusus, lihat vibexa.js). -->
       <div class="yv-section-title" id="yours-dl-title" style="display:none;">
         <span>Downloaded Songs</span>
-        <div class="yv-dl-actions">
+        <div class="yv-dl-actions" id="yours-dl-actions">
           <button class="yv-dl-reorder-btn" id="yours-dl-reorder-btn" onclick="toggleYoursDlReorderMode()" title="Atur urutan lagu yang diputar duluan">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><circle cx="8" cy="9" r="1.5" fill="currentColor" stroke="none"/><circle cx="8" cy="15" r="1.5" fill="currentColor" stroke="none"/></svg>
             <span>Atur Urutan</span>
@@ -1628,6 +1636,21 @@
     <div class="modal-pl-list" id="add-song-pl-list"></div>
     <div class="mbtns">
       <button class="btn-s" onclick="closeAddSongModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Favorite Artist Modal — cari artis lewat Deezer lalu tambahkan/hapus
+     dari "Favorite Artists" (dipakai oleh tombol "+" di section Favorite
+     Artists, baik yang di Home/PC maupun di halaman "Yours" khusus mobile). -->
+<div id="add-fav-artist-modal" class="modal-bg" style="display:none">
+  <div class="modal">
+    <h3>Add Favorite Artist</h3>
+    <p>Search for an artist and tap to add them</p>
+    <input type="text" class="modal-input" id="fav-artist-search-input" placeholder="Search artist name..." autocomplete="off" spellcheck="false" oninput="onFavArtistSearchInput(this.value)">
+    <div class="modal-pl-list" id="fav-artist-search-results"></div>
+    <div class="mbtns">
+      <button class="btn-s" onclick="closeAddFavArtistModal()">Close</button>
     </div>
   </div>
 </div>
