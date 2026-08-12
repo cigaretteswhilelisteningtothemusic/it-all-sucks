@@ -5280,3 +5280,39 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
   .lv-dj-toggle-btn span{display:none;}
   .lv-dj-toggle-btn{padding:8px;}
 }
+
+/* ==========================================================================
+   MARQUEE JUDUL LAGU YANG PANJANG (khusus tampilan mobile) — gaya Spotify.
+   Berlaku untuk judul lagu di kotak "play" mini player (#bar-title, lihat
+   aturan .bar-title di atas dalam @media(max-width:660px)) dan judul lagu
+   di halaman Lyrics fullscreen (.fs-np-title di dalam .fs-bar-left-in-nav).
+   Kalau judul kepotong (overflow), teks otomatis digeser pelan ke kiri lalu
+   "muncul" lagi dari kanan secara berulang (loop mulus, tanpa lompat/patah).
+   Logika deteksi overflow & pasang/copot struktur DOM-nya ada di vibexa.js
+   (lihat blok "MARQUEE OTOMATIS UNTUK JUDUL LAGU" paling bawah file).
+   ========================================================================== */
+.bar-title.vbx-marquee-active,
+.fs-np-title.vbx-marquee-active{
+  overflow:hidden;
+  text-overflow:clip;
+  -webkit-mask-image:linear-gradient(to right, transparent 0, #000 10px, #000 calc(100% - 10px), transparent 100%);
+  mask-image:linear-gradient(to right, transparent 0, #000 10px, #000 calc(100% - 10px), transparent 100%);
+}
+.vbx-marquee-track{
+  display:inline-flex;
+  white-space:nowrap;
+  will-change:transform;
+  animation-name:vbx-marquee-scroll;
+  animation-timing-function:linear;
+  animation-iteration-count:infinite;
+  animation-delay:1.4s; /* jeda sejenak di posisi awal sebelum mulai bergerak, biar sempat kebaca */
+  animation-duration:var(--vbx-marquee-duration, 9s);
+}
+.vbx-marquee-gap{display:inline-block;flex-shrink:0;}
+@keyframes vbx-marquee-scroll{
+  0%{transform:translateX(0);}
+  100%{transform:translateX(-50%);}
+}
+@media(prefers-reduced-motion:reduce){
+  .vbx-marquee-track{animation:none;}
+}

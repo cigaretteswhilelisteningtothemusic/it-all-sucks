@@ -18970,3 +18970,129 @@ async function sendAIChatMessage(){
     if (sendBtn) sendBtn.disabled = false;
   }
 }
+
+/* ==========================================================================
+   MARQUEE OTOMATIS UNTUK JUDUL LAGU (khusus tampilan mobile) — gaya Spotify.
+   Kalau judul lagu di kotak "play" mini player (#bar-title) atau di halaman
+   Lyrics (#fs-np-title) kepanjangan sampai kepotong (overflow), teks
+   otomatis bergerak pelan ke kiri lalu "muncul" lagi dari kanan, berulang
+   terus selagi lagu itu diputar. Kalau judulnya muat, tampil normal (diam,
+   dengan "..." di ujung) seperti biasa — marquee cuma nyala kalau memang
+   perlu, dan cuma di layar mobile (lebar <=660px, sama kayak breakpoint
+   CSS mobile #bar & .fs-bar-left-in-nav).
+
+   Elemen judul ini textContent-nya di-set dari banyak tempat berbeda di
+   file ini (ganti lagu, buka Now Playing, dsb) — daripada ubah satu-satu
+   tempat itu, dipasang MutationObserver di sini supaya otomatis kedeteksi
+   tiap kali teksnya berubah, dari mana pun perubahan itu datang.
+   ========================================================================== */
+(function(){
+  var VBX_MQ_MOBILE = window.matchMedia('(max-width:660px)');
+  var VBX_MARQUEE_SPEED_PX_S = 32; // px/detik — sengaja pelan, jangan kayak kereta ekspres
+  var VBX_MARQUEE_GAP_PX = 46;     // jarak antara ujung teks & pengulangannya
+  var vbxTrackedEls = [];
+
+  function vbxWithSelfUpdate(el, fn){
+    el.__vbxSelfUpdate = true;
+    fn();
+    // reset flag lewat macrotask (bukan microtask) supaya PASTI kejalanin
+    // SETELAH callback MutationObserver punya kesempatan lihat flag ini masih true,
+    // jadi perubahan DOM yang kita lakukan sendiri di bawah ini tidak
+    // dianggap sebagai "judul lagu ganti" oleh observer-nya.
+    setTimeout(function(){ el.__vbxSelfUpdate = false; }, 0);
+  }
+
+  function vbxClearMarquee(el, plainText){
+    vbxWithSelfUpdate(el, function(){
+      el.textContent = plainText;
+      el.classList.remove('vbx-marquee-active');
+      el.style.removeProperty('--vbx-marquee-duration');
+    });
+    el.__vbxWrapped = false;
+  }
+
+  function vbxApplyMarquee(el, text, distancePx){
+    vbxWithSelfUpdate(el, function(){
+      el.textContent = '';
+      var track = document.createElement('span');
+      track.className = 'vbx-marquee-track';
+      for (var i = 0; i < 2; i++){
+        var item = document.createElement('span');
+        item.className = 'vbx-marquee-item';
+        item.textContent = text;
+        var gap = document.createElement('span');
+        gap.className = 'vbx-marquee-gap';
+        gap.style.width = VBX_MARQUEE_GAP_PX + 'px';
+        track.appendChild(item);
+        track.appendChild(gap);
+      }
+      el.appendChild(track);
+      el.classList.add('vbx-marquee-active');
+      var duration = Math.max(4, distancePx / VBX_MARQUEE_SPEED_PX_S);
+      el.style.setProperty('--vbx-marquee-duration', duration.toFixed(2) + 's');
+    });
+    el.__vbxWrapped = true;
+  }
+
+  function vbxEvaluate(el){
+    if (!el || !el.isConnected) return;
+
+    var text = el.__vbxWrapped ? (el.__vbxOrigText || '') : (el.textContent || '');
+    el.__vbxOrigText = text;
+
+    // Selalu balik ke teks polos dulu supaya pengukuran overflow-nya akurat
+    // (kalau lagi dibungkus track marquee, scrollWidth-nya jadi salah).
+    if (el.__vbxWrapped) vbxClearMarquee(el, text);
+
+    if (!VBX_MQ_MOBILE.matches || !text || !text.trim()){
+      return; // bukan di mobile, atau memang belum ada judul lagu — biarkan diam
+    }
+
+    var overflowPx = el.scrollWidth - el.clientWidth;
+    if (overflowPx > 2){
+      var distance = el.scrollWidth + VBX_MARQUEE_GAP_PX;
+      vbxApplyMarquee(el, text, distance);
+    }
+  }
+
+  function vbxSchedule(el){
+    clearTimeout(el.__vbxTimer);
+    el.__vbxTimer = setTimeout(function(){ vbxEvaluate(el); }, 60);
+  }
+
+  function vbxWatch(el){
+    if (!el || el.__vbxWatched) return;
+    el.__vbxWatched = true;
+    vbxTrackedEls.push(el);
+
+    var mo = new MutationObserver(function(){
+      if (el.__vbxSelfUpdate) return; // ini hasil ulah kita sendiri, abaikan
+      el.__vbxWrapped = false; // DOM-nya diganti dari luar (judul lagu baru)
+      vbxSchedule(el);
+    });
+    mo.observe(el, { childList: true, characterData: true, subtree: true });
+
+    vbxSchedule(el);
+  }
+
+  function vbxInit(){
+    vbxWatch(document.getElementById('bar-title'));
+    vbxWatch(document.getElementById('fs-np-title'));
+  }
+
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', vbxInit);
+  } else {
+    vbxInit();
+  }
+
+  window.addEventListener('resize', function(){
+    vbxTrackedEls.forEach(vbxSchedule);
+  });
+
+  if (VBX_MQ_MOBILE.addEventListener){
+    VBX_MQ_MOBILE.addEventListener('change', function(){ vbxTrackedEls.forEach(vbxSchedule); });
+  } else if (VBX_MQ_MOBILE.addListener){ // fallback Safari lama
+    VBX_MQ_MOBILE.addListener(function(){ vbxTrackedEls.forEach(vbxSchedule); });
+  }
+})();
