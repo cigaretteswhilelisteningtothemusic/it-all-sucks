@@ -5120,6 +5120,7 @@ function tick(){
     if(!playing||!YTP) return;
     try{ cur=YTP.getCurrentTime()||cur; tot=YTP.getDuration()||tot; }catch(e){}
     updProg(); syncLyr(cur);
+    _maybeAutoPredownloadNext();
     raf=requestAnimationFrame(loop);
   })();
 }
@@ -5254,6 +5255,59 @@ function _qIdx(){
   return curQueue.findIndex(t => t._query === curTrack._query);
 }
 
+// ── AUTO-PREDOWNLOAD lagu berikutnya di playlist ────────────────────────
+// Begitu sisa waktu lagu yang sedang diputar tinggal ≤15 detik, lagu
+// BERIKUTNYA di queue langsung dikonversi+diunduh ke "Unduhan Offline" di
+// BACKGROUND (tanpa mengganggu lagu yang sedang diputar). Jadi begitu lagu
+// ini habis dan pindah ke lagu berikutnya, offline-first check di loadPlay()
+// akan langsung menemukannya SUDAH tersimpan → diputar instan, TANPA loading
+// convert/unduh lagi.
+const AUTO_PREDOWNLOAD_SECONDS_BEFORE_END = 8;
+let _autoPredownloadedFor = null;     // _query lagu yg SEDANG diputar — supaya trigger cuma sekali per lagu
+let _autoPredownloadingQuery = null;  // _query lagu berikutnya yang lagi diproses (cegah proses dobel)
+
+function _maybeAutoPredownloadNext(){
+  if(!curTrack || !curTrack._query || !curQueue.length || !tot || tot <= 0) return;
+  const remaining = tot - cur;
+  if(remaining > AUTO_PREDOWNLOAD_SECONDS_BEFORE_END || remaining < 0) return;
+  if(_autoPredownloadedFor === curTrack._query) return; // sudah pernah trigger utk lagu ini
+  _autoPredownloadedFor = curTrack._query;
+  _autoPredownloadNextInQueue();
+}
+
+async function _autoPredownloadNextInQueue(){
+  try{
+    const i = _qIdx();
+    if(i === -1) return;
+    const next = curQueue[(i+1) % curQueue.length];
+    if(!next || !next._query) return;
+    if(_autoPredownloadingQuery === next._query) return; // sudah lagi diproses
+
+    // Sudah ada di Unduhan Offline? skip, tidak perlu diunduh ulang.
+    const existing = await _dlFindMatchingTrack(next);
+    if(existing) return;
+
+    _autoPredownloadingQuery = next._query;
+    let videoId, lines;
+    const cached = _prefetchCache[next._query];
+    if(cached && cached.videoId){
+      videoId = cached.videoId; lines = cached.lyrs;
+    } else {
+      const cl = cleanT(next.title);
+      ({videoId, lines} = await resolveVidByDuration(next.artist, next.title, cl, next.duration));
+    }
+    if(!videoId) return;
+    const lyricsSnapshot = (lines && lines.length) ? lines : null;
+    await _dlConvertAndSave(videoId, next.title, next.artist, next.thumb, lyricsSnapshot);
+    try{ refreshDownloadsList(); }catch(e){}
+    console.log('[Auto-Predownload] Lagu berikutnya sudah siap offline:', next.title, '-', next.artist);
+  }catch(e){
+    console.warn('[Auto-Predownload] Gagal menyiapkan lagu berikutnya di awal (akan dicoba lagi biasa saat diputar):', e);
+  }finally{
+    _autoPredownloadingQuery = null;
+  }
+}
+
 // Pre-fetch videoId + lirik untuk songs berikutnya saat masih foreground
 async function _prefetchNext(){
   if(!curQueue.length||!curTrack) return;
@@ -5353,7 +5407,28 @@ async function _playNextFromArtistTopSongs(){
   loadPlay(next, null);
 }
 function playNext(){
-  if(curTrack && curTrack.offline){ _dlPlayAdjacent(1); return; }
+  // BUG FIX: lagu yang sedang dimainkan lewat sumber offline (curTrack.offline)
+  // TIDAK SELALU berarti sedang menjelajah "Unduhan Offline" murni — sekarang
+  // hampir semua lagu playlist/queue biasa juga otomatis dikonversi & diputar
+  // dari offline (lihat "AUTO CONVERT → MP3 → SIMPAN → PUTAR" di loadPlay()).
+  // Kalau langsung lompat ke _dlPlayAdjacent() setiap kali curTrack.offline
+  // true, urutan playlist DIABAIKAN — malah berpindah ke lagu offline
+  // "sebelah"-nya di SELURUH daftar Unduhan Offline (diurutkan dari lagu
+  // yang PALING BARU diunduh), bukan lagu berikutnya di playlist ini. Itulah
+  // sebabnya setelah lagu habis, lagu yang terputar sering jadi lagu lama
+  // yang sudah pernah diunduh sebelumnya, bukan lagu berikutnya di playlist.
+  //
+  // _qIdx() mengecek apakah curTrack (lewat curTrack._query, yang tetap
+  // dipertahankan oleh loadPlay() walau lagu ini diputar dari offline) masih
+  // cocok dengan salah satu lagu di curQueue (playlist/queue yang sedang
+  // aktif). Kalau YA (i !== -1) → lagu ini memang bagian dari playlist,
+  // jadi navigasi tetap harus ikut urutan curQueue seperti lagu online biasa
+  // (lanjut ke blok di bawah, yang otomatis akan menemukan versi offline-nya
+  // lagi lewat _dlFindMatchingTrack() di dalam loadPlay() kalau sudah siap).
+  // Kalau TIDAK (i === -1) → curTrack memang sedang dibuka lewat halaman
+  // Unduhan Offline murni (bukan bagian playlist manapun), jadi navigasi
+  // "sebelah" di seluruh daftar unduhan (_dlPlayAdjacent) tetap benar dipakai.
+  if(curTrack && curTrack.offline && _qIdx() === -1){ _dlPlayAdjacent(1); return; }
   if(!curQueue.length){ _playNextFromArtistTopSongs(); return; }
   const i = _qIdx();
   // Kalau lagu yang baru selesai adalah lagu TERAKHIR di playlist/queue dan
@@ -5440,7 +5515,11 @@ function playNext(){
   loadPlay(next, currentPlaylistId);
 }
 function playPrev(){
-  if(curTrack && curTrack.offline){ _dlPlayAdjacent(-1); return; }
+  // Sama seperti perbaikan di playNext() — cuma pakai _dlPlayAdjacent()
+  // (navigasi di SELURUH daftar Unduhan Offline) kalau curTrack memang bukan
+  // bagian dari playlist/queue yang sedang aktif. Lihat komentar panjang di
+  // playNext() untuk penjelasan lengkap kenapa ini penting.
+  if(curTrack && curTrack.offline && _qIdx() === -1){ _dlPlayAdjacent(-1); return; }
   if(!curQueue.length) return;
   const i = _qIdx();
   const prev = curQueue[i===-1 ? 0 : (i-1+curQueue.length) % curQueue.length];
@@ -6487,6 +6566,12 @@ async function loadPlay(track, fromPlId){
     if (_offlineMatch) {
       toast(' Memutar dari Unduhan Offline...');
       await playOfflineTrack(_offlineMatch.id, fromPlId);
+      // Pertahankan identitas _query/duration dari katalog online di curTrack,
+      // supaya navigasi queue (Next/Prev, prefetch, auto-predownload lagu
+      // berikutnya) tetap berfungsi normal walau lagu ini sekarang diputar
+      // dari sumber offline (playOfflineTrack merekonstruksi curTrack sendiri
+      // tanpa field ini).
+      if (curTrack && track._query) { curTrack._query = track._query; curTrack.duration = track.duration; }
       return;
     }
   } catch (e) { console.warn('Cek Unduhan Offline gagal, lanjut ke alur biasa:', e); }
@@ -6579,7 +6664,6 @@ async function loadPlay(track, fromPlId){
     lines = _cachedNext.lyrs;
   } else {
     if(_cachedNext) delete _prefetchCache[track._query]; // cache basi (videoId gagal ditemukan) -> buang, coba cari ulang
-    toast(' Searching video...');
     // resolveVidByDuration mencari video yang durasinya mendekati durasi resmi
     // lagu (dari data lirik); kalau tidak ada yang cocok, otomatis fallback ke
     // query "... lyrics" → "... official audio" → judul+artis polos.
@@ -6596,12 +6680,13 @@ async function loadPlay(track, fromPlId){
     // jatuh ke streaming YouTube seperti biasa supaya user tetap bisa dengar.
     let _playedFromOffline = false;
     try {
-      toast(' Mengonversi ke MP3, mohon tunggu...', 8000);
+      toast(' Sedang mencari lagu...', 8000);
       const lyricsSnapshot = (lines && lines.length) ? lines : null;
       const record = await _dlConvertAndSave(videoId, track.title, track.artist, track.thumb, lyricsSnapshot);
       if (_myPlayGen !== _playGen) return; // user sudah pindah ke lagu lain selama proses ini
       refreshDownloadsList();
       await playOfflineTrack(record.id, fromPlId);
+      if (curTrack && track._query) { curTrack._query = track._query; curTrack.duration = track.duration; }
       _playedFromOffline = true;
     } catch (e) {
       console.warn('Auto-convert ke MP3 gagal, fallback ke streaming YouTube:', e);
@@ -18365,6 +18450,7 @@ async function deleteOfflineTrack(id) {
       cur = audio.currentTime || 0;
       if (audio.duration > 0) tot = audio.duration;
       updProg();
+      _maybeAutoPredownloadNext();
     });
   });
 })();
