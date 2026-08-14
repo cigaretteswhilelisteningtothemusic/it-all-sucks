@@ -1,3 +1,4 @@
+console.log('VBXBUILD_CANARY_12345');
 'use strict';
 
 // ─── Sidebar collapse/expand (Spotify-style "Your Library" rail) ──────────
@@ -316,6 +317,22 @@ if (window._vbxFirebaseOK && auth) {
   auth.onAuthStateChanged(user => {
     if (user && !user.isAnonymous) {
       currentUser = user;
+      try { localStorage.setItem('vibexa_last_uid', user.uid); } catch (e) {}
+      // PENTING: setupPushNotifications() sengaja dipanggil PALING AWAL di
+      // sini (dibungkus try-catch), bukan paling akhir seperti sebelumnya.
+      // Sebelumnya baris ini ada di paling bawah, setelah ~15 fungsi load
+      // lain yang dipanggil TANPA await dan TANPA try-catch (showApp,
+      // _cleanupStaleLocalCache, startFriendSuggestionsListener, dst).
+      // Kalau salah SATU SAJA dari fungsi non-async itu throw exception
+      // secara synchronous, seluruh sisa baris di callback ini berhenti
+      // di situ juga — termasuk setupPushNotifications() yang ada di
+      // paling bawah — TANPA log error apa pun yang jelas menunjuk ke
+      // sini, karena errornya justru muncul di fungsi lain. Ini kemungkinan
+      // besar penyebab token FCM tidak pernah tersimpan walau app
+      // kelihatan jalan normal. Dengan dipanggil paling awal + try-catch,
+      // registrasi push dijamin selalu jalan apa pun yang terjadi di
+      // fungsi-fungsi load lainnya di bawah.
+      try { setupPushNotifications(user); } catch (e) { console.warn('setupPushNotifications gagal dipanggil:', e); }
       showApp(user);
       _cleanupStaleLocalCache();
       loadAllPlaylistsFromCloud();
@@ -334,7 +351,6 @@ if (window._vbxFirebaseOK && auth) {
       loadArtistRadioMixes();
       loadSadPlaylists();
       loadWeekdayPlaylists();
-      setupPushNotifications(user);
       _aiAttachFollowUpListener();
       _recentlyPlayedCache = null;
       _streakCache = null;
@@ -383,18 +399,104 @@ window.addEventListener('offline', () => {
 // Dipanggil tiap kali user login. Token disimpan di
 // users/{uid}/fcmTokens/{token} = true, dipakai Cloud Function terjadwal
 // untuk mengirim notifikasi jam 07:00 & 19:00 ke semua user yang mengizinkan.
+//
+// PENTING (root cause notifikasi berhenti muncul sesudah jadi native app):
+// Kode di bawah ini ambil token FCM lewat Web Push API standar (VAPID +
+// service worker push subscription). WebView native Capacitor (Android/iOS)
+// TIDAK mengimplementasikan Web Push API sama sekali, jadi di dalam native
+// app firebase.messaging.isSupported() selalu resolve `false`, `messaging`
+// tetap null selamanya, dan fungsi ini langsung berhenti di
+// "if (!messaging) return" — TANPA PERNAH menyimpan token apa pun ke
+// users/{uid}/fcmTokens. Akibatnya Cloudflare Worker (index.js) tidak
+// menemukan device manapun untuk toUid itu → tidak ada push yang terkirim,
+// walau isi chat-nya sendiri tetap berhasil tersimpan normal di database.
+// Di web/PWA biasa ini tetap jalan seperti biasa, itu kenapa sebelumnya
+// (sebelum dibungkus Capacitor) notifikasinya muncul.
+//
+// Solusi: di native app, jangan pakai Web Push — pakai plugin native
+// @capacitor-firebase/messaging (sudah ada di package.json project ini,
+// tinggal dipakai) lewat window.Capacitor.Plugins.FirebaseMessaging, sama
+// seperti window.Capacitor.Plugins.App yang sudah dipakai untuk cek update.
+// Token native ini tetap ditulis ke path yang SAMA (users/{uid}/fcmTokens),
+// jadi cloudflare-worker/index.js tidak perlu diubah sama sekali.
+let _pushListenersRegistered = false;
+
+// PENTING (fix race condition): onAuthStateChanged bisa langsung terpanggil
+// dengan sesi yang sudah tersimpan (cached login) SANGAT cepat saat app baru
+// dibuka — kadang lebih cepat dari waktu WebView Capacitor selesai
+// menyuntikkan window.Capacitor ke halaman. Kalau itu terjadi,
+// window.Capacitor.isNativePlatform() bisa saja belum ada/salah baca "false",
+// dan kode nyasar ke jalur web push yang TIDAK PERNAH jalan di WebView native
+// (lihat komentar panjang di bawah) — TANPA log apa pun, karena gagalnya
+// sebelum sempat masuk fungsi manapun yang punya console.warn/error.
+// Makanya sebelum mutuskan native/bukan, kita tunggu dulu (polling max 3
+// detik) sampai window.Capacitor benar-benar siap.
+async function _waitForCapacitorBridge(maxWaitMs = 3000) {
+  const start = Date.now();
+  while (!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function')) {
+    if (Date.now() - start >= maxWaitMs) break;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+}
+
+// ─── TEMA STATUS BAR & NAVIGATION BAR NATIVE (Android) ─────────────────
+// Menyamakan warna status bar (atas, area jam/baterai) & navigation bar
+// (bawah, area tombol Home/Back/Recents HP) dengan tema gelap Vibexa, biar
+// tidak lagi tampil putih/abu-abu menyala dan terlihat menyatu dengan
+// halaman.
+//
+// PENTING: SystemBars bawaan Capacitor (window.Capacitor.Plugins.SystemBars)
+// CUMA bisa atur terang/gelapnya ikon (setStyle), TIDAK BISA mengatur warna
+// latar belakang bar-nya — jadi warna hitamnya wajib lewat plugin tambahan:
+//   npm install @capawesome/capacitor-android-edge-to-edge-support
+//   npx cap sync
+// Kalau plugin itu belum terpasang, baris EdgeToEdge di bawah otomatis
+// dilewati (dan ada console.warn) tanpa bikin app error — cuma warnanya
+// belum berubah sampai plugin dipasang.
+(async function _vbxApplyNativeSystemBarTheme() {
+  const isNative = await _waitForCapacitorBridge();
+  if (!isNative) return; // di browser biasa (bukan APK) tidak ada system bar native
+  try {
+    // Ikon jam/baterai/status jadi putih terang (cocok utk latar gelap)
+    const SystemBars = window.Capacitor?.Plugins?.SystemBars;
+    if (SystemBars?.setStyle) {
+      await SystemBars.setStyle({ style: 'DARK' });
+    }
+    // Warna latar status bar & navigation bar jadi hitam, senada #0A0A0A
+    // (var(--panel) di vibexa.css) supaya menyatu dgn topbar/bottom nav app
+    const EdgeToEdge = window.Capacitor?.Plugins?.EdgeToEdge;
+    if (EdgeToEdge?.setBackgroundColor) {
+      await EdgeToEdge.setBackgroundColor({ color: '#0A0A0A' });
+    } else {
+      console.warn('[VBX-THEME] Plugin @capawesome/capacitor-android-edge-to-edge-support belum terpasang — warna status/navigation bar belum bisa diubah. Jalankan: npm install @capawesome/capacitor-android-edge-to-edge-support && npx cap sync');
+    }
+  } catch (e) {
+    console.warn('[VBX-THEME] Gagal menerapkan tema status/navigation bar:', e);
+  }
+})();
+
 async function setupPushNotifications(user) {
+  console.log('[VBX-PUSH] setupPushNotifications() dipanggil, mengecek Capacitor bridge...');
+  const isNative = await _waitForCapacitorBridge();
+  console.log('[VBX-PUSH] _waitForCapacitorBridge() selesai, isNative =', isNative, '| window.Capacitor ada?', !!window.Capacitor, '| isNativePlatform() =', window.Capacitor && window.Capacitor.isNativePlatform ? window.Capacitor.isNativePlatform() : '(fungsi tidak ada)');
+  if (isNative) {
+    await setupNativePushNotifications(user);
+    return;
+  }
+
+  console.warn('[VBX-PUSH] MASUK JALUR WEB (bukan native) — kalau ini app Android/iOS asli via Capacitor, ini SALAH JALUR dan penyebab notifikasi tidak pernah muncul.');
   try {
     await _messagingReadyPromise; // tunggu hasil cek firebase.messaging.isSupported()
-    if (!messaging) return; // browser tidak mendukung FCM (mis. Safari lama)
-    if (!('Notification' in window)) return;
+    if (!messaging) { console.warn('[VBX-PUSH] STOP: `messaging` (Firebase JS SDK) null/unsupported di environment ini.'); return; }
+    if (!('Notification' in window)) { console.warn('[VBX-PUSH] STOP: window.Notification tidak ada di environment ini.'); return; }
     if (FCM_VAPID_KEY === 'GANTI_DENGAN_VAPID_KEY_KAMU') {
       console.warn('FCM_VAPID_KEY belum diisi — lihat komentar di dekat firebaseConfig.');
       return;
     }
 
     // Jangan tanya lagi kalau user sudah pernah menolak sebelumnya
-    if (Notification.permission === 'denied') return;
+    if (Notification.permission === 'denied') { console.warn('[VBX-PUSH] STOP: Notification.permission === denied (jalur web).'); return; }
 
     let permission = Notification.permission;
     if (permission === 'default') {
@@ -418,30 +520,142 @@ async function setupPushNotifications(user) {
   }
 }
 
+// ─── Push Notification versi NATIVE (Android/iOS lewat Capacitor) ──────
+async function setupNativePushNotifications(user) {
+  console.log('[VBX-PUSH] setupNativePushNotifications() MULAI untuk uid:', user && user.uid);
+  try {
+    const FirebaseMessaging = window.Capacitor?.Plugins?.FirebaseMessaging;
+    console.log('[VBX-PUSH] window.Capacitor.Plugins.FirebaseMessaging terdeteksi?', !!FirebaseMessaging, '| daftar semua plugin:', window.Capacitor?.Plugins ? Object.keys(window.Capacitor.Plugins) : '(window.Capacitor.Plugins tidak ada)');
+    if (!FirebaseMessaging) {
+      console.warn('Plugin @capacitor-firebase/messaging tidak terdeteksi di window.Capacitor.Plugins. Pastikan sudah `npm install @capacitor-firebase/messaging` lalu `npx cap sync`, dan (Android) file google-services.json sudah ditaruh di android/app/.');
+      return;
+    }
+
+    // Android 13+ & iOS wajib minta izin notifikasi secara eksplisit,
+    // beda dengan Notification.requestPermission() versi web.
+    console.log('[VBX-PUSH] Memanggil FirebaseMessaging.checkPermissions()...');
+    let permStatus = await FirebaseMessaging.checkPermissions().catch((err) => { console.error('[VBX-PUSH] checkPermissions() melempar error:', err); return null; });
+    console.log('[VBX-PUSH] checkPermissions() hasil:', JSON.stringify(permStatus));
+    if (!permStatus || permStatus.receive === 'prompt' || permStatus.receive === 'prompt-with-rationale') {
+      console.log('[VBX-PUSH] Status masih prompt, memanggil FirebaseMessaging.requestPermissions() — dialog sistem SEHARUSNYA muncul sekarang...');
+      permStatus = await FirebaseMessaging.requestPermissions().catch((err) => { console.error('[VBX-PUSH] requestPermissions() melempar error:', err); return { receive: 'denied' }; });
+      console.log('[VBX-PUSH] requestPermissions() hasil:', JSON.stringify(permStatus));
+    }
+    if (!permStatus || permStatus.receive !== 'granted') {
+      console.warn('[VBX-PUSH] STOP: Izin notifikasi native belum/tidak diberikan (status akhir:', permStatus && permStatus.receive, '), token tidak diambil.');
+      return;
+    }
+    console.log('[VBX-PUSH] Izin GRANTED, lanjut mengambil token...');
+
+    // Pasang listener sekali saja (bukan tiap kali fungsi ini dipanggil,
+    // supaya tidak dobel-daftar tiap kali user login/relogin).
+    if (!_pushListenersRegistered) {
+      _pushListenersRegistered = true;
+
+      // FCM sesekali merotasi token (reinstall app, clear data, dst) —
+      // simpan ulang tiap kali ada token baru. Pakai `currentUser` (bukan
+      // parameter `user`) supaya tetap benar walau listener ini terpanggil
+      // setelah user yang login berganti.
+      FirebaseMessaging.addListener('tokenReceived', (event) => {
+        const uid = currentUser && currentUser.uid;
+        if (uid && event?.token) {
+          db.ref('users/' + uid + '/fcmTokens/' + event.token).set(true).catch(() => {});
+        }
+      });
+
+      // Notifikasi masuk saat app di FOREGROUND. Berbeda dengan browser,
+      // OS Android/iOS tidak otomatis menampilkan notifikasi kalau app
+      // sedang dibuka — kalau mau tetap muncul sebagai notifikasi system
+      // walau lagi buka app, perlu plugin @capacitor/local-notifications
+      // tambahan. Untuk sekarang cukup log + bisa dipakai trigger badge/
+      // indikator pesan baru di dalam UI chat.
+      FirebaseMessaging.addListener('notificationReceived', (event) => {
+        console.log('[push native] notifikasi diterima (foreground):', event);
+      });
+
+      // User TAP notifikasi (app di background/tertutup) → langsung buka
+      // ke chat pengirimnya, konsisten dengan link FCM di worker (index.js).
+      FirebaseMessaging.addListener('notificationActionPerformed', (event) => {
+        const fromUid = event?.notification?.data?.fromUid;
+        if (fromUid) {
+          try { window.location.href = 'index.html?startChatWith=' + encodeURIComponent(fromUid); } catch (e) {}
+        }
+      });
+    }
+
+    const { token } = await FirebaseMessaging.getToken();
+    console.log('[VBX-PUSH] FirebaseMessaging.getToken() hasil, token ada?', !!token, token ? ('(...' + token.slice(-12) + ')') : null);
+    if (token) {
+      db.ref('users/' + user.uid + '/fcmTokens/' + token).set(true)
+        .then(() => console.log('[VBX-PUSH] Token BERHASIL disimpan ke Realtime Database.'))
+        .catch((err) => console.error('[VBX-PUSH] GAGAL simpan token ke Realtime Database:', err));
+    }
+  } catch (e) {
+    console.error('[VBX-PUSH] setupNativePushNotifications error (token FCM GAGAL disimpan):', e, '| message:', e && e.message, '| code:', e && e.code);
+  }
+}
+
 // Terima notifikasi saat app sedang terbuka (foreground). Saat app di
 // background/tertutup, browser yang otomatis menampilkan notifikasi
 // lewat service worker (lihat handler onBackgroundMessage di sw.js).
 _messagingReadyPromise.then(() => {
   if (messaging) {
     messaging.onMessage(payload => {
-      const title = payload?.notification?.title || 'Vibexa';
-      const body = payload?.notification?.body || '';
       const fromUid = payload?.data?.fromUid || '';
-      const isLoluFollowUp = fromUid === 'lolu-ai' || payload?.data?.type === 'ai_followup';
+      const type = payload?.data?.type || '';
+
+      // Pesan "senyap" dari server (lihat triggerCloseChatNotification /
+      // Worker route /close-chat-notification): tidak menampilkan apa pun,
+      // hanya menutup notifikasi lama yang cocok tag-nya. Dipakai supaya
+      // notifikasi otomatis ikut hilang saat pesan dihapus utk semua orang.
+      if (type === 'close_notification') {
+        const tag = payload?.data?.tag || (fromUid ? `chat_${fromUid}` : '');
+        if (tag) closeNotificationsByTag(tag);
+        return;
+      }
+
+      // Pesan sekarang dikirim data-only (lihat index.js) supaya di Android
+      // native, VibexaMessagingService.kt yang membangun notifikasinya
+      // sendiri (dgn foto profil). Di web/PWA, title & body dibaca dari
+      // `data` (bukan `notification`, krn field itu sudah tidak dikirim).
+      const title = payload?.data?.title || payload?.notification?.title || 'Vibexa';
+      const body = payload?.data?.body || payload?.notification?.body || '';
+      const isLoluFollowUp = fromUid === 'lolu-ai' || type === 'ai_followup';
+      // Foto profil pengirim (dikirim Worker lewat data.fromPhoto, lihat
+      // triggerChatPushNotification) — dipakai sbg ikon notifikasi supaya
+      // muncul foto profil di samping nama, ala WhatsApp. Kalau tidak ada
+      // (mis. user belum pasang foto profil), fallback ke ikon default.
+      const fromPhoto = payload?.data?.fromPhoto || '';
       if (Notification.permission === 'granted') {
         // tag = fromUid, sama seperti di sw.js, supaya notif dari orang
         // yang sama menggantikan notif sebelumnya (bukan menumpuk).
         // Ikon burung khusus HANYA untuk notif follow-up Lolu; user lain
-        // tetap pakai ikon default Vibexa.
+        // tetap pakai foto profilnya (atau ikon default kalau belum ada).
         new Notification(title, {
           body,
-          icon: isLoluFollowUp ? 'icons/lolu-icon-192.png' : 'icons/icon-192.png',
+          icon: isLoluFollowUp ? 'icons/lolu-icon-192.png' : (fromPhoto || 'icons/icon-192.png'),
           tag: fromUid ? `chat_${fromUid}` : undefined,
         });
       }
     });
   }
 });
+
+// Tutup notifikasi web/PWA yang sedang tampil dengan tag tertentu. Notifikasi
+// yang dibuat lewat `new Notification()` di atas maupun lewat service worker
+// (sw.js, saat app di background) sama-sama bisa ditemukan & ditutup lewat
+// ServiceWorkerRegistration.getNotifications() selama origin-nya sama.
+async function closeNotificationsByTag(tag) {
+  try {
+    if (!('serviceWorker' in navigator)) return;
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg || !reg.getNotifications) return;
+    const list = await reg.getNotifications({ tag });
+    list.forEach(n => n.close());
+  } catch (e) {
+    console.warn('closeNotificationsByTag error:', e);
+  }
+}
 
 // ─── Push Notification Chat (ala WhatsApp) via Cloudflare Worker ───────
 // PENTING: ganti URL ini dengan URL Worker hasil `wrangler deploy` kamu
@@ -462,6 +676,21 @@ async function triggerChatPushNotification(peer, previewText) {
     if (!CHAT_NOTIF_WORKER || CHAT_NOTIF_WORKER.includes('YOUR-SUBDOMAIN')) return;
     const idToken = await currentUser.getIdToken();
     const fromName = (currentUser.displayName || 'Someone').toString().slice(0, 60);
+
+    // Foto profil pengirim, dikirim ke Worker supaya notifikasi push di
+    // perangkat penerima menampilkan foto profil di samping nama (ala
+    // WhatsApp). Hanya URL http(s) yang dikirim — foto yang tersimpan
+    // sbg base64 (photoBase64) sengaja dilewati krn: (1) FCM Android perlu
+    // men-download foto dari URL asli, bukan data-URI, dan (2) supaya
+    // payload FCM tidak kelebihan batas ukuran (~4KB).
+    let fromPhoto = '';
+    try {
+      const profileSnap = await db.ref('users/' + currentUser.uid + '/profile').get();
+      const profile = profileSnap?.val() || {};
+      const p = profile.photoURL || currentUser.photoURL || '';
+      if (/^https?:\/\//i.test(p)) fromPhoto = p;
+    } catch (e) { /* tanpa foto tidak apa-apa, fallback ke ikon default */ }
+
     fetch(CHAT_NOTIF_WORKER + '/send-chat-notification', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -470,11 +699,38 @@ async function triggerChatPushNotification(peer, previewText) {
         toUid: peer.uid,
         chatId: peer.chatId,
         title: fromName,
-        body: (previewText || '').toString().slice(0, 150)
+        body: (previewText || '').toString().slice(0, 150),
+        fromPhoto
       })
     }).catch(() => {});
   } catch (e) {
     console.warn('triggerChatPushNotification error:', e);
+  }
+}
+
+// Beri tahu Worker supaya mengirim sinyal "senyap" (data-only, tanpa field
+// notification) ke semua device milik lawan bicara, yang isinya cuma
+// perintah tutup notifikasi dgn tag chat_<uid pengirim>. Dipanggil saat
+// pesan dihapus utk semua orang, spy notifikasi push yg mungkin sedang
+// tampil di HP lawan bicara ikut hilang otomatis — mirip WhatsApp.
+// Sengaja "fire-and-forget" spy proses hapus pesan itu sendiri tidak ikut
+// tertunda/gagal kalau Worker sedang down.
+async function triggerCloseChatNotification(peer) {
+  try {
+    if (!currentUser || !peer || !peer.uid || !peer.chatId) return;
+    if (!CHAT_NOTIF_WORKER || CHAT_NOTIF_WORKER.includes('YOUR-SUBDOMAIN')) return;
+    const idToken = await currentUser.getIdToken();
+    fetch(CHAT_NOTIF_WORKER + '/close-chat-notification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        idToken,
+        toUid: peer.uid,
+        chatId: peer.chatId
+      })
+    }).catch(() => {});
+  } catch (e) {
+    console.warn('triggerCloseChatNotification error:', e);
   }
 }
 
@@ -2291,7 +2547,17 @@ function deleteMessageForEveryone(chatId, key) {
     updates['userChats/' + peerUid + '/' + chatId + '/lastMessage'] = placeholder;
   }
 
-  db.ref().update(updates).catch(err => console.error('Gagal menghapus pesan:', err));
+  db.ref().update(updates)
+    .then(() => {
+      // Notifikasi ala WhatsApp: kalau pesan yg baru dihapus ini yg lagi
+      // tampil sbg notifikasi push di HP lawan bicara, minta ikut hilang.
+      if (_chatCurrentPeer) triggerCloseChatNotification(_chatCurrentPeer);
+    })
+    .catch(err => console.error('Gagal menghapus pesan:', err));
+
+  // Juga tutup di device sendiri (mis. ada tab/jendela lain yg kebetulan
+  // masih menampilkan notifikasi utk chat ini).
+  if (currentUser) closeNotificationsByTag(`chat_${currentUser.uid}`);
 }
 
 // ── Deteksi pesan "cuma emoji" (utk tampilan bubble besar tanpa background,
@@ -2874,7 +3140,10 @@ function doLogout() {
     setCloudStatus('saving', 'Menyimpan sebelum logout...');
     flushPendingSaveBeforeExit().finally(() => {
       markMyselfOffline().finally(() => {
-        auth.signOut().then(() => { window.location.href = 'index.html'; });
+        auth.signOut().then(() => {
+          try { localStorage.removeItem('vibexa_last_uid'); } catch (e) {}
+          window.location.href = 'index.html';
+        });
       });
     });
   }
@@ -4635,6 +4904,7 @@ function setPB(p){
   updateFSPB(p);
   updateNPMobPB(p);
   if('mediaSession' in navigator) navigator.mediaSession.playbackState = p ? 'playing' : 'paused';
+  _vbxPushNativePlaybackState(p);
   // Musik dipause: kalau sedang immersive otomatis, keluar dulu. Musik play
   // lagi: mulai hitung ulang idle timer immersive dari 0.
   if(typeof _npArmIdleTimer==='function'){
@@ -4856,6 +5126,7 @@ function tick(){
 
 // ─── Media Session API (kontrol dari notifikasi OS / lockscreen) ──────────────
 function _setupMediaSession(track){
+  _vbxPushNativeMetadata(track); // lihat blok "Native Lock Screen Media Player" di bawah
   if(!('mediaSession' in navigator)) return;
   navigator.mediaSession.metadata = new MediaMetadata({
     title: track.title||'',
@@ -4872,6 +5143,94 @@ function _setupMediaSession(track){
   navigator.mediaSession.setActionHandler('previoustrack', ()=>{ playPrev(); });
   navigator.mediaSession.setActionHandler('seekto', (d)=>{ if(YTP&&d.seekTime!=null){ YTP.seekTo(d.seekTime,true); cur=d.seekTime; _armSongTimer(); } });
 }
+
+// ─── Native Lock Screen Media Player (Android, plugin VibexaMedia) ────────────
+// navigator.mediaSession (di atas) TIDAK diproyeksikan oleh Android System
+// WebView ke lock screen / notification media control — itu murni fitur
+// Chrome/browser tab, bukan WebView di dalam APK Capacitor. Supaya Vibexa
+// punya kontrol musik beneran di lock screen + notification (dan tombol
+// headset/Bluetooth), dipasang plugin Capacitor native "VibexaMedia" yang
+// menjalankan MediaSessionCompat + notifikasi MediaStyle di sisi Android
+// (lihat VibexaMediaService.kt & VibexaMediaPlugin.kt). Blok ini HANYA
+// menjembatani status player yang sudah ada (YTP/curTrack/playing/cur/tot)
+// ke plugin itu — TIDAK ada mesin pemutaran baru yang dibuat di sini.
+let _vbxNativeMediaReady = false;
+
+function _vbxMediaPlugin(){ return window.Capacitor?.Plugins?.VibexaMedia || null; }
+
+async function _vbxInitNativeMedia(){
+  const isNative = await _waitForCapacitorBridge();
+  if(!isNative) return; // di browser biasa, cukup pakai navigator.mediaSession
+  const VM = _vbxMediaPlugin();
+  if(!VM){
+    console.warn('[VBX-MEDIA] Plugin native VibexaMedia tidak terdeteksi — pastikan VibexaMediaPlugin sudah didaftarkan di MainActivity & app sudah di-rebuild.');
+    return;
+  }
+  _vbxNativeMediaReady = true;
+
+  // Handler2 di bawah ini SENGAJA meniru persis logic
+  // navigator.mediaSession.setActionHandler(...) di _setupMediaSession() di
+  // atas, supaya tombol lock screen & tombol web media session berperilaku
+  // identik, termasuk untuk lagu offline (curTrack.offline / dl-audio).
+  VM.addListener('play', ()=>{
+    if(YTP){ YTP.playVideo(); playing=true; setPB(true); tick(); _armSongTimer(); }
+    else if(curTrack){ if(curTrack.offline) playOfflineTrack(curTrack.id); else loadPlay(curTrack); }
+  });
+  VM.addListener('pause', ()=>{
+    if(YTP){ YTP.pauseVideo(); playing=false; setPB(false); cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer(); }
+  });
+  VM.addListener('next', ()=>{ playNext(); });
+  VM.addListener('previous', ()=>{ playPrev(); });
+  VM.addListener('seek', (d)=>{
+    const seekSec = (d && typeof d.positionMs === 'number') ? d.positionMs/1000 : null;
+    if(YTP && seekSec!=null){ YTP.seekTo(seekSec, true); cur=seekSec; _armSongTimer(); }
+  });
+
+  // Kalau ada lagu yang sudah aktif SEBELUM plugin ini selesai konek
+  // (mis. race condition saat startup), sinkronkan sekali secara manual.
+  if(curTrack){ _vbxPushNativeMetadata(curTrack); _vbxPushNativePlaybackState(playing); }
+}
+_vbxInitNativeMedia();
+
+function _vbxPushNativeMetadata(track){
+  if(!_vbxNativeMediaReady || !track) return;
+  const VM = _vbxMediaPlugin();
+  if(!VM) return;
+  const artworkUrl = track.artworkUrl||track.img||track.cover||track.photo||track.thumb||'';
+  const durationMs = ((tot && tot>0) ? tot : (track.duration||0)) * 1000;
+  VM.updateMetadata({
+    title: track.title||'Vibexa',
+    artist: track.artist||'',
+    artworkUrl,
+    duration: durationMs
+  }).catch(()=>{});
+}
+
+function _vbxPushNativePlaybackState(isPlaying){
+  if(!_vbxNativeMediaReady) return;
+  const VM = _vbxMediaPlugin();
+  if(!VM) return;
+  VM.updatePlaybackState({
+    playing: !!isPlaying,
+    positionMs: (cur||0) * 1000
+  }).catch(()=>{});
+}
+
+// Posisi progress bar lock screen disinkronkan tiap 1 detik selagi lagu
+// jalan (tanpa ini, scrubber lock screen diam di posisi terakhir yang
+// di-push lewat setPB()/_setupMediaSession() saja).
+// PENTING: sengaja pakai VM.updatePosition() (RINGAN, cuma update angka
+// posisi), BUKAN _vbxPushNativePlaybackState()/updatePlaybackState().
+// Versi awal fitur ini memanggil updatePlaybackState() tiap detik, yang di
+// sisi native ikut me-request ulang audio focus tiap kali dipanggil —
+// bentrok dengan audio focus yang sudah dipegang WebView sendiri (iframe
+// YouTube / elemen <audio>) dan menyebabkan lagu ke-pause sendiri secara
+// berkala. updatePosition() tidak menyentuh audio focus sama sekali.
+setInterval(()=>{
+  if(!playing || !_vbxNativeMediaReady) return;
+  const VM = _vbxMediaPlugin();
+  if(VM) VM.updatePosition({ positionMs: (cur||0) * 1000 }).catch(()=>{});
+}, 1000);
 
 function ft(s){ if(!s||isNaN(s))return'0:00'; return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0'); }
 function updProg(){
@@ -5195,6 +5554,58 @@ async function downloadCurrentSongOffline(){
     _dlDownloadingIds.delete(videoId);
     btns.forEach(b => { if (b) b.classList.remove('dl-downloading'); });
   }
+}
+
+// ── Cek apakah sebuah track (dari katalog online) SUDAH tersimpan di
+// Unduhan Offline — dicocokkan lewat judul+artis yang dinormalisasi (huruf
+// kecil, tanda baca/spasi dibuang) supaya sedikit perbedaan format (mis.
+// "Blinding Lights" vs "blinding lights ") tetap dianggap sama. Dipakai oleh
+// loadPlay() supaya lagu yang sudah pernah diunduh langsung diputar dari
+// offline, tanpa perlu convert/stream ulang dari YouTube.
+function _dlNormalizeForMatch(s){
+  return (s || '').toLowerCase().replace(/\(feat[^)]*\)/gi,'').replace(/\[[^\]]*\]/g,'').replace(/[^a-z0-9]/g,'').trim();
+}
+async function _dlFindMatchingTrack(track){
+  if (!track) return null;
+  try {
+    const list = await _dlGetAllMeta();
+    _dlList = list; // sinkronkan cache global juga
+    const wantTitle = _dlNormalizeForMatch(track.title);
+    const wantArtist = _dlNormalizeForMatch(track.artist);
+    if (!wantTitle) return null;
+    return list.find(t => _dlNormalizeForMatch(t.name) === wantTitle && _dlNormalizeForMatch(t.artist) === wantArtist) || null;
+  } catch (e) { return null; }
+}
+
+// ── Konversi YouTube→MP3 lalu simpan ke Unduhan Offline, untuk video ID +
+// metadata APAPUN (tidak harus curTrack yang sedang diputar). Dipakai oleh
+// alur "putar otomatis via unduhan" di loadPlay(). Mengembalikan record hasil
+// simpan (berisi `id`) kalau berhasil, atau melempar error kalau gagal —
+// supaya pemanggil bisa memutuskan fallback-nya sendiri.
+async function _dlConvertAndSave(videoId, title, artist, artUrl, lyricsSnapshot){
+  if (!YT2MP3_API_KEY || !YT2MP3_API_KEY.trim()) throw new Error('API key belum diisi');
+  let data = await _yt2mp3Fetch(videoId);
+  let attempts = 0;
+  while (data && data.status === 'processing' && attempts < 20){
+    attempts++;
+    await _dlSleep(1500);
+    data = await _yt2mp3Fetch(videoId);
+  }
+  if (!data || data.status !== 'ok' || !data.link) throw new Error((data && data.msg) || 'Konversi gagal, coba lagi');
+
+  const res = await fetch(data.link);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const blob = await res.blob();
+
+  let artBlob = null;
+  if (artUrl) {
+    try {
+      const artRes = await fetch(artUrl);
+      if (artRes.ok) artBlob = await artRes.blob();
+    } catch (e) { console.warn('Gagal mengambil foto album asli, fallback ke ID3:', e); }
+  }
+
+  return _dlAddRemoteBlob(title, artist, blob, artBlob, lyricsSnapshot);
 }
 
 // ─── SEARCH via iTunes ────────────────────────────────────
@@ -6068,6 +6479,18 @@ function hideStreakCelebration(){
 }
 
 async function loadPlay(track, fromPlId){
+  // ── OFFLINE-FIRST ─────────────────────────────────────────────────────
+  // Kalau lagu ini SUDAH pernah diunduh & tersimpan di "Unduhan Offline",
+  // langsung putar dari situ — tanpa loading YouTube, tanpa convert ulang.
+  try {
+    const _offlineMatch = await _dlFindMatchingTrack(track);
+    if (_offlineMatch) {
+      toast(' Memutar dari Unduhan Offline...');
+      await playOfflineTrack(_offlineMatch.id, fromPlId);
+      return;
+    }
+  } catch (e) { console.warn('Cek Unduhan Offline gagal, lanjut ke alur biasa:', e); }
+
   // Hentikan pemutaran lagu offline (kalau ada) supaya audio tidak tabrakan.
   // Lagu online & offline memakai mini player (#bar) yang SAMA — tidak ada
   // bar terpisah lagi yang perlu disembunyikan di sini.
@@ -6163,8 +6586,31 @@ async function loadPlay(track, fromPlId){
     ({videoId,lines}=await resolveVidByDuration(track.artist, track.title, cl, track.duration));
   }
   if(videoId){
-    toast(' Memutar songs...');
     curTrack.videoId = videoId;
+    const _myPlayGen = _playGen; // guard: batalkan kalau user pindah lagu lain sebelum proses ini selesai
+
+    // ── AUTO CONVERT → MP3 → SIMPAN KE UNDUHAN OFFLINE → PUTAR ──────────
+    // Lagu belum ada di Unduhan Offline (sudah dicek di awal loadPlay), jadi
+    // konversi dulu ke MP3 di background, simpan ke IndexedDB, BARU diputar
+    // dari hasil unduhan itu. Kalau gagal (mis. API down/limit), otomatis
+    // jatuh ke streaming YouTube seperti biasa supaya user tetap bisa dengar.
+    let _playedFromOffline = false;
+    try {
+      toast(' Mengonversi ke MP3, mohon tunggu...', 8000);
+      const lyricsSnapshot = (lines && lines.length) ? lines : null;
+      const record = await _dlConvertAndSave(videoId, track.title, track.artist, track.thumb, lyricsSnapshot);
+      if (_myPlayGen !== _playGen) return; // user sudah pindah ke lagu lain selama proses ini
+      refreshDownloadsList();
+      await playOfflineTrack(record.id, fromPlId);
+      _playedFromOffline = true;
+    } catch (e) {
+      console.warn('Auto-convert ke MP3 gagal, fallback ke streaming YouTube:', e);
+    }
+
+    if (_playedFromOffline) return; // playOfflineTrack sudah mengurus semua UI & lirik, selesai di sini
+
+    if (_myPlayGen !== _playGen) return; // sudah tidak relevan lagi, jangan lanjut ke fallback
+    toast(' Streaming langsung (mode unduhan gagal)...');
     await initPlayer(videoId).then(()=>_addRecentlyPlayed(track)).catch(e=>{console.error('initPlayer error:',e);toast(' Failed to load video, coba songs lain');_nextGuarded=false;});
   }else{
     toast(' Video not found. Try another song.'); _nextGuarded=false;
@@ -13750,6 +14196,12 @@ let _notifCache = [];           // cache notifikasi terakhir yang dirender
 let _notifSelectMode = false;   // apakah mode pilih sedang aktif
 let _selectedNotifIds = new Set(); // id notifikasi yang sedang dicentang
 
+// Config update APK terbaru yang berhasil dideteksi oleh checkForAppUpdate()
+// (lihat bagian "CEK UPDATE APK" di bawah). Dipakai untuk menampilkan kartu
+// pinned "Update Tersedia" di panel notifikasi (bell), supaya user yang
+// menutup/melewatkan modal tetap bisa update lewat notifikasi.
+let _pendingApkUpdate = null;
+
 // ── Notifikasi "Download / Update App" (pinned di paling atas panel bell) ──
 // Naikkan APP_VERSION setiap kali merilis versi baru supaya notifikasi ini
 // muncul lagi ke user yang sebelumnya sudah menekan "Nanti".
@@ -13788,6 +14240,68 @@ function buildAppUpdateNotifHtml() {
 function dismissAppUpdateNotif() {
   localStorage.setItem('vibexa_pwa_dismissed_version', APP_VERSION);
   renderNotifications(_notifCache);
+}
+
+// ── Notifikasi "Update APK Tersedia" (pinned di panel bell, sumber data
+// dari _pendingApkUpdate yang diisi oleh checkForAppUpdate()) ──
+// Pakai key dismiss yang SAMA dengan modal ('vbx_update_dismissed') supaya
+// menekan "Nanti" di modal ATAU di kartu notifikasi ini efeknya konsisten:
+// keduanya sama-sama disembunyikan untuk versionCode yang sama, di sesi ini.
+function isApkUpdateDismissed(versionCode) {
+  try {
+    return sessionStorage.getItem('vbx_update_dismissed') === String(versionCode);
+  } catch (e) {
+    return false;
+  }
+}
+
+function shouldShowApkUpdateNotif() {
+  return !!(_pendingApkUpdate && _pendingApkUpdate.versionCode && _pendingApkUpdate.apkUrl
+    && (_pendingApkUpdate.forceUpdate || !isApkUpdateDismissed(_pendingApkUpdate.versionCode)));
+}
+
+function buildApkUpdateNotifHtml() {
+  const cfg = _pendingApkUpdate;
+  if (!cfg) return '';
+  const changelogHtml = cfg.changelog
+    ? `<div class="notif-comment-preview">${esc(String(cfg.changelog))}</div>`
+    : '';
+  return `
+    <div class="notif-item notif-app-item" id="notif-apk-update-item">
+      <div class="notif-icon-wrap notif-icon-app">🚀</div>
+      <div class="notif-body">
+        <div class="notif-msg">
+          <strong>Vibexa</strong> Update ${esc(cfg.versionName || '')} tersedia untuk diunduh.
+        </div>
+        ${changelogHtml}
+        <div class="notif-app-actions">
+          <button class="notif-download-btn" type="button" onclick="event.stopPropagation(); downloadApkUpdateNow();">Update Sekarang</button>
+          ${cfg.forceUpdate ? '' : '<button class="notif-dismiss-btn" type="button" onclick="event.stopPropagation(); dismissApkUpdateNotif();">Nanti</button>'}
+        </div>
+        <div class="notif-time">Versi ${esc(cfg.versionName || '')}</div>
+      </div>
+    </div>
+  `;
+}
+
+function downloadApkUpdateNow() {
+  if (!_pendingApkUpdate || !_pendingApkUpdate.apkUrl) return;
+  window.open(_pendingApkUpdate.apkUrl, '_system');
+}
+
+function dismissApkUpdateNotif() {
+  if (!_pendingApkUpdate) return;
+  try { sessionStorage.setItem('vbx_update_dismissed', String(_pendingApkUpdate.versionCode)); } catch (e) {}
+  renderNotifications(_notifCache);
+  refreshAppInstallBadge();
+}
+
+// Dipanggil dari checkForAppUpdate() setiap kali status update berubah,
+// supaya kartu pinned di panel notifikasi & badge lonceng langsung sinkron
+// tanpa perlu user membuka/menutup panel dulu.
+function refreshApkUpdateNotifUI() {
+  renderNotifications(_notifCache);
+  refreshAppInstallBadge();
 }
 
 function timeAgo(ts) {
@@ -14010,15 +14524,19 @@ function renderNotifications(notifs) {
   const list = document.getElementById('notif-list');
   if (!list) return;
 
+  // Kartu update APK dipasang paling atas (prioritas tertinggi), baru
+  // kartu ajakan install PWA, baru notifikasi normal (like/komentar/dst).
+  const apkUpdateHtml = shouldShowApkUpdateNotif() ? buildApkUpdateNotifHtml() : '';
   const appUpdateHtml = shouldShowAppUpdateNotif() ? buildAppUpdateNotifHtml() : '';
+  const pinnedHtml = apkUpdateHtml + appUpdateHtml;
 
   if (!notifs || !notifs.length) {
-    list.innerHTML = appUpdateHtml + `<div class="notif-empty"><span></span>No notifications yet.<br>When someone likes, comments,<br>likes your chat message, or sends<br>an anonymous message, it will appear here.</div>`;
+    list.innerHTML = pinnedHtml + `<div class="notif-empty"><span></span>No notifications yet.<br>When someone likes, comments,<br>likes your chat message, or sends<br>an anonymous message, it will appear here.</div>`;
     updateNotifBulkBar();
     return;
   }
   const sorted = [...notifs].sort((a, b) => (b.ts || 0) - (a.ts || 0));
-  list.innerHTML = appUpdateHtml;
+  list.innerHTML = pinnedHtml;
   sorted.forEach(n => {
     const item = document.createElement('div');
     const isChecked = _selectedNotifIds.has(n._id);
@@ -14254,7 +14772,9 @@ function startNotifListeners() {
     renderNotifications(notifs);
 
     // Hitung unread
-    const unread = notifs.filter(n => !n.read).length + (shouldShowAppUpdateNotif() ? 1 : 0);
+    const unread = notifs.filter(n => !n.read).length
+      + (shouldShowAppUpdateNotif() ? 1 : 0)
+      + (shouldShowApkUpdateNotif() ? 1 : 0);
     updateNotifBadge(unread);
   });
   _notifListeners.push(() => notifRef.off('value', allOff));
@@ -14988,6 +15508,128 @@ if ('serviceWorker' in navigator) {
 }
 
 // ══════════════════════════════════════════════════════════
+// CEK UPDATE APK (untuk distribusi APK langsung / sideload, bukan Play Store)
+// ══════════════════════════════════════════════════════════
+// Cara kerja: app baca node "app_update/android" di Firebase Realtime
+// Database (project Firebase yang sama dengan yang sudah dipakai app ini),
+// bandingkan versionCode di sana dengan versionCode app yang sedang
+// berjalan (didapat dari plugin native @capacitor/app). Kalau ada yang
+// lebih baru, tampilkan modal dengan tombol "Update Sekarang" yang membuka
+// link APK di browser luar (biar proses download & install ditangani OS).
+//
+// Setup yang perlu dilakukan SEKALI di sisi kamu:
+// 1) npm install @capacitor/app          (kalau belum ada)
+//    npx cap sync android
+// 2) Di Firebase Console → Realtime Database, buat node:
+//      app_update/
+//        android/
+//          versionCode: 2            // integer, samakan/lebih tinggi dari
+//                                     // versionCode di android/app/build.gradle
+//          versionName: "1.0.1"      // teks bebas, cuma ditampilkan ke user
+//          apkUrl: "https://.../vibexa-1.0.1.apk"   // link download APK
+//          changelog: "Perbaikan bug offline mode"   // opsional
+//          forceUpdate: false         // true = user wajib update (tombol
+//                                     // "Nanti Saja" disembunyikan)
+// 3) Setiap kali rilis APK baru: build APK, upload ke tempat hosting APK-nya
+//    (Firebase Storage / GitHub Releases / server sendiri), lalu update
+//    node app_update/android di atas (versionCode HARUS dinaikkan, samakan
+//    dengan versionCode baru di android/app/build.gradle).
+async function checkForAppUpdate() {
+  try {
+    // Fitur ini cuma relevan di app native (APK), bukan saat dibuka lewat
+    // browser biasa — dan butuh koneksi internet untuk baca Firebase & plugin App.
+    const isNative = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+    if (!isNative || !navigator.onLine) {
+      return;
+    }
+    if (!window.Capacitor.Plugins || !window.Capacitor.Plugins.App) {
+      console.warn('Plugin @capacitor/app belum terpasang — cek update dilewati. Jalankan: npm install @capacitor/app && npx cap sync');
+      return;
+    }
+    if (!db) return; // Firebase belum siap (mis. baru masuk mode offline)
+
+    const info = await window.Capacitor.Plugins.App.getInfo();
+    const currentVersionCode = parseInt(info.build, 10) || 0;
+
+    const snap = await db.ref('app_update/android').once('value');
+    const cfg = snap.val();
+
+    if (!cfg || !cfg.versionCode || !cfg.apkUrl) return;
+
+    if (cfg.versionCode > currentVersionCode) {
+      // Simpan cfg supaya kartu "Update Tersedia" ikut muncul pinned di
+      // panel notifikasi (bell) — bukan cuma modal sekali muncul.
+      _pendingApkUpdate = cfg;
+      refreshApkUpdateNotifUI();
+      showAppUpdateModal(cfg);
+    } else {
+      // Versi app sekarang sudah sama/lebih baru dari Firebase — bersihkan
+      // kartu pinned lama (mis. setelah user benar-benar update APK-nya).
+      if (_pendingApkUpdate) {
+        _pendingApkUpdate = null;
+        refreshApkUpdateNotifUI();
+      }
+    }
+  } catch (e) {
+    console.warn('Gagal cek update APK:', e);
+  }
+}
+
+function showAppUpdateModal(cfg) {
+  // Jangan tampilkan berkali-kali kalau modal sudah ada di layar
+  if (document.getElementById('vbx-update-modal')) return;
+  // Jangan ganggu user berkali-kali di sesi yang sama untuk versi yang sama
+  // kalau dia sudah menekan "Nanti Saja" (kecuali forceUpdate = true)
+  const dismissedVersion = sessionStorage.getItem('vbx_update_dismissed');
+  if (!cfg.forceUpdate && dismissedVersion === String(cfg.versionCode)) return;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'vbx-update-modal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;';
+
+  const box = document.createElement('div');
+  box.style.cssText = 'background:#171717;color:#fff;border-radius:16px;max-width:360px;width:100%;padding:24px;text-align:center;font-family:inherit;box-shadow:0 20px 60px rgba(0,0,0,.5);';
+
+  const changelogHtml = cfg.changelog
+    ? `<p style="margin:0 0 20px;font-size:14px;line-height:1.5;color:#c9c9c9;white-space:pre-line;">${String(cfg.changelog).replace(/</g,'&lt;')}</p>`
+    : '';
+
+  box.innerHTML = `
+    <div style="font-size:40px;margin-bottom:8px;">🚀</div>
+    <h2 style="margin:0 0 8px;font-size:18px;">Update Tersedia</h2>
+    <p style="margin:0 0 16px;font-size:13px;color:#9a9a9a;">Versi baru ${cfg.versionName ? cfg.versionName : ''} sudah bisa diunduh.</p>
+    ${changelogHtml}
+    <button id="vbx-update-btn" style="width:100%;padding:12px;border:none;border-radius:999px;background:#1DB954;color:#000;font-weight:700;font-size:14px;cursor:pointer;margin-bottom:10px;">Update Sekarang</button>
+    ${cfg.forceUpdate ? '' : '<button id="vbx-update-later-btn" style="width:100%;padding:10px;border:none;background:transparent;color:#9a9a9a;font-size:13px;cursor:pointer;">Nanti Saja</button>'}
+  `;
+
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+
+  document.getElementById('vbx-update-btn').addEventListener('click', () => {
+    // Buka link APK di browser eksternal — biarkan OS Android yang menangani
+    // proses download & prompt install (termasuk minta izin "install dari
+    // sumber tidak dikenal" kalau belum pernah diizinkan sebelumnya).
+    window.open(cfg.apkUrl, '_system');
+  });
+
+  const laterBtn = document.getElementById('vbx-update-later-btn');
+  if (laterBtn) {
+    laterBtn.addEventListener('click', () => {
+      try { sessionStorage.setItem('vbx_update_dismissed', String(cfg.versionCode)); } catch (e) {}
+      overlay.remove();
+    });
+  }
+}
+
+// Cek update sekali saat app dibuka (beri jeda dikit supaya Firebase & auth
+// sempat siap dulu), lalu ulangi tiap kali app kembali ke foreground.
+setTimeout(checkForAppUpdate, 2000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') checkForAppUpdate();
+});
+
+// ══════════════════════════════════════════════════════════
 // PWA INSTALL — dipicu dari tombol "Download" di notifikasi lonceng
 // ══════════════════════════════════════════════════════════
 let _deferredInstallPrompt = null;
@@ -15022,7 +15664,9 @@ window.addEventListener('appinstalled', () => {
 });
 
 function refreshAppInstallBadge() {
-  const unread = (_notifCache || []).filter(n => !n.read).length + (shouldShowAppUpdateNotif() ? 1 : 0);
+  const unread = (_notifCache || []).filter(n => !n.read).length
+    + (shouldShowAppUpdateNotif() ? 1 : 0)
+    + (shouldShowApkUpdateNotif() ? 1 : 0);
   updateNotifBadge(unread);
 }
 
