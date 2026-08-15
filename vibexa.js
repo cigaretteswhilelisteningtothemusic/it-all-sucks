@@ -145,6 +145,13 @@ let _repeatMode = 'off';
 // Dipakai tombol Queue di halaman Now Playing mobile: null berarti tidak sedang
 // memutar dari playlist manapun (mis. Daily Mix, single track, dsb) → tombol disembunyikan.
 let _npPlayingPlId = null;
+// Referensi objek "mix" (Daily Mix / Made For You / Weekday Vibes / Playlist
+// Pop / Radio Artis Favorit / Mix Tahunan — semuanya memakai playDailyMix()/
+// openDailyMix() yang sama) yang SEDANG diputar, kalau ada. Playlist2 ini
+// BUKAN milik user (tidak ada di objek `playlists`), jadi tombol Queue perlu
+// cara terpisah untuk tahu "sedang main dari mix apa" — lihat
+// updateNPMobQueueBtn() & goToPlayingPlaylist().
+let _npPlayingMixRef = null;
 
 // ── Pre-fetch cache: simpan videoId songs berikutnya saat foreground ──────────
 let _prefetchCache = {}; // key: track._query → { videoId, lyrs }
@@ -5053,6 +5060,12 @@ function _stopBgInterval(){ if(_bgInterval){ clearInterval(_bgInterval); _bgInte
 
 document.addEventListener('visibilitychange', ()=>{
   if(document.hidden){
+    // Jaminan ganda: beri tahu native "app background" langsung dari sini
+    // juga (selain lewat handleOnPause() di native, lihat VibexaMediaPlugin.kt)
+    // — dipanggil PALING AWAL & sinkron, sebelum kerja async apa pun di bawah,
+    // supaya waktunya sedini mungkin kalau-kalau lifecycle callback native
+    // di beberapa device/versi Capacitor tidak konsisten terpanggil.
+    try{ const VM=_vbxMediaPlugin(); if(VM && VM.setBridgeAlive) VM.setBridgeAlive({ alive:false }).catch(()=>{}); }catch(e){}
     // Tab masuk background — hentikan rAF, pasang fallback timer & interval
     cancelAnimationFrame(raf);
     if(playing){
@@ -5066,9 +5079,71 @@ document.addEventListener('visibilitychange', ()=>{
       _startBgInterval();   // interval cadangan & sinkronisasi posisi
       // Pastikan cache songs berikutnya sudah siap sebelum songs berakhir
       _prefetchNext();
+      // FIX Next/lanjut playlist di lock screen saat di luar app: serahkan
+      // kendali pemutaran ke ExoPlayer native (lihat _vbxHandoffToNative()),
+      // supaya tidak bergantung pada timer JS di atas yang kemungkinan besar
+      // tetap tidak jalan begitu WebView benar-benar dibekukan Android.
+      _vbxHandoffToNative();
     }
   } else {
     // Tab kembali foreground
+    try{ const VM=_vbxMediaPlugin(); if(VM && VM.setBridgeAlive) VM.setBridgeAlive({ alive:true }).catch(()=>{}); }catch(e){}
+    // JS mengambil kembali otoritas atas auto-advance SEKARANG JUGA (lihat
+    // deklarasi _vbxNativeInControl) — sebelum menunggu async apa pun di
+    // bawah, supaya tidak ada celah waktu ganjil di mana KEDUANYA (native
+    // yang baru saja dimatikan & JS yang belum resmi "hidup") sama-sama
+    // menganggap dirinya bukan pemegang kendali.
+    _vbxNativeInControl = false;
+
+    // Nyalakan lagi suara WebView SECEPAT mungkin kalau tadi dibisukan untuk
+    // handoff ke native (lihat _vbxYtMutedForHandoff di _vbxHandoffToNative())
+    // — dilakukan di sini (sinkron, sebelum menunggu 'nativeTrackChanged' di
+    // bawah) supaya user tidak merasakan jeda "hening" saat baru buka app lagi.
+    if(_vbxYtMutedForHandoff){
+      try{ if(YTP && YTP.unMute) YTP.unMute(); }catch(e){}
+      _vbxYtMutedForHandoff = false;
+    }
+
+    // ExoPlayer native mungkin sudah pindah/lanjut lagu sendiri selagi kita
+    // di background — samakan WebView dulu SEBELUM logic _pendingNext lama
+    // di bawah (yang mengasumsikan curTrack masih lagu terakhir yang
+    // diketahui JS, padahal bisa saja sudah ketinggalan beberapa lagu).
+    // Event 'nativeTrackChanged' dikirim ASINKRON dari native (lewat bridge
+    // Capacitor), jadi tunggu sebentar (maks ~600ms) sebelum menyimpulkan
+    // "tidak ada sync tertunda" — supaya tidak keburu jalan ke logic lama
+    // padahal sync-nya cuma belum sempat sampai.
+    (async ()=>{
+      if(_vbxNativeMediaReady && !_vbxPendingNativeSync){
+        for(let i=0; i<6 && !_vbxPendingNativeSync; i++){ await _dlSleep(100); }
+      }
+      _vbxHandleForegroundResume();
+    })();
+    return;
+  }
+});
+
+function _vbxHandleForegroundResume(){
+    // ExoPlayer native mungkin sudah pindah/lanjut lagu sendiri selagi kita
+    // di background — samakan WebView dulu SEBELUM logic _pendingNext lama
+    // di bawah (yang mengasumsikan curTrack masih lagu terakhir yang
+    // diketahui JS, padahal bisa saja sudah ketinggalan beberapa lagu).
+    if(_vbxPendingNativeSync){
+      const sync = _vbxPendingNativeSync; _vbxPendingNativeSync = null;
+      _pendingNext = false; _nextGuarded = false;
+      _clearSongTimer(); _stopBgInterval();
+      let target = curTrack;
+      if(sync.query && (!curTrack || curTrack._query !== sync.query)){
+        target = curQueue.find(t => t._query === sync.query) || target;
+      }
+      if(target){
+        loadPlay(target, currentPlaylistId).then(()=>{
+          if(sync.positionMs != null && YTP){ YTP.seekTo(sync.positionMs/1000, true); cur = sync.positionMs/1000; }
+          if(sync.playing === false && YTP){ YTP.pauseVideo(); playing=false; setPB(false); }
+        }).catch(()=>{});
+      }
+      return;
+    }
+
     _stopBgInterval();
     _nextGuarded = false;
 
@@ -5108,8 +5183,7 @@ document.addEventListener('visibilitychange', ()=>{
         _armSongTimer();
       }
     }
-  }
-});
+}
 
 function tick(){
   cancelAnimationFrame(raf);
@@ -5187,6 +5261,18 @@ async function _vbxInitNativeMedia(){
     if(YTP && seekSec!=null){ YTP.seekTo(seekSec, true); cur=seekSec; _armSongTimer(); }
   });
 
+  // FIX "Next/lanjut playlist tidak jalan saat di luar app": ExoPlayer di
+  // sisi native sudah pindah/lanjut lagu SENDIRI selagi WebView dibekukan
+  // Android. Simpan info ini, lalu begitu app kembali foreground (lihat
+  // handler visibilitychange di bawah), samakan WebView ke lagu & posisi
+  // yang sama persis alih-alih tetap di lagu lama / restart dari awal.
+  VM.addListener('nativeTrackChanged', (d)=>{ _vbxPendingNativeSync = d || null; });
+
+  // Antrian native cuma dibekali 1-2 lagu ke depan saat handoff (supaya
+  // tidak lama nunggu resolve MP3 sebelum masuk background) — begitu
+  // tinggal 1 lagu tersisa di sana, native minta lagu berikutnya lagi.
+  VM.addListener('nativeNeedsMoreQueue', ()=>{ _vbxAppendNextToNativeQueue(); });
+
   // Kalau ada lagu yang sudah aktif SEBELUM plugin ini selesai konek
   // (mis. race condition saat startup), sinkronkan sekali secara manual.
   if(curTrack){ _vbxPushNativeMetadata(curTrack); _vbxPushNativePlaybackState(playing); }
@@ -5205,6 +5291,11 @@ function _vbxPushNativeMetadata(track){
     artworkUrl,
     duration: durationMs
   }).catch(()=>{});
+  // Mulai cache-kan URL MP3 lagu ini sedini mungkin (begitu lagu MULAI
+  // diputar, bukan menunggu _prefetchNext yang baru jalan ~500ms-1s
+  // kemudian) — makin awal, makin besar peluang sudah siap sebelum app
+  // sempat masuk background.
+  _vbxPrewarmStreamUrlCache();
 }
 
 function _vbxPushNativePlaybackState(isPlaying){
@@ -5215,6 +5306,250 @@ function _vbxPushNativePlaybackState(isPlaying){
     playing: !!isPlaying,
     positionMs: (cur||0) * 1000
   }).catch(()=>{});
+}
+
+// ─── Handoff pemutaran ke ExoPlayer native saat app di background ─────────
+// Diisi lewat listener 'nativeTrackChanged' (lihat _vbxInitNativeMedia())
+// begitu ExoPlayer native pindah/lanjut lagu sendiri selagi app di
+// background. Dipakai untuk sinkronisasi begitu app kembali foreground.
+let _vbxPendingNativeSync = null;
+// Query lagu yang TERAKHIR dikirim ke native, supaya _vbxAppendNextToNativeQueue()
+// tahu lagu setelah-apa yang harus dicari (bukan cuma andalkan curTrack, yang
+// mungkin belum berubah kalau handoff dikirim mendadak).
+let _vbxLastNativeQueueQuery = null;
+// Cache URL MP3 langsung, key = track._query. Diisi lebih awal selagi masih
+// foreground (lihat _vbxPrewarmStreamUrlCache()) supaya _vbxHandoffToNative()
+// saat app masuk background TIDAK PERLU nunggu network sama sekali — cukup
+// ambil dari sini. Ini yang memperbaiki kasus handoff tidak pernah terkirim
+// karena keburu dibatasi Android sebelum polling RapidAPI selesai.
+let _vbxStreamUrlCache = {};
+let _vbxStreamUrlPrewarming = new Set();
+
+// Resolve + simpan URL MP3 untuk curTrack & 1 lagu berikutnya ke cache,
+// selagi masih (hampir pasti) foreground. Dipanggil dari _prefetchNext() —
+// yaitu ~500ms-1s setelah tiap lagu mulai PLAYING — dan sekali lagi tepat
+// saat _vbxPushNativeMetadata() dipanggil (lihat di bawah), supaya lagu yang
+// SEDANG diputar juga langsung dicache, bukan cuma lagu berikutnya.
+async function _vbxPrewarmStreamUrlCache(){
+  if(!_vbxNativeMediaReady) return;
+  const targets = [];
+  if(curTrack) targets.push(curTrack);
+  const next = _vbxComputeNextTrack(curTrack);
+  if(next) targets.push(next);
+  for(const t of targets){
+    if(!t || !t._query || _vbxStreamUrlCache[t._query] || _vbxStreamUrlPrewarming.has(t._query)) continue;
+    _vbxStreamUrlPrewarming.add(t._query);
+    _vbxResolveStreamUrl(t).then(url=>{
+      if(url) _vbxStreamUrlCache[t._query] = url;
+    }).finally(()=>{ _vbxStreamUrlPrewarming.delete(t._query); });
+  }
+}
+
+// Resolve URL MP3 langsung (bukan blob: WebView) untuk sebuah track, dengan
+// memakai ULANG videoId yang sudah pernah ditemukan (curTrack.videoId /
+// _prefetchCache) — _yt2mp3Fetch() untuk video yang sudah pernah dikonversi
+// biasanya instan (RapidAPI mengembalikan link dari cache), jadi ini cukup
+// cepat dipanggil tepat sebelum/masuk background.
+async function _vbxResolveStreamUrl(track){
+  if(!track) return null;
+  if(track._query && _vbxStreamUrlCache[track._query]) return _vbxStreamUrlCache[track._query];
+  let videoId = track.videoId || (_prefetchCache[track._query] && _prefetchCache[track._query].videoId) || null;
+  if(!videoId){
+    try{
+      const cl = cleanT(track.title);
+      const r = await resolveVidByDuration(track.artist, track.title, cl, track.duration);
+      videoId = r && r.videoId;
+    }catch(e){ return null; }
+  }
+  if(!videoId) return null;
+  try{
+    let data = await _yt2mp3Fetch(videoId);
+    let attempts = 0;
+    while(data && data.status === 'processing' && attempts < 8){
+      attempts++; await _dlSleep(1200); data = await _yt2mp3Fetch(videoId);
+    }
+    return (data && data.status === 'ok' && data.link) ? data.link : null;
+  }catch(e){ return null; }
+}
+
+function _vbxTrackToQueueItem(track, streamUrl){
+  return {
+    title: track.title||'', artist: track.artist||'',
+    artworkUrl: track.artworkUrl||track.img||track.cover||track.thumb||'',
+    streamUrl, durationMs: Math.round((track.duration||0)*1000),
+    query: track._query||''
+  };
+}
+
+// Ambil "lagu berikutnya" menurut aturan yang SAMA PERSIS dengan playNext()
+// (playlist/queue biasa vs murni Unduhan Offline), supaya urutan yang
+// dijalankan native identik dengan yang dijalankan JS.
+function _vbxComputeNextTrack(afterTrack){
+  if(afterTrack && afterTrack.offline && _qIdx()===-1) return null; // navigasi Unduhan Offline murni tidak didukung native
+  if(!curQueue.length) return null;
+  const i = _qIdx();
+  return curQueue[i===-1 ? 0 : (i+1) % curQueue.length] || null;
+}
+
+// Sama seperti _vbxComputeNextTrack(), TAPI menghitung murni dari posisi
+// `track` di curQueue (bukan dari curTrack global). Dipakai khusus untuk
+// mencari "lagu setelah lagu berikutnya" (buffer ke-3 di _vbxHandoffToNative())
+// — _vbxComputeNextTrack() TIDAK BISA dipakai untuk ini karena _qIdx() di
+// dalamnya selalu mengacu ke curTrack global, mengabaikan argumennya sama
+// sekali (jadi hasilnya akan sama terus, bukan lagu setelahnya).
+function _vbxTrackAfter(track){
+  if(!curQueue.length || !track) return null;
+  const i = curQueue.findIndex(t => t._query === track._query);
+  if(i === -1) return null;
+  return curQueue[(i+1) % curQueue.length] || null;
+}
+
+// Token generasi handoff: dipakai supaya panggilan _vbxHandoffToNative()
+// yang LEBIH BARU (mis. app background lalu foreground lalu background lagi
+// dengan cepat) otomatis membatalkan hasil resolve dari panggilan LAMA yang
+// masih menggantung, dan supaya panggilan yang sudah basi tidak menimpa
+// queue native dengan lagu yang salah (lihat pengecekan staleness di bawah).
+let _vbxHandoffGen = 0;
+// True kalau YTP (video WebView) sedang dibisukan karena kendali audio
+// sudah diserahkan ke ExoPlayer native (lihat _vbxHandoffToNative() &
+// _vbxHandleForegroundResume()) — supaya tidak ada 2 sumber suara sekaligus.
+let _vbxYtMutedForHandoff = false;
+// FIX race condition (2 "otak" sama-sama mencoba memutuskan lagu berikutnya
+// di waktu yang sama -> bisa nyebabin 2 lagu konversi/diputar sekaligus,
+// curTrack "balapan" berubah, dst): begitu ExoPlayer native RESMI mengambil
+// alih (setQueue berhasil di _vbxHandoffToNative()), flag ini jadi true dan
+// SEMUA mekanisme auto-advance milik JS (audio/YTP 'ended', fallback timer
+// wall-clock _armSongTimer, _startBgInterval) WAJIB berhenti ikut campur —
+// lihat guard di awal _handleSongEnded(). Native satu-satunya yang boleh
+// memutuskan lagu berikutnya selama flag ini true. Direset false lagi di
+// awal proses resume-ke-foreground (lihat handler 'visibilitychange'),
+// begitu JS mengambil alih otoritas kembali.
+let _vbxNativeInControl = false;
+
+// Dipanggil saat app baru masuk background: serahkan lagu yang sedang
+// diputar (+ 1 lagu berikutnya kalau sempat resolve) ke ExoPlayer native,
+// supaya Next/Previous di lock screen & auto-lanjut playlist tetap jalan
+// walau WebView sedang dibekukan Android.
+async function _vbxHandoffToNative(){
+  if(!_vbxNativeMediaReady || !curTrack) return;
+  const VM = _vbxMediaPlugin();
+  if(!VM || !VM.setQueue) return;
+  const myGen = ++_vbxHandoffGen;              // token generasi milik panggilan ini
+  const handoffQuery = curTrack._query || null; // lagu yang SEDANG diputar saat handoff ini MULAI
+  // Cache-first: kalau sudah di-prewarm selagi foreground (kasus normal),
+  // ini instan — tidak ada network call sama sekali di titik rawan ini.
+  // Kalau BELUM ada di cache (mis. app langsung dikunci <1 detik setelah
+  // lagu mulai), tetap coba resolve tapi TIDAK BOLEH menggantung lama —
+  // dibatasi 3.5 detik saja, supaya kalaupun WebView mulai dibatasi
+  // Android, kita tidak kehilangan kesempatan mengirim minimal 1 item.
+  const curUrl = await Promise.race([
+    _vbxResolveStreamUrl(curTrack),
+    new Promise(res => setTimeout(()=>res(null), 3500))
+  ]);
+  if(!curUrl) return; // gagal dalam batas waktu -> jangan kirim apa pun (lebih aman daripada antrian salah)
+  // BUG FIX (lagu lama & lagu baru bunyi bersamaan / lock-screen Next malah
+  // "mundur" ke lagu sebelumnya): selama nunggu resolve URL di atas (bisa
+  // sampai 3.5 detik), user bisa saja sudah pencet Next/Previous di lock
+  // screen — dan kalau WebView belum benar2 dibekukan Android, JS sempat
+  // memprosesnya (curTrack sudah pindah ke lagu lain). Kalau handoff ini
+  // TETAP dikirim, ExoPlayer native akan mulai memutar LAGI lagu yang sudah
+  // basi (curTrack SEBELUM Next ditekan), bertabrakan/menimpa lagu yang
+  // sudah berjalan. Maka sebelum benar2 mengirim ke native, pastikan dulu
+  // tidak ada handoff generasi lebih baru (myGen !== _vbxHandoffGen) DAN
+  // curTrack belum berubah (masih sama seperti saat handoff ini mulai).
+  if(myGen !== _vbxHandoffGen || !curTrack || curTrack._query !== handoffQuery){
+    return;
+  }
+  const items = [_vbxTrackToQueueItem(curTrack, curUrl)];
+  const nextTrack = _vbxComputeNextTrack(curTrack);
+  if(nextTrack){
+    // BUG FIX "lagu pertama habis di background, sistem langsung berhenti,
+    // tidak lanjut ke lagu berikutnya": timeout di sini SEBELUMNYA cuma 2
+    // detik. Kalau URL lagu berikutnya belum sempat ke-cache (mis. app
+    // di-background hampir langsung setelah pindah lagu, sebelum
+    // _prefetchNext() ~500ms sempat menyelesaikan prewarm-nya), 2 detik
+    // sering TIDAK CUKUP untuk resolve dari awal (butuh cari videoId +
+    // polling RapidAPI). Hasilnya native cuma dibekali 1 lagu, lalu begitu
+    // lagu itu habis, native minta lagu tambahan ke JS — yang mustahil
+    // dijawab kalau WebView sudah benar2 dibekukan Android (itulah alasan
+    // ada mode native ini) — dan berakhir "diam" (lihat penjelasan lengkap
+    // di VibexaMediaService.kt, fungsi _requestMoreThenAdvance()).
+    // Dinaikkan ke 7 detik supaya jauh lebih sering berhasil dapat 2 lagu
+    // sejak awal, tanpa membuat proses masuk background jadi terlalu lama
+    // tertahan (curUrl sendiri sudah dibatasi terpisah 3.5 detik di atas).
+    const nUrl = await Promise.race([
+      _vbxResolveStreamUrl(nextTrack).catch(()=>null),
+      new Promise(res => setTimeout(()=>res(null), 7000))
+    ]);
+    // Cek ulang staleness lagi setelah await kedua ini (bisa saja curTrack
+    // berubah SELAMA menunggu resolve lagu berikutnya juga).
+    if(myGen !== _vbxHandoffGen || !curTrack || curTrack._query !== handoffQuery) return;
+    if(nUrl) items.push(_vbxTrackToQueueItem(nextTrack, nUrl));
+    // Buffer tambahan: coba sertakan JUGA lagu ke-3 (best-effort, budget
+    // waktu lebih singkat & TIDAK membatalkan handoff kalau gagal/timeout)
+    // supaya native tidak langsung kehabisan antrian & terpaksa minta lagu
+    // ke JS lewat 'nativeNeedsMoreQueue' — yang cuma bisa dijawab kalau
+    // WebView masih hidup, padahal biasanya sudah dibekukan Android di
+    // titik ini. Makin banyak lagu di buffer awal, makin lama playlist bisa
+    // jalan sendiri di background sebelum benar2 butuh JS lagi.
+    if(nUrl){
+      const nextNextTrack = _vbxTrackAfter(nextTrack);
+      if(nextNextTrack && nextNextTrack._query !== curTrack._query){
+        const nnUrl = await Promise.race([
+          _vbxResolveStreamUrl(nextNextTrack).catch(()=>null),
+          new Promise(res => setTimeout(()=>res(null), 3000))
+        ]);
+        if(myGen !== _vbxHandoffGen || !curTrack || curTrack._query !== handoffQuery) return;
+        if(nnUrl) items.push(_vbxTrackToQueueItem(nextNextTrack, nnUrl));
+      }
+    }
+  }
+  _vbxLastNativeQueueQuery = items[items.length-1].query;
+  const posMs = Math.round((_playStartWall>0 ? (_playStartPos + (Date.now()-_playStartWall)/1000) : (cur||0)) * 1000);
+  try{
+    await VM.setQueue({ items: JSON.stringify(items), startIndex: 0, positionMs: posMs, playing: !!playing });
+    // BUG FIX UTAMA "lagu yang belum selesai tetap lanjut memutar, tidak
+    // berhenti, walau lagu berikutnya sudah terdengar main lewat native":
+    // begitu ExoPlayer native RESMI mengambil alih audio (setQueue berhasil
+    // dikirim), audio WebView (YTP) harus DIBISUKAN. Sebelumnya kode ini
+    // tidak pernah menyentuh YTP sama sekali saat handoff — WebView/YTP
+    // TETAP memutar audionya sendiri di background (Android tidak selalu
+    // langsung menghentikan audio elemen media walau JS-nya dibekukan),
+    // sehingga begitu native mulai memutar lagu berikutnya (baik otomatis
+    // maupun lewat tombol Next di lock screen), yang terdengar adalah 2
+    // lagu sekaligus. State `playing`/YTP TIDAK diubah (video tetap
+    // "berjalan" secara internal) supaya semua logic fallback timer &
+    // resync foreground yang sudah ada tetap berfungsi seperti biasa —
+    // cuma suaranya saja yang dimatikan sementara sampai app kembali
+    // foreground (lihat unMute() di handler 'visibilitychange' & di
+    // _vbxHandleForegroundResume()).
+    try{ if(YTP && YTP.mute){ YTP.mute(); _vbxYtMutedForHandoff = true; } }catch(e){}
+    // Native ExoPlayer sekarang RESMI memegang kendali — JS berhenti ikut
+    // memutuskan lagu berikutnya sendiri sampai kembali foreground (lihat
+    // deklarasi _vbxNativeInControl & guard di _handleSongEnded()).
+    _vbxNativeInControl = true;
+  }catch(e){ console.warn('[VBX-MEDIA] setQueue gagal:', e); }
+}
+
+// Dipanggil balasan atas event 'nativeNeedsMoreQueue' — native tinggal 1
+// lagu di antriannya, kirim 1 lagi supaya tidak pernah kehabisan selama app
+// masih di background.
+async function _vbxAppendNextToNativeQueue(){
+  if(!_vbxNativeMediaReady) return;
+  const VM = _vbxMediaPlugin();
+  if(!VM || !VM.appendQueue) return;
+  // Cari track objek dari _vbxLastNativeQueueQuery di curQueue, lalu ambil
+  // lagu SETELAHNYA menurut curQueue (bukan curTrack, karena curTrack tidak
+  // diupdate JS selama native yang mengendalikan pemutaran).
+  const afterQuery = _vbxLastNativeQueueQuery;
+  if(!afterQuery || !curQueue.length) return;
+  const i = curQueue.findIndex(t => t._query === afterQuery);
+  const next = curQueue[i===-1 ? 0 : (i+1) % curQueue.length];
+  if(!next) return;
+  const url = await _vbxResolveStreamUrl(next).catch(()=>null);
+  if(!url) return;
+  _vbxLastNativeQueueQuery = next._query;
+  try{ await VM.appendQueue({ item: JSON.stringify(_vbxTrackToQueueItem(next, url)) }); }catch(e){}
 }
 
 // Posisi progress bar lock screen disinkronkan tiap 1 detik selagi lagu
@@ -5322,6 +5657,16 @@ async function _prefetchNext(){
     _prefetchCache[next._query] = { videoId: videoId||null, lyrs: lines||[] };
   } catch(e){}
   _prefetching.delete(next._query);
+  // FIX race condition handoff-ke-native: dulu URL MP3 baru mulai di-resolve
+  // SETELAH app terdeteksi masuk background (_vbxHandoffToNative), padahal
+  // proses itu butuh 1 sampai ~10 detik (polling RapidAPI) — kalau di detik
+  // itu WebView sudah keburu dibatasi Android, VM.setQueue() tidak pernah
+  // sempat terpanggil sama sekali. Sekarang resolve dilakukan di SINI, jauh
+  // lebih awal selagi masih pasti foreground (dipanggil ~500ms setelah lagu
+  // mulai, lihat titik panggil _prefetchNext()), lalu hasilnya dicache —
+  // begitu app benar-benar background, _vbxHandoffToNative() tinggal pakai
+  // cache ini (instan, tanpa nunggu network sama sekali).
+  _vbxPrewarmStreamUrlCache();
 }
 // Dipakai saat user hanya memutar 1 lagu (bukan dari playlist/queue apa pun,
 // curQueue kosong) dan lagu itu selesai secara alami — lanjutkan otomatis
@@ -5447,70 +5792,40 @@ function playNext(){
   // yang nyaris bersamaan dan menyebabkan 1 songs ikut terlewat.
   _nextGuarded = true;
 
-  // Jika tab background DAN sudah ada cache → pakai loadVideoById (tanpa fetch!)
-  if(document.hidden && _prefetchCache[next._query]){
-    const cached = _prefetchCache[next._query];
-    delete _prefetchCache[next._query];
-    if(cached.videoId && YTP){
-      try{
-        // Reset state
-        cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer();
-        playing=false; cur=0; tot=0;
-        _playGen++;  // invalidasi timer songs sebelumnya
-        _pendingNext=false; // _nextGuarded TETAP true sampai PLAYING dikonfirmasi
-        curTrack = next;
-        curTrack.videoId = cached.videoId;
-        lyrs = cached.lyrs || [];
-        _curSpeedFactor = detectSpeedFactor(next.title);
-        _setupMediaSession(next);
-        // Ganti video di player yang sudah ada — TANPA fetch baru
-        YTP.loadVideoById({ videoId: cached.videoId, suggestedQuality: 'small' });
-        // Setelah ganti songs, prefetch songs berikutnya
-        setTimeout(_prefetchNext, 1000);
-        // onStateChange PLAYING akan arm timer & interval otomatis
-        return;
-      } catch(e){}
-    }
-    // videoId tidak ada di cache — coba fetch langsung di background
-  }
-
-  // Jika tab background tapi TIDAK ada cache → fetch di background lalu putar
-  if(document.hidden){
-    // Tandai sedang proses agar tidak ada playNext() ganda
-    if(_pendingNext) return; // sudah ada proses fetch berjalan
-    _pendingNext = true;
-    const myGen = _playGen;
-    const cl = cleanT(next.title);
-    resolveVidByDuration(next.artist, next.title, cl, next.duration).then(({videoId, lines}) => {
-      // Batalkan jika generasi sudah berganti (user memilih songs lain)
-      if(myGen !== _playGen) return;
-      if(!_pendingNext) return;
-      _pendingNext = false;
-      if(videoId && YTP){
-        try{
-          cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer();
-          playing=false; cur=0; tot=0;
-          _playGen++;
-          // _nextGuarded TETAP true sampai PLAYING dikonfirmasi (lihat onStateChange)
-          curTrack = next;
-          curTrack.videoId = videoId;
-          lyrs = lines || [];
-          _curSpeedFactor = detectSpeedFactor(next.title);
-          _setupMediaSession(next);
-          YTP.loadVideoById({ videoId, suggestedQuality: 'small' });
-          // Prefetch songs setelah ini
-          setTimeout(_prefetchNext, 1000);
-        } catch(e){ _pendingNext = false; _nextGuarded = false; }
-      }
-      // Jika videoId tidak ditemukan, tandai pending agar dilanjut saat foreground
-      else { _pendingNext = true; _nextGuarded = false; }
-    }).catch(() => {
-      if(myGen === _playGen){ _pendingNext = true; _nextGuarded = false; }
-    });
-    return;
-  }
-
-  // Foreground: loadPlay normal
+  // FIX PENTING (lagu berikutnya tidak jalan / lock screen Next tidak
+  // merespons / malah "mengulang" lagu sebelumnya saat app di background):
+  //
+  // Dulu di sini ada 2 jalur khusus untuk document.hidden yang memanggil
+  // YTP.loadVideoById(...) LANGSUNG supaya hemat network fetch saat di
+  // background. Itu jadi BUG FATAL sejak app ini beralih ke arsitektur
+  // "offline-first" (lihat "AUTO CONVERT → MP3 → SIMPAN → PUTAR" di
+  // loadPlay()): begitu 1 lagu pernah diputar lewat playOfflineTrack(),
+  // variabel global YTP menunjuk ke _dlPlayerObj — wrapper elemen
+  // <audio id="dl-audio"> (lihat _getOfflinePlayerObj()) — yang SAMA SEKALI
+  // TIDAK PUNYA method loadVideoById(). Pemanggilannya selalu throw
+  // TypeError yang langsung ketangkap diam-diam oleh try/catch, sehingga
+  // lagu berikutnya GAGAL TOTAL diputar & elemen <audio> tetap diam di
+  // lagu lama (kalau lalu user pencet Play lagi, yang terdengar/ke-restart
+  // malah LAGU SEBELUMNYA — src <audio>-nya memang belum pernah diganti).
+  //
+  // Fix: loadPlay() SUDAH mengecek "Unduhan Offline" lebih dulu
+  // (_dlFindMatchingTrack → playOfflineTrack, INSTAN & tanpa network sama
+  // sekali kalau sudah ketemu) sebelum fallback konversi/streaming — dan
+  // seluruh alur itu murni Promise/IndexedDB/fetch, TIDAK bergantung pada
+  // rAF/setTimeout yang di-throttle browser saat di background, jadi aman
+  // dipanggil kapan pun, termasuk saat document.hidden. Ditambah lagi,
+  // _autoPredownloadNextInQueue() (dipicu _maybeAutoPredownloadNext() dari
+  // event 'timeupdate' pada <audio>, event NATIVE elemen media yang tetap
+  // jalan walau app di background) sudah otomatis mengunduh lagu berikutnya
+  // ke penyimpanan offline sebelum lagu sekarang habis — jadi begitu
+  // playNext() dipanggil, lagu berikutnya biasanya SUDAH SIAP di IndexedDB
+  // dan langsung diputar INSTAN. Sekarang playNext() cukup memanggil
+  // loadPlay() langsung tanpa pengecualian document.hidden — sama seperti
+  // playPrev() di bawah, yang memang sudah begini sejak awal & tidak pernah
+  // bermasalah. (Untuk skenario app BENAR-BENAR dibekukan Android sampai
+  // JS tidak jalan sama sekali, lihat mekanisme handoff ke ExoPlayer native
+  // di _vbxHandoffToNative() — jalur INI hanya menangani kondisi WebView
+  // masih hidup/dieksekusi tapi document.hidden true.)
   _pendingNext = false;
   loadPlay(next, currentPlaylistId);
 }
@@ -5532,24 +5847,31 @@ function toast(msg,d=2700){const el=document.getElementById('toast');el.textCont
 
 // ── Unduh Lagu ke Offline (LANGSUNG, tanpa redirect ke stansa.html) ─────
 // Dulu tombol ini menyalin link lalu mengarahkan user ke stansa.html untuk
-// dikonversi manual di sana. Sekarang seluruh proses (konversi YouTube→MP3
-// lewat RapidAPI, lalu simpan Blob-nya ke IndexedDB "Unduhan Offline")
-// dilakukan LANGSUNG di halaman ini, di background, tanpa pernah pindah
-// halaman — user cukup tekan tombol dan tunggu toast konfirmasi.
+// dikonversi manual di sana. Sekarang seluruh proses (konversi YouTube→MP3,
+// lalu simpan Blob-nya ke IndexedDB "Unduhan Offline") dilakukan LANGSUNG
+// di halaman ini, di background, tanpa pernah pindah halaman — user cukup
+// tekan tombol dan tunggu toast konfirmasi.
 //
-// Kredensial API SAMA PERSIS dengan yang dipakai stansa.html supaya kalau
-// stansa.html masih dipakai user lain sebagai cara alternatif, keduanya
-// tetap konsisten.
-const YT2MP3_API_KEY = "44a6176a94msh92d99842860f494p1ff229jsndf24d7c1ac22";
-const YT2MP3_API_HOST = "youtube-mp36.p.rapidapi.com";
+// BACKEND KONVERSI: sebelumnya lewat RapidAPI (youtube-mp36), sekarang lewat
+// Cloudflare Worker kita sendiri (cache proxy KV+R2 di depan Hugging Face
+// Space yang menjalankan yt-dlp+ffmpeg). Keuntungan: hasil konversi per
+// videoId di-cache PERMANEN & DIBAGI ke semua user — lagu populer cuma
+// perlu dikonversi 1x total, bukan 1x per user/per device seperti sebelumnya.
+// Lihat folder cloudflare-worker/ & hf-space/ untuk kode & cara deploy servernya.
+//
+// GANTI nilai di bawah dengan URL Worker kamu sendiri setelah deploy (lihat
+// cloudflare-worker/README.md) — contoh:
+// "https://vibexa-yt2mp3-proxy.namamu.workers.dev"
+const YT2MP3_PROXY_URL = "https://vibexa-yt2mp3-proxy.namamu.workers.dev";
 
+// Endpoint & bentuk respons SENGAJA dibuat identik dengan API lama
+// ({status, link, msg} — lihat worker.js) supaya SEMUA pemanggil
+// _yt2mp3Fetch() di file ini (downloadCurrentSongOffline, _dlConvertAndSave,
+// _vbxResolveStreamUrl, unduh massal playlist, dst) tidak perlu diubah sama
+// sekali — cukup fungsi ini saja yang di-patch.
 function _yt2mp3Fetch(videoId){
-  return fetch('https://' + YT2MP3_API_HOST + '/dl?id=' + videoId, {
-    method: 'GET',
-    headers: {
-      'x-rapidapi-key': YT2MP3_API_KEY,
-      'x-rapidapi-host': YT2MP3_API_HOST
-    }
+  return fetch(YT2MP3_PROXY_URL + '/dl?id=' + videoId, {
+    method: 'GET'
   }).then(res => {
     if (!res.ok) throw new Error('HTTP Error: ' + res.status);
     return res.json();
@@ -5596,7 +5918,7 @@ async function downloadCurrentSongOffline(){
   toast(' Mengonversi ke MP3...', 5000);
 
   try{
-    if (!YT2MP3_API_KEY || !YT2MP3_API_KEY.trim()) throw new Error('API key belum diisi');
+    if (!YT2MP3_PROXY_URL || !YT2MP3_PROXY_URL.trim()) throw new Error('URL proxy konversi belum diisi');
 
     let data = await _yt2mp3Fetch(videoId);
     let attempts = 0;
@@ -5662,7 +5984,7 @@ async function _dlFindMatchingTrack(track){
 // simpan (berisi `id`) kalau berhasil, atau melempar error kalau gagal —
 // supaya pemanggil bisa memutuskan fallback-nya sendiri.
 async function _dlConvertAndSave(videoId, title, artist, artUrl, lyricsSnapshot){
-  if (!YT2MP3_API_KEY || !YT2MP3_API_KEY.trim()) throw new Error('API key belum diisi');
+  if (!YT2MP3_PROXY_URL || !YT2MP3_PROXY_URL.trim()) throw new Error('URL proxy konversi belum diisi');
   let data = await _yt2mp3Fetch(videoId);
   let attempts = 0;
   while (data && data.status === 'processing' && attempts < 20){
@@ -6594,6 +6916,8 @@ async function loadPlay(track, fromPlId){
   if (_lyrBtnReset) _lyrBtnReset.style.display = '';
   _playGen++;  // invalidasi semua timer/guard dari songs sebelumnya
   _npPlayingPlId = fromPlId || null;
+  _npPlayingMixRef = null; // reset referensi mix (Daily Mix/Made For You/dst) — dipasang ulang di playDailyMix()/renderDailyMixTracks() kalau memang lagu ini berasal dari mix
+  if(typeof _vbxHandoffGen !== 'undefined') _vbxHandoffGen++; // batalkan handoff native yang mungkin masih menggantung dari lagu sebelumnya
   updateNPMobQueueBtn();
   cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer(); playing=false; cur=0; tot=0; curTrack=track; lyrs=[];
   _saveLastPlayedTrack(track);
@@ -7986,16 +8310,22 @@ function updateNPMobAddBtn(track){
   });
 }
 
-// Tombol Queue di halaman Now Playing mobile: hanya tampil kalau memang
-// sedang memutar songs dari sebuah playlist (bukan Daily Mix / single track dsb)
+// Tombol Queue di halaman Now Playing mobile: tampil kalau sedang memutar
+// dari playlist milik user ATAU dari salah satu mix otomatis (Daily Mix,
+// Made For You, Weekday Vibes, Playlist Pop, Radio Artis Favorit, dst — lihat
+// _npPlayingMixRef). Sebelumnya HANYA mengecek playlists[_npPlayingPlId],
+// jadi tombolnya selalu hilang untuk playlist yang bukan buatan user karena
+// ID-nya memang tidak pernah ada di objek `playlists`.
 function updateNPMobQueueBtn(){
-  const canShow = !!(_npPlayingPlId && playlists && playlists[_npPlayingPlId]);
+  const canShow = !!((_npPlayingPlId && playlists && playlists[_npPlayingPlId]) || _npPlayingMixRef);
   document.querySelectorAll('#np-mob-queue-btn, .bar-queue-btn').forEach(btn=>{
     btn.style.display = canShow ? 'flex' : 'none';
   });
 }
-// Diklik dari tombol Queue: tutup Now Playing lalu arahkan ke halaman playlist yang sedang diputar
+// Diklik dari tombol Queue: tutup Now Playing lalu arahkan ke halaman playlist
+// (atau halaman mix) yang sedang diputar
 function goToPlayingPlaylist(){
+  if(_npPlayingMixRef){ closeNP(); openDailyMix(_npPlayingMixRef); return; }
   if(!_npPlayingPlId || !playlists[_npPlayingPlId]){ toast(' Not playing from a playlist'); return; }
   const plId=_npPlayingPlId;
   closeNP();
@@ -8021,6 +8351,17 @@ function _updateRepeatBtnUI(){
 // tombol Next) — kalau mode Repeat One aktif, ulangi songs yang sama;
 // selain itu lanjut ke songs berikutnya seperti biasa.
 function _handleSongEnded(){
+  // Native ExoPlayer sedang memegang kendali penuh (app di background, audio
+  // WebView sudah di-mute — lihat _vbxHandoffToNative()) — JANGAN ikut
+  // memproses "lagu selesai" di sisi JS SAMA SEKALI selama ini, apa pun
+  // pemicunya (event 'ended' asli, fallback timer wall-clock, dsb). Kalau
+  // dibiarkan, JS & native bisa SAMA-SAMA memutuskan lagu berikutnya secara
+  // independen di waktu yang hampir bersamaan — race condition yang bisa
+  // menyebabkan 2 lagu ke-convert/diputar sekaligus atau curTrack "balapan"
+  // berubah. Native akan lapor balik posisi & lagu terkininya lewat event
+  // 'nativeTrackChanged' begitu app kembali foreground (lihat
+  // _vbxHandleForegroundResume()), dan JS baru menyambung dari situ.
+  if(_vbxNativeInControl) return;
   if(_repeatMode==='one' && curTrack){
     try{
       if(YTP){
@@ -13264,10 +13605,19 @@ function toggleWeekdayPlaylistShowAll() {
   if (label) label.textContent = expanded ? 'Tampilkan Sedikit' : 'Show All';
 }
 
-function playDailyMix(mix) {
+async function playDailyMix(mix) {
   if (!mix.tracks || !mix.tracks.length) { toast(' This mix is empty'); return; }
   curQueue = [...mix.tracks];
-  loadPlay(mix.tracks[0], null);
+  // PENTING: harus MENUNGGU (await) loadPlay() selesai dulu sebelum
+  // menetapkan _npPlayingMixRef. loadPlay() punya `await` di baris paling
+  // awal (cek Unduhan Offline) SEBELUM baris yang me-reset _npPlayingMixRef
+  // ke null — kalau _npPlayingMixRef diisi di sini TANPA menunggu, urutan
+  // eksekusinya jadi: (1) baris ini set _npPlayingMixRef = mix duluan,
+  // (2) baru setelah itu loadPlay() lanjut jalan & me-reset-nya balik ke
+  // null — hasilnya tombol Queue tetap tidak pernah muncul.
+  await loadPlay(mix.tracks[0], null);
+  _npPlayingMixRef = mix; // supaya tombol Queue tetap muncul & bisa dibuka lagi (lihat updateNPMobQueueBtn/goToPlayingPlaylist)
+  updateNPMobQueueBtn();
 }
 
 function openDailyMix(mix) {
@@ -13342,10 +13692,15 @@ function renderDailyMixTracks(mix) {
       <div class="tr-album">${esc(t.artist)}</div>
       <div class="tr-dur">${buildAddBtnHTML(t, 'tr-add')}</div>
     `;
-    row.addEventListener('click', (e) => {
+    row.addEventListener('click', async (e) => {
       if (e.target.closest('.tr-add')) return;
       curQueue = [...tracks];
-      loadPlay(t, null);
+      // Sama seperti playDailyMix() — harus MENUNGGU loadPlay() selesai
+      // dulu, baru boleh menetapkan _npPlayingMixRef (lihat komentar di
+      // playDailyMix() untuk penjelasan race condition-nya).
+      await loadPlay(t, null);
+      _npPlayingMixRef = mix;
+      updateNPMobQueueBtn();
       setTimeout(() => renderDailyMixTracks(mix), 100);
     });
     wireAddBtn(row.querySelector('.add-btn'), t);
@@ -17070,6 +17425,21 @@ function _getOfflinePlayerObj(audioEl) {
     getPlayerState(){ if (audioEl.ended) return 0; return audioEl.paused ? 2 : 1; },
     seekTo(t){ try { audioEl.currentTime = t; } catch(e){} },
     setVolume(v){ try { audioEl.volume = Math.max(0, Math.min(1, v/100)); } catch(e){} },
+    // FIX overlap audio saat handoff ke ExoPlayer native (lihat
+    // _vbxHandoffToNative() di blok "Native Lock Screen Media Player"):
+    // kode handoff itu memanggil YTP.mute()/unMute() supaya audio WebView
+    // dibisukan begitu native mengambil alih (menghindari 2 lagu terdengar
+    // bersamaan), TAPI wrapper offline ini SEBELUMNYA tidak punya method
+    // mute/unMute sama sekali — `YTP.mute` selalu undefined utk lagu
+    // offline, jadi pengecekan `if(YTP && YTP.mute)` gagal diam-diam dan
+    // audio <audio> offline TIDAK PERNAH dibisukan. Karena hampir semua
+    // lagu di app ini sekarang diputar lewat jalur offline (auto-convert),
+    // ini penyebab utama "lagu pertama tetap berjalan bersamaan dengan lagu
+    // kedua". audioEl.muted murni membisukan output (posisi/currentTime
+    // tetap berjalan normal), jadi getPlayerState() & semua logic existing
+    // yang bergantung padanya tetap akurat seperti biasa.
+    mute(){ try { audioEl.muted = true; } catch(e){} },
+    unMute(){ try { audioEl.muted = false; } catch(e){} },
     getVideoUrl(){ return ''; },
     destroy(){ try { audioEl.pause(); } catch(e){} }
   };
@@ -18267,6 +18637,13 @@ async function playOfflineTrack(id, plId) {
     if (pl) {
       _dlActivePlaylistId = plId;
       _dlActiveQueue = pl.trackIds.filter(tid => _dlList.some(t => t.id === tid));
+    } else {
+      // plId dikasih tapi bukan playlist OFFLINE (mis. ini playlist online
+      // dari alur offline-first di loadPlay()) — jangan biarkan konteks
+      // playlist offline lama yang basi tetap nyangkut, bisa bikin
+      // Next/Prev menyusuri playlist offline yang salah.
+      _dlActivePlaylistId = null;
+      _dlActiveQueue = [];
     }
   } else {
     _dlActivePlaylistId = null;
@@ -18281,7 +18658,17 @@ async function playOfflineTrack(id, plId) {
   playing = false; cur = 0; tot = 0;
   _nextGuarded = true; _pendingNext = false;
   _playStartWall = 0; _playStartPos = 0;
-  _npPlayingPlId = null; updateNPMobQueueBtn();
+  // FIX "tombol Queue muncul sebentar lalu menghilang": SEBELUMNYA baris ini
+  // SELALU meng-null-kan _npPlayingPlId, padahal playOfflineTrack() sekarang
+  // juga dipanggil dari alur offline-first di loadPlay() untuk lagu PLAYLIST
+  // ONLINE biasa yang kebetulan sudah pernah diunduh (bukan cuma dari
+  // halaman Unduhan Offline). Kalau `plId` yang dikirim memang playlist
+  // online asli (ada di `playlists`), pertahankan supaya tombol Queue tetap
+  // tampil seperti lagu online biasa. Kalau bukan (playlist offline / tanpa
+  // playlist sama sekali), baru dilepas seperti semula.
+  _npPlayingPlId = (plId && playlists && playlists[plId]) ? plId : null;
+  _npPlayingMixRef = null; // lagu offline tidak pernah berasal dari mix (Daily Mix/Made For You/dst)
+  updateNPMobQueueBtn();
 
   if (_dlCurrentObjectUrl) { URL.revokeObjectURL(_dlCurrentObjectUrl); _dlCurrentObjectUrl = null; }
   _dlCurrentObjectUrl = URL.createObjectURL(blob);
@@ -18474,11 +18861,13 @@ async function deleteOfflineTrack(id) {
 //    bisa klik satu tombol untuk langsung membuat playlist berisi
 //    semua lagu yang direkomendasikan.
 //
-// CATATAN KEAMANAN: sama seperti GIPHY_API_KEY & YT2MP3_API_KEY di
-// atas, API key Gemini di bawah ini dipanggil LANGSUNG dari browser
-// (client-side) sehingga terlihat oleh siapapun yang membuka DevTools
-// atau melihat kode sumber halaman ini. Untuk aplikasi publik yang
-// lebih aman, sebaiknya panggilan ke Gemini dipindah lewat backend/
+// CATATAN KEAMANAN: sama seperti GIPHY_API_KEY di atas, API key Gemini di
+// bawah ini dipanggil LANGSUNG dari browser (client-side) sehingga terlihat
+// oleh siapapun yang membuka DevTools atau melihat kode sumber halaman ini.
+// (Konversi YouTube→MP3 sendiri SUDAH dipindah ke belakang proxy Cloudflare
+// Worker — lihat YT2MP3_PROXY_URL di atas — jadi tidak ada API key konversi
+// yang perlu disimpan/terlihat di sisi client lagi.) Untuk aplikasi publik
+// yang lebih aman, sebaiknya panggilan ke Gemini juga dipindah lewat backend/
 // proxy kecil (mis. Cloudflare Worker) yang menyimpan key di server.
 // ────────────────────────────────────────────────────────────
 // API key Gemini TIDAK lagi ditaruh di sini — disimpan aman di sisi

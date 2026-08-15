@@ -354,12 +354,7 @@
         <p>Konversi YouTube ke MP3 gratis dan cepat</p>
     </div>
 
-    <div class="api-notice">
-        <strong>Setup API Key:</strong>
-        Daftar gratis di <a href="https://rapidapi.com" target="_blank">rapidapi.com</a>,
-        cari <code>youtube-mp36</code>, lalu ganti <code>44a6176a94msh92d99842860f494p1ff229jsndf24d7c1ac22</code>
-        di bagian bawah script dengan API Key milikmu.
-    </div>
+
 
     <div class="input-group">
         <div class="input-wrapper">
@@ -421,11 +416,17 @@
 
 <script>
     // ============================================================
-    // GANTI INI DENGAN API KEY DARI RAPIDAPI
-    // https://rapidapi.com/ytjar/api/youtube-mp36
+    // BACKEND KONVERSI: sebelumnya RapidAPI (youtube-mp36), sekarang lewat
+    // Cloudflare Worker sendiri (cache proxy KV+R2 di depan Hugging Face
+    // Space yang menjalankan yt-dlp+ffmpeg) — hasil konversi per videoId
+    // di-cache PERMANEN & DIBAGI ke SEMUA user (termasuk user vibexa.html/
+    // vibexa.js), jadi 1 lagu cuma perlu dikonversi 1x total. Lihat folder
+    // cloudflare-worker/ & hf-space/ untuk kode & cara deploy servernya.
+    //
+    // GANTI dengan URL Worker kamu sendiri setelah deploy (lihat
+    // cloudflare-worker/README.md).
     // ============================================================
-    var RAPIDAPI_KEY = "44a6176a94msh92d99842860f494p1ff229jsndf24d7c1ac22";
-    var API_HOST = "youtube-mp36.p.rapidapi.com";
+    var YT2MP3_PROXY_URL = "https://vibexa-yt2mp3-proxy.namamu.workers.dev";
     // ============================================================
 
     function extractVideoId(url) {
@@ -611,13 +612,12 @@
         }
     }
 
+    // Endpoint & bentuk respons SENGAJA dibuat identik dengan API lama
+    // ({status, link, msg} — lihat worker.js) supaya seluruh alur di bawah
+    // (startConvert, dsb) tidak perlu diubah sama sekali.
     function fetchConvert(videoId) {
-        return fetch("https://" + API_HOST + "/dl?id=" + videoId, {
-            method: "GET",
-            headers: {
-                "x-rapidapi-key": RAPIDAPI_KEY,
-                "x-rapidapi-host": API_HOST
-            }
+        return fetch(YT2MP3_PROXY_URL + "/dl?id=" + videoId, {
+            method: "GET"
         }).then(function(res) {
             if (!res.ok) {
                 throw new Error("HTTP Error: " + res.status);
@@ -646,8 +646,8 @@
             return;
         }
 
-        if (!RAPIDAPI_KEY || !RAPIDAPI_KEY.trim()) {
-            showError("API Key belum diisi! Baca petunjuk setup di bagian atas.");
+        if (!YT2MP3_PROXY_URL || !YT2MP3_PROXY_URL.trim()) {
+            showError("URL proxy konversi belum diisi! Baca petunjuk setup di bagian atas.");
             return;
         }
 
