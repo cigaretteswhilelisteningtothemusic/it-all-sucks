@@ -1,6 +1,21 @@
 console.log('VBXBUILD_CANARY_12345');
 'use strict';
 
+// ─── Sembunyikan tombol Repeat & Queue di kotak "play" (mini player #bar) ──
+// Tombol Repeat (.np-mob-repeat-btn) & Queue (.bar-queue-btn) di kotak play
+// bawah menutupi/mengganggu tata letak, jadi disembunyikan KHUSUS instance
+// yang ada di dalam #bar. Instance yang sama di halaman Now Playing
+// fullscreen (kalau ada) TIDAK terpengaruh krn selector di-scope ke "#bar ...".
+// Pakai <style> + !important supaya tetap menang walau ada kode lain yang
+// mengatur el.style.display langsung (mis. updateNPMobQueueBtn()).
+(function vbxHideBarRepeatQueueBtns(){
+  const css = '#bar .np-mob-repeat-btn, #bar #np-mob-repeat-btn, #bar .bar-queue-btn, #bar #np-mob-queue-btn { display: none !important; }';
+  const style = document.createElement('style');
+  style.textContent = css;
+  (document.head || document.documentElement).appendChild(style);
+})();
+
+
 // ─── Sidebar collapse/expand (Spotify-style "Your Library" rail) ──────────
 function toggleSidebarCollapse(force) {
   const collapsed = typeof force === 'boolean' ? force : !document.body.classList.contains('side-collapsed');
@@ -351,6 +366,7 @@ if (window._vbxFirebaseOK && auth) {
       loadRecentlyPlayedFromCloud();
       loadStreakFromCloud();
       loadDailyMixes();
+      loadQuickPicks();
       loadYearMixes();
       loadMadeForYouMixes();
       loadForYouPlaylists();
@@ -990,6 +1006,7 @@ let _peerIsTyping = false;      // status terbaru lawan bicara: sedang mengetik 
 let _chatMyTypingRef = null;    // ref node typing milik SAYA di percakapan yg sedang dibuka
 let _chatMyTypingState = false; // apakah saat ini saya sudah menandai diri "sedang mengetik" (hindari write berulang)
 let _chatTypingStopTimer = null;// timer utk otomatis menandai "berhenti mengetik" setelah beberapa detik idle
+let _chatTypingConnectedRef = null; // listener ".info/connected" utk mendaftarkan ulang onDisconnect() typing setiap kali reconnect (lihat openConversation())
 
 // ── Kirim Foto/Video di Chat (Cloudinary, unsigned upload preset) ──────
 // Cloud name & upload preset akun Cloudinary Vibexa. Aman ditaruh di
@@ -1006,6 +1023,168 @@ let _chatPendingMediaFile = null; // File yg dipilih user, menunggu dikirim
 let _chatPendingMediaType = null; // 'image' | 'video'
 let _chatPendingMediaPreviewUrl = null; // object URL utk thumbnail preview
 let _chatMediaUploading = false;
+let _chatViewOnceEnabled = false; // apakah foto/video yg sedang dipilih akan dikirim sbg "sekali lihat"
+
+// ── Rekam & Kirim Voice Note (ala WhatsApp) ─────────────────────────────
+// Direkam langsung di dalam WebView lewat getUserMedia+MediaRecorder (tidak
+// perlu plugin native — RECORD_AUDIO sudah didaftarkan di AndroidManifest
+// utk fitur lock-screen player, jadi izinnya sudah tersedia). Hasil rekaman
+// diupload ke Cloudinary (resource_type "video", cara resmi Cloudinary utk
+// menyimpan berkas audio) lalu dikirim sbg pesan chat type:"audio", persis
+// alur foto/video (lihat sendChatMediaMessage()).
+let _voiceRecorder = null;      // instance MediaRecorder yg sedang aktif
+let _voiceStream = null;        // MediaStream mic yg sedang dipakai (utk dimatikan setelah selesai)
+let _voiceChunks = [];          // potongan Blob hasil rekaman
+let _voiceMimeType = 'audio/webm';
+let _voiceStartTs = 0;          // timestamp mulai rekam (utk hitung durasi & timer UI)
+let _voiceTimerInterval = null;
+let _voiceCancelled = false;    // true kalau user menekan tombol batal (hasil rekaman dibuang)
+
+// ── "Sekali Lihat" (View Once) ──────────────────────────────────────────
+// Foto/video dikirim dgn flag msgData.viewOnce = true. Penerima cuma bisa
+// membukanya SATU KALI lewat viewer fullscreen khusus (openViewOnceMedia);
+// begitu dibuka, field mediaUrl pesan itu LANGSUNG dihapus (di-null-kan) dari
+// Realtime Database, jadi tidak ada lagi cara mengambil ulang media itu
+// lewat chat ini (reload, device lain, dsb) — baik oleh penerima maupun
+// pengirim sendiri. Bubble di daftar chat berubah jadi placeholder
+// "Foto/Video sudah dibuka".
+//
+// CATATAN JUJUR ttg batas kemampuan:
+// 1) Anti-screenshot BENAR-BENAR hanya bisa dijamin di build Android asli
+//    (APK), lewat flag sistem WindowManager FLAG_SECURE (lihat plugin
+//    native VibexaSecureViewPlugin.java + panggilan Capacitor di bawah).
+//    Kalau app dibuka lewat browser biasa (bukan APK), TIDAK ADA API resmi
+//    web yang bisa benar2 mencegah screenshot — di situ fitur ini hanya
+//    berlaku sbg "sekali lihat lalu terhapus dari server", tanpa proteksi
+//    screenshot itu sendiri.
+// 2) Setelah dibuka, hanya REFERENSI mediaUrl di database yg dihapus — file
+//    asli di Cloudinary sendiri butuh penghapusan lewat Admin API bertanda
+//    tangan (API Secret), yg TIDAK aman ditaruh di kode client. Jadi secara
+//    teknis file itu mungkin masih ada di storage Cloudinary, hanya sudah
+//    tidak bisa diakses lagi lewat chat manapun di app ini.
+function isViewOnceMsg(m) {
+  return !!(m && m.viewOnce && (m.type === 'image' || m.type === 'video'));
+}
+
+// Nyalakan/matikan flag sistem anti-screenshot Android (FLAG_SECURE) lewat
+// plugin native custom. Aman dipanggil di web/browser biasa (plugin-nya
+// otomatis tidak ada di sana → dilewati diam-diam, tidak error).
+function _secureViewSetEnabled(enabled) {
+  try {
+    const plugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.VibexaSecureView;
+    if (plugin) { enabled ? plugin.enable() : plugin.disable(); }
+  } catch (e) { /* bukan di app Android / plugin belum terpasang — abaikan */ }
+}
+
+// ── Deteksi Screenshot di halaman chat (ala Snapchat) ───────────────────
+// Beda dari View Once (yg MENCEGAH screenshot lewat FLAG_SECURE): fitur ini
+// tetap MENGIZINKAN user screenshot halaman chat biasa, tapi lawan bicara
+// diberi tahu — persis seperti Snapchat menampilkan "X took a screenshot".
+//
+// Deteksi sebenarnya (mengawasi galeri via MediaStore ContentObserver)
+// terjadi di sisi native Android (lihat VibexaScreenshotDetectPlugin.kt),
+// karena web/JS biasa tidak punya API resmi utk tahu user melakukan
+// screenshot. Plugin ini HANYA aktif di build Android asli (APK) — di
+// browser biasa/iOS panggilan di bawah otomatis tidak berpengaruh apa pun,
+// jadi di sana fitur ini tidak tersedia (tidak ada API resmi setara).
+let _screenshotDetectActive = false;   // apakah observer native sedang aktif (hemat baterai — hanya nyala selagi ada percakapan terbuka)
+let _screenshotDetectLastFireAt = 0;   // debounce sisi JS, jaga-jaga kalau event native terpicu dobel
+
+function _screenshotDetectPlugin() {
+  return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.VibexaScreenshotDetect) || null;
+}
+
+// Nyalakan/matikan observer native. Dipanggil saat masuk/keluar halaman
+// percakapan (openConversation() / detachChatMessagesListener()).
+function _screenshotDetectSetEnabled(enabled) {
+  try {
+    const plugin = _screenshotDetectPlugin();
+    if (!plugin) return; // bukan di app Android / plugin belum terpasang — abaikan diam-diam
+    if (enabled && !_screenshotDetectActive) {
+      _screenshotDetectActive = true;
+      plugin.start().catch(() => { _screenshotDetectActive = false; });
+    } else if (!enabled && _screenshotDetectActive) {
+      _screenshotDetectActive = false;
+      plugin.stop().catch(() => {});
+    }
+  } catch (e) { /* abaikan */ }
+}
+
+// Didaftarkan SEKALI saat app dimuat (bukan per-percakapan) — event ini
+// hanya benar2 diproses kalau ada percakapan yang sedang terbuka
+// (_chatCurrentPeer), karena observer native sendiri juga cuma aktif
+// selagi itu terjadi (lihat _screenshotDetectSetEnabled() di atas).
+(function initScreenshotDetectListener() {
+  const plugin = _screenshotDetectPlugin();
+  if (!plugin || !plugin.addListener) return;
+  plugin.addListener('screenshotTaken', () => { handleScreenshotDetected(); });
+})();
+
+// Dipanggil saat native melaporkan user baru saja mengambil screenshot
+// selagi halaman percakapan chat sedang terbuka.
+async function handleScreenshotDetected() {
+  if (!currentUser || !_chatCurrentPeer) return;
+
+  // Debounce ringan sisi JS (di samping debounce native) — jangan sampai
+  // satu screenshot terhitung dua kali gara-gara observer terpicu ulang.
+  const now = Date.now();
+  if (now - _screenshotDetectLastFireAt < 3000) return;
+  _screenshotDetectLastFireAt = now;
+
+  const peer = _chatCurrentPeer;
+  const chatId = peer.chatId;
+  const myUid = currentUser.uid;
+
+  let myName = currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Someone');
+  try {
+    const snap = await db.ref('users/' + myUid + '/profile').get();
+    const profile = snap.exists() ? (snap.val() || {}) : {};
+    if (profile.displayName) myName = profile.displayName;
+  } catch (e) { /* pakai fallback nama di atas kalau gagal ambil profil */ }
+
+  // Simpan sbg "pesan sistem" di riwayat chat (persis seperti Snapchat
+  // menampilkan baris "X took a screenshot" di dalam percakapan itu
+  // sendiri) — kedua belah pihak yg sedang membuka chat ini akan melihatnya
+  // muncul real-time lewat listener pesan yang sudah ada (renderChatMessages()).
+  const msgKey = db.ref('chats/' + chatId + '/messages').push().key;
+  const previewText = '📸 ' + myName + ' took a screenshot';
+  const updates = {};
+  updates['chats/' + chatId + '/messages/' + msgKey] = {
+    type: 'system',
+    subtype: 'screenshot',
+    from: myUid,
+    ts: now
+  };
+  updates['userChats/' + myUid + '/' + chatId + '/lastMessage'] = previewText;
+  updates['userChats/' + myUid + '/' + chatId + '/lastMessageAt'] = now;
+  updates['userChats/' + peer.uid + '/' + chatId + '/lastMessage'] = previewText;
+  updates['userChats/' + peer.uid + '/' + chatId + '/lastMessageAt'] = now;
+  updates['userChats/' + peer.uid + '/' + chatId + '/unreadCount'] = firebase.database.ServerValue.increment(1);
+
+  try {
+    await db.ref().update(updates);
+    // Kabari lawan bicara lewat push notification (ala Snapchat) kalau dia
+    // sedang tidak membuka app — dipakai ulang route Worker /send-chat-notification
+    // yang sudah ada (lihat triggerChatPushNotification di atas), jadi tidak
+    // perlu perubahan apa pun di Cloudflare Worker.
+    triggerChatPushNotification(peer, previewText);
+  } catch (err) {
+    console.error('Gagal mencatat notifikasi screenshot:', err);
+  }
+}
+
+// Toggle tombol "Sekali Lihat" di preview foto/video sebelum dikirim.
+function toggleChatViewOnce() {
+  _chatViewOnceEnabled = !_chatViewOnceEnabled;
+  const btn = document.getElementById('chat-view-once-toggle');
+  if (btn) btn.classList.toggle('active', _chatViewOnceEnabled);
+  const statusEl = document.getElementById('chat-media-preview-status');
+  if (statusEl && !_chatMediaUploading) {
+    statusEl.textContent = _chatViewOnceEnabled
+      ? '🔥 View once — disappears after opened once'
+      : 'Ready to send · write a caption (optional) then press send';
+  }
+}
 
 // ── Stiker Lolu AI (Cloudinary, cari resource berdasarkan TAG) ─────────
 // Lolu (AI) HANYA pernah mengirim sebuah TAG (lihat AI_SYSTEM_PROMPT,
@@ -1578,7 +1757,19 @@ function renderChatItemHTML(chatId, c, isRequest) {
   // Sedang mengetik? Ganti sementara isi preview jadi "Typing..." + titik
   // berdenyut, ala WhatsApp — berlaku di daftar chat, bukan cuma saat
   // percakapannya sedang dibuka.
-  const isTyping = !!_chatTypingListCache[chatId];
+  //
+  // BUGFIX: node "typing" milik lawan bicara kadang "nyangkut" bernilai true
+  // lebih lama dari seharusnya kalau koneksi mereka putus TIDAK secara wajar
+  // (force-close app, hilang sinyal total, dsb) — onDisconnect() di RTDB
+  // butuh waktu (bisa puluhan detik) utk mendeteksi & membersihkan node itu.
+  // Akibatnya, daftar chat bisa saja masih menampilkan "Typing..." padahal
+  // orangnya sudah offline. Supaya tidak menyesatkan, indikator ini HANYA
+  // ditampilkan kalau lawan bicara tsb tercatat online SAAT INI juga (status
+  // online sendiri sudah realtime & akurat lewat mekanisme presence di
+  // setupPresence()) — begitu dia offline, "Typing..." langsung disembunyikan
+  // walau node typing-nya belum sempat terhapus di database.
+  const peerOnlineForTyping = !!(_chatStatusCache[c.with] && _chatStatusCache[c.with].state === 'online');
+  const isTyping = peerOnlineForTyping && !!_chatTypingListCache[chatId];
   const previewHTML = isTyping
     ? 'Typing<span class="chat-typing-dots"><span></span><span></span><span></span></span>'
     : preview;
@@ -1873,6 +2064,11 @@ function openConversation(chatId, peerUid, peerName, peerPhoto) {
   const photo = (live && live.photoURL) || peerPhoto || '';
   _chatCurrentPeer = { uid: peerUid, name: name, photo: photo, chatId: chatId };
 
+  // Nyalakan deteksi screenshot (ala Snapchat) SELAGI percakapan ini
+  // terbuka — dimatikan lagi begitu user pindah/keluar percakapan (lihat
+  // detachChatMessagesListener()). Lihat handleScreenshotDetected() di atas.
+  _screenshotDetectSetEnabled(true);
+
   const avatarEl = document.getElementById('chat-conv-avatar');
   avatarEl.innerHTML = photo
     ? `<img src="${esc(photo)}" alt="" onerror="this.parentElement.innerHTML='&#128100;'">`
@@ -1929,9 +2125,24 @@ function openConversation(chatId, peerUid, peerName, peerPhoto) {
   // Siapkan node typing milik SAYA di percakapan ini: kalau koneksi putus
   // tiba-tiba (tutup tab, internet mati), server otomatis menghapusnya —
   // sama seperti mekanisme onDisconnect() pada status online/offline.
+  //
+  // BUGFIX: onDisconnect() hanya berlaku utk KONEKSI yg sedang aktif saat
+  // didaftarkan. Kalau koneksi sempat putus-nyambung lagi (jaringan mobile
+  // yg tidak stabil) selagi percakapan ini masih terbuka, sesi koneksi baru
+  // TIDAK otomatis mewarisi pendaftaran onDisconnect dari sesi lama —
+  // akibatnya kalau device benar2 offline setelahnya, node "typing" bisa
+  // "nyangkut" true tanpa pernah dibersihkan server. Pakai pola yg sama
+  // dengan setupPresence(): dengarkan ".info/connected" dan daftarkan ulang
+  // onDisconnect() SETIAP KALI baru tersambung, supaya selalu terpasang di
+  // koneksi yg aktif saat itu juga.
   if (currentUser) {
     _chatMyTypingRef = db.ref('chats/' + chatId + '/typing/' + currentUser.uid);
-    _chatMyTypingRef.onDisconnect().remove();
+    if (_chatTypingConnectedRef) _chatTypingConnectedRef.off();
+    _chatTypingConnectedRef = db.ref('.info/connected');
+    _chatTypingConnectedRef.on('value', snap => {
+      if (snap.val() !== true || !_chatMyTypingRef) return;
+      _chatMyTypingRef.onDisconnect().remove();
+    });
   }
   _chatMyTypingState = false;
 
@@ -2030,6 +2241,9 @@ function goToPeerProfile() {
 }
 
 function detachChatMessagesListener() {
+  // Matikan observer screenshot native — tidak perlu mengawasi galeri lagi
+  // selagi tidak ada percakapan chat yang sedang dibuka.
+  _screenshotDetectSetEnabled(false);
   if (_chatMsgsRef) { _chatMsgsRef.off(); _chatMsgsRef = null; }
   if (_chatSeenRef) { _chatSeenRef.off(); _chatSeenRef = null; }
   if (_chatTypingRef) { _chatTypingRef.off(); _chatTypingRef = null; }
@@ -2037,6 +2251,7 @@ function detachChatMessagesListener() {
   // saya sendiri di percakapan ini, supaya tidak "nyangkut" jadi true selamanya.
   clearTimeout(_chatTypingStopTimer);
   _chatTypingStopTimer = null;
+  if (_chatTypingConnectedRef) { _chatTypingConnectedRef.off(); _chatTypingConnectedRef = null; }
   if (_chatMyTypingRef) {
     _chatMyTypingRef.onDisconnect().cancel();
     if (_chatMyTypingState) _chatMyTypingRef.remove().catch(() => {});
@@ -2051,6 +2266,10 @@ function detachChatMessagesListener() {
   _chatOpenActionsKey = null;
   _chatOpenActionsMode = 'actions';
   closeGifPicker();
+  closeChatPlusMenu();
+  // Selagi percakapan ditutup/dipindah, jangan sampai rekaman voice note
+  // (kalau sedang berlangsung) & mic stream-nya tetap menyala di background.
+  cancelVoiceRecording();
 }
 
 // Dipanggil setiap kali node "directory" berubah. Kalau percakapan sedang
@@ -2092,7 +2311,11 @@ function renderConvStatusUI(uid) {
   const online = !!(s && s.state === 'online');
   dotEl.style.display = online ? '' : 'none';
 
-  if (_chatCurrentPeer && _chatCurrentPeer.uid === uid && _peerIsTyping) {
+  // BUGFIX: sama seperti di renderChatItemHTML() — jangan tampilkan
+  // "Typing..." kalau lawan bicara ternyata sudah tercatat offline, supaya
+  // tidak "nyangkut" kalau node typing-nya terlambat dibersihkan oleh
+  // onDisconnect() akibat koneksi yg putus tiba-tiba (bukan ditutup wajar).
+  if (_chatCurrentPeer && _chatCurrentPeer.uid === uid && _peerIsTyping && online) {
     statusEl.innerHTML = 'Typing<span class="chat-typing-dots"><span></span><span></span><span></span></span>';
     statusEl.classList.add('online', 'typing');
     return;
@@ -2118,7 +2341,7 @@ function renderChatMessages(msgsObj, scrollToBottom) {
   // menampilkan status "Terkirim" / "Dibaca", persis seperti Instagram
   // (bukan per-pesan seperti centang WhatsApp).
   let lastMineKey = null;
-  list.forEach(([key, m]) => { if (m.from === myUid) lastMineKey = key; });
+  list.forEach(([key, m]) => { if (m.from === myUid && m.type !== 'system') lastMineKey = key; });
 
   let lastDateKey = '';
   const html = list.map(([key, m]) => {
@@ -2132,6 +2355,19 @@ function renderChatMessages(msgsObj, scrollToBottom) {
         lastDateKey = dateKey;
         sepHTML = `<div class="chat-date-sep"><span>${formatChatDateSeparator(m.ts)}</span></div>`;
       }
+    }
+
+    // ── Pesan sistem (mis. "X took a screenshot" ala Snapchat) — tampil
+    // sbg pil kecil di tengah, bukan bubble percakapan biasa (tanpa reply/
+    // like/hapus/status "dibaca", krn bukan pesan sungguhan dari user).
+    if (m.type === 'system') {
+      let systemText = '';
+      if (m.subtype === 'screenshot') {
+        const who = mine ? 'You' : ((_chatCurrentPeer && _chatCurrentPeer.name) || 'User');
+        systemText = `📸 ${esc(who)} took a screenshot`;
+      }
+      if (!systemText) return sepHTML; // subtype tak dikenal (versi lama/baru) — jangan tampilkan apa2 selain separator tanggal
+      return `${sepHTML}<div class="chat-system-msg" data-msgkey="${key}"><span>${systemText}</span></div>`;
     }
 
     let quoteHTML = '';
@@ -2153,19 +2389,54 @@ function renderChatMessages(msgsObj, scrollToBottom) {
            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5 14.5 14.5M14.5 9.5 9.5 14.5"/></svg>
            This message has been deleted
          </div>`;
+    } else if (isViewOnceMsg(m)) {
+      // ── Bubble "Sekali Lihat" — tidak pernah menampilkan thumbnail/preview
+      // media atau caption langsung di daftar pesan, apa pun statusnya,
+      // supaya konsisten dgn sifat sekali-lihatnya.
+      const isImg = m.type === 'image';
+      const lockIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>`;
+      if (m.opened) {
+        bubbleHTML = `<div class="chat-bubble chat-bubble-viewonce chat-bubble-viewonce-opened">
+             ${lockIcon}<span>${isImg ? 'Photo' : 'Video'} opened</span>
+           </div>`;
+      } else if (mine) {
+        bubbleHTML = `<div class="chat-bubble chat-bubble-viewonce chat-bubble-viewonce-sent">
+             ${lockIcon}<span>${isImg ? 'Photo' : 'Video'} · View once</span>
+           </div>`;
+      } else {
+        bubbleHTML = `<div class="chat-bubble chat-bubble-viewonce chat-bubble-viewonce-tap" onclick="event.stopPropagation();openViewOnceMedia('${key}')">
+             ${lockIcon}<span>Tap to view ${isImg ? 'photo' : 'video'}</span>
+           </div>`;
+      }
     } else if (m.type === 'image' && m.mediaUrl) {
+      const dlBtnImg = !mine ? chatMediaDownloadBtnHTML(m.mediaUrl, 'image') : '';
       bubbleHTML = `<div class="chat-bubble-media" onclick="event.stopPropagation();openImgViewer('${esc(m.mediaUrl)}')">
            <img src="${esc(m.mediaUrl)}" alt="Photo" loading="lazy">
+           ${dlBtnImg}
          </div>${m.text ? `<div class="chat-bubble-caption">${esc(m.text)}</div>` : ''}`;
     } else if (m.type === 'video' && m.mediaUrl) {
+      const dlBtnVid = !mine ? chatMediaDownloadBtnHTML(m.mediaUrl, 'video') : '';
       bubbleHTML = `<div class="chat-bubble-media" onclick="event.stopPropagation();">
            <video src="${esc(m.mediaUrl)}" controls preload="metadata" playsinline></video>
+           ${dlBtnVid}
          </div>${m.text ? `<div class="chat-bubble-caption">${esc(m.text)}</div>` : ''}`;
     } else if (m.type === 'gif' && m.mediaUrl) {
+      const dlBtnGif = !mine ? chatMediaDownloadBtnHTML(m.mediaUrl, 'image') : '';
       bubbleHTML = `<div class="chat-bubble-media" onclick="event.stopPropagation();openImgViewer('${esc(m.mediaUrl)}')">
            <span class="chat-bubble-gif-badge">GIF</span>
            <img src="${esc(m.mediaUrl)}" alt="GIF" loading="lazy">
+           ${dlBtnGif}
          </div>${m.text ? `<div class="chat-bubble-caption">${esc(m.text)}</div>` : ''}`;
+    } else if (m.type === 'audio' && m.mediaUrl) {
+      // Bubble Voice Note — pemutar audio bawaan browser (<audio controls>)
+      // supaya tidak perlu bikin player custom (waveform dsb) yang menambah
+      // kompleksitas tanpa banyak manfaat di WebView.
+      bubbleHTML = `<div class="chat-bubble chat-bubble-audio" onclick="event.stopPropagation();">
+           <span class="chat-bubble-audio-icon">
+             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 19v3"/></svg>
+           </span>
+           <audio src="${esc(m.mediaUrl)}" controls preload="metadata"></audio>
+         </div>`;
     } else {
       // Kalau pesannya cuma emoji (dan bukan balasan pesan lain, karena
       // kutipan balasan butuh latar bubble supaya tetap terbaca), tampilkan
@@ -2437,12 +2708,19 @@ async function sendChatMessageLikeNotif(msg, key, chatId) {
     const fromName = profile.displayName || currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'User');
     const fromPhoto = profile.photoURL || profile.photoBase64 || currentUser.photoURL || '';
 
-    let preview = (msg.text || '').toString().trim();
-    if (!preview) {
-      if (msg.type === 'image') preview = 'Photo';
-      else if (msg.type === 'video') preview = 'Video';
-      else if (msg.type === 'gif') preview = 'GIF';
-      else preview = 'Message';
+    let preview;
+    if (isViewOnceMsg(msg)) {
+      // Caption pesan "sekali lihat" tidak pernah dibocorkan lewat notifikasi.
+      preview = msg.type === 'image' ? 'View once photo' : 'View once video';
+    } else {
+      preview = (msg.text || '').toString().trim();
+      if (!preview) {
+        if (msg.type === 'image') preview = 'Photo';
+        else if (msg.type === 'video') preview = 'Video';
+        else if (msg.type === 'gif') preview = 'GIF';
+        else if (msg.type === 'audio') preview = 'Voice message';
+        else preview = 'Message';
+      }
     }
 
     const notif = {
@@ -2486,10 +2764,15 @@ function spawnChatHeartBurst(key, rowEl) {
 function startReply(key) {
   const m = _chatCurrentMessages[key];
   if (!m || m.deletedForEveryone) return;
+  // Balas pesan "sekali lihat" TIDAK boleh membocorkan captionnya lewat kutipan.
+  if (isViewOnceMsg(m) && !m.opened) return;
   const myUid = currentUser ? currentUser.uid : null;
   const mine = m.from === myUid;
   const name = mine ? 'You' : ((_chatCurrentPeer && _chatCurrentPeer.name) || 'User');
-  _chatReplyTarget = { key: key, text: m.text || '', from: m.from, name: name };
+  const quoteText = isViewOnceMsg(m)
+    ? (m.type === 'image' ? '📷 Photo' : '🎥 Video')
+    : (m.type === 'audio' ? '🎤 Voice message' : (m.text || ''));
+  _chatReplyTarget = { key: key, text: quoteText, from: m.from, name: name };
   renderReplyPreview();
   document.getElementById('chat-input')?.focus();
 }
@@ -2729,6 +3012,8 @@ function handleChatMediaSelected(event) {
   bar.classList.remove('show');
   document.getElementById('chat-media-preview-bar-fill').style.width = '0%';
   document.getElementById('chat-media-preview').classList.add('show');
+  _chatViewOnceEnabled = false; // pilihan baru → toggle sekali-lihat kembali ke off
+  document.getElementById('chat-view-once-toggle')?.classList.remove('active');
   document.getElementById('chat-input')?.focus();
 }
 
@@ -2739,6 +3024,8 @@ function cancelChatMediaPreview() {
   _chatPendingMediaFile = null;
   _chatPendingMediaType = null;
   _chatPendingMediaPreviewUrl = null;
+  _chatViewOnceEnabled = false;
+  document.getElementById('chat-view-once-toggle')?.classList.remove('active');
   document.getElementById('chat-media-preview')?.classList.remove('show');
   const closeBtn = document.getElementById('chat-media-preview-close');
   const attachBtn = document.getElementById('chat-attach-btn');
@@ -2825,6 +3112,8 @@ async function sendChatMediaMessage() {
     const now = Date.now();
     const msgKey = db.ref('chats/' + chatId + '/messages').push().key;
 
+    const isViewOnce = _chatViewOnceEnabled;
+
     const msgData = {
       from: myUid,
       text: caption,
@@ -2834,6 +3123,10 @@ async function sendChatMediaMessage() {
       mediaWidth: result.width || null,
       mediaHeight: result.height || null
     };
+    if (isViewOnce) {
+      msgData.viewOnce = true;
+      msgData.opened = false;
+    }
     if (replyTargetSnapshot) {
       msgData.replyTo = {
         key: replyTargetSnapshot.key,
@@ -2843,7 +3136,11 @@ async function sendChatMediaMessage() {
       };
     }
 
-    const previewLabel = (mediaType === 'image' ? '📷 Photo' : '🎥 Video') + (caption ? ': ' + caption : '');
+    // Preview di daftar chat TIDAK pernah menampilkan isi caption pesan
+    // "sekali lihat" — supaya konsisten dgn sifatnya yg sekilas/rahasia.
+    const previewLabel = isViewOnce
+      ? (mediaType === 'image' ? '📷 View once photo' : '🎥 View once video')
+      : (mediaType === 'image' ? '📷 Photo' : '🎥 Video') + (caption ? ': ' + caption : '');
 
     const updates = {};
     updates['chats/' + chatId + '/participants/' + myUid] = true;
@@ -2871,6 +3168,335 @@ async function sendChatMediaMessage() {
   }
 }
 
+// ── Viewer "Sekali Lihat" (View Once) ───────────────────────────────────
+// Dibuka HANYA oleh penerima, dan HANYA SEKALI. Begitu dibuka:
+//  1) Layar disamarkan dari screenshot/perekaman layar di app Android asli
+//     (FLAG_SECURE lewat plugin native, lihat _secureViewSetEnabled()).
+//  2) mediaUrl pesan itu langsung di-null-kan di database — jadi tidak ada
+//     cara mengambil ulang medianya lewat chat ini, oleh siapapun.
+let _viewOnceHistoryPushed = false;
+let _viewOnceCurrentKey = null;
+
+async function openViewOnceMedia(key) {
+  if (!currentUser || !_chatCurrentPeer || !key) return;
+  const m = _chatCurrentMessages[key];
+  if (!isViewOnceMsg(m) || m.opened) return;
+  if (m.from === currentUser.uid) return; // pengirim tidak bisa membuka ulang medianya sendiri
+  if (!m.mediaUrl) return; // sudah kadung dibuka di device/tab lain barusan
+
+  const chatId = _chatCurrentPeer.chatId;
+  const overlay = document.getElementById('view-once-viewer');
+  const body = document.getElementById('view-once-viewer-body');
+  const captionEl = document.getElementById('view-once-viewer-caption');
+  if (!overlay || !body) return;
+
+  // Render media di viewer (video autoplay+muted-off krn user yg buka aktif menekan).
+  body.innerHTML = m.type === 'image'
+    ? `<img src="${esc(m.mediaUrl)}" alt="Photo" draggable="false" oncontextmenu="return false;">`
+    : `<video src="${esc(m.mediaUrl)}" controls autoplay playsinline oncontextmenu="return false;"></video>`;
+  if (captionEl) {
+    captionEl.textContent = m.text || '';
+    captionEl.style.display = m.text ? '' : 'none';
+  }
+
+  _viewOnceCurrentKey = key;
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  history.pushState({ viewOnceViewer: true }, '', location.href);
+  _viewOnceHistoryPushed = true;
+
+  // Blokir screenshot/screen-recording di level sistem (Android asli saja —
+  // di web/browser biasa panggilan ini otomatis tidak berpengaruh apa2).
+  _secureViewSetEnabled(true);
+
+  // Tandai sudah dibuka & hapus referensi medianya SEKARANG JUGA (bukan
+  // menunggu viewer ditutup), supaya sekalipun app force-close/koneksi
+  // putus selagi viewer terbuka, media tsb tetap tidak bisa dibuka lagi.
+  const updates = {};
+  updates['chats/' + chatId + '/messages/' + key + '/opened'] = true;
+  updates['chats/' + chatId + '/messages/' + key + '/openedAt'] = Date.now();
+  updates['chats/' + chatId + '/messages/' + key + '/mediaUrl'] = null;
+  db.ref().update(updates).catch(err => console.error('Gagal menandai media sekali-lihat sudah dibuka:', err));
+}
+
+function closeViewOnceViewer() {
+  const overlay = document.getElementById('view-once-viewer');
+  if (!overlay || !overlay.classList.contains('open')) return;
+  if (_viewOnceHistoryPushed) {
+    _viewOnceHistoryPushed = false;
+    history.back(); // konsisten dgn pola openImgViewer() — konsumsi entri riwayat lewat popstate
+  } else {
+    _hideViewOnceViewerVisual();
+  }
+}
+
+function _hideViewOnceViewerVisual() {
+  const overlay = document.getElementById('view-once-viewer');
+  const body = document.getElementById('view-once-viewer-body');
+  if (overlay) overlay.classList.remove('open');
+  if (body) body.innerHTML = ''; // hentikan video & buang elemen dari DOM/memori
+  document.body.style.overflow = '';
+  _viewOnceCurrentKey = null;
+  _secureViewSetEnabled(false); // matikan lagi FLAG_SECURE, tidak perlu selagi tidak sedang melihat
+}
+
+window.addEventListener('popstate', () => {
+  const overlay = document.getElementById('view-once-viewer');
+  if (overlay && overlay.classList.contains('open')) {
+    _viewOnceHistoryPushed = false;
+    _hideViewOnceViewerVisual();
+  }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeViewOnceViewer(); });
+
+// Deteksi-lunak (best effort, HANYA sbg pencegah kasual — bukan jaminan):
+// kalau app/tab kehilangan fokus atau disembunyikan (mis. user membuka app
+// screen-recorder/screenshot-tool lain, split-screen, atau recent-apps)
+// SELAGI viewer sekali-lihat terbuka, langsung samarkan kontennya. Ini
+// tambahan di atas FLAG_SECURE (yg jauh lebih kuat di Android asli), untuk
+// berjaga-jaga di platform yg tidak mendukung FLAG_SECURE (web/iOS).
+document.addEventListener('visibilitychange', () => {
+  const overlay = document.getElementById('view-once-viewer');
+  if (overlay && overlay.classList.contains('open')) {
+    overlay.classList.toggle('hidden-guard', document.hidden);
+  }
+});
+
+// ── Menu "+" (Camera / Microphone / Send photo-video) ala WhatsApp ──────
+// Tombol attach lama (paperclip, langsung buka file-picker galeri) diganti
+// jadi tombol "+" yang membuka menu kecil berisi 3 pilihan — Camera (ambil
+// foto langsung lewat kamera device), Microphone (rekam voice note), dan
+// Send photo/video (fungsi galeri yang lama, tetap lewat openChatMediaPicker()).
+function toggleChatPlusMenu() {
+  const menu = document.getElementById('chat-plus-menu');
+  if (!menu) return;
+  if (menu.classList.contains('show')) { closeChatPlusMenu(); return; }
+  closeGifPicker(); // jangan tumpang-tindih dgn GIF picker
+  menu.classList.add('show');
+}
+
+function closeChatPlusMenu() {
+  document.getElementById('chat-plus-menu')?.classList.remove('show');
+}
+
+// Tutup menu "+" kalau user tap di luar area menu/tombolnya (ala dropdown
+// pada umumnya) — tidak mengganggu klik tombol lain (Camera/Microphone/
+// Send photo-video) karena listener 'click' pada document baru terpicu
+// SETELAH handler onclick tombol2 tsb selesai (event bubbling biasa).
+document.addEventListener('click', e => {
+  const menu = document.getElementById('chat-plus-menu');
+  if (!menu || !menu.classList.contains('show')) return;
+  if (menu.contains(e.target) || e.target.closest('#chat-attach-btn')) return;
+  closeChatPlusMenu();
+});
+
+// Buka kamera device langsung (bukan galeri) utk ambil foto baru & kirim ke
+// chat — memakai <input type=file accept="image/*" capture="environment">
+// yang di WebView Capacitor/Android akan membuka app Kamera bawaan device,
+// lalu hasil fotonya masuk lewat handler yang SAMA dgn galeri
+// (handleChatMediaSelected → alur preview → upload Cloudinary → kirim),
+// jadi tidak perlu duplikasi logic sama sekali.
+async function openChatCamera() {
+  closeChatPlusMenu();
+  if (!currentUser || !_chatCurrentPeer) return;
+  const perm = await getChatSendPermission(_chatCurrentPeer.uid, 'media');
+  if (!perm.ok) {
+    toast(perm.message);
+    return;
+  }
+  document.getElementById('chat-camera-input')?.click();
+}
+
+// ── Rekam & Kirim Voice Note (ala WhatsApp) ─────────────────────────────
+
+// Dipanggil saat user menekan "Microphone" di menu "+". Minta izin mic lewat
+// getUserMedia (browser/WebView standard — RECORD_AUDIO sudah ada di
+// AndroidManifest), lalu mulai merekam dgn MediaRecorder. UI kolom ketik
+// disembunyikan sementara & diganti bar perekaman (timer + batal + kirim).
+async function startVoiceRecording() {
+  closeChatPlusMenu();
+  if (!currentUser || !_chatCurrentPeer) return;
+  if (_voiceRecorder && _voiceRecorder.state === 'recording') return; // sudah merekam
+  const perm = await getChatSendPermission(_chatCurrentPeer.uid, 'media');
+  if (!perm.ok) {
+    toast(perm.message);
+    return;
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
+    toast('Voice recording is not supported on this device.');
+    return;
+  }
+
+  cancelChatMediaPreview(); // jangan tumpang-tindih dgn preview foto/video
+  closeGifPicker();
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    _voiceStream = stream;
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '');
+    _voiceMimeType = mimeType || 'audio/webm';
+    _voiceRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+    _voiceChunks = [];
+    _voiceCancelled = false;
+
+    _voiceRecorder.ondataavailable = e => {
+      if (e.data && e.data.size > 0) _voiceChunks.push(e.data);
+    };
+    _voiceRecorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      _voiceStream = null;
+    };
+
+    _voiceRecorder.start();
+    _voiceStartTs = Date.now();
+    showVoiceRecordingBar();
+    _voiceTimerInterval = setInterval(updateVoiceTimer, 250);
+  } catch (err) {
+    console.error('Gagal mengakses microphone:', err);
+    toast('Cannot access microphone — check app permission.');
+    _voiceRecorder = null;
+    if (_voiceStream) { _voiceStream.getTracks().forEach(t => t.stop()); _voiceStream = null; }
+  }
+}
+
+function updateVoiceTimer() {
+  const el = document.getElementById('chat-voice-timer');
+  if (!el || !_voiceStartTs) return;
+  const secs = Math.max(0, Math.floor((Date.now() - _voiceStartTs) / 1000));
+  const mm = String(Math.floor(secs / 60)).padStart(2, '0');
+  const ss = String(secs % 60).padStart(2, '0');
+  el.textContent = mm + ':' + ss;
+}
+
+function showVoiceRecordingBar() {
+  document.querySelector('.chat-input-bar')?.classList.add('hidden-for-voice');
+  document.getElementById('chat-media-preview')?.classList.remove('show');
+  const el = document.getElementById('chat-voice-timer');
+  if (el) el.textContent = '00:00';
+  document.getElementById('chat-voice-bar')?.classList.add('show');
+}
+
+function hideVoiceRecordingBar() {
+  document.querySelector('.chat-input-bar')?.classList.remove('hidden-for-voice');
+  document.getElementById('chat-voice-bar')?.classList.remove('show');
+  clearInterval(_voiceTimerInterval);
+  _voiceTimerInterval = null;
+}
+
+// Batalkan rekaman (tombol tempat sampah) — hasil rekaman dibuang, tidak dikirim.
+function cancelVoiceRecording() {
+  _voiceCancelled = true;
+  if (_voiceRecorder && _voiceRecorder.state !== 'inactive') {
+    _voiceRecorder.stop();
+  } else if (_voiceStream) {
+    _voiceStream.getTracks().forEach(t => t.stop());
+    _voiceStream = null;
+  }
+  _voiceChunks = [];
+  _voiceRecorder = null;
+  hideVoiceRecordingBar();
+}
+
+// Berhentikan rekaman lalu upload+kirim sbg pesan chat type:"audio".
+async function sendVoiceRecording() {
+  if (!_voiceRecorder || _voiceRecorder.state === 'inactive') return;
+  const durationSecs = Math.max(1, Math.round((Date.now() - _voiceStartTs) / 1000));
+  const sendBtn = document.getElementById('chat-voice-send-btn');
+  if (sendBtn) sendBtn.disabled = true;
+
+  await new Promise(resolve => {
+    _voiceRecorder.addEventListener('stop', resolve, { once: true });
+    _voiceRecorder.stop();
+  });
+
+  hideVoiceRecordingBar();
+  const chunks = _voiceChunks;
+  _voiceChunks = [];
+  _voiceRecorder = null;
+
+  if (_voiceCancelled || chunks.length === 0) {
+    if (sendBtn) sendBtn.disabled = false;
+    return;
+  }
+
+  const blob = new Blob(chunks, { type: _voiceMimeType });
+  if (blob.size < 500) { // rekaman kelewat pendek (kemungkinan cuma tap-lepas)
+    toast('Recording too short.');
+    if (sendBtn) sendBtn.disabled = false;
+    return;
+  }
+  const ext = _voiceMimeType.includes('ogg') ? 'ogg' : 'webm';
+  const file = new File([blob], 'voice_' + Date.now() + '.' + ext, { type: _voiceMimeType });
+
+  await uploadAndSendVoiceMessage(file, durationSecs);
+  if (sendBtn) sendBtn.disabled = false;
+}
+
+// Upload voice note ke Cloudinary lalu kirim sbg pesan chat — polanya sama
+// persis dgn sendChatMediaMessage() (foto/video), hanya field pesannya
+// berbeda (type:"audio" + audioDuration, tanpa caption). CATATAN: Cloudinary
+// TIDAK punya resource_type "audio" tersendiri — cara resmi mereka utk
+// menyimpan berkas audio (mp3/webm/ogg dst) adalah lewat resource_type
+// "video" juga (video encoder Cloudinary menangani audio-only files).
+async function uploadAndSendVoiceMessage(file, durationSecs) {
+  if (!currentUser || !_chatCurrentPeer) return;
+  const peer = _chatCurrentPeer;
+  const permCheck = await getChatSendPermission(peer.uid, 'media');
+  if (!permCheck.ok) {
+    toast(permCheck.message);
+    return;
+  }
+
+  const chatId = peer.chatId;
+  const myUid = currentUser.uid;
+  const replyTargetSnapshot = _chatReplyTarget;
+
+  toast('Sending voice message…');
+  try {
+    const result = await uploadToCloudinary(file, 'video');
+
+    const now = Date.now();
+    const msgKey = db.ref('chats/' + chatId + '/messages').push().key;
+    const msgData = {
+      from: myUid,
+      text: '',
+      ts: now,
+      type: 'audio',
+      mediaUrl: result.secure_url,
+      audioDuration: durationSecs
+    };
+    if (replyTargetSnapshot) {
+      msgData.replyTo = {
+        key: replyTargetSnapshot.key,
+        text: replyTargetSnapshot.text,
+        from: replyTargetSnapshot.from,
+        name: replyTargetSnapshot.name
+      };
+    }
+    const previewLabel = '🎤 Voice message';
+
+    const updates = {};
+    updates['chats/' + chatId + '/participants/' + myUid] = true;
+    updates['chats/' + chatId + '/participants/' + peer.uid] = true;
+    updates['chats/' + chatId + '/messages/' + msgKey] = msgData;
+    updates['userChats/' + myUid + '/' + chatId + '/lastMessage'] = previewLabel;
+    updates['userChats/' + myUid + '/' + chatId + '/lastMessageAt'] = now;
+    updates['userChats/' + myUid + '/' + chatId + '/unreadCount'] = 0;
+    updates['userChats/' + peer.uid + '/' + chatId + '/lastMessage'] = previewLabel;
+    updates['userChats/' + peer.uid + '/' + chatId + '/lastMessageAt'] = now;
+    updates['userChats/' + peer.uid + '/' + chatId + '/unreadCount'] = firebase.database.ServerValue.increment(1);
+
+    cancelReply();
+    await db.ref().update(updates);
+    triggerChatPushNotification(peer, previewLabel);
+  } catch (err) {
+    console.error('Gagal mengirim voice note:', err);
+    toast('Failed to send voice message — try again.');
+  }
+}
+
 // ── GIF Picker (Giphy) ──────────────────────────────────────────────────
 
 async function toggleGifPicker() {
@@ -2888,6 +3514,7 @@ async function toggleGifPicker() {
 
 function openGifPicker() {
   cancelChatMediaPreview(); // jangan tumpang-tindih dgn preview foto/video
+  closeChatPlusMenu();
   const panel = document.getElementById('chat-gif-picker');
   const btn = document.getElementById('chat-gif-btn');
   if (!panel) return;
@@ -4908,6 +5535,13 @@ function initPlayer(videoId) {
 function setPB(p){
   document.getElementById('ico-play').style.display=p?'none':'block';
   document.getElementById('ico-pause').style.display=p?'block':'none';
+  // ── Vinyl Player Skin hook (lihat blok VBX_VINYL_SKIN di akhir file) ──
+  // setPB() adalah satu-satunya fungsi yg selalu dipanggil setiap kali
+  // status play/pause berubah — YouTube player, offline, stream, media
+  // session action, dsb (lihat semua caller playing=true/false di atas).
+  // Jadi ini titik paling aman utk sinkronkan animasi putar #bar-thumb
+  // dgn status pemutaran YANG SEBENARNYA, tanpa nulis ulang logic play/pause.
+  if (typeof _vbxSetVinylSpin === 'function') _vbxSetVinylSpin(p);
   updateFSPB(p);
   updateNPMobPB(p);
   if('mediaSession' in navigator) navigator.mediaSession.playbackState = p ? 'playing' : 'paused';
@@ -5065,7 +5699,8 @@ document.addEventListener('visibilitychange', ()=>{
     // — dipanggil PALING AWAL & sinkron, sebelum kerja async apa pun di bawah,
     // supaya waktunya sedini mungkin kalau-kalau lifecycle callback native
     // di beberapa device/versi Capacitor tidak konsisten terpanggil.
-    try{ const VM=_vbxMediaPlugin(); if(VM && VM.setBridgeAlive) VM.setBridgeAlive({ alive:false }).catch(()=>{}); }catch(e){}
+    console.log('[VBX-MEDIA] App masuk BACKGROUND. playing=', playing, 'curTrack=', curTrack && curTrack._query, 'nativeMediaReady=', _vbxNativeMediaReady);
+    try{ const VM=_vbxMediaPlugin(); if(VM && VM.setBridgeAlive) VM.setBridgeAlive({ alive:false }).then(()=>console.log('[VBX-MEDIA] setBridgeAlive(false) terkirim ke native')).catch((e)=>console.warn('[VBX-MEDIA] setBridgeAlive(false) GAGAL:', e)); }catch(e){}
     // Tab masuk background — hentikan rAF, pasang fallback timer & interval
     cancelAnimationFrame(raf);
     if(playing){
@@ -5087,7 +5722,8 @@ document.addEventListener('visibilitychange', ()=>{
     }
   } else {
     // Tab kembali foreground
-    try{ const VM=_vbxMediaPlugin(); if(VM && VM.setBridgeAlive) VM.setBridgeAlive({ alive:true }).catch(()=>{}); }catch(e){}
+    console.log('[VBX-MEDIA] App kembali FOREGROUND. nativeInControl=', _vbxNativeInControl);
+    try{ const VM=_vbxMediaPlugin(); if(VM && VM.setBridgeAlive) VM.setBridgeAlive({ alive:true }).then(()=>console.log('[VBX-MEDIA] setBridgeAlive(true) terkirim ke native')).catch((e)=>console.warn('[VBX-MEDIA] setBridgeAlive(true) GAGAL:', e)); }catch(e){}
     // JS mengambil kembali otoritas atas auto-advance SEKARANG JUGA (lihat
     // deklarasi _vbxNativeInControl) — sebelum menunggu async apa pun di
     // bawah, supaya tidak ada celah waktu ganjil di mana KEDUANYA (native
@@ -5266,12 +5902,18 @@ async function _vbxInitNativeMedia(){
   // Android. Simpan info ini, lalu begitu app kembali foreground (lihat
   // handler visibilitychange di bawah), samakan WebView ke lagu & posisi
   // yang sama persis alih-alih tetap di lagu lama / restart dari awal.
-  VM.addListener('nativeTrackChanged', (d)=>{ _vbxPendingNativeSync = d || null; });
+  VM.addListener('nativeTrackChanged', (d)=>{
+    console.log('[VBX-MEDIA] Event nativeTrackChanged diterima dari native:', d);
+    _vbxPendingNativeSync = d || null;
+  });
 
   // Antrian native cuma dibekali 1-2 lagu ke depan saat handoff (supaya
   // tidak lama nunggu resolve MP3 sebelum masuk background) — begitu
   // tinggal 1 lagu tersisa di sana, native minta lagu berikutnya lagi.
-  VM.addListener('nativeNeedsMoreQueue', ()=>{ _vbxAppendNextToNativeQueue(); });
+  VM.addListener('nativeNeedsMoreQueue', ()=>{
+    console.log('[VBX-MEDIA] Event nativeNeedsMoreQueue diterima — native minta lagu tambahan');
+    _vbxAppendNextToNativeQueue();
+  });
 
   // Kalau ada lagu yang sudah aktif SEBELUM plugin ini selesai konek
   // (mis. race condition saat startup), sinkronkan sekali secara manual.
@@ -5338,9 +5980,11 @@ async function _vbxPrewarmStreamUrlCache(){
   if(next) targets.push(next);
   for(const t of targets){
     if(!t || !t._query || _vbxStreamUrlCache[t._query] || _vbxStreamUrlPrewarming.has(t._query)) continue;
+    console.log('[VBX-MEDIA] Prewarm mulai untuk', t._query);
     _vbxStreamUrlPrewarming.add(t._query);
     _vbxResolveStreamUrl(t).then(url=>{
-      if(url) _vbxStreamUrlCache[t._query] = url;
+      if(url){ _vbxStreamUrlCache[t._query] = url; console.log('[VBX-MEDIA] Prewarm SELESAI untuk', t._query, '— siap dipakai instan saat handoff'); }
+      else console.warn('[VBX-MEDIA] Prewarm GAGAL untuk', t._query);
     }).finally(()=>{ _vbxStreamUrlPrewarming.delete(t._query); });
   }
 }
@@ -5352,24 +5996,33 @@ async function _vbxPrewarmStreamUrlCache(){
 // cepat dipanggil tepat sebelum/masuk background.
 async function _vbxResolveStreamUrl(track){
   if(!track) return null;
-  if(track._query && _vbxStreamUrlCache[track._query]) return _vbxStreamUrlCache[track._query];
+  if(track._query && _vbxStreamUrlCache[track._query]){
+    console.log('[VBX-MEDIA] _vbxResolveStreamUrl: cache hit lokal untuk', track._query);
+    return _vbxStreamUrlCache[track._query];
+  }
   let videoId = track.videoId || (_prefetchCache[track._query] && _prefetchCache[track._query].videoId) || null;
   if(!videoId){
     try{
       const cl = cleanT(track.title);
       const r = await resolveVidByDuration(track.artist, track.title, cl, track.duration);
       videoId = r && r.videoId;
-    }catch(e){ return null; }
+    }catch(e){ console.warn('[VBX-MEDIA] resolveVidByDuration gagal untuk', track.title, e); return null; }
   }
-  if(!videoId) return null;
+  if(!videoId){ console.warn('[VBX-MEDIA] _vbxResolveStreamUrl: videoId tidak ditemukan untuk', track.title, '-', track.artist); return null; }
   try{
-    let data = await _yt2mp3Fetch(videoId);
+    console.log('[VBX-MEDIA] _yt2mp3Fetch mulai: videoId=', videoId, 'artist=', track.artist, 'title=', track.title);
+    let data = await _yt2mp3Fetch(videoId, track.artist, track.title);
     let attempts = 0;
     while(data && data.status === 'processing' && attempts < 8){
-      attempts++; await _dlSleep(1200); data = await _yt2mp3Fetch(videoId);
+      attempts++; console.log('[VBX-MEDIA] proxy masih processing, percobaan', attempts, '/8'); await _dlSleep(1200); data = await _yt2mp3Fetch(videoId, track.artist, track.title);
     }
-    return (data && data.status === 'ok' && data.link) ? data.link : null;
-  }catch(e){ return null; }
+    if(data && data.status === 'ok' && data.link){
+      console.log('[VBX-MEDIA] Resolve sukses. cached=', !!data.cached, 'cacheLevel=', data.cacheLevel || '(baru convert)', '-> ', data.link);
+      return data.link;
+    }
+    console.warn('[VBX-MEDIA] Resolve GAGAL, status akhir dari proxy:', data && data.status, data && data.msg);
+    return null;
+  }catch(e){ console.warn('[VBX-MEDIA] _yt2mp3Fetch exception:', e); return null; }
 }
 
 function _vbxTrackToQueueItem(track, streamUrl){
@@ -5431,22 +6084,34 @@ let _vbxNativeInControl = false;
 // supaya Next/Previous di lock screen & auto-lanjut playlist tetap jalan
 // walau WebView sedang dibekukan Android.
 async function _vbxHandoffToNative(){
-  if(!_vbxNativeMediaReady || !curTrack) return;
+  if(!_vbxNativeMediaReady || !curTrack){
+    console.warn('[VBX-MEDIA] Handoff dibatalkan: nativeMediaReady=', _vbxNativeMediaReady, 'curTrack=', !!curTrack, '(kemungkinan besar audio akan BERHENTI begitu WebView dibekukan Android)');
+    return;
+  }
   const VM = _vbxMediaPlugin();
-  if(!VM || !VM.setQueue) return;
+  if(!VM || !VM.setQueue){
+    console.warn('[VBX-MEDIA] Handoff dibatalkan: plugin VibexaMedia/setQueue tidak tersedia');
+    return;
+  }
   const myGen = ++_vbxHandoffGen;              // token generasi milik panggilan ini
   const handoffQuery = curTrack._query || null; // lagu yang SEDANG diputar saat handoff ini MULAI
+  console.log('[VBX-MEDIA] _vbxHandoffToNative() mulai, gen=', myGen, 'query=', handoffQuery, 'sudah di-prewarm?', !!_vbxStreamUrlCache[handoffQuery]);
   // Cache-first: kalau sudah di-prewarm selagi foreground (kasus normal),
   // ini instan — tidak ada network call sama sekali di titik rawan ini.
   // Kalau BELUM ada di cache (mis. app langsung dikunci <1 detik setelah
   // lagu mulai), tetap coba resolve tapi TIDAK BOLEH menggantung lama —
   // dibatasi 3.5 detik saja, supaya kalaupun WebView mulai dibatasi
   // Android, kita tidak kehilangan kesempatan mengirim minimal 1 item.
+  const _handoffResolveStart = Date.now();
   const curUrl = await Promise.race([
     _vbxResolveStreamUrl(curTrack),
     new Promise(res => setTimeout(()=>res(null), 3500))
   ]);
-  if(!curUrl) return; // gagal dalam batas waktu -> jangan kirim apa pun (lebih aman daripada antrian salah)
+  console.log('[VBX-MEDIA] Resolve stream URL untuk handoff selesai dalam', Date.now()-_handoffResolveStart, 'ms ->', curUrl ? 'BERHASIL' : 'GAGAL/TIMEOUT');
+  if(!curUrl){
+    console.warn('[VBX-MEDIA] Handoff GAGAL: streamUrl tidak siap dalam 3.5 detik (kemungkinan cache belum warm / proxy server lambat / KV cache proxy tidak persisten). Native TIDAK mengambil alih -> audio kemungkinan berhenti saat WebView dibekukan.');
+    return; // gagal dalam batas waktu -> jangan kirim apa pun (lebih aman daripada antrian salah)
+  }
   // BUG FIX (lagu lama & lagu baru bunyi bersamaan / lock-screen Next malah
   // "mundur" ke lagu sebelumnya): selama nunggu resolve URL di atas (bisa
   // sampai 3.5 detik), user bisa saja sudah pencet Next/Previous di lock
@@ -5458,53 +6123,35 @@ async function _vbxHandoffToNative(){
   // tidak ada handoff generasi lebih baru (myGen !== _vbxHandoffGen) DAN
   // curTrack belum berubah (masih sama seperti saat handoff ini mulai).
   if(myGen !== _vbxHandoffGen || !curTrack || curTrack._query !== handoffQuery){
+    console.warn('[VBX-MEDIA] Handoff dibatalkan: sudah basi (gen berubah atau lagu sudah ganti sebelum resolve selesai)');
     return;
   }
+  // BUG FIX UTAMA (auto-next & Next lock screen masih sering gagal walau
+  // sudah ada mekanisme di atas): SEBELUMNYA VM.setQueue() (yang baru
+  // memicu mute+_vbxNativeInControl=true) ditahan sampai lagu BERIKUTNYA
+  // (bahkan lagu ke-3) selesai di-resolve juga — total bisa sampai ~13.5
+  // detik (3.5+7+3) sebelum native benar2 mengambil alih. Kalau Android
+  // membekukan eksekusi JS WebView lebih cepat dari itu (banyak device,
+  // terutama dengan battery manager OEM agresif seperti MIUI/ColorOS/
+  // FuntouchOS/OneUI, membekukan dalam hitungan 1-5 detik setelah layar
+  // dikunci — JAUH lebih cepat dari 13.5 detik), maka setQueue() TIDAK
+  // PERNAH sempat terpanggil sama sekali: nativeModeActive tetap false,
+  // YTP tidak pernah di-mute, dan native tidak punya antrian apa pun.
+  // Persis gejala "auto next tidak jalan" / "Next lock screen tidak
+  // merespons" yang masih sering muncul.
+  //
+  // Fix: kirim setQueue() SESEGERA mungkin begitu HANYA lagu yang sedang
+  // diputar (curUrl) siap — di atas ini sudah cache-first jadi hampir
+  // selalu instan. Native RESMI mengambil alih & YTP di-mute di sini,
+  // secepat mungkin. Lagu berikutnya (+ 1 buffer) disusulkan SECARA ASYNC
+  // lewat appendQueue() di _vbxAppendBufferAfterHandoff() TANPA menahan
+  // proses handoff/mute di atas sama sekali — kalaupun WebView keburu
+  // dibekukan sebelum susulan itu sempat terkirim, native tetap sudah
+  // resmi memegang kendali dari 1 lagu yang sudah pasti terkirim, dan
+  // 'nativeNeedsMoreQueue' (VibexaMediaService._requestMoreThenAdvance())
+  // tetap jadi jaring pengaman berikutnya kalau WebView masih hidup nanti.
   const items = [_vbxTrackToQueueItem(curTrack, curUrl)];
-  const nextTrack = _vbxComputeNextTrack(curTrack);
-  if(nextTrack){
-    // BUG FIX "lagu pertama habis di background, sistem langsung berhenti,
-    // tidak lanjut ke lagu berikutnya": timeout di sini SEBELUMNYA cuma 2
-    // detik. Kalau URL lagu berikutnya belum sempat ke-cache (mis. app
-    // di-background hampir langsung setelah pindah lagu, sebelum
-    // _prefetchNext() ~500ms sempat menyelesaikan prewarm-nya), 2 detik
-    // sering TIDAK CUKUP untuk resolve dari awal (butuh cari videoId +
-    // polling RapidAPI). Hasilnya native cuma dibekali 1 lagu, lalu begitu
-    // lagu itu habis, native minta lagu tambahan ke JS — yang mustahil
-    // dijawab kalau WebView sudah benar2 dibekukan Android (itulah alasan
-    // ada mode native ini) — dan berakhir "diam" (lihat penjelasan lengkap
-    // di VibexaMediaService.kt, fungsi _requestMoreThenAdvance()).
-    // Dinaikkan ke 7 detik supaya jauh lebih sering berhasil dapat 2 lagu
-    // sejak awal, tanpa membuat proses masuk background jadi terlalu lama
-    // tertahan (curUrl sendiri sudah dibatasi terpisah 3.5 detik di atas).
-    const nUrl = await Promise.race([
-      _vbxResolveStreamUrl(nextTrack).catch(()=>null),
-      new Promise(res => setTimeout(()=>res(null), 7000))
-    ]);
-    // Cek ulang staleness lagi setelah await kedua ini (bisa saja curTrack
-    // berubah SELAMA menunggu resolve lagu berikutnya juga).
-    if(myGen !== _vbxHandoffGen || !curTrack || curTrack._query !== handoffQuery) return;
-    if(nUrl) items.push(_vbxTrackToQueueItem(nextTrack, nUrl));
-    // Buffer tambahan: coba sertakan JUGA lagu ke-3 (best-effort, budget
-    // waktu lebih singkat & TIDAK membatalkan handoff kalau gagal/timeout)
-    // supaya native tidak langsung kehabisan antrian & terpaksa minta lagu
-    // ke JS lewat 'nativeNeedsMoreQueue' — yang cuma bisa dijawab kalau
-    // WebView masih hidup, padahal biasanya sudah dibekukan Android di
-    // titik ini. Makin banyak lagu di buffer awal, makin lama playlist bisa
-    // jalan sendiri di background sebelum benar2 butuh JS lagi.
-    if(nUrl){
-      const nextNextTrack = _vbxTrackAfter(nextTrack);
-      if(nextNextTrack && nextNextTrack._query !== curTrack._query){
-        const nnUrl = await Promise.race([
-          _vbxResolveStreamUrl(nextNextTrack).catch(()=>null),
-          new Promise(res => setTimeout(()=>res(null), 3000))
-        ]);
-        if(myGen !== _vbxHandoffGen || !curTrack || curTrack._query !== handoffQuery) return;
-        if(nnUrl) items.push(_vbxTrackToQueueItem(nextNextTrack, nnUrl));
-      }
-    }
-  }
-  _vbxLastNativeQueueQuery = items[items.length-1].query;
+  _vbxLastNativeQueueQuery = handoffQuery;
   const posMs = Math.round((_playStartWall>0 ? (_playStartPos + (Date.now()-_playStartWall)/1000) : (cur||0)) * 1000);
   try{
     await VM.setQueue({ items: JSON.stringify(items), startIndex: 0, positionMs: posMs, playing: !!playing });
@@ -5528,7 +6175,85 @@ async function _vbxHandoffToNative(){
     // memutuskan lagu berikutnya sendiri sampai kembali foreground (lihat
     // deklarasi _vbxNativeInControl & guard di _handleSongEnded()).
     _vbxNativeInControl = true;
-  }catch(e){ console.warn('[VBX-MEDIA] setQueue gagal:', e); }
+    console.log('[VBX-MEDIA] Handoff BERHASIL — native mengambil alih audio, WebView di-mute. gen=', myGen, 'query=', handoffQuery);
+  }catch(e){ console.warn('[VBX-MEDIA] setQueue gagal (exception saat komunikasi ke native):', e); return; }
+
+  // Susulkan buffer (next + next-next) TANPA await di sini — biarkan handoff
+  // di atas selesai secepat mungkin, ini jalan di belakang layar.
+  _vbxAppendBufferAfterHandoff(myGen, handoffQuery);
+}
+
+// BUG FIX UTAMA "lagu berhenti/nyangkut setelah beberapa saat di background,
+// TERJADI DI SEMUA MEREK HP (bukan cuma OEM agresif MIUI/ColorOS/dst)":
+// Android SECARA STANDAR membekukan JS/timer WebView begitu Activity masuk
+// background (ini perilaku dasar Chrome/WebView, bukan fitur skin tertentu)
+// — foreground service-nya sendiri tetap hidup (makanya notifikasi tetap
+// tampil), tapi thread JS yang menjalankan vibexa.js ini BISA TOTAL BEKU.
+// SEBELUMNYA fungsi ini cuma nyusulin 1+1 lagu (next + next-next) lalu
+// mengandalkan event 'nativeNeedsMoreQueue' belakangan buat minta lagu
+// selanjutnya — padahal event itu PERLU JS yang masih hidup untuk dijawab.
+// Begitu WebView beku (bisa dalam hitungan detik), permintaan itu tidak
+// pernah terjawab, dan native cuma bisa mengulang lagu terakhir yang ada
+// (lihat _requestMoreThenAdvance() di VibexaMediaService.kt) — dari sisi
+// user kelihatan seperti "lagu berhenti/nyangkut".
+//
+// FIX: isi SEKALIGUS buffer yang jauh lebih panjang (NATIVE_QUEUE_BUFFER_SIZE
+// lagu ke depan) SAAT HANDOFF INI JUGA, selagi WebView (hampir pasti) masih
+// hidup beberapa detik pertama — BUKAN nunggu diminta belakangan lewat
+// 'nativeNeedsMoreQueue'. Dengan ini native punya cukup banyak lagu buat main
+// sendirian tanpa PERNAH butuh JS lagi selama sesi background yang wajar.
+// 'nativeNeedsMoreQueue' / appendQueue() belakangan (lihat
+// _vbxAppendNextToNativeQueue()) tetap ada sebagai jaring pengaman kalau
+// user dengar lebih lama dari buffer ini, TAPI bukan lagi jalur utama.
+const NATIVE_QUEUE_BUFFER_SIZE = 10;             // jumlah lagu ke depan yang diusahakan diisi ke native saat handoff
+const NATIVE_QUEUE_BUFFER_TOTAL_BUDGET_MS = 25000; // total waktu maksimal proses pengisian buffer ini boleh jalan
+
+// Dipanggil TEPAT SETELAH _vbxHandoffToNative() berhasil mengirim minimal 1
+// lagu (curTrack) ke native — susulkan sampai NATIVE_QUEUE_BUFFER_SIZE lagu
+// berikutnya secara async lewat appendQueue(), satu-satu berurutan (supaya
+// urutan playlist tetap benar), sampai budget waktu habis atau native sudah
+// bukan pemegang kendali lagi. Dipisah dari _vbxHandoffToNative() supaya
+// proses mute+ambil-alih di sana TIDAK PERNAH tertahan menunggu ini.
+async function _vbxAppendBufferAfterHandoff(myGen, handoffQuery){
+  const VM = _vbxMediaPlugin();
+  if(!VM || !VM.appendQueue) return;
+  const budgetStart = Date.now();
+  let prevTrack = curTrack;
+
+  for(let i = 0; i < NATIVE_QUEUE_BUFFER_SIZE; i++){
+    // Batalkan kalau handoff ini sudah basi (ada handoff baru / curTrack
+    // sudah beda) ATAU native sudah bukan lagi pemegang kendali (mis. app
+    // sempat balik ke foreground lagi selagi proses ini jalan) — jangan
+    // sampai appendQueue yang telat ini nyasar ke sesi native yang sudah
+    // tidak relevan.
+    if(myGen !== _vbxHandoffGen || !curTrack || curTrack._query !== handoffQuery || !_vbxNativeInControl) return;
+    if(Date.now() - budgetStart > NATIVE_QUEUE_BUFFER_TOTAL_BUDGET_MS) return; // jangan sampai proses ini jalan tanpa henti kalau WebView keburu dibekukan di tengah jalan
+
+    const nextTrack = (i === 0) ? _vbxComputeNextTrack(curTrack) : _vbxTrackAfter(prevTrack);
+    if(!nextTrack) return; // mis. kasus "Unduhan Offline murni" yang tidak didukung native (lihat _vbxComputeNextTrack)
+
+    // Lagu-lagu paling awal di buffer dikasih waktu tunggu lebih lama
+    // (prioritas tinggi, kemungkinan besar masih sempat sebelum WebView
+    // beku) — lagu-lagu berikutnya dikasih waktu lebih singkat supaya total
+    // proses tidak molor kalau memang koneksi lambat.
+    const perTrackTimeout = i < 2 ? 7000 : 3000;
+    const url = await Promise.race([
+      _vbxResolveStreamUrl(nextTrack).catch(()=>null),
+      new Promise(res => setTimeout(()=>res(null), perTrackTimeout))
+    ]);
+    if(myGen !== _vbxHandoffGen || !curTrack || curTrack._query !== handoffQuery || !_vbxNativeInControl) return;
+
+    if(url){
+      try{
+        await VM.appendQueue({ item: JSON.stringify(_vbxTrackToQueueItem(nextTrack, url)) });
+        _vbxLastNativeQueueQuery = nextTrack._query;
+      }catch(e){}
+    }
+    // Gagal resolve 1 lagu (jarang, mis. RapidAPI lagi limit) BUKAN alasan
+    // berhenti total mengisi buffer — lanjut coba lagu SETELAHNYA supaya
+    // buffer tetap terisi semaksimal mungkin.
+    prevTrack = nextTrack;
+  }
 }
 
 // Dipanggil balasan atas event 'nativeNeedsMoreQueue' — native tinggal 1
@@ -5590,13 +6315,21 @@ function _qIdx(){
   return curQueue.findIndex(t => t._query === curTrack._query);
 }
 
-// ── AUTO-PREDOWNLOAD lagu berikutnya di playlist ────────────────────────
-// Begitu sisa waktu lagu yang sedang diputar tinggal ≤15 detik, lagu
-// BERIKUTNYA di queue langsung dikonversi+diunduh ke "Unduhan Offline" di
-// BACKGROUND (tanpa mengganggu lagu yang sedang diputar). Jadi begitu lagu
-// ini habis dan pindah ke lagu berikutnya, offline-first check di loadPlay()
-// akan langsung menemukannya SUDAH tersimpan → diputar instan, TANPA loading
-// convert/unduh lagi.
+// ── AUTO-PREWARM cache Supabase utk lagu berikutnya di playlist ─────────
+// Begitu sisa waktu lagu yang sedang diputar tinggal ≤8 detik, lagu
+// BERIKUTNYA di queue di-convert di BACKGROUND lewat _yt2mp3Fetch() saja
+// (cache-first di backend/main.ts) — tujuannya cuma supaya file MP3-nya
+// SUDAH ADA di Supabase Storage saat dibutuhkan, sehingga proses convert
+// via RapidAPI tidak perlu diulang (hemat kuota API key).
+//
+// PENTING: fungsi ini SENGAJA TIDAK memanggil _dlConvertAndSave()/
+// _dlAddRemoteBlob() dan TIDAK menulis apa pun ke IndexedDB `downloads`.
+// Artinya lagu berikutnya TIDAK otomatis muncul di "Unduhan Offline"
+// (section "Downloaded Songs" di halaman Yours) — itu cuma boleh terjadi
+// kalau user sendiri yang menekan tombol download (lihat
+// downloadCurrentSongOffline() / downloadEntirePlaylistOffline()), supaya
+// user yang berhak menentukan lagu mana yang boleh diputar offline tanpa
+// login, bukan diputuskan otomatis oleh player.
 const AUTO_PREDOWNLOAD_SECONDS_BEFORE_END = 8;
 let _autoPredownloadedFor = null;     // _query lagu yg SEDANG diputar — supaya trigger cuma sekali per lagu
 let _autoPredownloadingQuery = null;  // _query lagu berikutnya yang lagi diproses (cegah proses dobel)
@@ -5618,26 +6351,38 @@ async function _autoPredownloadNextInQueue(){
     if(!next || !next._query) return;
     if(_autoPredownloadingQuery === next._query) return; // sudah lagi diproses
 
-    // Sudah ada di Unduhan Offline? skip, tidak perlu diunduh ulang.
+    // Kalau lagu ini SUDAH ada di Unduhan Offline lokal (device ini), tidak
+    // perlu apa-apa lagi — baik convert maupun simpan.
     const existing = await _dlFindMatchingTrack(next);
     if(existing) return;
 
     _autoPredownloadingQuery = next._query;
-    let videoId, lines;
+    let videoId;
     const cached = _prefetchCache[next._query];
     if(cached && cached.videoId){
-      videoId = cached.videoId; lines = cached.lyrs;
+      videoId = cached.videoId;
     } else {
       const cl = cleanT(next.title);
-      ({videoId, lines} = await resolveVidByDuration(next.artist, next.title, cl, next.duration));
+      ({videoId} = await resolveVidByDuration(next.artist, next.title, cl, next.duration));
     }
     if(!videoId) return;
-    const lyricsSnapshot = (lines && lines.length) ? lines : null;
-    await _dlConvertAndSave(videoId, next.title, next.artist, next.thumb, lyricsSnapshot);
-    try{ refreshDownloadsList(); }catch(e){}
-    console.log('[Auto-Predownload] Lagu berikutnya sudah siap offline:', next.title, '-', next.artist);
+
+    // HANYA prewarm cache Supabase via _yt2mp3Fetch() (cache-first di
+    // backend) — TIDAK download blob-nya, TIDAK simpan ke IndexedDB, jadi
+    // lagu ini TIDAK muncul di halaman Yours kecuali user sendiri yang
+    // menekan tombol download.
+    let data = await _yt2mp3Fetch(videoId, next.artist, next.title);
+    let attempts = 0;
+    while (data && data.status === 'processing' && attempts < 20){
+      attempts++;
+      await _dlSleep(1500);
+      data = await _yt2mp3Fetch(videoId, next.artist, next.title);
+    }
+    if (data && data.status === 'ok') {
+      console.log('[Auto-Prewarm]' + (data.cached ? ' Sudah ada di Supabase (cache hit), tidak convert ulang:' : ' Berhasil convert & disimpan di Supabase untuk:'), next.title, '-', next.artist);
+    }
   }catch(e){
-    console.warn('[Auto-Predownload] Gagal menyiapkan lagu berikutnya di awal (akan dicoba lagi biasa saat diputar):', e);
+    console.warn('[Auto-Prewarm] Gagal menyiapkan cache Supabase utk lagu berikutnya (akan dicoba lagi biasa saat diputar):', e);
   }finally{
     _autoPredownloadingQuery = null;
   }
@@ -5852,25 +6597,46 @@ function toast(msg,d=2700){const el=document.getElementById('toast');el.textCont
 // di halaman ini, di background, tanpa pernah pindah halaman — user cukup
 // tekan tombol dan tunggu toast konfirmasi.
 //
-// BACKEND KONVERSI: sebelumnya lewat RapidAPI (youtube-mp36), sekarang lewat
-// Cloudflare Worker kita sendiri (cache proxy KV+R2 di depan Hugging Face
-// Space yang menjalankan yt-dlp+ffmpeg). Keuntungan: hasil konversi per
-// videoId di-cache PERMANEN & DIBAGI ke semua user — lagu populer cuma
-// perlu dikonversi 1x total, bukan 1x per user/per device seperti sebelumnya.
-// Lihat folder cloudflare-worker/ & hf-space/ untuk kode & cara deploy servernya.
-//
-// GANTI nilai di bawah dengan URL Worker kamu sendiri setelah deploy (lihat
-// cloudflare-worker/README.md) — contoh:
-// "https://vibexa-yt2mp3-proxy.namamu.workers.dev"
-const YT2MP3_PROXY_URL = "https://vibexa-yt2mp3-proxy.namamu.workers.dev";
+// FIX KEAMANAN + KUOTA (penting, baca): SEBELUMNYA API key RapidAPI
+// tertulis polos di sini (const YT2MP3_API_KEY = "...") — siapa saja yang
+// buka DevTools/APK bisa mengambilnya dan ikut memakainya, ini kemungkinan
+// besar penyebab kuota RapidAPI cepat habis ("You have exceeded the
+// MONTHLY quota"). Sekarang client TIDAK menyimpan key sama sekali —
+// semua request diteruskan lewat proxy server (lihat worker-deno/main.ts,
+// di-deploy ke Deno Deploy — gratis, tanpa kartu kredit) yang:
+//   1. Menyimpan SEMUA key RapidAPI di server (bukan di client sama sekali),
+//      jumlah key bebas, dan otomatis ROTASI ke key berikutnya kalau key
+//      yang sedang dipakai kena limit kuota (round-robin, siklus tanpa
+//      henti — balik ke key pertama lagi kalau semua sudah dicoba).
+//   2. Meng-cache hasil konversi per videoId di Deno KV, DIBAGI ke SEMUA
+//      user aplikasi ini — lagu populer cuma perlu dikonversi 1x total,
+//      bukan 1x per user, jauh lebih hemat kuota.
+// GANTI URL di bawah ini dengan URL project Deno Deploy Anda setelah
+// deploy (lihat instruksi lengkap di komentar atas worker-deno/main.ts).
+const YT2MP3_PROXY_URL = "https://quaint-rat-3543.muhammadalpinwahid456-ship-it.deno.net/dl";
 
-// Endpoint & bentuk respons SENGAJA dibuat identik dengan API lama
-// ({status, link, msg} — lihat worker.js) supaya SEMUA pemanggil
-// _yt2mp3Fetch() di file ini (downloadCurrentSongOffline, _dlConvertAndSave,
-// _vbxResolveStreamUrl, unduh massal playlist, dst) tidak perlu diubah sama
-// sekali — cukup fungsi ini saja yang di-patch.
-function _yt2mp3Fetch(videoId){
-  return fetch(YT2MP3_PROXY_URL + '/dl?id=' + videoId, {
+// BUG FIX "user lain masih convert ulang / tetap balik ke YouTube iframe
+// walau lagu yang SAMA sudah pernah dikonversi user lain": main.ts (server)
+// SEBENARNYA sudah punya cache berdasarkan artist+title (bukan cuma videoId)
+// SEJAK AWAL — lihat baris 337-352 di main.ts — supaya 2 device yang
+// menemukan videoId BEDA untuk lagu yang SAMA tetap dianggap 1 lagu yang
+// sama. Tapi fungsi ini SEBELUMNYA tidak pernah mengirim artist/title sama
+// sekali (cuma ?id=videoId), jadi logic cache-by-lagu di server itu TIDAK
+// PERNAH aktif — cache cuma "ketemu" kalau 2 device kebetulan menemukan
+// videoId yang persis sama. Sekarang artist & title selalu dikirim (kalau
+// tersedia) supaya server bisa mengenali "ini lagu yang sama" walau
+// videoId-nya beda, dan TIDAK convert ulang / TIDAK fallback ke iframe.
+function _yt2mp3Fetch(videoId, artist, title, refresh){
+  let url = YT2MP3_PROXY_URL + '?id=' + encodeURIComponent(videoId);
+  if (artist) url += '&artist=' + encodeURIComponent(artist);
+  if (title) url += '&title=' + encodeURIComponent(title);
+  // refresh=1: dipakai saat link streaming yang dicache TERBUKTI gagal
+  // diputar di device ini (lihat playStreamTrack/loadPlay) — memberitahu
+  // proxy (main.ts) supaya BUANG cache lama & convert ulang dari awal,
+  // bukan cuma dipakai device ini tapi ikut memperbaiki cache untuk SEMUA
+  // user lain yang minta lagu yang sama setelah ini.
+  if (refresh) url += '&refresh=1';
+  return fetch(url, {
     method: 'GET'
   }).then(res => {
     if (!res.ok) throw new Error('HTTP Error: ' + res.status);
@@ -5915,21 +6681,34 @@ async function downloadCurrentSongOffline(){
   const properArtist = curTrack.artist || '';
   const btns = [document.getElementById('np-copy-link-btn')];
   btns.forEach(b => { if (b) b.classList.add('dl-downloading'); });
-  toast(' Mengonversi ke MP3...', 5000);
+  toast(' Memeriksa apakah lagu ini sudah ada di Supabase...', 5000);
 
   try{
-    if (!YT2MP3_PROXY_URL || !YT2MP3_PROXY_URL.trim()) throw new Error('URL proxy konversi belum diisi');
+    if (!YT2MP3_PROXY_URL || YT2MP3_PROXY_URL.includes('YOUR-PROJECT-NAME')) throw new Error('URL worker proxy belum diisi (lihat YT2MP3_PROXY_URL)');
 
-    let data = await _yt2mp3Fetch(videoId);
+    // _yt2mp3Fetch() sudah CACHE-FIRST di backend (lihat main.ts): kalau lagu
+    // ini (dicocokkan via judul+artis, bukan cuma videoId) SUDAH pernah
+    // dikonversi/diunduh user LAIN sebelumnya, respons `data.cached === true`
+    // langsung berisi URL PERMANEN dari Supabase Storage — RapidAPI SAMA
+    // SEKALI TIDAK dipanggil lagi (hemat kuota key). Baru kalau memang belum
+    // ada cache sama sekali, backend akan convert baru via RapidAPI.
+    let data = await _yt2mp3Fetch(videoId, properArtist, properTitle);
     let attempts = 0;
     while (data && data.status === 'processing' && attempts < 20){
       attempts++;
+      toast(' Mengonversi lagu baru via RapidAPI...', 5000);
       await _dlSleep(1500);
-      data = await _yt2mp3Fetch(videoId);
+      data = await _yt2mp3Fetch(videoId, properArtist, properTitle);
     }
     if (!data || data.status !== 'ok' || !data.link) throw new Error((data && data.msg) || 'Konversi gagal, coba lagi');
 
-    toast(' Mengunduh & menyimpan...', 5000);
+    if (data.cached) {
+      console.log('[VBX-DL] CACHE HIT (level=' + (data.cacheLevel||'?') + ') — mengunduh salinan yang SUDAH ada di Supabase, TANPA convert ulang / TANPA memakai kuota RapidAPI.');
+      toast(' Lagu sudah pernah dikonversi user lain — mengunduh dari Supabase (hemat API key)...', 5000);
+    } else {
+      console.log('[VBX-DL] Cache MISS — baru saja convert via RapidAPI, hasilnya otomatis tersimpan permanen di Supabase untuk user berikutnya.');
+      toast(' Mengunduh & menyimpan...', 5000);
+    }
     const res = await fetch(data.link);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const blob = await res.blob();
@@ -5984,15 +6763,18 @@ async function _dlFindMatchingTrack(track){
 // simpan (berisi `id`) kalau berhasil, atau melempar error kalau gagal —
 // supaya pemanggil bisa memutuskan fallback-nya sendiri.
 async function _dlConvertAndSave(videoId, title, artist, artUrl, lyricsSnapshot){
-  if (!YT2MP3_PROXY_URL || !YT2MP3_PROXY_URL.trim()) throw new Error('URL proxy konversi belum diisi');
-  let data = await _yt2mp3Fetch(videoId);
+  if (!YT2MP3_PROXY_URL || YT2MP3_PROXY_URL.includes('YOUR-PROJECT-NAME')) throw new Error('URL worker proxy belum diisi (lihat YT2MP3_PROXY_URL)');
+  let data = await _yt2mp3Fetch(videoId, artist, title);
   let attempts = 0;
   while (data && data.status === 'processing' && attempts < 20){
     attempts++;
     await _dlSleep(1500);
-    data = await _yt2mp3Fetch(videoId);
+    data = await _yt2mp3Fetch(videoId, artist, title);
   }
   if (!data || data.status !== 'ok' || !data.link) throw new Error((data && data.msg) || 'Konversi gagal, coba lagi');
+  console.log(data.cached
+    ? '[VBX-DL] CACHE HIT (level=' + (data.cacheLevel||'?') + ') untuk "' + title + '" — dari Supabase, tanpa convert ulang.'
+    : '[VBX-DL] Cache MISS untuk "' + title + '" — convert baru via RapidAPI.');
 
   const res = await fetch(data.link);
   if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -6351,7 +7133,16 @@ async function resolveVidByDuration(artist, title, cleanTitleForLyrics, knownDur
   }
   if(!videoId){
     const audioResults = await resolveVidList(`${artist} ${title} official audio`);
-    const relevantAudioResults = _bestRelevantCandidates(audioResults, artist, title);
+    // [FIX] Sebelumnya filter cover/live/instrumental (_filterCleanVideos)
+    // TIDAK diterapkan di fallback "official audio" ini — cuma di 2 tahap
+    // sebelumnya (query "...lyrics" & query polos). Kalau proses sampai
+    // mundur ke sini, video cover/live/instrumental bisa lolos jadi
+    // videoId final tanpa disaring sama sekali. Samakan perlakuannya:
+    // saring dulu video "kotor" sebelum cek relevansi, tapi kalau hasil
+    // yang bersih ternyata nihil, tetap pakai daftar mentah sbg jaring
+    // pengaman (lebih baik dapat video apa pun daripada gagal total).
+    const cleanAudioResults = _filterCleanVideos(audioResults);
+    const relevantAudioResults = _bestRelevantCandidates(cleanAudioResults.length ? cleanAudioResults : audioResults, artist, title);
     videoId = (relevantAudioResults[0] && relevantAudioResults[0].videoId) || null;
     pickedFrom = relevantAudioResults;
   }
@@ -6995,31 +7786,103 @@ async function loadPlay(track, fromPlId){
   }
   if(videoId){
     curTrack.videoId = videoId;
-    const _myPlayGen = _playGen; // guard: batalkan kalau user pindah lagu lain sebelum proses ini selesai
+    let _myPlayGen = _playGen; // guard: batalkan kalau user pindah lagu lain sebelum proses ini selesai
 
-    // ── AUTO CONVERT → MP3 → SIMPAN KE UNDUHAN OFFLINE → PUTAR ──────────
-    // Lagu belum ada di Unduhan Offline (sudah dicek di awal loadPlay), jadi
-    // konversi dulu ke MP3 di background, simpan ke IndexedDB, BARU diputar
-    // dari hasil unduhan itu. Kalau gagal (mis. API down/limit), otomatis
-    // jatuh ke streaming YouTube seperti biasa supaya user tetap bisa dengar.
-    let _playedFromOffline = false;
+    // ── STREAM MP3 DARI CACHE PERMANEN (Supabase) — TIDAK DISIMPAN KE DEVICE ──
+    // ATURAN: kalau lagu ini SUDAH pernah dikonversi/diunduh user LAIN,
+    // _yt2mp3Fetch() di bawah (cache-first per judul+artis, lihat main.ts)
+    // langsung mengembalikan URL permanen dari Supabase Storage TANPA
+    // memanggil RapidAPI lagi (hemat kuota key) — dan karena URL itu memang
+    // permanen, kita langsung stream dari situ (<audio src="URL">). Kalau
+    // BELUM ada cache, baru convert baru lewat RapidAPI (sekali saja, hasilnya
+    // otomatis ikut tersimpan permanen di Supabase oleh worker proxy untuk
+    // dipakai user berikutnya). Di KEDUA kasus, file MP3-nya TIDAK PERNAH
+    // diunduh/disimpan sebagai Blob ke IndexedDB device ini (beda dari alur
+    // lama) — jadi lagu ini TIDAK bisa diputar offline dari sini, tapi juga
+    // TIDAK PERNAH perlu fallback ke iframe YouTube selama MP3-nya berhasil
+    // didapat/di-cache. Iframe YouTube di bawah HANYA dipakai sebagai jalan
+    // terakhir kalau proses MP3 (convert ATAUPUN cache) benar-benar gagal
+    // total (mis. semua API key RapidAPI kena limit & belum ada cache sama
+    // sekali untuk lagu ini).
+    let _playedFromStream = false;
     try {
-      toast(' Sedang mencari lagu...', 8000);
-      const lyricsSnapshot = (lines && lines.length) ? lines : null;
-      const record = await _dlConvertAndSave(videoId, track.title, track.artist, track.thumb, lyricsSnapshot);
+      toast(' Sedang menyiapkan lagu...', 8000);
+      let data = await _yt2mp3Fetch(videoId, track.artist, track.title);
+      let attempts = 0;
+      while (data && data.status === 'processing' && attempts < 20) {
+        attempts++; await _dlSleep(1500);
+        data = await _yt2mp3Fetch(videoId, track.artist, track.title);
+      }
       if (_myPlayGen !== _playGen) return; // user sudah pindah ke lagu lain selama proses ini
-      refreshDownloadsList();
-      await playOfflineTrack(record.id, fromPlId);
-      if (curTrack && track._query) { curTrack._query = track._query; curTrack.duration = track.duration; }
-      _playedFromOffline = true;
+      if (data && data.status === 'ok' && data.link) {
+        if (data.cached) {
+          console.log('[VBX-NOWPLAYING] "' + track.title + '" - ' + track.artist + ' : MENGGUNAKAN FILE MP3 DARI SUPABASE (cache, level=' + (data.cacheLevel||'?') + '), TANPA convert ulang.');
+          // Log juga lewat toast in-app supaya kelihatan langsung di HP/app
+          // tanpa perlu buka DevTools/F12.
+          toast('📦 Pakai MP3 dari Supabase (cache) — tanpa convert ulang', 4000);
+        } else {
+          console.log('[VBX-NOWPLAYING] "' + track.title + '" - ' + track.artist + ' : LAGU BARU DICONVERT via RapidAPI (belum ada di Supabase sebelumnya), hasilnya disimpan permanen di Supabase.');
+          toast('⚙️ Lagu sedang di-convert via RapidAPI...', 4000);
+        }
+        // [FIX] playStreamTrack() sekarang me-return Promise<boolean> yang
+        // baru resolve SETELAH benar2 terbukti audio bisa dimuat (canplay)
+        // atau gagal (error/timeout) — BUKAN langsung dianggap berhasil
+        // begitu audio.src diisi. Ini menutup celah bug lama: link cache
+        // yang sudah mati (mis. link mentah provider pihak-ketiga yang
+        // kedaluwarsa, bukan salinan permanen Supabase) sebelumnya dianggap
+        // "berhasil diputar" padahal audio diam total tanpa fallback apa pun.
+        let ok = await playStreamTrack(track, data.link, lines, fromPlId);
+        // [FIX bug retry] playStreamTrack() SENDIRI menaikkan _playGen di
+        // awal (bagian dari alur normal, untuk membatalkan proses lain kalau
+        // user pindah lagu) — jadi tepat setelah memanggilnya, _playGen SUDAH
+        // pasti berbeda dari _myPlayGen meski TIDAK ada perpindahan lagu sama
+        // sekali. Kalau kita bandingkan langsung di sini, kondisi selalu
+        // "true" dan retry di bawah tidak akan pernah sempat jalan. Sinkronkan
+        // dulu _myPlayGen ke nilai _playGen SAAT INI (hasil kenaikan oleh
+        // panggilan kita sendiri barusan) supaya pengecekan berikutnya cuma
+        // mendeteksi perpindahan lagu yang BENAR2 terjadi setelah titik ini
+        // (mis. user menekan Next selagi kita sedang retry).
+        _myPlayGen = _playGen;
+
+        if (!ok) {
+          console.warn('[VBX] Link streaming cache TERBUKTI mati/gagal dimuat — minta proxy convert ulang (refresh=1) & coba sekali lagi sebelum fallback ke iframe.');
+          toast(' Link lagu ini basi, mencoba menyegarkan...', 6000);
+          try {
+            let freshData = await _yt2mp3Fetch(videoId, track.artist, track.title, true);
+            attempts = 0;
+            while (freshData && freshData.status === 'processing' && attempts < 20) {
+              attempts++; await _dlSleep(1500);
+              freshData = await _yt2mp3Fetch(videoId, track.artist, track.title, true);
+            }
+            if (_myPlayGen !== _playGen) return;
+            if (freshData && freshData.status === 'ok' && freshData.link) {
+              console.log('[VBX-NOWPLAYING] "' + track.title + '" - ' + track.artist + ' : DICONVERT ULANG (refresh) via RapidAPI karena link cache lama sudah mati, hasil baru disimpan ke Supabase.');
+              toast('⚙️ Link lama mati, di-convert ulang via RapidAPI...', 4000);
+              ok = await playStreamTrack(track, freshData.link, lines, fromPlId);
+              _myPlayGen = _playGen; // sama seperti di atas: sinkronkan lagi setelah playStreamTrack menaikkan _playGen sendiri
+            }
+          } catch (e2) {
+            console.warn('[VBX] Retry refresh=1 juga gagal:', e2);
+          }
+        }
+
+        if (ok) {
+          if (curTrack && track._query) { curTrack._query = track._query; curTrack.duration = track.duration; }
+          _playedFromStream = true;
+        } else {
+          console.warn('[VBX] Streaming MP3 tetap gagal setelah retry — fallback ke iframe YouTube.');
+        }
+      } else {
+        console.warn('Ambil/konversi MP3 gagal:', data && data.msg);
+      }
     } catch (e) {
-      console.warn('Auto-convert ke MP3 gagal, fallback ke streaming YouTube:', e);
+      console.warn('Streaming MP3 gagal, fallback ke iframe YouTube:', e);
     }
 
-    if (_playedFromOffline) return; // playOfflineTrack sudah mengurus semua UI & lirik, selesai di sini
+    if (_playedFromStream) return; // playStreamTrack sudah mengurus semua UI & lirik, selesai di sini
 
     if (_myPlayGen !== _playGen) return; // sudah tidak relevan lagi, jangan lanjut ke fallback
-    toast(' Streaming langsung (mode unduhan gagal)...');
+    toast(' Streaming langsung (mode MP3 gagal)...');
     await initPlayer(videoId).then(()=>_addRecentlyPlayed(track)).catch(e=>{console.error('initPlayer error:',e);toast(' Failed to load video, coba songs lain');_nextGuarded=false;});
   }else{
     toast(' Video not found. Try another song.'); _nextGuarded=false;
@@ -7028,6 +7891,11 @@ async function loadPlay(track, fromPlId){
   console.log('[LYR DEBUG] final lyrs assigned, length:', lyrs.length, 'for track:', track.title, '-', track.artist);
   // Set song key for translation
   _currentSongKeyForTranslation = track.artist + '|' + track.title;
+  // Cek apakah versi lirik lagu ini sudah pernah DIPILIH user lain di lrclib
+  // (Firebase) — kalau sudah, langsung dipakai & tombol pilih tidak muncul;
+  // kalau belum DAN lrclib punya lebih dari satu kandidat lirik untuk lagu
+  // ini, tombol "Pilih Lirik yang Pas" ditampilkan di halaman Lyrics fullscreen.
+  _initLyrChoiceForSong(track.title, track.artist);
   document.getElementById('lyr-lines').innerHTML=lyrs.length?'':'<div class="lyr-empty"><i></i>Lyrics not available</div>';
   if(lyrs.length){
     syncLyr(0);
@@ -7050,6 +7918,16 @@ function detectSpeedFactor(title){
 
 // Faktor kecepatan songs yang sedang diputar (global)
 let _curSpeedFactor = 1.0;
+
+// ── Koreksi sinkronisasi lirik (offset, dalam detik) ────────────────────
+// Fitur slider offset MANUAL sudah dihapus (lihat blok "LYRICS VERSION
+// PICKER" di bawah) karena satu nilai offset tetap tidak bisa membetulkan
+// kasus lirik yang timestamp-nya memang beda ritme dari vokal (mis. lirik
+// muncul di 0:12 tapi vokal baru masuk 0:30) — akar masalahnya adalah salah
+// pilih KANDIDAT lirik dari lrclib, bukan cuma butuh digeser rata. Variabel
+// ini dipertahankan (selalu 0) supaya syncLyr()/updateFSLyr() tidak perlu
+// diubah di banyak tempat; nilainya tidak lagi diubah oleh UI manapun.
+let _curLyrOffset = 0;
 
 function cleanT(t){
   return t
@@ -7186,19 +8064,35 @@ function _modeDuration(arr){
 // pertama bisa kebetulan dapat entri yang timing-nya meleset (lirik
 // jalan lebih dulu/telat dari vokal asli). Cocokkan ke durasi asli supaya
 // entri yang paling mungkin "seirama" yang kepilih.
+// Toleransi maksimum selisih durasi (detik) khusus untuk kandidat SYNCED —
+// kalau kandidat "paling dekat" pun masih meleset lebih dari ini dari durasi
+// video/audio yang sebenarnya, besar kemungkinan itu memang entri utk versi
+// lagu yang BEDA (intro/outro beda panjang, edit radio, dsb) — timestamp
+// .lrc-nya TIDAK akan seirama walau itu yang paling dekat di antara pilihan
+// yang ada. Inilah penyebab utama gejala "kadang telat, kadang kecepetan,
+// kadang lirik nongol sebelum vokal" — sebelumnya kandidat seperti ini tetap
+// dipaksa dipakai karena tidak ada ambang batas sama sekali.
+const _MAX_SYNCED_DURATION_DIFF = 4; // detik
+
 function _pickLyricsCandidate(pool, knownDuration){
   const synced = pool.filter(r=>r.syncedLyrics);
   const plain = pool.filter(r=>r.plainLyrics);
-  const pickClosest = (arr) => {
+
+  const pickClosest = (arr, maxDiff) => {
     if(!arr.length) return null;
     const target = knownDuration || _modeDuration(arr);
+    // Tidak ada acuan durasi sama sekali (baik dari video maupun dari pool
+    // itu sendiri) -> tidak ada cara buat menyaring, terpaksa pakai apa
+    // adanya seperti sebelumnya.
     if(!target) return arr[0];
-    let best=arr[0], bestDiff=Infinity;
+    let best=null, bestDiff=Infinity;
     for(const r of arr){
       if(typeof r.duration !== 'number' || r.duration<=0) continue;
       const diff = Math.abs(r.duration - target);
       if(diff < bestDiff){ bestDiff = diff; best = r; }
     }
+    if(!best) return arr[0]; // tidak ada satupun entri berdurasi valid -> tidak bisa disaring
+    if(maxDiff != null && bestDiff > maxDiff) return null; // paling dekat pun masih meleset jauh -> tolak
     return best;
   };
   // PENTING: jangan fallback ke pool[0] kalau tidak ada SATU PUN kandidat
@@ -7208,7 +8102,12 @@ function _pickLyricsCandidate(pool, knownDuration){
   // tetap dipaksa pool[0], hasilnya lirik kosong padahal ada worker/sumber
   // lain yang bisa kasih hasil asli. Return null di sini artinya "coba
   // sumber lain", ditangani oleh pemanggil (lihat fetchLyr).
-  return pickClosest(synced) || pickClosest(plain) || null;
+  //
+  // Lirik PLAIN (tanpa timestamp asli — waktu tiap baris cuma perkiraan dari
+  // panjang teks, lihat pPlain()) sengaja TIDAK diberi ambang batas durasi
+  // seketat synced: toh timing-nya memang sudah perkiraan kasar, menolaknya
+  // cuma akan membuat lirik jadi "Not available" tanpa manfaat presisi apapun.
+  return pickClosest(synced, _MAX_SYNCED_DURATION_DIFF) || pickClosest(plain, null) || null;
 }
 
 // Nama+artis (key sama seperti lyrCache) -> pool kandidat lirik lrclib yang
@@ -7336,8 +8235,34 @@ function pSynced(raw, speedFactor){
 function _withIntroInstrumental(lines){
   if(!lines || !lines.length) return lines;
   const first = lines[0];
-  if(!first.instrumental && first.time >= 2){
+  if(first.instrumental) return lines;
+
+  // Kasus umum: intro instrumental beberapa detik sebelum vokal masuk —
+  // sisipkan baris instrumental buatan di detik 0.
+  if(first.time >= 2){
     return [{time:0,text:'',instrumental:true}, ...lines];
+  }
+
+  // Kasus yang lebih jarang tapi cukup sering bikin "lirik nongol duluan
+  // sebelum vokal": baris PERTAMA punya timestamp sangat awal (<2 detik,
+  // jadi lolos pengecekan di atas) TAPI baris itu sebenarnya bukan vokal
+  // beneran — dicirikan dari jeda ke baris KEDUA yang jauh lebih panjang
+  // dibanding jeda rata-rata antar baris lain di lagu yang sama. Contoh
+  // nyata: baris pertama muncul di detik 0.5, baris kedua baru di detik 14,
+  // padahal jeda antar baris lain cuma 2-4 detik — baris pertama itu lebih
+  // mirip residu metadata/testing dari file .lrc-nya daripada vokal asli.
+  // Tandai baris pertama itu instrumental juga dalam kasus ini, supaya
+  // halaman Lyrics tidak langsung menyorot "vokal" yang sebenarnya belum
+  // ada suaranya sama sekali.
+  if(lines.length >= 3){
+    const gaps = [];
+    for(let i=1;i<lines.length-1;i++) gaps.push(lines[i+1].time - lines[i].time);
+    const avgGap = gaps.length ? gaps.reduce((a,b)=>a+b,0) / gaps.length : 0;
+    const firstGap = lines[1].time - lines[0].time;
+    if(avgGap > 0 && firstGap > avgGap * 3 && firstGap >= 5){
+      const rest = lines.slice(1);
+      return [{time:0,text:'',instrumental:true}, ...rest];
+    }
   }
   return lines;
 }
@@ -7351,6 +8276,792 @@ function pPlain(raw, speedFactor){
   });
 }
 function _instHTML(){return'<span class="inst-notes"><span style="height:6px"></span><span style="height:14px"></span><span style="height:8px"></span><span style="height:16px"></span><span style="height:10px"></span></span>';}
+
+// ══════════════════════════════════════════════════════════════════════
+// LYRICS VERSION PICKER — pilih kandidat lirik lrclib yang PAS, disimpan
+// BERSAMA (Firebase) supaya user berikutnya tidak perlu memilih lagi
+// ══════════════════════════════════════════════════════════════════════
+// Kenapa slider offset (fitur lama) diganti fitur ini: satu angka offset
+// tetap cuma menggeser SEMUA baris lirik rata sejumlah yang sama. Itu tidak
+// menolong kalau akar masalahnya adalah lrclib punya BANYAK entri .lrc utk
+// lagu yang sama (rilisan/upload berbeda) dan yang terpilih otomatis oleh
+// _pickLyricsCandidate() itu memang bukan yang seirama dengan audio yang
+// diputar — mis. baris lirik pertama nongol di 0:12 padahal vokal aslinya
+// baru masuk di 0:30. Menggeser rata tidak akan pernah pas untuk kasus
+// begini karena "jarak"-nya tidak konsisten di sepanjang lagu. Solusinya:
+// biarkan user memilih LANGSUNG dari daftar kandidat .lrc yang tersedia di
+// lrclib untuk lagu ini (bukan menebak-nebak lewat geser slider).
+//
+// Alurnya: lagu baru dimuat -> cek node 'lyricChoices/<key>' di Firebase.
+//  - SUDAH ada pilihan (user lain pernah memilih) -> versi lirik yang
+//    dipilih itu langsung dipakai sbg DEFAULT saat lagu diputar.
+//  - Kalau lrclib punya lebih dari satu kandidat lirik utk lagu ini -> tombol
+//    "Pilih Lirik yang Pas" TETAP dipasang di menu titik tiga halaman Lyrics
+//    (persis DI BAWAH tombol "Bagikan Lirik"), TIDAK PEDULI apakah sudah ada
+//    pilihan tersimpan sebelumnya atau belum -- supaya user kapan pun bisa
+//    mencoba versi lain kalau ternyata pilihan yang tersimpan sekarang masih
+//    kurang pas. Kalau user KEBETULAN sedang berada di halaman Lyrics,
+//    notifikasi singkat (3 detik) muncul mengingatkan lirik bisa dipilih/
+//    diganti. Panel daftar kandidat muncul setelah tombol menu itu ditekan.
+//  - Begitu ADA pilihan baru yang disimpan (siapa pun, kapan pun), pilihan
+//    itu SELALU MENIMPA data lama di Firebase (last-write-wins) -- lagu ini
+//    langsung otomatis memakai versi terbaru itu untuk semua user
+//    berikutnya, sampai ada yang memilih & menyimpan versi lain lagi.
+//    Kalau belum ada satupun pilihan baru yang disimpan, data lama itulah
+//    yang tetap dipakai (karena memang belum ada yang menggantikannya).
+//  - Kalau cuma ada 0/1 kandidat -> tidak ada apa pun buat dipilih, tombol
+//    tidak ditampilkan (fitur tidak relevan).
+
+// Firebase Realtime Database key TIDAK BOLEH mengandung . # $ / [ ] — ganti
+// karakter itu dengan '_' supaya path selalu valid. Key dibuat dari
+// judul+artis (lowercase, trim) supaya deterministik: lagu yang sama selalu
+// bertemu di node yang sama, siapa pun usernya & kapan pun diputar.
+function _lyrChoiceKey(title, artist){
+  const raw = ((title||'').trim() + '|' + (artist||'').trim()).toLowerCase();
+  return raw.replace(/[.#$\/\[\]]/g, '_').slice(0, 200) || '_unknown';
+}
+
+// Bungkus db.ref(...).get() dengan timeout manual — supaya kalau koneksi
+// lambat/putus (mis. lagi memutar lagu offline tanpa internet), fitur ini
+// gagal DIAM-DIAM (anggap "belum ada pilihan tersimpan") daripada bikin
+// pemutaran lagu menggantung menunggu Firebase.
+function _lyrChoiceGetWithTimeout(ref, ms){
+  return Promise.race([
+    ref.get(),
+    new Promise((_, rej) => setTimeout(() => rej(new Error('lyr choice get timeout')), ms))
+  ]);
+}
+
+// Generasi request pilihan — supaya kalau user pindah lagu SEBELUM fetch
+// pilihan lagu sebelumnya selesai, hasil fetch yang telat itu tidak "nyasar"
+// diterapkan ke lagu yang sedang diputar sekarang.
+let _lyrChoiceReqGen = 0;
+
+// Judul/artis lagu yang sedang aktif — disimpan supaya tombol menu "Pilih
+// Lirik yang Pas" masih tahu lagu mana yang dituju meski ditekan lama
+// setelah lagu selesai dimuat.
+let _curLyrChoiceTitle = '';
+let _curLyrChoiceArtist = '';
+let _curLyrChoiceKey = null;
+// true kalau lagu yang sedang diputar BELUM punya pilihan tersimpan dari
+// user lain DAN punya >1 kandidat lirik yang layak dipilih -> tombol menu &
+// notifikasi boleh tampil untuk lagu ini.
+let _lyrChoiceAvailable = false;
+// Supaya notifikasi "pilih lirik yang pas" cuma tampil SEKALI per lagu
+// (tidak berulang tiap kali user keluar-masuk halaman Lyrics utk lagu yg sama).
+let _lyrChoiceNotifShownForKey = null;
+// Cadangan baris lirik (+ entri lyrCache) SEBELUM user mulai mencoba-coba
+// kandidat di panel pemilihan — dipakai untuk mengembalikan tampilan kalau
+// panel ditutup TANPA menyimpan pilihan apa pun.
+let _lyrChoicePreviewBackup = null;
+// Index kandidat yang lagi dipilih/di-preview di panel (null = belum pilih).
+let _lyrChoiceSelectedIdx = null;
+
+// Dipanggil setiap kali lagu (dengan lirik) baru selesai dimuat.
+async function _initLyrChoiceForSong(title, artist){
+  _curLyrChoiceKey = _lyrChoiceKey(title, artist);
+  _curLyrChoiceTitle = title || '';
+  _curLyrChoiceArtist = artist || '';
+  _hideLyrChoicePicker(); // buang panel+tombol lama milik lagu sebelumnya kalau masih nyangkut
+  _hideLyrAdjustPicker(); // buang panel "Sesuaikan Waktu Lirik" milik lagu sebelumnya kalau masih nyangkut
+  const myGen = ++_lyrChoiceReqGen;
+
+  if(!lyrs.length) return; // tidak ada lirik sama sekali -> tidak relevan
+
+  if(typeof db === 'undefined' || !db){
+    // Firebase belum siap (mis. app baru dibuka) -> anggap belum ada pilihan
+    // tersimpan, tetap pasang tombol "Sesuaikan Waktu Lirik" supaya fitur
+    // tidak diam total (penyimpanan hasil geser akan gagal-diam kalau
+    // Firebase memang benar2 tidak tersedia, lihat _saveLyrAdjustment).
+    _ensureLyrAdjustMenuBtn();
+    return;
+  }
+
+  try{
+    const snap = await _lyrChoiceGetWithTimeout(db.ref('lyricChoices/' + _curLyrChoiceKey), 6000);
+    if(myGen !== _lyrChoiceReqGen) return; // user sudah pindah lagu lain, hasil ini sudah basi
+    const val = snap && snap.exists() ? snap.val() : null;
+    if(val && (val.syncedLyrics || val.plainLyrics)){
+      // Sudah ada versi lirik (termasuk hasil "Sesuaikan Waktu Lirik" user
+      // lain) tersimpan -> pakai itu sbg default saat lagu ini diputar.
+      _applyLyricsFromStored(val);
+    }
+    // Tombol "Sesuaikan Waktu Lirik" SELALU dipasang (kalau ada lirik sama
+    // sekali) supaya user mana pun bisa membetulkan timing kapan saja --
+    // beda dari fitur lama yang cuma muncul kalau lrclib kebetulan punya
+    // >1 kandidat, yang bikin fitur itu ribet & jarang membantu.
+    _ensureLyrAdjustMenuBtn();
+  }catch(e){
+    console.warn('[LYR CHOICE] gagal cek pilihan tersimpan:', e);
+    if(myGen === _lyrChoiceReqGen) _ensureLyrAdjustMenuBtn();
+  }
+}
+
+// Terapkan lirik yang SUDAH dipilih user lain (tersimpan di Firebase) ke
+// tampilan saat ini — parse ulang dengan _curSpeedFactor lagu yang sedang
+// diputar sekarang (bisa beda dari saat pilihan itu disimpan, mis. lagu di-
+// putar dalam versi sped-up/slowed berbeda kali ini).
+function _applyLyricsFromStored(val){
+  let p = [];
+  if(val.syncedLyrics) p = pSynced(val.syncedLyrics, _curSpeedFactor);
+  else if(val.plainLyrics) p = pPlain(val.plainLyrics, _curSpeedFactor);
+  if(!p.length) return;
+  p = _withIntroInstrumental(p);
+  lyrs = p;
+  const k = _curLyrChoiceTitle + '|' + _curLyrChoiceArtist;
+  const duration = (typeof val.duration === 'number' && val.duration > 0) ? val.duration : null;
+  lyrCache[k] = { lines: p, duration };
+  syncLyr(cur||0);
+  const fsEl = document.getElementById('fs-lyr');
+  if(fsEl && fsEl.classList.contains('open')) updateFSLyr();
+}
+
+// Dedup kandidat pool lrclib (yang benar-benar punya lirik) berdasarkan isi
+// syncedLyrics/plainLyrics-nya — lrclib kadang menyimpan entri identik
+// berkali-kali (upload duplikat), tidak ada gunanya ditampilkan sebagai
+// pilihan terpisah kalau isinya sama persis.
+function _dedupLyricsPool(pool){
+  if(!pool || !pool.length) return [];
+  const seen = new Set();
+  const out = [];
+  for(const r of pool){
+    if(!r || (!r.syncedLyrics && !r.plainLyrics)) continue; // buang entri tanpa lirik sama sekali
+    const sig = (r.syncedLyrics || r.plainLyrics || '').trim();
+    if(!sig || seen.has(sig)) continue;
+    seen.add(sig);
+    out.push(r);
+  }
+  return out;
+}
+
+// Cek pool kandidat lirik lokal (_lyrPoolCache, diisi oleh fetchLyr saat
+// lagu ini pertama kali dicari) — kalau ada >1 kandidat berbeda yang layak
+// dipilih, aktifkan tombol "Pilih Lirik yang Pas".
+function _checkPoolAndEnableLyrChoice(){
+  const k = _curLyrChoiceTitle + '|' + _curLyrChoiceArtist;
+  const pool = _dedupLyricsPool(_lyrPoolCache[k]);
+  if(pool.length < 2) return; // tidak ada apa pun buat dipilih (0 atau cuma 1 versi)
+  _lyrChoiceAvailable = true;
+  _ensureLyrChoiceStyleInjected();
+  _ensureLyrChoiceMenuBtn();
+  _maybeShowLyrChoiceNotif();
+}
+
+// Sisipkan tombol "Pilih Lirik yang Pas" ke dalam menu titik tiga
+// (#fs-more-menu) tepat DI BAWAH tombol "Bagikan Lirik" — dibuat murni
+// lewat JS/DOM (bukan menambah markup statis baru) supaya tidak perlu
+// mengubah file HTML.
+function _ensureLyrChoiceMenuBtn(){
+  if(!_lyrChoiceAvailable) return;
+  const menu = document.getElementById('fs-more-menu');
+  if(!menu) return; // menu belum ada di DOM saat ini -> akan dicoba lagi saat menu dibuka (lihat toggleFSMoreMenu)
+  _removeLyrChoiceMenuBtn();
+
+  // Cari tombol "Bagikan Lirik" (pemicu openLyricsCardSelect) supaya tombol
+  // baru bisa disisipkan tepat setelahnya. Fallback: cari lewat teksnya,
+  // kalau tetap tidak ketemu taruh saja di akhir menu.
+  const shareBtn = menu.querySelector('[onclick*="openLyricsCardSelect"]')
+    || Array.from(menu.children).find(el => /bagikan lirik/i.test(el.textContent || ''));
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.id = 'lyr-choice-menu-btn';
+  // Sengaja TIDAK diberi class statis — tombol-tombol lain di #fs-more-menu
+  // juga polos tanpa class (styling datang dari selector "#fs-more-menu
+  // button" di vibexa.css), jadi tombol ini otomatis ikut tampilan yang
+  // sama persis. .lyr-choice-menu-btn cuma jaring pengaman kalau suatu saat
+  // tombol ini dipasang di luar #fs-more-menu.
+  btn.className = 'lyr-choice-menu-btn';
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Pilih Lirik yang Pas</span>`;
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if(typeof closeFSMoreMenu === 'function') closeFSMoreMenu();
+    _toggleLyrChoicePanel();
+  });
+
+  if(shareBtn && shareBtn.parentElement === menu){
+    shareBtn.insertAdjacentElement('afterend', btn);
+  } else {
+    menu.appendChild(btn);
+  }
+}
+function _removeLyrChoiceMenuBtn(){
+  const el = document.getElementById('lyr-choice-menu-btn');
+  if(el) el.remove();
+}
+
+// Notifikasi "pilih lirik yang pas" — HANYA muncul kalau:
+//  1) lagu yang sedang diputar belum punya pilihan tersimpan dari user lain
+//     dan punya >1 kandidat lirik,
+//  2) user SEDANG berada di halaman Lyrics (#fs-lyr punya class 'open'),
+//  3) belum pernah ditampilkan untuk lagu (key) yang sama ini.
+// Tampil selama 3 detik saja (toast(msg, 3000)).
+function _maybeShowLyrChoiceNotif(){
+  if(!_lyrChoiceAvailable) return;
+  const fsEl = document.getElementById('fs-lyr');
+  if(!fsEl || !fsEl.classList.contains('open')) return;
+  if(_lyrChoiceNotifShownForKey === _curLyrChoiceKey) return;
+  _lyrChoiceNotifShownForKey = _curLyrChoiceKey;
+  toast(' Lirik lagu ini punya beberapa versi — cek menu titik tiga di halaman Lyrics', 3000);
+}
+
+// Buka/tutup panel pemilihan lirik. Panel dibuat baru tiap kali dibuka (dan
+// dibuang lagi tiap ditutup) supaya selalu sinkron dengan lagu yang sedang
+// aktif — dipicu lewat tombol menu titik tiga di atas.
+function _toggleLyrChoicePanel(){
+  const existing = document.getElementById('lyr-choice-panel');
+  if(existing){ _closeLyrChoicePanel(existing); return; }
+  if(!_lyrChoiceAvailable) return; // sudah tidak relevan lagi utk lagu ini
+  _buildLyrChoicePanel(_curLyrChoiceTitle, _curLyrChoiceArtist);
+}
+
+function mmss(sec){
+  if(typeof sec !== 'number' || sec<=0) return '--:--';
+  const m = Math.floor(sec/60), s = Math.round(sec%60);
+  return m + ':' + String(s).padStart(2,'0');
+}
+
+// Sisipkan panel daftar kandidat lirik (dibuat murni lewat JS/DOM — bukan
+// menambah markup statis baru — supaya tidak perlu ubah file HTML) tepat di
+// atas daftar baris lirik fullscreen (#fs-lyr-scroll). Dipanggil hanya saat
+// tombol menu "Pilih Lirik yang Pas" ditekan (lihat _toggleLyrChoicePanel).
+function _buildLyrChoicePanel(title, artist){
+  _ensureLyrChoiceStyleInjected();
+  const existing = document.getElementById('lyr-choice-panel');
+  if(existing) existing.remove();
+
+  const scrollEl = document.getElementById('fs-lyr-scroll');
+  if(!scrollEl) return;
+
+  const k = title + '|' + artist;
+  const candidates = _dedupLyricsPool(_lyrPoolCache[k]);
+  if(candidates.length < 2) return; // sudah tidak relevan (mis. lagu berganti tepat sebelum panel sempat terbuka)
+
+  // Simpan tampilan lirik saat ini sebagai cadangan, supaya bisa dikembalikan
+  // kalau panel ditutup tanpa menyimpan pilihan apa pun.
+  _lyrChoicePreviewBackup = { lines: lyrs.slice(), cacheEntry: lyrCache[k] };
+  _lyrChoiceSelectedIdx = null;
+
+  const panel = document.createElement('div');
+  panel.id = 'lyr-choice-panel';
+  panel.className = 'lyr-choice-panel';
+
+  const rowsHTML = candidates.map((c,i) => {
+    const badge = c.syncedLyrics ? 'Sinkron' : 'Perkiraan';
+    const album = (c.albumName || '').trim();
+    return `
+      <div class="lyr-choice-row">
+        <button type="button" class="lyr-choice-item" data-idx="${i}">
+          <div class="lyr-choice-main">
+            <div class="lyr-choice-title">${_escHtml(c.trackName || title)}</div>
+            <div class="lyr-choice-sub">${album ? _escHtml(album) + ' • ' : ''}${mmss(c.duration)} • ${badge}</div>
+          </div>
+          <span class="lyr-choice-check">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </span>
+        </button>
+        <button type="button" class="lyr-choice-test-btn" data-idx="${i}">Test</button>
+      </div>`;
+  }).join('');
+
+  panel.innerHTML = `
+    <div class="lyr-choice-head">
+      <div class="lyr-choice-txt">Lirik lagu ini punya beberapa versi di lrclib. Ketuk salah satu untuk dengar coba dulu — kalau sudah pas, simpan supaya pengguna lain otomatis memakainya.</div>
+      <button type="button" class="lyr-choice-close" id="lyr-choice-close-btn" aria-label="Tutup">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="lyr-choice-list">${rowsHTML}</div>
+    <button type="button" class="lyr-choice-save" id="lyr-choice-save-btn" disabled>Simpan Pilihan Ini</button>
+  `;
+  scrollEl.insertAdjacentElement('beforebegin', panel);
+
+  const saveBtn = panel.querySelector('#lyr-choice-save-btn');
+  panel.querySelectorAll('.lyr-choice-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const idx = parseInt(item.dataset.idx, 10);
+      panel.querySelectorAll('.lyr-choice-item').forEach(el => el.classList.remove('selected'));
+      item.classList.add('selected');
+      _lyrChoiceSelectedIdx = idx;
+      _applyLyricsPreview(candidates[idx]);
+      saveBtn.disabled = false;
+    });
+  });
+
+  panel.querySelector('#lyr-choice-close-btn').addEventListener('click', () => {
+    _closeLyrChoicePanel(panel);
+  });
+
+  // Tombol "Test" per versi lirik — langsung memakai lirik versi itu SEKARANG
+  // JUGA (tanpa menyimpan ke Firebase, murni untuk dicoba/didengarkan dulu),
+  // lalu panel langsung ditutup/dihilangkan supaya tidak menghalangi layar
+  // lirik. BEDA dari tombol close (X): backup preview SENGAJA tidak
+  // dikembalikan di sini, karena user memang ingin lirik hasil "Test" ini
+  // tetap tampil setelah panel hilang — bukan dibatalkan. Kalau nanti user
+  // ingin benar-benar menyimpannya, tombol menu "Pilih Lirik yang Pas" bisa
+  // dibuka lagi lalu pilih versi yg sama + tekan "Simpan Pilihan Ini".
+  panel.querySelectorAll('.lyr-choice-test-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const idx = parseInt(btn.dataset.idx, 10);
+      _applyLyricsPreview(candidates[idx]);
+      _lyrChoicePreviewBackup = null; // jangan di-rollback saat panel dibuang
+      _lyrChoiceSelectedIdx = null;
+      panel.remove(); // tutup panel tanpa memicu revert di _closeLyrChoicePanel
+    });
+  });
+
+  saveBtn.addEventListener('click', async () => {
+    if(_lyrChoiceSelectedIdx == null) return;
+    const chosen = candidates[_lyrChoiceSelectedIdx];
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Menyimpan...';
+    await _saveLyrChoice(title, artist, chosen);
+    _lyrChoicePreviewBackup = null; // sudah disimpan, tidak perlu di-rollback lagi
+    _hideLyrChoicePicker();
+    toast(' Lirik tersimpan untuk semua pengguna');
+  });
+}
+
+// Terapkan salah satu kandidat sebagai PREVIEW (belum disimpan ke Firebase) —
+// supaya user bisa dengar/lihat dulu apakah timing-nya benar pas sebelum
+// menekan "Simpan Pilihan Ini". PENTING: lagu diputar ULANG dari detik 0
+// setiap kali kandidat dipilih (bukan cuma menyorot ulang baris di posisi
+// putar SAAT INI) — kalau tidak, user tidak akan pernah tahu apakah baris
+// pertama kandidat itu memang seirama dengan masuknya vokal, karena momen
+// itu sudah lewat sebelum kandidat ini dipilih.
+function _applyLyricsPreview(candidate){
+  let p = [];
+  if(candidate.syncedLyrics) p = pSynced(candidate.syncedLyrics, _curSpeedFactor);
+  else if(candidate.plainLyrics) p = pPlain(candidate.plainLyrics, _curSpeedFactor);
+  if(!p.length) return;
+  p = _withIntroInstrumental(p);
+  lyrs = p;
+  const k = _curLyrChoiceTitle + '|' + _curLyrChoiceArtist;
+  const duration = (typeof candidate.duration === 'number' && candidate.duration > 0) ? candidate.duration : null;
+  lyrCache[k] = { lines: p, duration };
+  _restartPlaybackForLyricsPreview();
+  syncLyr(cur||0);
+  updateFSLyr();
+}
+
+// Putar ulang lagu yang sedang aktif dari detik 0 (dan pastikan statusnya
+// PLAYING, bukan paused) — dipanggil tiap kali user memilih kandidat lirik
+// di panel "Pilih Lirik yang Pas" supaya proses tes sinkronisasi selalu
+// mulai dari awal lagu, sama seperti pola "Repeat One" yang sudah ada (lihat
+// _handleSongEnded()). YTP di sini bisa berupa YT.Player asli MAUPUN wrapper
+// "YTP palsu" utk elemen <audio> streaming/offline (lihat _getOfflinePlayerObj)
+// — keduanya sama-sama punya method seekTo/playVideo, jadi logic ini otomatis
+// berfungsi utk kedua jalur pemutaran tanpa perlu dibedakan.
+function _restartPlaybackForLyricsPreview(){
+  if(!YTP || typeof YTP.seekTo !== 'function') return; // belum ada player aktif -> tidak ada yg bisa diputar ulang
+  try{
+    YTP.seekTo(0, true);
+    if(typeof YTP.playVideo === 'function') YTP.playVideo();
+    cur = 0;
+    playing = true;
+    if(typeof setPB === 'function') setPB(true);
+    _playStartWall = Date.now();
+    _playStartPos = 0;
+    if(typeof tick === 'function') tick();
+    if(typeof _armSongTimer === 'function') _armSongTimer();
+  }catch(e){
+    console.warn('[LYR CHOICE] gagal memutar ulang lagu utk tes sinkronisasi:', e);
+  }
+}
+
+// Tutup panel TANPA menyimpan — kembalikan tampilan lirik ke kondisi
+// sebelum user mulai mencoba-coba kandidat (kalau ada cadangannya).
+function _closeLyrChoicePanel(panelEl){
+  if(panelEl) panelEl.remove();
+  if(_lyrChoicePreviewBackup){
+    lyrs = _lyrChoicePreviewBackup.lines;
+    const k = _curLyrChoiceTitle + '|' + _curLyrChoiceArtist;
+    if(_lyrChoicePreviewBackup.cacheEntry) lyrCache[k] = _lyrChoicePreviewBackup.cacheEntry;
+    syncLyr(cur||0);
+    updateFSLyr();
+    _lyrChoicePreviewBackup = null;
+  }
+  _lyrChoiceSelectedIdx = null;
+}
+
+// Buang panel (kalau sedang terbuka, TANPA menyimpan pilihan) DAN tombol
+// menu "Pilih Lirik yang Pas" (kalau ada) — dipakai saat pindah lagu, atau
+// setelah pilihan berhasil disimpan (fitur sudah tidak relevan lagi utk lagu ini).
+function _hideLyrChoicePicker(){
+  const panel = document.getElementById('lyr-choice-panel');
+  if(panel) _closeLyrChoicePanel(panel);
+  _removeLyrChoiceMenuBtn();
+  _lyrChoiceAvailable = false;
+}
+
+function _escHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+let _lyrChoiceStyleInjected = false;
+function _ensureLyrChoiceStyleInjected(){
+  if(_lyrChoiceStyleInjected) return;
+  _lyrChoiceStyleInjected = true;
+  const style = document.createElement('style');
+  style.id = 'vbx-lyr-choice-style';
+  style.textContent = `
+    .lyr-choice-panel{margin:0 0 16px;padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.08);backdrop-filter:blur(6px);}
+    .lyr-choice-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;}
+    .lyr-choice-txt{flex:1;font-size:12.5px;line-height:1.4;color:rgba(255,255,255,0.75);}
+    .lyr-choice-close{flex-shrink:0;background:rgba(255,255,255,0.12);border:none;color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;}
+    .lyr-choice-close svg{width:13px;height:13px;}
+    .lyr-choice-list{display:flex;flex-direction:column;gap:8px;max-height:260px;overflow-y:auto;}
+    .lyr-choice-row{display:flex;align-items:center;gap:8px;width:100%;}
+    .lyr-choice-item{display:flex;align-items:center;gap:10px;flex:1;min-width:0;background:rgba(255,255,255,0.06);border:1.5px solid transparent;border-radius:10px;padding:9px 12px;cursor:pointer;text-align:left;box-sizing:border-box;}
+    .lyr-choice-item:hover{background:rgba(255,255,255,0.1);}
+    .lyr-choice-item.selected{border-color:#fff;background:rgba(255,255,255,0.14);}
+    .lyr-choice-test-btn{flex-shrink:0;background:rgba(255,255,255,0.12);color:#fff;border:1.5px solid rgba(255,255,255,0.25);border-radius:10px;padding:9px 14px;font-size:12.5px;font-weight:600;cursor:pointer;box-sizing:border-box;}
+    .lyr-choice-test-btn:hover{background:rgba(255,255,255,0.2);}
+    .lyr-choice-test-btn:active{background:rgba(255,255,255,0.28);}
+    .lyr-choice-main{flex:1;min-width:0;}
+    .lyr-choice-title{font-size:13px;color:#fff;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .lyr-choice-sub{font-size:11.5px;color:rgba(255,255,255,0.55);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .lyr-choice-check{flex-shrink:0;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:transparent;transition:color .15s;}
+    .lyr-choice-item.selected .lyr-choice-check{color:#000;background:#fff;}
+    .lyr-choice-check svg{width:13px;height:13px;}
+    .lyr-choice-save{margin-top:10px;width:100%;background:#fff;color:#000;border:none;border-radius:10px;padding:9px 0;font-size:13px;font-weight:600;cursor:pointer;}
+    .lyr-choice-save:disabled{opacity:0.4;cursor:default;}
+    /* Fallback tampilan tombol menu "Pilih Lirik yang Pas" kalau class
+       tombol "Bagikan Lirik" tidak berhasil dideteksi (lihat
+       _ensureLyrChoiceMenuBtn) — supaya tombol tetap terlihat wajar sebagai
+       item menu titik tiga. */
+    .lyr-choice-menu-btn{display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;color:#fff;font-size:14px;text-align:left;padding:10px 14px;cursor:pointer;box-sizing:border-box;}
+    .lyr-choice-menu-btn:hover{background:rgba(255,255,255,0.08);}
+    .lyr-choice-menu-btn svg{flex-shrink:0;opacity:0.85;}
+  `;
+  document.head.appendChild(style);
+}
+
+// Simpan kandidat lirik yang dipilih user ke Firebase. SELALU menimpa
+// pilihan lama dengan pilihan yang BARU disimpan ini (last-write-wins) --
+// kalau belum ada siapa pun yang memilih versi baru, data lama itulah yang
+// tetap dipakai (karena memang tidak disentuh); begitu ADA user yang memilih
+// & menyimpan versi lain, versi lama otomatis digantikan oleh versi
+// terbaru itu, siapa pun & kapan pun disimpan. Tetap pakai .transaction()
+// (bukan .set() langsung) semata supaya baca-lalu-tulis ini atomik terhadap
+// race antar-user, BUKAN untuk menolak menimpa data lama. Simpan teks lirik
+// LENGKAP (bukan cuma id/referensi) supaya user berikutnya tidak perlu fetch
+// ulang ke lrclib sama sekali.
+async function _saveLyrChoice(title, artist, candidate){
+  try{
+    if(typeof db === 'undefined' || !db) return;
+    const key = _lyrChoiceKey(title, artist);
+    await db.ref('lyricChoices/' + key).transaction(() => {
+      return {
+        title: title || '',
+        artist: artist || '',
+        trackName: candidate.trackName || '',
+        albumName: candidate.albumName || '',
+        duration: (typeof candidate.duration === 'number' && candidate.duration > 0) ? candidate.duration : null,
+        syncedLyrics: candidate.syncedLyrics || null,
+        plainLyrics: candidate.syncedLyrics ? null : (candidate.plainLyrics || null),
+        updatedAt: firebase.database.ServerValue.TIMESTAMP
+      };
+    });
+  }catch(e){
+    console.warn('[LYR CHOICE] gagal simpan pilihan lirik:', e);
+    toast(' Gagal menyimpan pilihan lirik, coba lagi');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// LYRICS TIMING ADJUSTER — GANTI fitur "Pilih Lirik yang Pas" di atas
+// ══════════════════════════════════════════════════════════════════════
+// Kenapa diganti: fitur "Pilih Lirik yang Pas" mengharuskan user COBA SATU-
+// SATU tiap kandidat .lrc dari lrclib (tekan Test, dengar, ulangi lagi kalau
+// belum pas) -- kalau lrclib TIDAK PUNYA kandidat yang timing-nya benar2
+// pas, user sudah buang waktu tanpa hasil sama sekali. Fitur ini lebih
+// simpel & PASTI bisa membetulkan timing tanpa tergantung isi lrclib:
+// user tinggal ketuk baris lirik yang meleset, lalu tekan tombol geser
+// (mis. +0.5 detik) sampai baris itu pas dengan vokalnya. Baris yang
+// diketuk DAN SEMUA baris SETELAHNYA otomatis ikut bergeser sejumlah yang
+// sama (bukan cuma baris itu sendiri) -- karena kalau baris pertama meleset
+// 5 detik, biasanya seluruh baris berikutnya juga meleset 5 detik yang
+// sama (selama sumber lagunya sama, cuma titik awalnya beda). Kalau di
+// bagian lain lagu ternyata pergeserannya beda lagi, user tinggal ketuk
+// baris lain di titik itu & ulangi -- bisa berkali-kali di titik manapun.
+//
+// Hasilnya disimpan ke node Firebase 'lyricChoices/<key>' YANG SAMA dengan
+// fitur lama (schema title/artist/syncedLyrics/dst, lihat _saveLyrChoice)
+// supaya alur pemuatan (_initLyrChoiceForSong -> _applyLyricsFromStored)
+// TIDAK PERLU diubah sama sekali -- lagu berikutnya oleh user MANA PUN
+// otomatis langsung memakai versi lirik yang sudah dibetulkan waktunya ini.
+
+let _lyrAdjustMode = false;        // sedang dalam mode "Sesuaikan Waktu Lirik"?
+let _lyrAdjustAnchorIdx = null;    // index baris (di `lyrs`) yang lagi dipilih utk digeser
+let _lyrAdjustBackupTimes = null;  // waktu ASLI tiap baris sebelum sesi penyesuaian ini -> utk tombol "Batalkan"
+let _lyrAdjustDirty = false;       // ada perubahan yang belum disimpan?
+
+function _lyrAdjustAvailable(){
+  return !!(lyrs && lyrs.length);
+}
+
+// Sisipkan tombol "Sesuaikan Waktu Lirik" ke menu titik tiga (#fs-more-menu)
+// tepat di bawah tombol "Bagikan Lirik" -- posisi & cara sisip sama persis
+// seperti tombol "Pilih Lirik yang Pas" yang digantikannya.
+function _ensureLyrAdjustMenuBtn(){
+  if(!_lyrAdjustAvailable()) return;
+  const menu = document.getElementById('fs-more-menu');
+  if(!menu) return; // menu belum ada di DOM saat ini -> dicoba lagi saat menu dibuka (lihat toggleFSMoreMenu)
+  _removeLyrAdjustMenuBtn();
+  _ensureLyrAdjustStyleInjected();
+
+  const shareBtn = menu.querySelector('[onclick*="openLyricsCardSelect"]')
+    || Array.from(menu.children).find(el => /bagikan lirik/i.test(el.textContent || ''));
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.id = 'lyr-adjust-menu-btn';
+  btn.className = 'lyr-adjust-menu-btn';
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 14"/></svg><span>Sesuaikan Waktu Lirik</span>`;
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if(typeof closeFSMoreMenu === 'function') closeFSMoreMenu();
+    _toggleLyrAdjustMode();
+  });
+
+  if(shareBtn && shareBtn.parentElement === menu){
+    shareBtn.insertAdjacentElement('afterend', btn);
+  } else {
+    menu.appendChild(btn);
+  }
+}
+function _removeLyrAdjustMenuBtn(){
+  const el = document.getElementById('lyr-adjust-menu-btn');
+  if(el) el.remove();
+}
+
+// Buka/tutup mode penyesuaian. Dipanggil dari tombol menu di atas.
+function _toggleLyrAdjustMode(){
+  if(_lyrAdjustMode){ _exitLyrAdjustMode(_lyrAdjustDirty); return; }
+  if(!_lyrAdjustAvailable()){ toast(' Lirik belum tersedia untuk lagu ini'); return; }
+
+  _lyrAdjustMode = true;
+  _lyrAdjustAnchorIdx = null;
+  _lyrAdjustDirty = false;
+  _lyrAdjustBackupTimes = lyrs.map(l => l.time); // cadangan waktu asli, utk "Batalkan Perubahan"
+
+  const fsEl = document.getElementById('fs-lyr');
+  if(fsEl && !fsEl.classList.contains('open') && typeof openFS === 'function') openFS();
+  if(fsEl) fsEl.classList.add('lyr-adjusting');
+
+  _ensureLyrAdjustStyleInjected();
+  _buildLyrAdjustBar();
+  _fsLyrBuiltFor = null; // paksa render ulang baris supaya listener pilih-baris terpasang
+  updateFSLyr();
+  toast(' Ketuk baris lirik yang waktunya meleset, lalu geser dengan tombol di bawah', 4000);
+}
+
+// Tutup mode penyesuaian. discard=true -> kembalikan semua waktu baris ke
+// kondisi SEBELUM sesi penyesuaian ini dimulai (dipakai tombol "Batalkan
+// Perubahan", atau otomatis saat pindah lagu supaya tidak nyangkut).
+function _exitLyrAdjustMode(discard){
+  if(discard && _lyrAdjustBackupTimes){
+    lyrs.forEach((l,i) => { if(typeof _lyrAdjustBackupTimes[i] === 'number') l.time = _lyrAdjustBackupTimes[i]; });
+  }
+  _lyrAdjustMode = false;
+  _lyrAdjustAnchorIdx = null;
+  _lyrAdjustBackupTimes = null;
+  _lyrAdjustDirty = false;
+
+  const fsEl = document.getElementById('fs-lyr');
+  if(fsEl) fsEl.classList.remove('lyr-adjusting');
+  const bar = document.getElementById('lyr-adjust-bar');
+  if(bar) bar.remove();
+
+  _fsLyrBuiltFor = null;
+  syncLyr(cur||0);
+  updateFSLyr();
+}
+
+// Dipanggil saat pindah lagu -- buang panel & tombol milik lagu sebelumnya
+// TANPA membatalkan apa pun secara berarti (lyrs lagu lama sebentar lagi
+// diganti total oleh lagu baru, jadi tidak perlu dikembalikan dulu).
+function _hideLyrAdjustPicker(){
+  if(_lyrAdjustMode) _exitLyrAdjustMode(false);
+  _removeLyrAdjustMenuBtn();
+}
+
+// User ketuk salah satu baris lirik SELAGI mode penyesuaian aktif -> jadikan
+// baris itu "titik jangkar" (anchor) yang akan digeser oleh tombol +/-.
+function _lyrAdjustSelectLine(i){
+  const l = lyrs[i];
+  if(!l) return;
+  _lyrAdjustAnchorIdx = i;
+  // Ikut lompat dengarkan sedikit sebelum baris ini supaya user bisa
+  // langsung menilai apakah timing-nya sudah pas atau masih perlu digeser.
+  if(YTP && typeof YTP.seekTo === 'function') YTP.seekTo(Math.max(0, l.time - 2), true);
+  _lyrAdjustRefreshUI();
+}
+
+// Geser baris yang jadi anchor DAN SEMUA baris setelahnya sejumlah
+// deltaSec (boleh negatif = majukan/lirik tampil lebih awal, boleh
+// positif = mundurkan/lirik tampil lebih lambat). Waktu tidak pernah
+// dibiarkan negatif.
+function _lyrAdjustShift(deltaSec){
+  if(_lyrAdjustAnchorIdx == null){
+    toast(' Ketuk salah satu baris lirik dulu untuk memilih titik yang mau digeser', 2500);
+    return;
+  }
+  for(let i = _lyrAdjustAnchorIdx; i < lyrs.length; i++){
+    lyrs[i].time = Math.max(0, lyrs[i].time + deltaSec);
+  }
+  _lyrAdjustDirty = true;
+  _fsLyrBuiltFor = null; // paksa render ulang supaya urutan/scroll ikut update
+  syncLyr(cur||0);
+  updateFSLyr();
+  _lyrAdjustRefreshUI();
+}
+
+// Sinkronkan tampilan panel (waktu baris terpilih, status tombol Simpan)
+// + highlight baris yang sedang jadi anchor di daftar lirik fullscreen.
+function _lyrAdjustRefreshUI(){
+  const listEl = document.getElementById('fs-lyr-scroll');
+  if(listEl){
+    listEl.querySelectorAll('.fs-ll').forEach(d => {
+      d.classList.toggle('lyr-adjust-anchor', Number(d.dataset.lcIdx) === _lyrAdjustAnchorIdx);
+    });
+  }
+  const bar = document.getElementById('lyr-adjust-bar');
+  if(!bar) return;
+  const timeEl = bar.querySelector('#lyr-adjust-time');
+  const saveBtn = bar.querySelector('#lyr-adjust-save-btn');
+  if(_lyrAdjustAnchorIdx != null && lyrs[_lyrAdjustAnchorIdx]){
+    if(timeEl) timeEl.textContent = 'Baris terpilih sekarang di ' + mmss(lyrs[_lyrAdjustAnchorIdx].time);
+  } else if(timeEl){
+    timeEl.textContent = 'Belum ada baris yang dipilih';
+  }
+  if(saveBtn) saveBtn.disabled = !_lyrAdjustDirty;
+}
+
+// Bangun panel kontrol "Sesuaikan Waktu Lirik" tepat di atas daftar baris
+// lirik fullscreen (#fs-lyr-scroll) -- posisi & cara sisip sama seperti
+// panel "Pilih Lirik yang Pas" lama (murni lewat JS/DOM).
+function _buildLyrAdjustBar(){
+  const existing = document.getElementById('lyr-adjust-bar');
+  if(existing) existing.remove();
+  const scrollEl = document.getElementById('fs-lyr-scroll');
+  if(!scrollEl) return;
+
+  const bar = document.createElement('div');
+  bar.id = 'lyr-adjust-bar';
+  bar.className = 'lyr-adjust-bar';
+  bar.innerHTML = `
+    <div class="lyr-adjust-txt">Ketuk baris lirik yang timing-nya meleset, lalu majukan/mundurkan waktunya di sini. Baris-baris SETELAHNYA ikut bergeser sejumlah yang sama.</div>
+    <div class="lyr-adjust-time-row" id="lyr-adjust-time">Belum ada baris yang dipilih</div>
+    <div class="lyr-adjust-controls">
+      <button type="button" class="lyr-adjust-step" data-delta="-1">-1d</button>
+      <button type="button" class="lyr-adjust-step" data-delta="-0.5">-0.5d</button>
+      <button type="button" class="lyr-adjust-step" data-delta="0.5">+0.5d</button>
+      <button type="button" class="lyr-adjust-step" data-delta="1">+1d</button>
+    </div>
+    <div class="lyr-adjust-actions">
+      <button type="button" class="lyr-adjust-cancel" id="lyr-adjust-cancel-btn">Batalkan Perubahan</button>
+      <button type="button" class="lyr-adjust-save" id="lyr-adjust-save-btn" disabled>Simpan Perbaikan Ini</button>
+    </div>
+  `;
+  scrollEl.insertAdjacentElement('beforebegin', bar);
+
+  bar.querySelectorAll('.lyr-adjust-step').forEach(b => {
+    b.addEventListener('click', () => _lyrAdjustShift(parseFloat(b.dataset.delta)));
+  });
+  bar.querySelector('#lyr-adjust-cancel-btn').addEventListener('click', () => _exitLyrAdjustMode(true));
+  bar.querySelector('#lyr-adjust-save-btn').addEventListener('click', _saveLyrAdjustment);
+
+  _lyrAdjustRefreshUI();
+}
+
+// Simpan hasil penyesuaian: serialisasikan `lyrs` (waktu yang SUDAH digeser
+// user) balik jadi teks .lrc, lalu simpan ke node Firebase yang sama dengan
+// fitur "Pilih Lirik yang Pas" lama supaya alur pemuatan lirik yang sudah
+// ada (tidak perlu diubah) otomatis memakainya untuk SEMUA user berikutnya
+// yang memutar lagu ini -- last-write-wins, sama seperti _saveLyrChoice().
+async function _saveLyrAdjustment(){
+  if(!_lyrAdjustDirty){ _exitLyrAdjustMode(false); return; }
+  const saveBtn = document.getElementById('lyr-adjust-save-btn');
+  if(saveBtn){ saveBtn.disabled = true; saveBtn.textContent = 'Menyimpan...'; }
+  try{
+    if(typeof db === 'undefined' || !db) throw new Error('Firebase belum siap');
+
+    const sf = _curSpeedFactor || 1.0;
+    const lrcLines = lyrs
+      // Buang baris instrumental sintetis di detik 0 yang otomatis disisipkan
+      // saat lirik dimuat (lihat _withIntroInstrumental) -- kalau ikut
+      // disimpan, baris ini akan dobel dengan yang disisipkan ulang nanti.
+      .filter(l => !(l.instrumental && l.time === 0 && !l.text))
+      .map(l => {
+        // Kalikan balik dengan speedFactor -- pSynced() MEMBAGI timestamp
+        // mentah .lrc dengan speedFactor saat parsing, jadi supaya data yang
+        // disimpan tetap "normal" (cocok dipakai ulang di kecepatan apa pun
+        // nanti), kita balikkan operasinya di sini.
+        const rawTime = Math.max(0, l.time * sf);
+        const m = Math.floor(rawTime / 60);
+        const s = (rawTime - m * 60).toFixed(2).padStart(5, '0');
+        return `[${String(m).padStart(2,'0')}:${s}]${l.text || ''}`;
+      });
+    const syncedLyrics = lrcLines.join('\n');
+    if(!syncedLyrics.trim()) throw new Error('Tidak ada baris lirik utk disimpan');
+
+    const title = _curLyrChoiceTitle || '';
+    const artist = _curLyrChoiceArtist || '';
+    const key = _lyrChoiceKey(title, artist);
+    const prevCache = lyrCache[title + '|' + artist];
+    const duration = (prevCache && typeof prevCache.duration === 'number' && prevCache.duration > 0) ? prevCache.duration : null;
+
+    await db.ref('lyricChoices/' + key).transaction(() => ({
+      title, artist,
+      trackName: title,
+      albumName: '',
+      duration,
+      syncedLyrics,
+      plainLyrics: null,
+      updatedAt: firebase.database.ServerValue.TIMESTAMP,
+      adjustedManually: true // penanda: hasil "Sesuaikan Waktu Lirik", bukan kandidat asli lrclib
+    }));
+
+    toast(' Waktu lirik tersimpan — otomatis dipakai untuk semua pengguna lain');
+    _exitLyrAdjustMode(false); // sudah tersimpan, jangan di-rollback lagi
+  }catch(e){
+    console.warn('[LYR ADJUST] gagal simpan penyesuaian waktu lirik:', e);
+    toast(' Gagal menyimpan, coba lagi');
+    if(saveBtn){ saveBtn.disabled = false; saveBtn.textContent = 'Simpan Perbaikan Ini'; }
+  }
+}
+
+let _lyrAdjustStyleInjected = false;
+function _ensureLyrAdjustStyleInjected(){
+  if(_lyrAdjustStyleInjected) return;
+  _lyrAdjustStyleInjected = true;
+  const style = document.createElement('style');
+  style.id = 'vbx-lyr-adjust-style';
+  style.textContent = `
+    .lyr-adjust-bar{margin:0 0 16px;padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.08);backdrop-filter:blur(6px);display:flex;flex-direction:column;gap:10px;}
+    .lyr-adjust-txt{font-size:12.5px;line-height:1.4;color:rgba(255,255,255,0.75);}
+    .lyr-adjust-time-row{font-size:12.5px;font-weight:600;color:#fff;}
+    .lyr-adjust-controls{display:flex;align-items:center;gap:8px;}
+    .lyr-adjust-step{flex:1;background:rgba(255,255,255,0.1);border:1.5px solid rgba(255,255,255,0.22);color:#fff;border-radius:10px;padding:10px 0;font-size:13px;font-weight:700;cursor:pointer;}
+    .lyr-adjust-step:hover{background:rgba(255,255,255,0.18);}
+    .lyr-adjust-step:active{background:rgba(255,255,255,0.26);}
+    .lyr-adjust-actions{display:flex;gap:8px;}
+    .lyr-adjust-cancel{flex:1;background:rgba(255,255,255,0.08);border:1.5px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.85);border-radius:10px;padding:9px 0;font-size:13px;font-weight:600;cursor:pointer;}
+    .lyr-adjust-cancel:hover{background:rgba(255,255,255,0.14);}
+    .lyr-adjust-save{flex:1;background:#fff;color:#000;border:none;border-radius:10px;padding:9px 0;font-size:13px;font-weight:600;cursor:pointer;}
+    .lyr-adjust-save:disabled{opacity:0.4;cursor:default;}
+    .fs-ll.lyr-adjust-anchor{outline:2px solid #fff;outline-offset:2px;border-radius:6px;background:rgba(255,255,255,0.08);}
+    #fs-lyr.lyr-adjusting .fs-ll{cursor:pointer;}
+    .lyr-adjust-menu-btn{display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;color:#fff;font-size:14px;text-align:left;padding:10px 14px;cursor:pointer;box-sizing:border-box;}
+    .lyr-adjust-menu-btn:hover{background:rgba(255,255,255,0.08);}
+    .lyr-adjust-menu-btn svg{flex-shrink:0;opacity:0.85;}
+  `;
+  document.head.appendChild(style);
+}
+
 
 // ── LYRICS TRANSLATION SYSTEM ─────────────────────────────
 let _translationEnabled = false;
@@ -7482,8 +9193,12 @@ function applyTranslationsToDOM() {
 // ── END TRANSLATION SYSTEM ────────────────────────────────
 function syncLyr(ct){
   const el=document.getElementById('lyr-lines'); if(!el||!lyrs.length)return;
+  // Geser waktu "sekarang" mundur sebesar offset koreksi sebelum dicocokkan
+  // ke timestamp baris — supaya baris yang disorot memang baris yang benar
+  // SETELAH dikoreksi, bukan timestamp mentah dari file .lrc.
+  const adjCt = ct - _curLyrOffset;
   let idx=0;
-  for(let i=0;i<lyrs.length;i++){if(ct>=lyrs[i].time)idx=i;else break;}
+  for(let i=0;i<lyrs.length;i++){if(adjCt>=lyrs[i].time)idx=i;else break;}
   el.innerHTML='';
   // Apply show-translation class if enabled
   if (_translationEnabled) el.classList.add('show-translation');
@@ -7504,7 +9219,7 @@ function syncLyr(ct){
     } else {
       d.className='ll '+state;
       d.textContent=l.text;
-      d.addEventListener('click',()=>{if(YTP)YTP.seekTo(l.time);});
+      d.addEventListener('click',()=>{if(YTP)YTP.seekTo(l.time + _curLyrOffset);});
     }
     wrap.appendChild(d);
 
@@ -8141,6 +9856,10 @@ function openFS(){if(!curTrack)return;document.getElementById('fs-lyr').classLis
   // biar tidak salah anggap judul pendek "overflow" gara2 kepotong sebelum
   // halamannya benar2 kebuka.
   if (typeof window.vbxRecheckMarquee === 'function') window.vbxRecheckMarquee();
+  // Kalau lagu ini punya beberapa versi lirik dan belum pernah dipilih user
+  // lain, ingatkan lewat notifikasi singkat (3 detik) sekarang halaman
+  // Lyrics benar-benar terbuka — lihat blok "LYRICS VERSION PICKER" di atas.
+  if (typeof _maybeShowLyrChoiceNotif === 'function') _maybeShowLyrChoiceNotif();
 }
 function closeFS(){document.getElementById('fs-lyr').classList.remove('open');}
 // Tutup halaman lyrics (baik mode biasa maupun fullscreen/pure) kalau sedang terbuka.
@@ -8987,8 +10706,9 @@ let _fsLyrTransSig = null;
 function updateFSLyr(){
   const el=document.getElementById('fs-lyr-scroll');
   if(!lyrs.length){el.innerHTML='<div class="lyr-empty" style="color:rgba(255,255,255,0.4);padding-top:80px"><i></i>Lyrics not available</div>';_fsLyrBuiltFor=null;return;}
+  const adjCur = cur - _curLyrOffset; // sama seperti syncLyr(): koreksi offset dulu sebelum dicocokkan
   let idx=0;
-  for(let i=0;i<lyrs.length;i++){if(cur>=lyrs[i].time)idx=i;else break;}
+  for(let i=0;i<lyrs.length;i++){if(adjCur>=lyrs[i].time)idx=i;else break;}
 
   const songKey = _currentSongKeyForTranslation;
   const transSig = songKey+'|'+(_translationEnabled?1:0)+'|'+(_translationCache[songKey]?1:0);
@@ -9036,8 +10756,9 @@ function _buildFSLyr(idx, songKey){
       d.textContent=l.text;
       d.dataset.lcIdx=i;
       d.addEventListener('click',()=>{
+        if(_lyrAdjustMode){ _lyrAdjustSelectLine(i); return; }
         if(_lcSelecting){ _lcToggleLine(i); return; }
-        if(YTP)YTP.seekTo(l.time);
+        if(YTP)YTP.seekTo(l.time + _curLyrOffset);
       });
     }
     wrap.appendChild(d);
@@ -9051,6 +10772,7 @@ function _buildFSLyr(idx, songKey){
     el.appendChild(wrap);
   });
   if(_lcSelecting) _lcRefreshSelectionUI();
+  if(_lyrAdjustMode) _lyrAdjustRefreshUI();
   _scrollFSLyrToActive(idx);
 }
 function _updateFSLyrActiveState(idx){
@@ -9393,23 +11115,76 @@ function _lcCanvasToBlob(){
   });
 }
 
-function downloadLyricsCard(){
-  if(!_lcCanvasReady){ toast('Tunggu kartu selesai dibuat...'); return; }
-  _lcCanvasToBlob().then(blob=>{
-    if(!blob){ toast('Gagal menyimpan gambar'); return; }
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url; a.download=_lcFileName();
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),4000);
-    toast('Kartu lirik disimpan ke perangkat');
+// FIX "tidak bisa download kartu lirik" setelah dibungkus Capacitor:
+// tag <a download="..."> dengan blob: URL cuma jalan di BROWSER (Chrome,
+// Opera, dst) karena browser punya download-manager sendiri yang menangkap
+// klik itu. WebView bawaan Capacitor TIDAK punya mekanisme itu sama sekali
+// — klik <a download> di WebView native cuma diam saja (tidak ada dialog,
+// tidak ada file tersimpan, tidak ada error pun). Makanya di APK harus
+// lewat plugin native @capacitor/filesystem, bukan trik <a> ala web.
+//   npm install @capacitor/filesystem @capacitor/share
+//   npx cap sync
+function _lcIsNativeApp(){
+  return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+}
+function _lcBlobToBase64(blob){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(String(reader.result).split(',')[1] || '');
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
   });
 }
 
+async function downloadLyricsCard(){
+  if(!_lcCanvasReady){ toast('Tunggu kartu selesai dibuat...'); return; }
+  const blob = await _lcCanvasToBlob();
+  if(!blob){ toast('Gagal menyimpan gambar'); return; }
+
+  if(_lcIsNativeApp()){
+    const Filesystem = window.Capacitor?.Plugins?.Filesystem;
+    if(!Filesystem){
+      console.warn('[VBX-LYRIC-CARD] Plugin @capacitor/filesystem belum terpasang — jalankan: npm install @capacitor/filesystem && npx cap sync');
+      toast('Fitur simpan gambar belum siap, hubungi developer.');
+      return;
+    }
+    try{
+      const base64Data = await _lcBlobToBase64(blob);
+      await Filesystem.writeFile({ path: _lcFileName(), data: base64Data, directory: 'DOCUMENTS' });
+      toast('Kartu lirik disimpan ke perangkat (folder Documents/Vibexa)');
+    }catch(e){
+      console.error('[VBX-LYRIC-CARD] Gagal simpan lewat Filesystem:', e);
+      toast('Gagal menyimpan kartu lirik');
+    }
+    return;
+  }
+
+  // Jalur web/PWA biasa (browser) — cara <a download> tetap dipakai karena
+  // itu memang jalan normal di browser.
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=_lcFileName();
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),4000);
+  toast('Kartu lirik disimpan ke perangkat');
+}
+
+// FIX bagian "bagikan lirik" di APK native: navigator.share({files:[...]})
+// nyaris selalu dianggap tidak didukung oleh WebView Capacitor (beda dari
+// Chrome/Opera asli), jadi selama ini APK selalu jatuh ke cabang "belum
+// mendukung" lalu manggil downloadLyricsCard() yang JUGA rusak (lihat fix
+// di atas) — sekarang di native dialihkan ke plugin @capacitor/share, yang
+// memunculkan share-sheet Android asli (WhatsApp/Instagram/dst).
 async function shareLyricsCardNative(){
   if(!_lcCanvasReady){ toast('Tunggu kartu selesai dibuat...'); return; }
   const blob = await _lcCanvasToBlob();
   if(!blob) return;
+
+  if(_lcIsNativeApp()){
+    await _lcNativeShare(blob);
+    return;
+  }
+
   const file = new File([blob], _lcFileName(), {type:'image/png'});
   const shareData = { files:[file], title:(curTrack&&curTrack.title)||'Lirik Lagu', text:_lcShareCaption() };
   if(navigator.canShare && navigator.canShare({files:[file]})){
@@ -9421,12 +11196,44 @@ async function shareLyricsCardNative(){
   }
 }
 
+async function _lcNativeShare(blob){
+  const Filesystem = window.Capacitor?.Plugins?.Filesystem;
+  const Share = window.Capacitor?.Plugins?.Share;
+  if(!Filesystem || !Share){
+    console.warn('[VBX-LYRIC-CARD] Plugin @capacitor/filesystem dan/atau @capacitor/share belum terpasang — jalankan: npm install @capacitor/filesystem @capacitor/share && npx cap sync');
+    toast('Fitur bagikan belum siap, hubungi developer.');
+    return;
+  }
+  try{
+    const base64Data = await _lcBlobToBase64(blob);
+    const written = await Filesystem.writeFile({ path: _lcFileName(), data: base64Data, directory: 'CACHE' });
+    await Share.share({
+      title: (curTrack && curTrack.title) || 'Lirik Lagu',
+      text: _lcShareCaption(),
+      url: written.uri,
+      dialogTitle: 'Bagikan kartu lirik',
+    });
+  }catch(e){
+    if(e && e.message && /cancel/i.test(e.message)) return; // user membatalkan share-sheet
+    console.error('[VBX-LYRIC-CARD] Gagal share native:', e);
+    toast('Gagal membagikan kartu lirik');
+  }
+}
+
 // Tombol platform spesifik: kartu selalu disimpan dulu ke perangkat (karena
 // WhatsApp/Instagram/Facebook di web tidak mengizinkan gambar dilampirkan
 // otomatis lewat link), lalu membuka aplikasi/halaman terkait dengan teks
 // kutipan lirik supaya user tinggal melampirkan foto yang baru tersimpan.
 function shareLyricsCardTo(platform){
   if(!_lcCanvasReady){ toast('Tunggu kartu selesai dibuat...'); return; }
+  // Di APK native, langsung pakai share-sheet Android asli (plugin
+  // @capacitor/share) — ini yang paling konsisten bisa "melampirkan"
+  // gambar otomatis ke WhatsApp/Instagram/Facebook, karena navigator.share
+  // di WebView Capacitor sering tidak reliable.
+  if(_lcIsNativeApp()){
+    _lcCanvasToBlob().then(blob=>{ if(blob) _lcNativeShare(blob); });
+    return;
+  }
   // Kalau Web Share API dgn file didukung, coba tawarkan itu dulu — di HP ini
   // langsung memunculkan pilihan WhatsApp/Instagram/Facebook dari sistem.
   if(navigator.canShare){
@@ -9464,6 +11271,9 @@ function toggleFSMoreMenu(e){
   if(e) e.stopPropagation();
   const menu = document.getElementById('fs-more-menu');
   if(!menu) return;
+  // Jaga-jaga kalau tombol "Sesuaikan Waktu Lirik" belum sempat terpasang
+  // (mis. menu belum ada di DOM saat lagu pertama kali dimuat).
+  if (typeof _ensureLyrAdjustMenuBtn === 'function') _ensureLyrAdjustMenuBtn();
   menu.classList.toggle('show');
 }
 function closeFSMoreMenu(){
@@ -11476,6 +13286,190 @@ function renderDailyMixes(mixes) {
   if (!c) return;
   c.innerHTML = '';
   mixes.forEach((mix, i) => c.appendChild(buildDailyMixCardEl(mix, i)));
+}
+
+// ─── PILIHAN CEPAT (ala "Quick Picks" YouTube Music) ───────────────────────
+// 24 lagu yang lagi TRENDING SAAT INI (top chart Deezer, gabungan semua
+// genre — sumber sama seperti Daily Mix), disusun jadi 6 "halaman" x 4 lagu,
+// digulir ke samping. Playlist ini BERSAMA untuk SEMUA user (persis pola
+// Daily Mix/Playlist Pop/dst): disimpan di Firebase node
+// "quick_picks_shared/{tanggal WIB}" supaya semua orang melihat 24 lagu yang
+// identik pada hari yang sama, dan otomatis diganti begitu tanggal (WIB)
+// berpindah ke hari berikutnya.
+const QP_TOTAL_SONGS = 24;
+const QP_SONGS_PER_COL = 4;
+const QP_COLUMNS = QP_TOTAL_SONGS / QP_SONGS_PER_COL; // 6
+
+let _qpTracks = [];
+
+async function loadQuickPicks(force) {
+  const section = document.getElementById('quick-picks-section');
+  const scroll = document.getElementById('quick-picks-scroll');
+  if (section) section.style.display = 'block';
+
+  const dateStr = _dmTodayDateStr(); // hari WIB, sama seperti Daily Mix (bukan UTC)
+  const cacheKey = 'vibexa_quickpicks_v1_' + dateStr;
+
+  if (!force) {
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const tracks = JSON.parse(cached);
+        if (Array.isArray(tracks) && tracks.length) { renderQuickPicks(tracks); return; }
+      }
+    } catch (e) { console.error('[QuickPicks] gagal baca cache lokal:', e); }
+  }
+
+  // Pilihan Cepat BERSAMA untuk semua user: sebelum generate sendiri, coba
+  // dulu ambil hasil yang sudah dibuat user lain hari ini dari Firebase.
+  // Kalau sudah ada, semua user pakai 24 lagu yang sama persis.
+  if (!force) {
+    try {
+      const sharedSnap = await db.ref('quick_picks_shared/' + dateStr).get();
+      if (sharedSnap.exists()) {
+        const sharedTracks = sharedSnap.val();
+        if (Array.isArray(sharedTracks) && sharedTracks.length) {
+          try { localStorage.setItem(cacheKey, JSON.stringify(sharedTracks)); } catch (e) { console.error('[QuickPicks] gagal simpan cache lokal:', e); }
+          renderQuickPicks(sharedTracks);
+          return;
+        }
+      }
+    } catch (e) {
+      // Kalau ini "PERMISSION_DENIED" di console, Firebase Rules belum
+      // mengizinkan baca path quick_picks_shared -> tidak akan pernah sama
+      // antar user sampai rule-nya ditambahkan (lihat quick_picks_shared di
+      // Firebase Rules).
+      console.error('[QuickPicks] gagal baca quick_picks_shared dari Firebase (cek Firebase Rules):', e);
+    }
+  }
+
+  if (scroll) scroll.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;"><i></i><h3>Preparing Pilihan Cepat...</h3></div>';
+
+  try {
+    // 1) Ambil chart top/trending Deezer saat ini (gabungan semua genre) —
+    // sumber data sama persis dengan Daily Mix.
+    const seen = new Set();
+    let allRawTracks = [];
+    try {
+      const chartTracks = await _dmFetchRawTracks('https://api.deezer.com/chart/0/tracks?limit=100');
+      chartTracks.forEach(t => { if (!seen.has(t.id)) { seen.add(t.id); allRawTracks.push(t); } });
+    } catch (e) {}
+
+    if (!allRawTracks.length) throw new Error('Trending song data insufficient');
+
+    // 2) Saring: prioritaskan lagu dari artis yang benar-benar terkenal
+    // (nb_fan tinggi), tetap urut dari yang paling trending (rank Deezer).
+    let pool = await _dmFilterFamousTracks(allRawTracks, QP_TOTAL_SONGS);
+
+    // 3) Jaring pengaman: kalau lagu dari artis "terkenal" saja belum cukup
+    // 24, lengkapi sisa slot dari chart trending lain yang sudah terkumpul.
+    if (pool.length < QP_TOTAL_SONGS) {
+      const poolIds = new Set(pool.map(t => t.id));
+      for (const t of allRawTracks) {
+        if (pool.length >= QP_TOTAL_SONGS) break;
+        if (poolIds.has(t.id)) continue;
+        poolIds.add(t.id);
+        pool.push(t);
+      }
+    }
+
+    if (!pool.length) throw new Error('Failed to create Pilihan Cepat');
+
+    let tracks = pool.slice(0, QP_TOTAL_SONGS).map(t => ({ ...t, _query: `${t.artist}|||${t.title}|||${t.id}` }));
+
+    // Simpan hasil generate ini sebagai daftar BERSAMA di Firebase supaya
+    // user lain hari ini tinggal membaca, bukan generate ulang. Pakai
+    // transaction: kalau ternyata sudah ada yang lebih dulu menyimpan, jangan
+    // ditimpa — pakai versi yang sudah tersimpan supaya semua user tetap
+    // dapat 24 lagu yang sama persis.
+    try {
+      const txResult = await db.ref('quick_picks_shared/' + dateStr).transaction(current => {
+        if (Array.isArray(current) && current.length >= QP_TOTAL_SONGS) return; // sudah lengkap -> jangan timpa
+        return tracks;
+      });
+      if (txResult && txResult.snapshot && txResult.snapshot.exists()) {
+        const finalTracks = txResult.snapshot.val();
+        if (Array.isArray(finalTracks) && finalTracks.length) tracks = finalTracks;
+      }
+      // Bersihkan entri tanggal-tanggal lama supaya node ini tidak menumpuk.
+      db.ref('quick_picks_shared').get().then(snap => {
+        if (!snap.exists()) return;
+        snap.forEach(child => {
+          if (child.key !== dateStr) db.ref('quick_picks_shared/' + child.key).remove().catch(() => {});
+        });
+      }).catch(() => {});
+    } catch (e) {
+      console.error('[QuickPicks] gagal tulis quick_picks_shared ke Firebase (cek Firebase Rules):', e);
+    }
+
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify(tracks));
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith('vibexa_quickpicks_v') && k !== cacheKey) localStorage.removeItem(k);
+      });
+    } catch (e) {
+      console.error('[QuickPicks] gagal simpan cache lokal:', e);
+    }
+
+    renderQuickPicks(tracks);
+  } catch (e) {
+    console.error('loadQuickPicks error:', e);
+    if (scroll) scroll.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;color:var(--sub)"> Gagal memuat Pilihan Cepat, coba refresh.</div>';
+  }
+}
+
+function renderQuickPicks(tracks) {
+  _qpTracks = tracks;
+  const scroll = document.getElementById('quick-picks-scroll');
+  if (!scroll) return;
+  scroll.innerHTML = '';
+  for (let c = 0; c < QP_COLUMNS; c++) {
+    const col = document.createElement('div');
+    col.className = 'qp-col';
+    const slice = tracks.slice(c * QP_SONGS_PER_COL, (c + 1) * QP_SONGS_PER_COL);
+    slice.forEach(t => col.appendChild(buildQuickPickRowEl(t)));
+    scroll.appendChild(col);
+  }
+}
+
+function buildQuickPickRowEl(t) {
+  const track = { title: t.title, artist: t.artist, thumb: t.thumb || '', preview: t.preview || null, videoId: null, photo: null, duration: t.duration, _query: t._query };
+  const row = document.createElement('div');
+  row.className = 'qp-row' + (curTrack && curTrack._query === track._query ? ' playing' : '');
+  row.innerHTML = `
+    <div class="qp-cover">${t.thumb ? `<img src="${esc(t.thumb)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}</div>
+    <div class="qp-info">
+      <div class="qp-title">${esc(t.title)}</div>
+      <div class="qp-artist">${esc(t.artist)}</div>
+    </div>
+    ${buildAddBtnHTML(track)}
+  `;
+  row.addEventListener('click', (e) => {
+    if (e.target.closest('.add-btn')) return;
+    playQuickPickTrack(track);
+  });
+  wireAddBtn(row.querySelector('.add-btn'), track);
+  return row;
+}
+
+// Memutar satu lagu dari Pilihan Cepat, dengan antrian (Queue) berisi
+// SEMUA 24 lagu Pilihan Cepat (bukan cuma lagu yang diklik) — sama seperti
+// pola Daily Mix, supaya tombol "Next" lanjut ke lagu berikutnya di daftar.
+async function playQuickPickTrack(track) {
+  const queueTracks = _qpTracks.map(t => ({ title: t.title, artist: t.artist, thumb: t.thumb || '', preview: t.preview || null, videoId: null, photo: null, duration: t.duration, _query: t._query }));
+  curQueue = queueTracks;
+  await loadPlay(track, null);
+  _npPlayingMixRef = { id: 'quick_picks', title: 'Pilihan Cepat', tracks: queueTracks };
+  updateNPMobQueueBtn();
+  renderQuickPicks(_qpTracks);
+}
+
+// Tombol "Putar Semua" di header Pilihan Cepat: mulai dari lagu pertama.
+function playAllQuickPicks() {
+  if (!_qpTracks.length) { toast(' Pilihan Cepat belum siap'); return; }
+  const first = _qpTracks[0];
+  const track = { title: first.title, artist: first.artist, thumb: first.thumb || '', preview: first.preview || null, videoId: null, photo: null, duration: first.duration, _query: first._query };
+  playQuickPickTrack(track);
 }
 
 // ─── "Add to Library" untuk playlist otomatis (Daily Mix, Mix Tahunan,
@@ -14402,10 +16396,14 @@ async function togglePublishPlaylist() {
   }
 }
 
-// ─── HOME GIF BANNER — "GIF TIME" ──────────────────────────
+// ─── HOME GIF BANNER — "GIF TIME" + Custom Upload ──────────
 // Banner GIF bawaan di paling atas halaman Home yang otomatis berganti
-// sesuai jam lokal perangkat. Bersifat read-only: tidak ada lagi opsi
-// bagi user untuk mengunggah atau mengganti GIF ini.
+// sesuai jam lokal perangkat. User BISA mengganti banner ini dengan
+// file GIF/foto milik sendiri cukup dengan MENGKLIK banner tersebut
+// (tanpa perlu tombol tambahan apa pun). File yang dipilih disimpan
+// LOKAL di device user sendiri (via IndexedDB) — tidak pernah diupload
+// ke server mana pun. Kalau user belum pernah mengganti banner, banner
+// otomatis tampil seperti biasa sesuai jadwal jam di bawah ini.
 // Jadwal (berulang setiap hari, berdasarkan jam lokal perangkat):
 //   01:00–03:00  kiss
 //   03:00–08:00  sunrise
@@ -14442,12 +16440,115 @@ function getHomeGifTimeUrl(date) {
 
 let _hgbTimeInterval = null;
 let _hgbLastAppliedTimeUrl = null;
+let _hgbCustomObjectUrl = null; // blob: URL aktif utk custom banner, di-revoke tiap ganti supaya tidak bocor memori
+
+// ── Penyimpanan custom banner milik user, 100% LOKAL di device ──
+// Pakai IndexedDB (bukan localStorage) supaya bisa menampung file
+// GIF/foto yang ukurannya cukup besar — localStorage terlalu kecil
+// kapasitasnya utk ini. Kalau IndexedDB gagal dibuka (mis. private
+// browsing di beberapa browser), fitur ganti-banner otomatis nonaktif
+// & banner tetap fallback ke jadwal "GIF Time" bawaan seperti biasa.
+const HGB_DB_NAME = 'vibexa_home_banner_db';
+const HGB_STORE_NAME = 'banner';
+const HGB_KEY = 'custom_banner';
+let _hgbDbPromise = null;
+
+function _hgbOpenDB() {
+  if (_hgbDbPromise) return _hgbDbPromise;
+  _hgbDbPromise = new Promise((resolve, reject) => {
+    if (!window.indexedDB) { reject(new Error('IndexedDB tidak tersedia di browser ini')); return; }
+    const req = indexedDB.open(HGB_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(HGB_STORE_NAME)) db.createObjectStore(HGB_STORE_NAME);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  return _hgbDbPromise;
+}
+
+// Ambil Blob custom banner milik user dari IndexedDB (null kalau belum
+// pernah ganti / gagal dibaca).
+async function _hgbGetCustomBannerBlob() {
+  try {
+    const db = await _hgbOpenDB();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(HGB_STORE_NAME, 'readonly');
+      const req = tx.objectStore(HGB_STORE_NAME).get(HGB_KEY);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  } catch (e) {
+    console.warn('[HGB] Gagal baca custom banner dari IndexedDB (fallback ke GIF Time bawaan):', e);
+    return null;
+  }
+}
+
+function _hgbSaveCustomBannerBlob(blob) {
+  return _hgbOpenDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(HGB_STORE_NAME, 'readwrite');
+    tx.objectStore(HGB_STORE_NAME).put(blob, HGB_KEY);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  }));
+}
+
+// Batas ukuran file custom banner (10MB) supaya storage device user
+// tidak kepenuhan oleh 1 file GIF raksasa.
+const HGB_MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+// Input file tersembunyi (dibuat sekali, dipakai ulang tiap kali user
+// klik banner). Sengaja TIDAK dibuatkan tombol terpisah — cukup klik
+// banner-nya langsung sesuai permintaan.
+let _hgbFileInput = null;
+function _hgbEnsureFileInput() {
+  if (_hgbFileInput) return _hgbFileInput;
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/gif,image/*';
+  input.style.display = 'none';
+  input.id = 'vbx-home-banner-file-input';
+  document.body.appendChild(input);
+  input.addEventListener('change', async () => {
+    const file = input.files && input.files[0];
+    input.value = ''; // reset supaya file yang sama bisa dipilih ulang lain kali
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast(' File harus berupa gambar/GIF'); return; }
+    if (file.size > HGB_MAX_FILE_SIZE) { toast(' Ukuran file maksimal 10MB'); return; }
+    try {
+      await _hgbSaveCustomBannerBlob(file);
+      toast('✅ GIF banner berhasil diganti (tersimpan di device ini saja)');
+      applyHomeBanner();
+    } catch (e) {
+      console.warn('[HGB] Gagal simpan custom banner ke IndexedDB:', e);
+      toast(' Gagal menyimpan banner, coba lagi');
+    }
+  });
+  _hgbFileInput = input;
+  return input;
+}
+
+// Klik banner → langsung buka file picker utk ganti GIF/foto (tanpa
+// tombol tambahan apa pun, sesuai permintaan). File TIDAK diupload ke
+// server, hanya disimpan lokal di device user via IndexedDB.
+function _hgbWireBannerClick(img) {
+  if (!img || img.__vbxBannerClickWired) return;
+  img.__vbxBannerClickWired = true;
+  img.style.cursor = 'pointer';
+  img.title = 'Klik untuk ganti GIF banner (tersimpan di device ini saja)';
+  img.addEventListener('click', () => { _hgbEnsureFileInput().click(); });
+}
 
 // Jalankan pengecekan berkala supaya banner otomatis ganti begitu masuk slot
-// jam berikutnya, tanpa perlu reload halaman.
+// jam berikutnya, tanpa perlu reload halaman. TIDAK berlaku kalau user
+// sudah punya custom banner sendiri (custom banner tidak pernah ditimpa
+// otomatis oleh jadwal jam).
 function _hgbStartTimeWatcher() {
   if (_hgbTimeInterval) return;
-  _hgbTimeInterval = setInterval(() => {
+  _hgbTimeInterval = setInterval(async () => {
+    const hasCustom = !!(await _hgbGetCustomBannerBlob());
+    if (hasCustom) return;
     const nextUrl = getHomeGifTimeUrl();
     if (nextUrl !== _hgbLastAppliedTimeUrl) {
       applyHomeBanner();
@@ -14455,10 +16556,24 @@ function _hgbStartTimeWatcher() {
   }, 30000); // cek tiap 30 detik
 }
 
-// Terapkan GIF "GIF Time" (sesuai jam saat ini) ke elemen <img> di Home.
-function applyHomeBanner() {
+// Terapkan banner ke elemen <img> di Home: pakai GIF/foto custom milik
+// user kalau ADA (tersimpan di device ini via IndexedDB) — kalau BELUM
+// ADA, fallback normal ke jadwal "GIF Time" bawaan sesuai jam seperti
+// biasa. Banner juga di-wire supaya bisa diklik untuk ganti kapan saja.
+async function applyHomeBanner() {
   const img = document.getElementById('home-gif-banner-img');
   if (!img) return;
+  _hgbWireBannerClick(img);
+
+  const customBlob = await _hgbGetCustomBannerBlob();
+  if (customBlob) {
+    if (_hgbCustomObjectUrl) URL.revokeObjectURL(_hgbCustomObjectUrl);
+    _hgbCustomObjectUrl = URL.createObjectURL(customBlob);
+    img.src = _hgbCustomObjectUrl;
+    _hgbLastAppliedTimeUrl = null; // supaya kalau custom dihapus lagi nanti, watcher langsung apply GIF Time
+    return;
+  }
+
   const timeUrl = getHomeGifTimeUrl();
   _hgbLastAppliedTimeUrl = timeUrl;
   img.src = timeUrl;
@@ -14648,7 +16763,17 @@ let _pendingApkUpdate = null;
 const APP_VERSION = '1.0.0';
 
 function isPwaInstalled() {
-  return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+  // FIX: notifikasi "Pasang aplikasi Vibexa..." terus muncul walau user
+  // SUDAH memakai APK native (Capacitor) — karena WebView Capacitor tidak
+  // pernah match 'display-mode: standalone', tidak set
+  // window.navigator.standalone, dan appinstalled/beforeinstallprompt (yang
+  // mengisi localStorage 'vibexa_pwa_installed') juga tidak pernah terpicu
+  // di WebView native. Jadi ketiga kondisi lama selalu false di APK.
+  // Tambahkan cek native Capacitor supaya notifikasi ajakan install
+  // otomatis disembunyikan begitu app memang sudah berjalan sebagai APK.
+  const isNativeApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  return isNativeApp
+    || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
     || window.navigator.standalone === true
     || localStorage.getItem('vibexa_pwa_installed') === '1';
 }
@@ -15269,6 +17394,62 @@ function startNotifListeners() {
 // history.back() supaya entri riwayat yang tadi ditambahkan ikut "dibuang
 // rapi", bukan menumpuk sehingga user harus menekan kembali 2x nantinya.
 let _imgViewerHistoryPushed = false;
+
+// ── Simpan Foto/Video/GIF chat ke galeri device (ala WhatsApp) ─────────
+// Tombol kecil di pojok media yang DITERIMA dari lawan bicara (bukan yang
+// saya kirim sendiri — itu sudah ada di device saya). Menyimpannya ke
+// Gallery/Photos memerlukan API native (bukan sekadar link <a download>,
+// yang di WebView Capacitor tidak melakukan apa-apa — sama seperti masalah
+// yg dijelaskan di downloadLyricsCard() di atas), jadi ini lewat plugin
+// custom VibexaMediaSaverPlugin.kt yang menulis langsung ke MediaStore
+// (folder Pictures/Vibexa atau Movies/Vibexa) supaya langsung muncul di
+// aplikasi Galeri/Foto bawaan device, persis seperti "Save" di WhatsApp.
+function chatMediaDownloadBtnHTML(url, type) {
+  const label = type === 'video' ? 'Save video' : 'Save photo';
+  const icon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>`;
+  return `<button type="button" class="chat-media-download-btn" onclick="event.stopPropagation();downloadChatMedia('${esc(url)}','${type}')" title="${label}" aria-label="${label}">${icon}</button>`;
+}
+
+function _isNativeApp() {
+  return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+}
+
+async function downloadChatMedia(url, type) {
+  if (!url) return;
+  const isVideo = type === 'video';
+  toast(isVideo ? 'Saving video…' : 'Saving photo…');
+
+  try {
+    if (_isNativeApp()) {
+      const plugin = window.Capacitor?.Plugins?.VibexaMediaSaver;
+      if (!plugin) {
+        console.warn('[VBX-CHAT] Plugin VibexaMediaSaver belum terpasang/di-sync — jalankan `npx cap sync` setelah menambahkan VibexaMediaSaverPlugin.kt.');
+        toast('Save feature not ready, contact developer.');
+        return;
+      }
+      await plugin.saveFromUrl({ url, type: isVideo ? 'video' : 'image' });
+      toast(isVideo ? 'Video saved to gallery' : 'Photo saved to gallery');
+      return;
+    }
+
+    // Jalur web/PWA biasa (browser) — <a download> tetap dipakai krn itu
+    // memang jalan normal di browser (sama seperti fallback downloadLyricsCard()).
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('fetch failed: ' + res.status);
+    const blob = await res.blob();
+    const ext = isVideo ? 'mp4' : (blob.type && blob.type.includes('gif') ? 'gif' : 'jpg');
+    const objUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objUrl;
+    a.download = 'vibexa_' + Date.now() + '.' + ext;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(objUrl), 4000);
+    toast(isVideo ? 'Video saved' : 'Photo saved');
+  } catch (e) {
+    console.error('Gagal menyimpan media chat:', e);
+    toast(isVideo ? 'Failed to save video' : 'Failed to save photo');
+  }
+}
 
 function openImgViewer(src) {
   const v = document.getElementById('img-viewer');
@@ -17820,14 +20001,17 @@ async function downloadEntirePlaylistOffline(){
       }
       if (!videoId) throw new Error('Video tidak ditemukan');
 
-      let data = await _yt2mp3Fetch(videoId);
+      let data = await _yt2mp3Fetch(videoId, track.artist, track.title);
       let attempts = 0;
       while (data && data.status === 'processing' && attempts < 20){
         attempts++;
         await _dlSleep(1500);
-        data = await _yt2mp3Fetch(videoId);
+        data = await _yt2mp3Fetch(videoId, track.artist, track.title);
       }
       if (!data || data.status !== 'ok' || !data.link) throw new Error((data && data.msg) || 'Konversi gagal');
+      console.log(data.cached
+        ? '[VBX-DL] CACHE HIT untuk "' + songLabel + '" — diambil dari Supabase, tanpa convert ulang.'
+        : '[VBX-DL] Cache MISS untuk "' + songLabel + '" — convert baru via RapidAPI.');
 
       const res = await fetch(data.link);
       if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -18695,6 +20879,10 @@ async function playOfflineTrack(id, plId) {
   try { offlineLyrics = await _dlGetLyrics(id); } catch (e) { offlineLyrics = null; }
   lyrs = offlineLyrics || [];
   _currentSongKeyForTranslation = 'offline|' + id;
+  // Lagu offline tetap dicek ke Firebase (kalau device sedang online) —
+  // lihat komentar lengkap di _initLyrChoiceForSong(); gagal diam-diam
+  // (timeout) kalau memang tidak ada koneksi internet sama sekali.
+  _initLyrChoiceForSong(curTrack.title, curTrack.artist);
   // Catatan: sengaja TIDAK memanggil _saveLastPlayedTrack() di sini — lagu
   // offline memakai object URL blob yang mati saat halaman di-reload, jadi
   // tidak realistis untuk "dipulihkan" otomatis seperti lagu online.
@@ -18745,6 +20933,157 @@ async function playOfflineTrack(id, plId) {
   openNP(curTrack);
   refreshDownloadsList();
   if (_dlCurrentPlaylistId) renderOfflinePlaylistView(_dlCurrentPlaylistId);
+}
+
+// ── STREAMING MP3 DARI CACHE PERMANEN (Supabase Storage) ─────────────────
+// Dipakai loadPlay() sebagai PENGGANTI alur lama "convert → simpan penuh ke
+// Unduhan Offline (IndexedDB) → putar dari situ": sekarang lagu langsung
+// di-stream dari URL yang dikembalikan _yt2mp3Fetch() (yang sudah cache-first
+// di backend, lihat komentar panjang di main.ts — kalau user LAIN sudah
+// pernah convert/unduh lagu yang sama, URL yang dikembalikan adalah salinan
+// permanen di Supabase Storage, TANPA memanggil RapidAPI lagi sama sekali).
+//
+// BEDA PENTING dgn playOfflineTrack(): fungsi ini TIDAK PERNAH fetch()+blob()
+// filenya, TIDAK PERNAH menulis apa pun ke IndexedDB, dan TIDAK membuat
+// object URL — <audio> di-arahkan LANGSUNG ke URL remote (audio.src = link),
+// jadi file MP3-nya TIDAK tersimpan permanen di device user (begitu cache
+// browser/WebView dibuang atau koneksi hilang, lagu tidak bisa diputar lagi
+// tanpa jaringan). Salinan MP3-nya sendiri TETAP ada selamanya di Supabase
+// Storage, dipakai bersama oleh SEMUA user lain berikutnya — inilah yang
+// menghemat kuota RapidAPI: sekali convert, dipakai streaming oleh semua
+// orang, tidak ada yang perlu convert ulang ataupun balik ke iframe YouTube.
+//
+// curTrack di sini TETAP objek track katalog ONLINE yang normal (bukan
+// "meta" dari IndexedDB seperti playOfflineTrack) — supaya like/lirik/queue/
+// artist widget dst tetap berfungsi seperti lagu online biasa. Ditandai
+// curTrack.streamed = true (BUKAN curTrack.offline) supaya _dlSetupAudioEvents
+// di bawah tahu harus tetap mendorong tick()/media session/auto-next lewat
+// elemen <audio> yang sama, tanpa disalahartikan sebagai lagu hasil unduhan
+// offline oleh bagian kode lain yang mengecek curTrack.offline (playlist
+// offline, tombol hapus unduhan, dst — semua itu sengaja TIDAK ikut berlaku
+// di sini karena lagu ini bukan hasil "Unduh ke Offline").
+async function playStreamTrack(track, link, lines, fromPlId) {
+  try { if (YTP && typeof YTP.pauseVideo === 'function') YTP.pauseVideo(); } catch (e) {}
+  cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer();
+  _playGen++;
+  playing = false; cur = 0; tot = 0;
+  _nextGuarded = true; _pendingNext = false;
+  _playStartWall = 0; _playStartPos = 0;
+  _npPlayingPlId = fromPlId || null;
+  _npPlayingMixRef = null;
+  updateNPMobQueueBtn();
+
+  // Sengaja TIDAK membuat object URL apa pun (bukan Blob) — jangan revoke
+  // yang lama sekalipun, cukup pastikan tidak ada sisa state offline lama.
+  if (_dlCurrentObjectUrl) { URL.revokeObjectURL(_dlCurrentObjectUrl); _dlCurrentObjectUrl = null; }
+  if (_dlCurrentArtUrl) { URL.revokeObjectURL(_dlCurrentArtUrl); _dlCurrentArtUrl = null; }
+  _dlCurrentId = null;
+
+  curTrack = track;
+  curTrack.streamed = true; // ditandai "streaming dari cache MP3", BUKAN hasil Unduhan Offline
+  lyrs = lines || [];
+  _currentSongKeyForTranslation = track._query || ((track.artist || '') + '|' + (track.title || ''));
+  // Cek apakah versi lirik lagu ini sudah pernah dipilih user lain
+  // (Firebase) — lihat komentar lengkap di _initLyrChoiceForSong().
+  _initLyrChoiceForSong(track.title, track.artist);
+  _saveLastPlayedTrack(track);
+
+  const audio = document.getElementById('dl-audio');
+
+  // [FIX "lagu tidak terputar tanpa fallback"] Sebelumnya audio.play() di
+  // bawah cuma di-.catch() dengan console.warn — kalau link streaming yang
+  // dicache ternyata SUDAH MATI (mis. link mentah provider pihak ketiga yang
+  // sudah kedaluwarsa, bukan salinan permanen Supabase — lihat DOMException
+  // "no supported source was found"), kegagalan itu TIDAK PERNAH sampai ke
+  // loadPlay(), padahal fungsi ini SUDAH TERLANJUR dipanggil sebagai
+  // "_playedFromStream = true". Akibatnya: tidak ada fallback ke iframe
+  // YouTube sama sekali, audio diam, dan user cuma lihat tombol play
+  // berputar tanpa suara sama sekali (persis seperti di screenshot).
+  //
+  // Sekarang fungsi ini me-return Promise<boolean>: true kalau audio TERBUKTI
+  // bisa dimuat & mulai diputar, false kalau gagal (event 'error' pada
+  // elemen <audio>, ATAU audio.play() ditolak browser). loadPlay() memakai
+  // nilai ini untuk memutuskan apakah perlu retry (minta link baru dari
+  // proxy dengan refresh=1) atau fallback ke iframe YouTube seperti biasa.
+  const _streamResult = new Promise((resolveStream) => {
+    let _settled = false;
+    const _finish = (ok) => {
+      if (_settled) return;
+      _settled = true;
+      audio.removeEventListener('error', onAudioError);
+      audio.removeEventListener('canplay', onAudioCanPlay);
+      clearTimeout(_streamTimeout);
+      resolveStream(ok);
+    };
+    const onAudioError = () => {
+      const errCode = audio.error ? audio.error.code : '?';
+      console.warn('[VBX] Streaming MP3 gagal dimuat (audio error, code=' + errCode + '):', link);
+      _finish(false);
+    };
+    const onAudioCanPlay = () => _finish(true);
+    // Jaga-jaga kalau browser tidak pernah mengirim event 'error' ataupun
+    // 'canplay' sama sekali (jaringan menggantung dsb) — jangan biarkan
+    // loadPlay() menunggu selamanya, anggap gagal setelah 15 detik supaya
+    // tetap bisa fallback.
+    const _streamTimeout = setTimeout(() => {
+      console.warn('[VBX] Streaming MP3 timeout (15s) tanpa canplay/error, anggap gagal:', link);
+      _finish(false);
+    }, 15000);
+    audio.addEventListener('error', onAudioError, { once: true });
+    audio.addEventListener('canplay', onAudioCanPlay, { once: true });
+  });
+
+  audio.src = link; // STREAMING langsung dari URL permanen — tidak pernah disimpan ke device
+  audio.currentTime = 0;
+  const volEl = document.getElementById('vol');
+  audio.volume = volEl ? (parseInt(volEl.value) || 80) / 100 : 0.8;
+
+  YTP = _getOfflinePlayerObj(audio);
+  _ensureAudioCtx();
+  _setupMediaSession(curTrack);
+
+  document.getElementById('np-hero').style.display = 'block';
+  document.getElementById('h-title').textContent = curTrack.title;
+  document.getElementById('h-artist').textContent = curTrack.artist;
+  setHeroImg(curTrack);
+  updateHeroAddBtn(curTrack);
+  updateBarLikeBtn(curTrack);
+  setBarImg(curTrack);
+  document.getElementById('bar-title').textContent = curTrack.title;
+  document.getElementById('bar-artist').textContent = curTrack.artist;
+  _updateArtistWidgets(curTrack);
+  setFSNowPlayingInfo(curTrack);
+  try { setFSNowPlayingImg(curTrack); } catch (e) {}
+  pickFSColor();
+  document.getElementById('fs-artist-name').textContent = curTrack.title;
+
+  // Lagu ini tetap bagian katalog online biasa — like & lirik tetap aktif
+  // seperti pemutaran online normal (beda dari lagu Unduhan Offline).
+  const likeBtn = document.getElementById('btn-like');
+  if (likeBtn) likeBtn.disabled = false;
+  const lyrBtn = document.getElementById('btn-lyrics');
+  const lyrLines = document.getElementById('lyr-lines');
+  if (lyrs.length) {
+    if (lyrBtn) lyrBtn.style.display = '';
+    if (lyrLines) syncLyr(0);
+  } else {
+    if (lyrBtn) lyrBtn.style.display = 'none';
+    if (lyrLines) lyrLines.innerHTML = '<div class="lyr-empty"><i></i>Lirik tidak tersedia</div>';
+  }
+  updateFSLyr();
+
+  setPB(false); updProg();
+  audio.play().then(() => _addRecentlyPlayed(track)).catch(e => {
+    console.warn('Gagal memutar streaming MP3 (play() ditolak browser):', e);
+    // NOTE: TIDAK memanggil _finish(false) langsung di sini — event 'error'
+    // pada elemen <audio> (kalau memang linknya mati) akan tetap terpicu dan
+    // menangani _streamResult. play() bisa juga ditolak untuk alasan lain
+    // yang tidak berarti link mati (mis. browser memblokir autoplay), jadi
+    // biarkan listener 'error'/'canplay'/timeout di atas yang memutuskan.
+  });
+
+  openNP(curTrack);
+  return _streamResult;
 }
 
 // Navigasi Next/Prev untuk lagu offline, dipanggil dari playNext()/playPrev()
@@ -18807,13 +21146,19 @@ async function deleteOfflineTrack(id) {
   document.addEventListener('DOMContentLoaded', () => {
     const audio = document.getElementById('dl-audio');
     if (!audio) return;
+    // NOTE: (curTrack.offline || curTrack.streamed) — elemen <audio> ini sekarang
+    // dipakai untuk DUA sumber: lagu hasil "Unduh ke Offline" (curTrack.offline,
+    // dari Blob IndexedDB) DAN lagu yang di-stream langsung dari cache MP3
+    // permanen di Supabase lewat playStreamTrack() (curTrack.streamed, TIDAK
+    // pernah disimpan ke device) — keduanya butuh tick()/media session/auto-next
+    // yang sama persis, cuma sumber audio.src-nya beda (object URL vs URL remote).
     audio.addEventListener('loadedmetadata', () => {
-      if (!curTrack || !curTrack.offline) return;
+      if (!curTrack || !(curTrack.offline || curTrack.streamed)) return;
       if (audio.duration > 0) tot = audio.duration;
       updProg();
     });
     audio.addEventListener('play', () => {
-      if (!curTrack || !curTrack.offline) return;
+      if (!curTrack || !(curTrack.offline || curTrack.streamed)) return;
       playing = true; setPB(true); _nextGuarded = false;
       try {
         if (audio.duration > 0) tot = audio.duration;
@@ -18824,20 +21169,22 @@ async function deleteOfflineTrack(id) {
       if (document.hidden) _startBgInterval();
     });
     audio.addEventListener('pause', () => {
-      if (!curTrack || !curTrack.offline || audio.ended) return;
+      if (!curTrack || !(curTrack.offline || curTrack.streamed) || audio.ended) return;
       playing = false; setPB(false); cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer();
     });
     audio.addEventListener('ended', () => {
-      if (!curTrack || !curTrack.offline) return;
+      if (!curTrack || !(curTrack.offline || curTrack.streamed)) return;
       playing = false; setPB(false); cancelAnimationFrame(raf); _stopBgInterval(); _clearSongTimer();
       if (!_nextGuarded) { _nextGuarded = true; _handleSongEnded(); }
     });
     audio.addEventListener('timeupdate', () => {
-      if (!curTrack || !curTrack.offline) return;
+      if (!curTrack || !(curTrack.offline || curTrack.streamed)) return;
       cur = audio.currentTime || 0;
       if (audio.duration > 0) tot = audio.duration;
       updProg();
-      _maybeAutoPredownloadNext();
+      // Auto-predownload lagu berikutnya cuma relevan untuk konteks Unduhan
+      // Offline sungguhan; lagu streaming tidak perlu memicu ini.
+      if (curTrack.offline) _maybeAutoPredownloadNext();
     });
   });
 })();
@@ -18861,13 +21208,12 @@ async function deleteOfflineTrack(id) {
 //    bisa klik satu tombol untuk langsung membuat playlist berisi
 //    semua lagu yang direkomendasikan.
 //
-// CATATAN KEAMANAN: sama seperti GIPHY_API_KEY di atas, API key Gemini di
-// bawah ini dipanggil LANGSUNG dari browser (client-side) sehingga terlihat
-// oleh siapapun yang membuka DevTools atau melihat kode sumber halaman ini.
-// (Konversi YouTube→MP3 sendiri SUDAH dipindah ke belakang proxy Cloudflare
-// Worker — lihat YT2MP3_PROXY_URL di atas — jadi tidak ada API key konversi
-// yang perlu disimpan/terlihat di sisi client lagi.) Untuk aplikasi publik
-// yang lebih aman, sebaiknya panggilan ke Gemini juga dipindah lewat backend/
+// CATATAN KEAMANAN: sama seperti GIPHY_API_KEY di atas (dan seperti
+// YT2MP3 yang SEKARANG sudah dipindah ke worker proxy, lihat
+// YT2MP3_PROXY_URL/_yt2mp3Fetch()), API key Gemini di bawah ini dipanggil LANGSUNG dari browser
+// (client-side) sehingga terlihat oleh siapapun yang membuka DevTools
+// atau melihat kode sumber halaman ini. Untuk aplikasi publik yang
+// lebih aman, sebaiknya panggilan ke Gemini dipindah lewat backend/
 // proxy kecil (mis. Cloudflare Worker) yang menyimpan key di server.
 // ────────────────────────────────────────────────────────────
 // API key Gemini TIDAK lagi ditaruh di sini — disimpan aman di sisi
@@ -20602,5 +22948,261 @@ async function sendAIChatMessage(){
     VBX_MQ_MOBILE.addEventListener('change', function(){ vbxTrackedEls.forEach(vbxSchedule); });
   } else if (VBX_MQ_MOBILE.addListener){ // fallback Safari lama
     VBX_MQ_MOBILE.addListener(function(){ vbxTrackedEls.forEach(vbxSchedule); });
+  }
+})();
+
+// ═══════════════════════════════════════════════════════════════════════
+// VBX_VINYL_SKIN — wiring utk tampilan vinyl di player bar (#bar).
+// Styling-nya sendiri (bentuk bulat, overflow, animasi putar, warna
+// tombol mute) sudah ada di vibexa.css — cari komentar "VINYL ALBUM ART".
+// Blok ini CUMA menambah 2 perilaku, dan KEDUANYA reuse fungsi/elemen
+// yang SUDAH ADA, tidak menulis ulang logic pemutaran:
+//   1. Class `vbx-playing` di #bar → dipicu dari hook _vbxSetVinylSpin()
+//      yang dipanggil setPB() (lihat 1 baris tambahan di dalam setPB() di
+//      atas). Jadi animasi putar vinyl selalu ikut status play/pause
+//      SEBENARNYA — termasuk saat berubah dari media session, lagu
+//      offline, dsb — bukan animasi CSS lepas yang jalan sendiri.
+//   2. #vol-mute-btn (tombol baru di index.html, menggantikan ikon speaker
+//      statis yang sebelumnya tidak bisa diklik) — saat diklik, cuma
+//      mengubah nilai slider #vol lalu men-dispatch event 'input' yang
+//      SAMA dipakai listener asli #vol (baris ~9320:
+//      `if(YTP)YTP.setVolume(...); if(spAudio) spAudio.volume=...`),
+//      jadi otomatis nyambung ke YouTube player MAUPUN lagu
+//      offline/stream (YTP = _getOfflinePlayerObj(audio) utk kasus itu) —
+//      tidak menduplikasi logic volume yang sudah ada.
+// ═══════════════════════════════════════════════════════════════════════
+(function vbxInitVinylSkin(){
+  const ICO_ON  = '<path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>';
+  const ICO_OFF = '<path d="M3 9v6h4l5 5V4L7 9H3z"/><path d="M16.5 12 20 8.5m0 3.5-3.5-3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/>';
+  let _vbxPrevVol = null;
+
+  function wireMuteButton(){
+    const btn = document.getElementById('vol-mute-btn');
+    const icon = document.getElementById('vol-mute-icon');
+    const volEl = document.getElementById('vol');
+    if (!btn || !icon || !volEl || btn.__vbxWired) return;
+    btn.__vbxWired = true;
+
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const isMuted = parseInt(volEl.value, 10) === 0;
+      if (isMuted){
+        volEl.value = (_vbxPrevVol != null ? _vbxPrevVol : 80);
+        icon.innerHTML = ICO_ON; btn.title = 'Mute'; btn.setAttribute('aria-label','Mute');
+      } else {
+        _vbxPrevVol = volEl.value;
+        volEl.value = 0;
+        icon.innerHTML = ICO_OFF; btn.title = 'Unmute'; btn.setAttribute('aria-label','Unmute');
+      }
+      // Dispatch 'input' → dipakai ULANG oleh listener #vol yang SUDAH ADA.
+      volEl.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  }
+
+  // Dipanggil dari dalam setPB() asli (lihat patch di atas) setiap kali
+  // status play/pause berubah — sumber kebenaran tunggal utk animasi vinyl.
+  window._vbxSetVinylSpin = function(isPlaying){
+    const bar = document.getElementById('bar');
+    if (bar) bar.classList.toggle('vbx-playing', !!isPlaying);
+  };
+
+  function boot(){
+    wireMuteButton();
+    // Kalau `playing` sudah ke-set true sebelum blok ini selesai load
+    // (mis. lanjutan sesi/autoplay), sinkronkan langsung.
+    if (typeof playing !== 'undefined') window._vbxSetVinylSpin(playing);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+})();
+
+// ═══════════════════════════════════════════════════════════════════════
+// VBX_TURNTABLE_SKIN — animasi "ganti piringan" (tonearm terangkat +
+// piringan pop sebentar) setiap kali foto album di mini player (#bar)
+// berganti karena lagu berganti. Styling-nya (bentuk piringan beralur,
+// tonearm, keyframes) ada di vibexa.css — cari komentar "VBX_TURNTABLE_SKIN".
+// Tidak menulis ulang logic ganti lagu SAMA SEKALI — cukup MENGAMATI
+// (MutationObserver) elemen #bar-vinyl-disc, wadah tempat #bar-thumb
+// di-outerHTML-swap oleh setBarImg() (vibexa.js, ~baris 8906) setiap kali
+// track baru dimuat. outerHTML-swap mengganti node #bar-thumb itu sendiri
+// → itu terdeteksi sebagai childList mutation di parent-nya
+// (#bar-vinyl-disc), jadi observer ini otomatis ikut setiap pemanggilan
+// setBarImg() dari mana pun (playTrack, offline track, resume sesi, dst)
+// tanpa perlu menambah baris panggilan baru di banyak tempat.
+(function vbxInitTurntableSwap(){
+  let swapTimer = null;
+
+  function playSwapAnimation(){
+    const bar = document.getElementById('bar');
+    if (!bar) return;
+    // Restart animasi kalau lagi jalan (misal 2 pemanggilan setBarImg
+    // beruntun saat 1x ganti lagu) — supaya tetap 1 siklus animasi bersih,
+    // bukan menumpuk/gliching.
+    bar.classList.remove('vbx-swap');
+    // Force reflow supaya re-add class di bawah memicu ulang animasi CSS
+    // (keyframes vbx-disc-swap) walau class-nya sebenarnya belum sempat
+    // hilang dari DOM secara visual.
+    void bar.offsetWidth;
+    bar.classList.add('vbx-swap');
+    if (swapTimer) clearTimeout(swapTimer);
+    swapTimer = setTimeout(() => {
+      bar.classList.remove('vbx-swap');
+      swapTimer = null;
+    }, 520); // selaras dgn durasi transition tonearm terangkat (.32s) + animasi disc (.5s)
+  }
+
+  function wireObserver(){
+    const disc = document.getElementById('bar-vinyl-disc');
+    if (!disc || disc.__vbxSwapWired) return;
+    disc.__vbxSwapWired = true;
+    const mo = new MutationObserver((mutations) => {
+      // Hanya peduli saat node #bar-thumb/.bar-ph benar2 diganti (childList),
+      // bukan perubahan atribut biasa (src, dst).
+      const changed = mutations.some(m => m.type === 'childList');
+      if (changed) playSwapAnimation();
+    });
+    mo.observe(disc, { childList: true });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wireObserver);
+  } else {
+    wireObserver();
+  }
+})();
+
+// ═══════════════════════════════════════════════════════════════════════
+// VBX_NAV_FLOAT_INDICATOR — lingkaran indikator yg mengambang & meluncur
+// (glide) di navigasi bawah (#mob-nav), sesuai referensi gif: lingkaran
+// meluncur horizontal dari satu tombol (Home/Find/Yours/Chat) ke tombol
+// lain saat ditekan, + referensi foto: tombol aktif jadi ikon mengambang
+// dlm cincin outline biru tanpa teks (teks & ikon aslinya difade lewat
+// class .on di CSS — lihat komentar VBX_NAV_FLOAT_INDICATOR di vibexa.css).
+//
+// TIDAK menulis ulang logic navigasi sama sekali — cukup MEMBUNGKUS
+// (monkey-patch) fungsi setMobNavActive() yang SUDAH ADA (lihat definisi
+// aslinya & array MOB_NAV_BTN_IDS di atas, ~baris 9364), yang merupakan
+// SATU-SATUNYA titik yg dipanggil oleh SEMUA tombol nav bawah (langsung
+// dari onclick tiap tombol, dari mobNav(), maupun dari sinkronisasi
+// desktop→mobile showHomeView()/showSearchView()). Jadi indikator otomatis
+// ikut pindah kemanapun status aktifnya berubah, dari jalur manapun, tanpa
+// perlu menambah pemanggilan baru di banyak tempat.
+(function vbxInitNavFloatIndicator(){
+  function boot(){
+    const nav    = document.getElementById('mob-nav');
+    const layer  = document.getElementById('vbx-nav-goo-layer');
+    const blob   = document.getElementById('vbx-nav-goo-blob');
+    const iconEl = document.getElementById('vbx-nav-goo-icon');
+    if (!nav || !layer || !blob || !iconEl) return;
+    if (typeof MOB_NAV_BTN_IDS === 'undefined' || typeof setMobNavActive !== 'function') return;
+
+    // Tombol Song Preview (id di bawah) sudah punya gaya "elevated" sendiri
+    // (selalu di tengah, sedikit naik) — jangan ikut dikasih lingkaran
+    // mengambang ini juga, supaya tidak dobel/tabrakan visual.
+    const SKIP_IDS = ['mob-btn-songpreview'];
+
+    let lastX = null;   // posisi X (px, relatif #mob-nav) tombol aktif terakhir
+    let hopTimer = null;
+
+    function computeCenterX(btn){
+      const navRect = nav.getBoundingClientRect();
+      const btnRect = btn.getBoundingClientRect();
+      return (btnRect.left - navRect.left) + (btnRect.width / 2);
+    }
+
+    // Salin ikon SVG tombol aktif ke dalam lingkaran mengambang — termasuk
+    // atribut fill/stroke aslinya (bukan cuma innerHTML) supaya ikon "solid"
+    // (mis. Home) maupun ikon "outline" (mis. Chat/Find) sama-sama tampil
+    // benar di dalam lingkaran, ikut warna var(--green) lewat currentColor.
+    function setIconFrom(btn){
+      const svg = btn.querySelector('svg');
+      if (!svg) { iconEl.innerHTML = ''; return; }
+      iconEl.setAttribute('viewBox', svg.getAttribute('viewBox') || '0 0 24 24');
+      iconEl.setAttribute('fill', svg.getAttribute('fill') || 'none');
+      iconEl.setAttribute('stroke', svg.getAttribute('stroke') || 'none');
+      iconEl.setAttribute('stroke-width', svg.getAttribute('stroke-width') || '0');
+      iconEl.setAttribute('stroke-linecap', svg.getAttribute('stroke-linecap') || 'round');
+      iconEl.setAttribute('stroke-linejoin', svg.getAttribute('stroke-linejoin') || 'round');
+      iconEl.innerHTML = svg.innerHTML;
+    }
+
+    function hideIndicator(){ blob.classList.remove('vbx-show'); }
+
+    // animate=false → langsung "snap" ke posisi tanpa animasi meluncur
+    // (dipakai saat render pertama & saat resize/orientasi berubah, supaya
+    // tidak ada animasi aneh yg terpicu bukan krn user menekan tombol).
+    function moveTo(activeId, animate){
+      if (SKIP_IDS.includes(activeId)) { hideIndicator(); lastX = null; return; }
+
+      const btn = document.getElementById(activeId);
+      // nav lagi disembunyikan (mis. tampilan desktop) → jangan hitung
+      // posisi (getBoundingClientRect tidak berguna & bisa salah).
+      if (!btn || nav.offsetParent === null) { hideIndicator(); return; }
+
+      const x = computeCenterX(btn);
+      setIconFrom(btn);
+      blob.classList.add('vbx-show');
+
+      if (!animate || lastX === null) {
+        layer.style.setProperty('--vbx-nav-x', x + 'px');
+        blob.classList.remove('vbx-hop');
+        lastX = x;
+        return;
+      }
+
+      if (Math.abs(x - lastX) < 0.5) return; // tombol yg sama persis
+
+      const from = lastX, to = x, mid = (from + to) / 2;
+      blob.style.setProperty('--vbx-x-from', from + 'px');
+      blob.style.setProperty('--vbx-x-mid', mid + 'px');
+      blob.style.setProperty('--vbx-x-to', to + 'px');
+
+      // Posisi akhir (setelah animasi selesai) digeser lewat var bersama
+      // --vbx-nav-x, jadi begitu keyframe animasi kelar, transform "diam"
+      // langsung persis di posisi yg sama (tidak ada lompatan balik).
+      layer.style.setProperty('--vbx-nav-x', to + 'px');
+
+      if (hopTimer) clearTimeout(hopTimer);
+      blob.classList.remove('vbx-hop');
+      void blob.offsetWidth; // force reflow → restart animasi kalau ditekan cepat berturut-turut
+      blob.classList.add('vbx-hop');
+
+      hopTimer = setTimeout(() => {
+        blob.classList.remove('vbx-hop');
+        hopTimer = null;
+      }, 400);
+
+      lastX = to;
+    }
+
+    // ── Wiring ke setMobNavActive() yang sudah ada ──
+    const _origSetMobNavActive = window.setMobNavActive;
+    window.setMobNavActive = function(activeId){
+      _origSetMobNavActive(activeId);
+      moveTo(activeId, true);
+    };
+
+    function syncNow(){
+      const activeBtn = MOB_NAV_BTN_IDS
+        .map(id => document.getElementById(id))
+        .find(b => b && b.classList.contains('on'));
+      if (activeBtn) moveTo(activeBtn.id, false);
+    }
+
+    // Resize/orientasi berubah (termasuk pindah dari desktop↔mobile) →
+    // hitung ulang posisi dari nol, tanpa animasi meluncur.
+    window.addEventListener('resize', () => { lastX = null; syncNow(); });
+
+    syncNow();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
   }
 })();

@@ -906,6 +906,178 @@ body.np-page-open #bar{
 #vol{-webkit-appearance:none;width:75px;height:3px;background:var(--hover);border-radius:4px;outline:none;cursor:pointer}
 #vol::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;background:var(--text);border-radius:50%;cursor:pointer}
 
+/* ─── VBX_TURNTABLE_SKIN — piringan vinyl (grooves) + tonearm asli di
+   sekitar #bar-thumb, menggantikan versi lama yang cuma memutar foto
+   album itu sendiri. Referensi visual: piringan hitam beralur dgn foto
+   album kecil bulat di tengah (label piringan) + tonearm yg
+   turun/nempel ke piringan saat lagu diputar & terangkat saat pause.
+   #bar-thumb SENDIRI TIDAK diubah ukurannya di sini — ia jadi "label"
+   kecil di tengah piringan (lihat aturan #bar-vinyl-disc #bar-thumb di
+   bawah yang meng-override ukuran lamanya). Struktur markup lihat
+   index.html: .bar-turntable > (.bar-vinyl-disc > #bar-thumb) + .bar-tonearm.
+   #bar sendiri TIDAK punya overflow:hidden jadi piringan tetap tampil
+   utuh meski "meluber" dari tinggi bar, persis versi lama.
+   Animasi diatur oleh 3 status class di #bar (di-toggle dari
+   vibexa.js, blok VBX_TURNTABLE_SKIN di akhir file):
+     .vbx-playing → piringan berputar, tonearm turun & nempel ke piringan.
+     (tanpa class)→ piringan berhenti, tonearm terangkat (default/pause).
+     .vbx-swap    → dipicu sesaat saat lagu berganti (piringan diganti):
+                    tonearm dipaksa terangkat + piringan "pop" sebentar,
+                    lalu kembali otomatis ke status play/pause sebenarnya. */
+:root{ --vbx-thumb-size: 104px; }
+
+.bar-turntable{
+  position: relative;
+  width: var(--vbx-thumb-size);
+  height: var(--vbx-thumb-size);
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+/* Piringan vinyl hitam beralur (grooves) — dasar bulat yg ikut berputar. */
+.bar-vinyl-disc{
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    repeating-radial-gradient(circle at 50% 50%,
+      #2a2a2e 0px, #2a2a2e 1px,
+      #131315 1px, #131315 3px);
+  box-shadow:
+    0 10px 24px -8px rgba(0,0,0,.6),
+    0 0 0 3px rgba(255,255,255,.05),
+    inset 0 0 0 1px rgba(255,255,255,.06),
+    inset 0 0 14px rgba(0,0,0,.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: rotate(0deg);
+  transition: filter .25s ease;
+}
+/* Kilau tipis di atas alur, biar kesan piringan mengkilap bukan datar. */
+.bar-vinyl-disc::before{
+  content:"";
+  position:absolute; inset:0; border-radius:50%;
+  background: conic-gradient(from 200deg,
+    rgba(255,255,255,.10), rgba(255,255,255,0) 22%,
+    rgba(255,255,255,0) 70%, rgba(255,255,255,.06) 85%, rgba(255,255,255,.10));
+  pointer-events:none;
+}
+/* Titik poros/spindle piringan — selalu tepat di tengah, di atas label foto. */
+.bar-vinyl-disc::after{
+  content:"";
+  position:absolute; left:50%; top:50%;
+  width:7px; height:7px; border-radius:50%;
+  background:#0b0b0c; box-shadow:0 0 0 2px rgba(255,255,255,.55);
+  transform:translate(-50%,-50%);
+  z-index:3;
+}
+
+/* Foto album jadi "label" bulat kecil di tengah piringan (bukan lagi
+   memenuhi seluruh lingkaran seperti versi lama). Selector 2-ID ini
+   sengaja dibuat lebih spesifik drpd aturan mobile lama (#bar-thumb,.bar-ph
+   di media query ≤660px) supaya tetap menang tanpa perlu urutan file. */
+#bar-vinyl-disc #bar-thumb,
+#bar-vinyl-disc .bar-ph,
+#bar-vinyl-disc .bar-thumb{
+  width: 46% !important;
+  height: 46% !important;
+  border-radius: 50% !important;
+  object-fit: cover;
+  box-shadow: 0 0 0 3px rgba(0,0,0,.5), 0 0 0 4px rgba(255,255,255,.1);
+  position: relative;
+  z-index: 2;
+  animation: none !important; /* piringan yg berputar, bukan foto sendiri */
+  flex-shrink: 0;
+}
+.bar-ph#bar-thumb{
+  background: radial-gradient(circle at 32% 28%, var(--teal), var(--green) 55%, #0b1533 100%) !important;
+}
+
+/* Piringan berputar HANYA saat status play sungguhan (class .vbx-playing
+   di #bar, di-toggle dari hook _vbxSetVinylSpin() via setPB()). Foto
+   label ikut berputar otomatis krn dia anak elemen dari .bar-vinyl-disc. */
+#bar.vbx-playing .bar-vinyl-disc{ animation: vbx-vinyl-spin 2.6s linear infinite; }
+@keyframes vbx-vinyl-spin{ from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
+
+/* ── Tonearm ── pivot di kanan-atas, kepala jarum menjuntai ke kiri-bawah
+   menuju permukaan piringan. Terangkat (default) saat tidak ada lagu
+   diputar / dipause, turun menempel ke piringan saat status .vbx-playing. */
+.bar-tonearm{
+  position: absolute;
+  width: 62%;
+  height: 62%;
+  top: -10%;
+  right: -16%;
+  transform-origin: 82% 16%;
+  transform: rotate(-22deg);
+  transition: transform .55s cubic-bezier(.3,1.15,.35,1);
+  z-index: 4;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 4px rgba(0,0,0,.5));
+}
+.bar-tonearm-svg{ width:100%; height:100%; overflow:visible; }
+.bar-tonearm .ta-arm{
+  stroke:#d8dadd; stroke-width:3.4; stroke-linecap:round;
+}
+.bar-tonearm .ta-base{ fill:#3a3d42; stroke:rgba(255,255,255,.18); stroke-width:1; }
+.bar-tonearm .ta-base-dot{ fill:#8a8f96; }
+.bar-tonearm .ta-head{ fill:#c9cbce; stroke:#3a3d42; stroke-width:2; }
+
+/* Lagu diputar → tonearm turun & "nempel" ke alur piringan. */
+#bar.vbx-playing .bar-tonearm{ transform: rotate(3deg); }
+
+/* Ganti lagu (piringan diganti) → tonearm DIPAKSA terangkat sesaat,
+   piringan "pop" sebentar seolah diganti dgn kaset lain, terlepas dari
+   status play/pause — kelas ini ditambah/dihapus otomatis lewat
+   vibexa.js (blok VBX_TURNTABLE_SKIN) setiap kali foto album di mini
+   player berubah (setBarImg()). */
+#bar.vbx-swap .bar-tonearm{
+  transform: rotate(-22deg) !important;
+  transition: transform .32s cubic-bezier(.4,0,.2,1);
+}
+#bar.vbx-swap .bar-vinyl-disc{
+  animation-play-state: paused;
+  animation: vbx-disc-swap .5s ease;
+}
+@keyframes vbx-disc-swap{
+  0%  { transform: scale(1) rotate(0deg); filter:brightness(1); }
+  35% { transform: scale(.88) rotate(-8deg); filter:brightness(.7); }
+  70% { transform: scale(1.03) rotate(4deg); filter:brightness(1.08); }
+  100%{ transform: scale(1) rotate(0deg); filter:brightness(1); }
+}
+
+/* Tombol Mute — sebelumnya ikon speaker di .vol-wrap cuma dekorasi statis
+   (tanpa interaksi apapun). Sekarang jadi <button> asli (lihat markup
+   #vol-mute-btn di index.html), diberi warna & hover mengikuti token yang
+   sama dgn tombol kontrol lain (.c-btn) supaya menyatu, bukan elemen baru
+   yang keliatan "nempel". Logic klik-nya ada di vibexa.js, REUSE listener
+   #vol yang sudah ada — lihat blok VBX_VINYL_SKIN di akhir file. */
+#vol-mute-btn{
+  background:none;border:none;padding:0;cursor:pointer;
+  color:var(--sub);display:flex;align-items:center;justify-content:center;
+  transition:color .15s, transform .15s;
+}
+#vol-mute-btn:hover{ color:var(--text); transform:scale(1.1); }
+#vol-mute-btn svg{ width:15px; height:15px; }
+
+@media(max-width:660px){
+  /* .bar-track punya overflow:hidden khusus mobile (baris ~1422) supaya
+     judul/artis panjang ter-ellipsis rapi — itu tetap jalan lewat
+     overflow:hidden di .bar-title/.bar-artist masing-masing, JADI aman
+     dibuka lagi di sini supaya vinyl yg diperbesar tidak ikut terpotong. */
+  .bar-track{ overflow:visible !important; }
+  :root{ --vbx-thumb-size: 60px; }
+  /* Ukuran foto label (#bar-thumb) di dalam piringan sudah diatur relatif
+     (46%) lewat selector #bar-vinyl-disc #bar-thumb di atas — otomatis
+     ikut mengecil krn .bar-turntable/.bar-vinyl-disc memakai
+     --vbx-thumb-size yg baru saja di-override jadi 60px. Tidak perlu
+     override ukuran #bar-thumb lagi di sini (dulu ada, sekarang dihapus
+     supaya tidak bentrok dgn aturan mobile lain di baris ~1483 yang
+     memaksa #bar-thumb jadi kotak 40px — sekarang sudah dikalahkan lewat
+     selector 2-ID yg lebih spesifik). */
+}
+
 /* MODAL */
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:3200;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(5px);animation:fi .2s ease}
 @keyframes fi{from{opacity:0}to{opacity:1}}
@@ -1084,6 +1256,20 @@ body.np-page-open #bar{
 .recent-title{font-size:.82rem;font-weight:700;color:var(--text);line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .recent-artist{font-size:.72rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;}
 .recent-empty-msg{padding:20px 4px;font-size:.82rem;color:var(--sub);}
+
+/* PILIHAN CEPAT (Quick Picks, ala YouTube Music) — digulir ke samping,
+   tiap "halaman" (.qp-col) berisi 4 lagu tersusun vertikal. */
+.qp-scroll{display:flex;gap:0;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding:2px 2px 10px;scrollbar-width:thin;scrollbar-color:var(--hover) transparent;}
+.qp-col{flex:0 0 100%;max-width:480px;display:flex;flex-direction:column;gap:8px;scroll-snap-align:start;padding-right:22px;box-sizing:border-box;}
+.qp-row{display:flex;align-items:center;gap:12px;padding:6px 8px;border-radius:var(--rs);background:var(--card);border:1px solid transparent;cursor:pointer;transition:all .18s;}
+.qp-row:hover{background:var(--hover);border-color:var(--border);}
+.qp-row.playing{border-color:var(--green);}
+.qp-cover{width:52px;height:52px;border-radius:7px;background:var(--hover);flex-shrink:0;overflow:hidden;}
+.qp-cover img{width:100%;height:100%;object-fit:cover;}
+.qp-info{flex:1;min-width:0;}
+.qp-title{font-size:.83rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.qp-artist{font-size:.72rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;}
+@media (max-width:720px){ .qp-col{max-width:100%;padding-right:14px;} }
 
 /* TOP RANKING */
 
@@ -1279,6 +1465,38 @@ body.np-page-open #bar{
 #img-viewer-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.12);border:none;color:#fff;width:38px;height:38px;border-radius:50%;cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;transition:background .15s;}
 #img-viewer-close:hover{background:rgba(255,255,255,.22);}
 
+/* ── "Sekali Lihat" (View Once) — bubble chat ─────────────────────────── */
+.chat-bubble-viewonce{display:inline-flex;align-items:center;gap:8px;font-size:.86rem;font-weight:600;padding:10px 16px;border-radius:18px;user-select:none;}
+.chat-bubble-viewonce svg{width:17px;height:17px;flex-shrink:0;}
+.chat-bubble-viewonce-tap{cursor:pointer;background:linear-gradient(135deg,var(--accent,#7c3aed),#a855f7);color:#fff;box-shadow:0 2px 10px rgba(124,58,237,.35);transition:transform .12s,box-shadow .12s;}
+.chat-bubble-viewonce-tap:active{transform:scale(.97);}
+.chat-bubble-viewonce-sent{background:var(--hover);color:var(--text-secondary,#8a8a8a);border:1px dashed var(--border,rgba(255,255,255,.18));}
+.chat-bubble-viewonce-opened{background:var(--hover);color:var(--text-secondary,#8a8a8a);opacity:.75;font-style:italic;}
+.chat-bubble-viewonce-opened svg{opacity:.6;}
+
+/* ── Toggle "kirim sebagai Sekali Lihat" di preview foto/video ──────────── */
+.chat-view-once-toggle{display:flex;align-items:center;justify-content:center;gap:2px;width:38px;height:38px;border-radius:50%;border:1.5px solid var(--border,rgba(255,255,255,.18));background:transparent;color:var(--text-secondary,#8a8a8a);cursor:pointer;flex-shrink:0;transition:background .15s,color .15s,border-color .15s;position:relative;}
+.chat-view-once-toggle svg{width:18px;height:18px;}
+.chat-view-once-toggle span{position:absolute;bottom:-2px;right:-2px;background:var(--bg-secondary,#1e1e1e);border-radius:50%;font-size:.55rem;font-weight:800;width:13px;height:13px;line-height:13px;text-align:center;}
+.chat-view-once-toggle.active{background:linear-gradient(135deg,var(--accent,#7c3aed),#a855f7);color:#fff;border-color:transparent;}
+.chat-view-once-toggle.active span{color:var(--accent,#7c3aed);}
+
+/* ── Viewer fullscreen "Sekali Lihat" ────────────────────────────────────
+   Sengaja TANPA backdrop-filter:blur di sini seperti #img-viewer — video
+   akan tampak lebih jelas di layar penuh gelap pekat, bukan diblur. */
+#view-once-viewer{position:fixed;inset:0;z-index:100000;background:#000;display:none;flex-direction:column;align-items:center;justify-content:center;-webkit-user-select:none;user-select:none;}
+#view-once-viewer.open{display:flex;}
+#view-once-viewer.hidden-guard #view-once-viewer-body{filter:blur(40px) brightness(.2);transition:filter .1s;}
+.view-once-viewer-topbar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:16px;z-index:2;}
+.view-once-viewer-badge{display:inline-flex;align-items:center;gap:6px;color:#fff;background:rgba(255,255,255,.12);padding:6px 12px;border-radius:20px;font-size:.78rem;font-weight:700;}
+.view-once-viewer-badge svg{width:15px;height:15px;}
+#view-once-viewer-close{background:rgba(255,255,255,.12);border:none;color:#fff;width:38px;height:38px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;}
+#view-once-viewer-close:hover{background:rgba(255,255,255,.22);}
+#view-once-viewer-body{max-width:94vw;max-height:78vh;display:flex;align-items:center;justify-content:center;}
+#view-once-viewer-body img,#view-once-viewer-body video{max-width:94vw;max-height:78vh;object-fit:contain;border-radius:8px;-webkit-touch-callout:none;pointer-events:auto;}
+#view-once-viewer-caption{max-width:86vw;color:#fff;font-size:.9rem;text-align:center;margin-top:14px;word-wrap:break-word;}
+.view-once-viewer-hint{position:absolute;bottom:22px;left:0;right:0;text-align:center;color:rgba(255,255,255,.55);font-size:.74rem;}
+
 /* Notif like komentar */
 .notif-icon-comment-like { background: rgba(255,90,90,.15); }
 
@@ -1324,7 +1542,12 @@ body.np-page-open #bar{
   ════════════════════════════════ */
   body{
     grid-template-columns:1fr;
-    grid-template-rows:60px 1fr 76px 56px;
+    /* --mnav-h = tinggi baris navigasi bawah (56px) + tambahan ruang aman
+       env(safe-area-inset-bottom) supaya #mob-nav tidak ketutupan tombol
+       navigasi gestur/sistem Android (fix: tombol Home/Chat/dll ketutup
+       tombol HP sendiri, karena WebView Capacitor menggambar edge-to-edge). */
+    --mnav-h: calc(56px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+    grid-template-rows:60px 1fr 76px var(--mnav-h);
     grid-template-areas:"topbar""main""bar""mob-nav";
     overflow:hidden;
     --np-bottom: 120px;
@@ -1392,7 +1615,16 @@ body.np-page-open #bar{
   #mob-nav{
     grid-area:mob-nav;display:flex;align-items:center;justify-content:space-around;
     background:var(--panel);border-top:1px solid var(--border);
-    padding:0 4px;height:56px;z-index:10;position:relative;
+    padding:0 4px;height:100%;z-index:8;position:relative;
+    /* z-index sengaja DI BAWAH #bar (mini player, z-index:10) — supaya
+       lingkaran indikator mengambang (VBX_NAV_FLOAT_INDICATOR di bawah),
+       yang posisinya sengaja "poking" ke atas melewati garis batas
+       #mob-nav, TIDAK PERNAH menutupi tombol Play di mini player di
+       atasnya walau geometrinya sedikit tumpang tindih saat animasi. */
+    /* Dorong baris ikon ke atas 56px seperti semula, sisakan
+       env(safe-area-inset-bottom) kosong di paling bawah (di belakang
+       tombol navigasi gestur Android) supaya tidak ketiban tap. */
+    padding-bottom:var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
   }
   .mob-nav-btn{
     display:flex;flex-direction:column;align-items:center;gap:3px;
@@ -1404,6 +1636,18 @@ body.np-page-open #bar{
   .mob-nav-btn svg{width:20px;height:20px;transition:all .18s}
   .mob-nav-btn.on{color:var(--green)}
   .mob-nav-btn.on svg{filter:drop-shadow(0 0 6px rgba(46,125,255,.5))}
+  /* Tombol yg lagi aktif: ikon aslinya di dalam bar disembunyikan (opacity)
+     krn sudah "diwakili" oleh lingkaran mengambang VBX_NAV_FLOAT_INDICATOR
+     di atasnya (lihat blok di bawah) — dan label teksnya memudar hilang,
+     persis seperti pada foto referensi (tombol aktif = ikon mengambang
+     tanpa teks, tombol lain tetap ikon+teks seperti biasa). Dikecualikan
+     utk tombol Song Preview (.mob-nav-preview-center) krn tombol itu sudah
+     punya gaya elevated sendiri & TIDAK ikut dapat lingkaran mengambang. */
+  .mob-nav-btn.on:not(.mob-nav-preview-center) svg{opacity:0}
+  .mob-nav-label{display:block;transition:opacity .15s ease,transform .15s ease;}
+  .mob-nav-btn.on:not(.mob-nav-preview-center) .mob-nav-label{
+    opacity:0;transform:translateY(3px);pointer-events:none;
+  }
   .mob-nav-yours{position:relative;}
   #mob-btn-search{display:none}
   #mob-btn-notif{display:none}
@@ -1432,6 +1676,63 @@ body.np-page-open #bar{
   .mob-nav-yours{margin-left:36px}
 
   /* ════════════════════════════════
+     VBX_NAV_FLOAT_INDICATOR — lingkaran indikator yg mengambang & "meluncur"
+     (glide) dari satu tombol nav bawah ke tombol lain saat ditekan, sesuai
+     referensi gif (lingkaran meluncur horizontal antar tombol) + foto
+     referensi (tombol aktif = ikon mengambang dlm cincin outline biru,
+     tanpa teks). Murni layer dekoratif di atas #mob-nav (pointer-events:
+     none, tidak pernah menerima klik) — posisinya "menonton" tombol mana
+     yg lagi aktif lewat wiring di vibexa.js (cari komentar
+     VBX_NAV_FLOAT_INDICATOR di akhir file). TIDAK mengubah logic navigasi
+     apa pun yg sudah ada.
+
+     Kenapa didesain ulang dari versi "goo blob" sebelumnya (yg sudah
+     dinonaktifkan): versi lama sempat melompat terlalu tinggi (-56px) saat
+     berpindah tombol jauh (mis. Home → Chat) sehingga tumpang tindih dgn
+     tombol Play di mini player (#bar) tepat di atas #mob-nav. Di sini
+     puncak lompatan dipangkas jauh lebih rendah (-34px) DAN #mob-nav
+     sendiri diberi z-index di bawah #bar (lihat rule #mob-nav di atas) —
+     jadi walau lingkaran ini sedikit tumpang tindih secara geometri saat
+     animasi, ia digambar DI BAWAH #bar & tidak pernah menutupi tombol Play. */
+  .vbx-nav-goo-layer{
+    position:absolute;
+    left:0; top:0; right:0; height:100%;
+    pointer-events:none;
+    z-index:1;
+  }
+  .vbx-nav-goo-anchor{ display:none; } /* tak lagi dipakai tanpa efek goo/melt */
+  .vbx-nav-goo-blob{
+    position:absolute; left:0; top:0;
+    width:44px; height:44px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--panel);
+    border:2px solid var(--green);
+    box-shadow:0 8px 18px rgba(0,0,0,.4), 0 0 0 5px rgba(46,125,255,.1);
+    transform:translate(calc(var(--vbx-nav-x,28px) - 22px), -20px);
+    transition:transform .38s cubic-bezier(.32,1.1,.4,1), opacity .2s ease;
+    opacity:0; /* muncul via .vbx-show setelah posisi awal dihitung JS */
+  }
+  .vbx-nav-goo-blob.vbx-show{ opacity:1; }
+  .vbx-nav-goo-icon{
+    width:19px; height:19px;
+    color:var(--green);
+  }
+
+  /* Animasi "meluncur" indikator antar tombol — posisi X start/tengah/akhir
+     diisi lewat CSS var dari JS tepat sblm class ini ditambahkan (lihat
+     vibexa.js). Titik tengah lintasan naik sedikit lebih tinggi (-34px)
+     supaya kelihatan "melayang lepas" sesaat spt di gif referensi, lalu
+     turun & mendarat lagi di tombol tujuan. */
+  .vbx-nav-goo-blob.vbx-hop{
+    animation:vbx-nav-indicator-glide .38s cubic-bezier(.4,0,.2,1) 1;
+  }
+  @keyframes vbx-nav-indicator-glide{
+    0%  { transform:translate(calc(var(--vbx-x-from,28px) - 22px), -20px) scale(1); }
+    50% { transform:translate(calc(var(--vbx-x-mid,28px) - 22px), -34px) scale(.92); }
+    100%{ transform:translate(calc(var(--vbx-x-to,28px) - 22px), -20px) scale(1); }
+  }
+
+  /* ════════════════════════════════
      SONG PREVIEW — mobile full screen
   ════════════════════════════════ */
   /* Di desktop/tablet, #song-preview-view sengaja dibatasi di dalam #main
@@ -1444,7 +1745,7 @@ body.np-page-open #bar{
   #song-preview-view{
     position:fixed;
     top:0; left:0; right:0;
-    bottom:56px;
+    bottom:var(--mnav-h, 56px);
     z-index:30;
   }
   /* Sebelumnya ada padding-bottom 56px tambahan di dalam tiap slide (dari
@@ -1489,7 +1790,7 @@ body.np-page-open #bar{
      Streak jadi memenuhi penuh dari bawah topbar sampai tepat di atas
      navigasi bawah (#mob-nav). */
   body.streak-mobile-open{
-    grid-template-rows:60px 1fr 56px !important;
+    grid-template-rows:60px 1fr var(--mnav-h, 56px) !important;
     grid-template-areas:"topbar""main""mob-nav" !important;
   }
   body.streak-mobile-open #bar{
@@ -1510,7 +1811,7 @@ body.np-page-open #bar{
     top:60px !important;
     left:0 !important;
     right:0 !important;
-    bottom:56px !important;
+    bottom:var(--mnav-h, 56px) !important;
     z-index:2500 !important;
   }
   body:has(#downloads-view.show) .home-topbar,
@@ -1523,7 +1824,7 @@ body.np-page-open #bar{
      ruang kosong — halaman Unduhan Offline jadi memenuhi penuh dari bawah
      topbar sampai tepat di atas navigasi bawah (#mob-nav). */
   body.downloads-mobile-open{
-    grid-template-rows:60px 1fr 56px !important;
+    grid-template-rows:60px 1fr var(--mnav-h, 56px) !important;
     grid-template-areas:"topbar""main""mob-nav" !important;
   }
   body.downloads-mobile-open #bar{
@@ -1544,7 +1845,7 @@ body.np-page-open #bar{
        disembunyikan). Di halaman "Yours" mini player TETAP ditampilkan
        (lihat body.yours-mobile-open di bawah), jadi area halaman Yours
        harus berhenti tepat di ATAS kotak itu supaya tidak menutupinya. */
-    bottom:calc(56px + 76px) !important;
+    bottom:calc(var(--mnav-h, 56px) + 76px) !important;
     z-index:2500 !important;
   }
   body:has(#yours-view.show) .home-topbar,
@@ -1575,7 +1876,7 @@ body.np-page-open #bar{
      kosong — halaman Chat jadi memenuhi penuh dari bawah topbar sampai
      tepat di atas navigasi bawah (#mob-nav). */
   body.chat-mobile-open{
-    grid-template-rows:60px 1fr 56px !important;
+    grid-template-rows:60px 1fr var(--mnav-h, 56px) !important;
     grid-template-areas:"topbar""main""mob-nav" !important;
   }
   body.chat-mobile-open #bar{
@@ -4732,6 +5033,11 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 .chat-date-sep{display:flex;align-items:center;justify-content:center;margin:14px 0 6px;align-self:center;}
 .chat-date-sep span{background:var(--card);color:var(--sub);font-size:.68rem;font-weight:600;padding:4px 14px;border-radius:20px;border:1px solid var(--border);}
 
+/* Pesan sistem di dalam chat (mis. "X took a screenshot" ala Snapchat) —
+   pil kecil di tengah, terpisah dari bubble percakapan biasa. */
+.chat-system-msg{display:flex;align-items:center;justify-content:center;margin:4px 0;align-self:center;width:100%;}
+.chat-system-msg span{background:var(--hover);color:var(--sub);font-size:.7rem;font-weight:600;padding:5px 14px;border-radius:20px;text-align:center;max-width:80%;}
+
 .chat-input-bar{display:flex;align-items:flex-end;gap:10px;padding:14px 22px;border-top:1px solid var(--border);flex-shrink:0;}
 #chat-input{flex:1;min-width:0;background:var(--card);border:1px solid var(--border);border-radius:24px;padding:11px 18px;color:var(--text);font-family:var(--f);font-size:.86rem;outline:none;transition:border-color .15s,height .1s ease;resize:none;overflow-y:hidden;white-space:pre-wrap;word-break:break-word;line-height:1.3;max-height:132px;}
 #chat-input:focus{border-color:var(--green);}
@@ -4859,6 +5165,50 @@ body.side-collapsed .side-nav-badge{position:absolute;margin-left:0;left:auto;ri
 .chat-bubble-media video{cursor:pointer;}
 .chat-bubble-caption{padding:8px 14px 2px;font-size:.86rem;line-height:1.42;word-wrap:break-word;white-space:pre-wrap;}
 .chat-bubble-gif-badge{position:absolute;top:9px;left:9px;background:rgba(0,0,0,.65);color:#fff;font-size:.62rem;font-weight:800;letter-spacing:.5px;padding:2px 7px;border-radius:5px;pointer-events:none;}
+
+/* Tombol "Simpan ke galeri" di pojok media chat yang DITERIMA dari lawan
+   bicara (ala WhatsApp) — lihat chatMediaDownloadBtnHTML()/downloadChatMedia()
+   di vibexa.js. */
+.chat-media-download-btn{position:absolute;top:9px;right:9px;width:30px;height:30px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;backdrop-filter:blur(2px);transition:background .15s ease,transform .1s ease;}
+.chat-media-download-btn svg{width:16px;height:16px;}
+.chat-media-download-btn:hover{background:rgba(0,0,0,.75);}
+.chat-media-download-btn:active{transform:scale(.92);}
+
+/* ── Menu "+" (Camera / Microphone / Send photo-video) ala WhatsApp ────── */
+.chat-plus-menu{position:absolute;left:16px;bottom:78px;min-width:210px;background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:0 12px 32px rgba(0,0,0,.28);padding:8px;display:flex;flex-direction:column;gap:2px;z-index:41;opacity:0;transform:translateY(8px) scale(.97);pointer-events:none;transform-origin:bottom left;transition:opacity .16s ease,transform .16s cubic-bezier(.22,1,.36,1);}
+.chat-plus-menu.show{opacity:1;transform:translateY(0) scale(1);pointer-events:auto;}
+.chat-plus-menu-item{display:flex;align-items:center;gap:12px;width:100%;padding:9px 10px;border:none;background:none;border-radius:11px;cursor:pointer;font-family:var(--f);font-size:.86rem;font-weight:600;color:var(--text);text-align:left;transition:background .15s;}
+.chat-plus-menu-item:hover{background:var(--hover);}
+.chat-plus-menu-icon{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;}
+.chat-plus-menu-icon svg{width:18px;height:18px;}
+.chat-plus-menu-icon.camera{background:linear-gradient(135deg,#f97316,#ea580c);}
+.chat-plus-menu-icon.mic{background:linear-gradient(135deg,#ef4444,#dc2626);}
+.chat-plus-menu-icon.gallery{background:linear-gradient(135deg,#7c3aed,#a855f7);}
+@media (max-width:600px){
+  .chat-plus-menu{left:12px;bottom:76px;min-width:0;width:calc(100% - 24px);}
+}
+
+/* ── Bar perekaman Voice Note ─────────────────────────────────────────── */
+.chat-voice-bar{display:none;align-items:center;gap:10px;padding:12px 22px;border-top:1px solid var(--border);flex-shrink:0;}
+.chat-voice-bar.show{display:flex;}
+.chat-input-bar.hidden-for-voice{display:none;}
+.chat-voice-cancel-btn{width:38px;height:38px;border-radius:50%;background:var(--card);border:1px solid var(--border);color:var(--sub);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all .15s;}
+.chat-voice-cancel-btn:hover{color:#ef4444;border-color:#ef4444;background:var(--hover);}
+.chat-voice-cancel-btn svg{width:16px;height:16px;}
+.chat-voice-status{flex:1;display:flex;align-items:center;gap:9px;min-width:0;font-size:.86rem;color:var(--text);font-weight:600;}
+.chat-voice-rec-dot{width:11px;height:11px;border-radius:50%;background:#ef4444;flex-shrink:0;animation:chatVoicePulse 1.1s ease-in-out infinite;}
+.chat-voice-hint{color:var(--sub);font-weight:500;font-size:.78rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+@keyframes chatVoicePulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.35;transform:scale(.8);}}
+@media (max-width:600px){
+  .chat-voice-bar{padding:12px 16px;}
+  .chat-voice-hint{display:none;}
+}
+
+/* ── Bubble pesan Voice Note ───────────────────────────────────────────── */
+.chat-bubble-audio{display:flex;align-items:center;gap:10px;padding:10px 12px;min-width:220px;max-width:280px;}
+.chat-bubble-audio audio{flex:1;min-width:0;height:36px;}
+.chat-bubble-audio-icon{width:32px;height:32px;border-radius:50%;background:var(--green-dim,rgba(37,211,102,.15));color:var(--green);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.chat-bubble-audio-icon svg{width:16px;height:16px;}
 
 @media(max-width:1050px){
   .chat-media-preview{padding:10px 16px;}
