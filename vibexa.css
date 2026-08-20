@@ -1728,12 +1728,12 @@ body.np-page-open #bar{
   .vbx-nav-goo-anchor{ display:none; } /* tak lagi dipakai tanpa efek goo/melt */
   .vbx-nav-goo-blob{
     position:absolute; left:0; top:0;
-    width:44px; height:44px; border-radius:50%;
+    width:40px; height:40px; border-radius:50%;
     display:flex; align-items:center; justify-content:center;
     background:var(--panel);
     border:2px solid var(--green);
     box-shadow:0 8px 18px rgba(0,0,0,.4), 0 0 0 5px rgba(46,125,255,.1);
-    transform:translate(calc(var(--vbx-nav-x,28px) - 22px), -14px);
+    transform:translate(calc(var(--vbx-nav-x,28px) - 20px), -6px);
     transition:transform .38s cubic-bezier(.32,1.1,.4,1), opacity .2s ease;
     opacity:0; /* muncul via .vbx-show setelah posisi awal dihitung JS */
   }
@@ -1752,9 +1752,9 @@ body.np-page-open #bar{
     animation:vbx-nav-indicator-glide .38s cubic-bezier(.4,0,.2,1) 1;
   }
   @keyframes vbx-nav-indicator-glide{
-    0%  { transform:translate(calc(var(--vbx-x-from,28px) - 22px), -14px) scale(1); }
-    50% { transform:translate(calc(var(--vbx-x-mid,28px) - 22px), -26px) scale(.92); }
-    100%{ transform:translate(calc(var(--vbx-x-to,28px) - 22px), -14px) scale(1); }
+    0%  { transform:translate(calc(var(--vbx-x-from,28px) - 20px), -6px) scale(1); }
+    50% { transform:translate(calc(var(--vbx-x-mid,28px) - 20px), -16px) scale(.92); }
+    100%{ transform:translate(calc(var(--vbx-x-to,28px) - 20px), -6px) scale(1); }
   }
 
   /* ════════════════════════════════

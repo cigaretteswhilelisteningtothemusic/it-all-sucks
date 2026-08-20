@@ -23114,7 +23114,7 @@ async function sendAIChatMessage(){
     //  NOTCH_D = seberapa dalam notch "menukik" ke bawah dari bibir atas
     //            bar (dipangkas supaya tetap proporsional dgn ketinggian
     //            mengambang indikator yg sudah direndahkan ke -14px).
-    const NOTCH_R = 26;
+    const NOTCH_R = 36;
     const NOTCH_D = 20;
 
     let lastX = null;   // posisi X (px, relatif #mob-nav) tombol aktif terakhir
