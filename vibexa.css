@@ -1711,10 +1711,14 @@ body.np-page-open #bar{
      VBX_NAV_FLOAT_INDICATOR di akhir file). TIDAK mengubah logic navigasi
      apa pun yg sudah ada.
 
-     Ketinggian mengambangnya sengaja dibuat RENDAH (-14px saat diam,
-     puncak -26px saat berpindah tombol) — dipangkas dari versi awal yg
-     sempat melompat sampai -56px lalu -34px, supaya TIDAK pernah mepet
-     ke kotak mini player (#bar, tombol Play) tepat di atas #mob-nav.
+     Ketinggian mengambangnya sengaja dibuat RENDAH (-3px saat diam,
+     puncak -9px saat berpindah tombol) — dipangkas bertahap dari versi
+     awal yg sempat melompat sampai -56px lalu -34px lalu -6px/-16px,
+     krn -6px ternyata masih PERSIS berhimpit dgn tepi bawah #bar (jarak
+     margin-bottom #bar cuma 6px), jadi keduanya masih kelihatan
+     bersentuhan. Sekarang disisakan jarak ~3px (idle) / ~-3px..0px
+     (puncak) dari tepi #bar supaya TIDAK pernah mepet ke kotak mini
+     player (#bar, tombol Play) tepat di atas #mob-nav.
      Sebagai lapis pengaman tambahan, #mob-nav sendiri juga sudah diberi
      z-index di bawah #bar (lihat rule #mob-nav di atas) — jadi walau
      lingkaran ini sedikit tumpang tindih secara geometri saat animasi, ia
@@ -1733,7 +1737,7 @@ body.np-page-open #bar{
     background:var(--panel);
     border:2px solid var(--green);
     box-shadow:0 8px 18px rgba(0,0,0,.4), 0 0 0 5px rgba(46,125,255,.1);
-    transform:translate(calc(var(--vbx-nav-x,28px) - 20px), -6px);
+    transform:translate(calc(var(--vbx-nav-x,28px) - 20px), -3px);
     transition:transform .38s cubic-bezier(.32,1.1,.4,1), opacity .2s ease;
     opacity:0; /* muncul via .vbx-show setelah posisi awal dihitung JS */
   }
@@ -1752,9 +1756,9 @@ body.np-page-open #bar{
     animation:vbx-nav-indicator-glide .38s cubic-bezier(.4,0,.2,1) 1;
   }
   @keyframes vbx-nav-indicator-glide{
-    0%  { transform:translate(calc(var(--vbx-x-from,28px) - 20px), -6px) scale(1); }
-    50% { transform:translate(calc(var(--vbx-x-mid,28px) - 20px), -16px) scale(.92); }
-    100%{ transform:translate(calc(var(--vbx-x-to,28px) - 20px), -6px) scale(1); }
+    0%  { transform:translate(calc(var(--vbx-x-from,28px) - 20px), -3px) scale(1); }
+    50% { transform:translate(calc(var(--vbx-x-mid,28px) - 20px), -9px) scale(.92); }
+    100%{ transform:translate(calc(var(--vbx-x-to,28px) - 20px), -3px) scale(1); }
   }
 
   /* ════════════════════════════════

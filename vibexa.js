@@ -23114,8 +23114,16 @@ async function sendAIChatMessage(){
     //  NOTCH_D = seberapa dalam notch "menukik" ke bawah dari bibir atas
     //            bar (dipangkas supaya tetap proporsional dgn ketinggian
     //            mengambang indikator yg sudah direndahkan ke -14px).
-    const NOTCH_R = 36;
-    const NOTCH_D = 20;
+    // NOTCH_D diperdalam dari 20 -> 40: lingkaran tombol (diameter 40px)
+    // sekarang idle di -3px (lihat .vbx-nav-goo-blob di CSS), jadi sisi
+    // bawah lingkaran berada di ~37px dari bibir atas nav. Kedalaman notch
+    // harus melewati titik itu (baru sungguh2 melengkung DI BAWAH lingkaran)
+    // — kalau cuma 20px, garis lengkungnya berhenti persis di tengah
+    // lingkaran & terlihat memotongnya. NOTCH_R sedikit dilebarkan (36->40)
+    // supaya lengkungan yg lebih dalam ini tetap terlihat halus/landai,
+    // bukan seperti lubang sempit & curam.
+    const NOTCH_R = 40;
+    const NOTCH_D = 40;
 
     let lastX = null;   // posisi X (px, relatif #mob-nav) tombol aktif terakhir
     let hopTimer = null;
