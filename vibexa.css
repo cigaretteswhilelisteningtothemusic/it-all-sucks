@@ -1614,9 +1614,13 @@ body.np-page-open #bar{
   ════════════════════════════════ */
   #mob-nav{
     grid-area:mob-nav;display:flex;align-items:center;justify-content:space-around;
-    background:var(--panel);border-top:1px solid var(--border);
+    background:transparent;border-top:none;
     padding:0 4px;height:100%;z-index:8;position:relative;
-    /* z-index sengaja DI BAWAH #bar (mini player, z-index:10) — supaya
+    /* Background & garis pembatas atas TIDAK lagi digambar lewat rule ini
+       (background/border-top polos) — sekarang digambar oleh SVG
+       #vbx-nav-notch (lihat blok VBX_NAV_NOTCH di bawah) supaya bibir
+       atasnya bisa melengkung cekung mengikuti tombol yg lagi mengambang.
+       z-index sengaja DI BAWAH #bar (mini player, z-index:10) — supaya
        lingkaran indikator mengambang (VBX_NAV_FLOAT_INDICATOR di bawah),
        yang posisinya sengaja "poking" ke atas melewati garis batas
        #mob-nav, TIDAK PERNAH menutupi tombol Play di mini player di
@@ -1676,6 +1680,27 @@ body.np-page-open #bar{
   .mob-nav-yours{margin-left:36px}
 
   /* ════════════════════════════════
+     VBX_NAV_NOTCH — background #mob-nav digambar via SVG (bukan CSS rect
+     polos) supaya bibir atasnya bisa melengkung cekung (notch) tepat di
+     bawah tombol yg lagi mengambang, seperti pada foto referensi. Path
+     "d" dihitung & digambar ulang lewat rAF tween di vibexa.js (cari
+     komentar VBX_NAV_NOTCH), disinkronkan dgn animasi geser
+     VBX_NAV_FLOAT_INDICATOR di bawah supaya keduanya selalu bergerak
+     bersamaan & pas menyatu. #vbx-nav-notch-fill = isi bar (warna sama
+     dgn --panel, tanpa stroke), #vbx-nav-notch-border = HANYA garis tepi
+     atas (stroke --border, fill none) — dipisah spy sisi kiri/kanan/bawah
+     bar tidak ikut kena garis, hanya bibir atas yg bergaris melengkung. */
+  .vbx-nav-notch{
+    position:absolute; inset:0; width:100%; height:100%;
+    pointer-events:none; z-index:0; overflow:visible;
+  }
+  .vbx-nav-notch-fill{ fill:var(--panel); }
+  .vbx-nav-notch-border{
+    fill:none; stroke:var(--border); stroke-width:1px;
+    vector-effect:non-scaling-stroke;
+  }
+
+  /* ════════════════════════════════
      VBX_NAV_FLOAT_INDICATOR — lingkaran indikator yg mengambang & "meluncur"
      (glide) dari satu tombol nav bawah ke tombol lain saat ditekan, sesuai
      referensi gif (lingkaran meluncur horizontal antar tombol) + foto
@@ -1686,14 +1711,14 @@ body.np-page-open #bar{
      VBX_NAV_FLOAT_INDICATOR di akhir file). TIDAK mengubah logic navigasi
      apa pun yg sudah ada.
 
-     Kenapa didesain ulang dari versi "goo blob" sebelumnya (yg sudah
-     dinonaktifkan): versi lama sempat melompat terlalu tinggi (-56px) saat
-     berpindah tombol jauh (mis. Home → Chat) sehingga tumpang tindih dgn
-     tombol Play di mini player (#bar) tepat di atas #mob-nav. Di sini
-     puncak lompatan dipangkas jauh lebih rendah (-34px) DAN #mob-nav
-     sendiri diberi z-index di bawah #bar (lihat rule #mob-nav di atas) —
-     jadi walau lingkaran ini sedikit tumpang tindih secara geometri saat
-     animasi, ia digambar DI BAWAH #bar & tidak pernah menutupi tombol Play. */
+     Ketinggian mengambangnya sengaja dibuat RENDAH (-14px saat diam,
+     puncak -26px saat berpindah tombol) — dipangkas dari versi awal yg
+     sempat melompat sampai -56px lalu -34px, supaya TIDAK pernah mepet
+     ke kotak mini player (#bar, tombol Play) tepat di atas #mob-nav.
+     Sebagai lapis pengaman tambahan, #mob-nav sendiri juga sudah diberi
+     z-index di bawah #bar (lihat rule #mob-nav di atas) — jadi walau
+     lingkaran ini sedikit tumpang tindih secara geometri saat animasi, ia
+     digambar DI BAWAH #bar & tidak pernah menutupi tombol Play. */
   .vbx-nav-goo-layer{
     position:absolute;
     left:0; top:0; right:0; height:100%;
@@ -1708,7 +1733,7 @@ body.np-page-open #bar{
     background:var(--panel);
     border:2px solid var(--green);
     box-shadow:0 8px 18px rgba(0,0,0,.4), 0 0 0 5px rgba(46,125,255,.1);
-    transform:translate(calc(var(--vbx-nav-x,28px) - 22px), -20px);
+    transform:translate(calc(var(--vbx-nav-x,28px) - 22px), -14px);
     transition:transform .38s cubic-bezier(.32,1.1,.4,1), opacity .2s ease;
     opacity:0; /* muncul via .vbx-show setelah posisi awal dihitung JS */
   }
@@ -1720,16 +1745,16 @@ body.np-page-open #bar{
 
   /* Animasi "meluncur" indikator antar tombol — posisi X start/tengah/akhir
      diisi lewat CSS var dari JS tepat sblm class ini ditambahkan (lihat
-     vibexa.js). Titik tengah lintasan naik sedikit lebih tinggi (-34px)
+     vibexa.js). Titik tengah lintasan naik sedikit lebih tinggi (-26px)
      supaya kelihatan "melayang lepas" sesaat spt di gif referensi, lalu
      turun & mendarat lagi di tombol tujuan. */
   .vbx-nav-goo-blob.vbx-hop{
     animation:vbx-nav-indicator-glide .38s cubic-bezier(.4,0,.2,1) 1;
   }
   @keyframes vbx-nav-indicator-glide{
-    0%  { transform:translate(calc(var(--vbx-x-from,28px) - 22px), -20px) scale(1); }
-    50% { transform:translate(calc(var(--vbx-x-mid,28px) - 22px), -34px) scale(.92); }
-    100%{ transform:translate(calc(var(--vbx-x-to,28px) - 22px), -20px) scale(1); }
+    0%  { transform:translate(calc(var(--vbx-x-from,28px) - 22px), -14px) scale(1); }
+    50% { transform:translate(calc(var(--vbx-x-mid,28px) - 22px), -26px) scale(.92); }
+    100%{ transform:translate(calc(var(--vbx-x-to,28px) - 22px), -14px) scale(1); }
   }
 
   /* ════════════════════════════════

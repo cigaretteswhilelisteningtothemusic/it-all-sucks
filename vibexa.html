@@ -2091,6 +2091,16 @@
 </svg>
 
 <div id="mob-nav" style="display:none">
+  <!-- VBX_NAV_NOTCH — bentuk background #mob-nav digambar lewat SVG (bukan
+       CSS rect biasa) supaya bibir atasnya bisa melengkung cekung (notch)
+       persis di bawah tombol yang lagi mengambang (lihat komentar
+       VBX_NAV_FLOAT_INDICATOR di bawah & VBX_NAV_NOTCH di vibexa.js).
+       Selalu di paling belakang (z-index paling rendah) & pointer-events
+       none — murni visual, tombol-tombol tetap di atasnya seperti biasa. -->
+  <svg class="vbx-nav-notch" id="vbx-nav-notch" preserveAspectRatio="none" aria-hidden="true">
+    <path id="vbx-nav-notch-fill" class="vbx-nav-notch-fill"></path>
+    <path id="vbx-nav-notch-border" class="vbx-nav-notch-border"></path>
+  </svg>
   <button class="mob-nav-btn on" id="mob-btn-home" onclick="mobNav('home')">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
     <span class="mob-nav-label">Home</span>
@@ -2122,12 +2132,15 @@
     <span class="notif-badge" id="mob-notif-badge" style="position:absolute;top:4px;right:16px;margin:0;"></span>
   </button>
 
-  <!-- VBX_NAV_GOO_BLOB — indikator bulat "cair" yg meloncat dari satu tombol
-       nav ke tombol lain saat ditekan (referensi: animasi liquid/gooey tab
-       bar). Murni dekoratif (pointer-events:none) — TIDAK ikut menerima
-       klik & TIDAK mengubah logic navigasi apa pun. Posisi & perpindahannya
-       "menonton" pemanggilan setMobNavActive() yang SUDAH ADA lewat wiring
-       di vibexa.js (cari komentar VBX_NAV_GOO_BLOB di akhir file). -->
+  <!-- VBX_NAV_FLOAT_INDICATOR — indikator bulat yg mengambang & meluncur
+       dari satu tombol nav ke tombol lain saat ditekan (referensi:
+       animasi gliding di gif + foto). Murni dekoratif (pointer-events:
+       none) — TIDAK ikut menerima klik & TIDAK mengubah logic navigasi
+       apa pun. Posisi & perpindahannya "menonton" pemanggilan
+       setMobNavActive() yang SUDAH ADA lewat wiring di vibexa.js (cari
+       komentar VBX_NAV_FLOAT_INDICATOR di akhir file). Notch cekung di
+       #vbx-nav-notch di atas bergerak SEIRING dgn indikator ini, digambar
+       oleh fungsi yg sama di vibexa.js supaya selalu pas menyatu. -->
   <div class="vbx-nav-goo-layer" id="vbx-nav-goo-layer" aria-hidden="true">
     <div class="vbx-nav-goo-anchor" id="vbx-nav-goo-anchor"></div>
     <div class="vbx-nav-goo-blob" id="vbx-nav-goo-blob">

@@ -23097,6 +23097,9 @@ async function sendAIChatMessage(){
     const layer  = document.getElementById('vbx-nav-goo-layer');
     const blob   = document.getElementById('vbx-nav-goo-blob');
     const iconEl = document.getElementById('vbx-nav-goo-icon');
+    const notchSvg    = document.getElementById('vbx-nav-notch');
+    const notchFill   = document.getElementById('vbx-nav-notch-fill');
+    const notchBorder = document.getElementById('vbx-nav-notch-border');
     if (!nav || !layer || !blob || !iconEl) return;
     if (typeof MOB_NAV_BTN_IDS === 'undefined' || typeof setMobNavActive !== 'function') return;
 
@@ -23105,8 +23108,49 @@ async function sendAIChatMessage(){
     // mengambang ini juga, supaya tidak dobel/tabrakan visual.
     const SKIP_IDS = ['mob-btn-songpreview'];
 
+    // VBX_NAV_NOTCH — parameter bentuk lengkung notch (px):
+    //  NOTCH_R = seberapa jauh lengkungannya "melebar" ke kiri/kanan dari
+    //            titik tengah tombol aktif (lebar notch total ≈ NOTCH_R*3).
+    //  NOTCH_D = seberapa dalam notch "menukik" ke bawah dari bibir atas
+    //            bar (dipangkas supaya tetap proporsional dgn ketinggian
+    //            mengambang indikator yg sudah direndahkan ke -14px).
+    const NOTCH_R = 26;
+    const NOTCH_D = 20;
+
     let lastX = null;   // posisi X (px, relatif #mob-nav) tombol aktif terakhir
     let hopTimer = null;
+    let navW = 0, navH = 0;
+
+    // ── Gambar ulang bentuk notch pada X & depth tertentu (0 = garis lurus
+    //    datar tanpa lengkungan, dipakai saat indikator sedang disembunyikan
+    //    mis. saat tombol View/Song Preview yg aktif). Depth di antara 0..1
+    //    adalah "porsi" dari NOTCH_D — dipakai saat animasi muncul/hilang. ──
+    function drawNotch(x, depthRatio){
+      if (!notchFill || !notchBorder || navW <= 0) return;
+      const d = NOTCH_D * Math.max(0, Math.min(1, depthRatio));
+      let topEdge;
+      if (d < 0.5) {
+        // Nyaris tanpa lengkungan → gambar garis lurus biasa (lebih murah
+        // & menghindari lengkungan super tipis yg terlihat "bergerigi").
+        topEdge = `M0,0 L${navW},0`;
+      } else {
+        const r = NOTCH_R;
+        const x1 = Math.max(0, x - r * 1.6);
+        const x2 = Math.max(x1 + 1, x - r);
+        const x3 = Math.min(navW, x + r);
+        const x4 = Math.min(navW, x + r * 1.6);
+        topEdge = `M0,0 L${x1},0 C${x2},0 ${(x2 + x) / 2},${d} ${x},${d} `
+                 + `C${(x + x3) / 2},${d} ${x3},0 ${x4},0 L${navW},0`;
+      }
+      notchBorder.setAttribute('d', topEdge);
+      notchFill.setAttribute('d', `${topEdge} L${navW},${navH} L0,${navH} Z`);
+    }
+
+    function syncSvgSize(){
+      const r = nav.getBoundingClientRect();
+      navW = r.width; navH = r.height;
+      if (notchSvg) notchSvg.setAttribute('viewBox', `0 0 ${navW} ${navH}`);
+    }
 
     function computeCenterX(btn){
       const navRect = nav.getBoundingClientRect();
@@ -23132,17 +23176,46 @@ async function sendAIChatMessage(){
 
     function hideIndicator(){ blob.classList.remove('vbx-show'); }
 
+    // rAF tween sederhana utk menggerakkan notch (X & depth) seiring dgn
+    // durasi & kurva easing yg sama dgn transisi CSS lingkaran indikator
+    // (.38s, easeOut) — supaya keduanya kelihatan "menyatu" bergerak
+    // bersamaan, bukan notch diam sementara lingkaran sudah meluncur.
+    let notchAnim = null;
+    function tweenNotch(fromX, toX, fromDepth, toDepth){
+      if (notchAnim) cancelAnimationFrame(notchAnim);
+      const dur = 380, t0 = performance.now();
+      function ease(t){ return 1 - Math.pow(1 - t, 3); } // easeOutCubic
+      function step(now){
+        const t = Math.min(1, (now - t0) / dur);
+        const e = ease(t);
+        drawNotch(fromX + (toX - fromX) * e, fromDepth + (toDepth - fromDepth) * e);
+        if (t < 1) notchAnim = requestAnimationFrame(step);
+        else notchAnim = null;
+      }
+      notchAnim = requestAnimationFrame(step);
+    }
+
+    let lastDepth = 0;
+
     // animate=false → langsung "snap" ke posisi tanpa animasi meluncur
     // (dipakai saat render pertama & saat resize/orientasi berubah, supaya
     // tidak ada animasi aneh yg terpicu bukan krn user menekan tombol).
     function moveTo(activeId, animate){
-      if (SKIP_IDS.includes(activeId)) { hideIndicator(); lastX = null; return; }
+      if (SKIP_IDS.includes(activeId)) {
+        hideIndicator();
+        if (animate) tweenNotch(lastX ?? 0, lastX ?? 0, lastDepth, 0);
+        else drawNotch(0, 0);
+        lastDepth = 0;
+        lastX = null;
+        return;
+      }
 
       const btn = document.getElementById(activeId);
       // nav lagi disembunyikan (mis. tampilan desktop) → jangan hitung
       // posisi (getBoundingClientRect tidak berguna & bisa salah).
       if (!btn || nav.offsetParent === null) { hideIndicator(); return; }
 
+      syncSvgSize();
       const x = computeCenterX(btn);
       setIconFrom(btn);
       blob.classList.add('vbx-show');
@@ -23150,11 +23223,12 @@ async function sendAIChatMessage(){
       if (!animate || lastX === null) {
         layer.style.setProperty('--vbx-nav-x', x + 'px');
         blob.classList.remove('vbx-hop');
-        lastX = x;
+        drawNotch(x, 1);
+        lastX = x; lastDepth = 1;
         return;
       }
 
-      if (Math.abs(x - lastX) < 0.5) return; // tombol yg sama persis
+      if (Math.abs(x - lastX) < 0.5) { drawNotch(x, 1); lastDepth = 1; return; } // tombol yg sama persis
 
       const from = lastX, to = x, mid = (from + to) / 2;
       blob.style.setProperty('--vbx-x-from', from + 'px');
@@ -23170,6 +23244,9 @@ async function sendAIChatMessage(){
       blob.classList.remove('vbx-hop');
       void blob.offsetWidth; // force reflow → restart animasi kalau ditekan cepat berturut-turut
       blob.classList.add('vbx-hop');
+
+      tweenNotch(from, to, lastDepth, 1);
+      lastDepth = 1;
 
       hopTimer = setTimeout(() => {
         blob.classList.remove('vbx-hop');
@@ -23187,10 +23264,12 @@ async function sendAIChatMessage(){
     };
 
     function syncNow(){
+      syncSvgSize();
       const activeBtn = MOB_NAV_BTN_IDS
         .map(id => document.getElementById(id))
         .find(b => b && b.classList.contains('on'));
       if (activeBtn) moveTo(activeBtn.id, false);
+      else drawNotch(0, 0);
     }
 
     // Resize/orientasi berubah (termasuk pindah dari desktop↔mobile) →
