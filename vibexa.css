@@ -1710,20 +1710,16 @@ body.np-page-open #bar{
      VBX_NAV_FLOAT_INDICATOR di akhir file). TIDAK mengubah logic navigasi
      apa pun yg sudah ada.
 
-     Ketinggian mengambangnya sekarang dinaikkan ke -26px saat diam
-     (puncak -34px saat berpindah tombol) — dinaikkan dari versi
-     sebelumnya (-3px / -9px) yg membuat lingkaran nyaris seluruhnya
-     terbenam di dalam bar & nyaris menempel ke garis lengkung notch di
-     baliknya (tidak terlihat "mengambang" spt foto referensi). Dgn -26px,
-     sekitar 2/3 lingkaran nongol jelas di ATAS tepi bar, dan sisa ~14px
-     bagian bawahnya yg masih di dalam bar tetap punya jarak kosong ke
-     dasar cekungan notch (lihat NOTCH_D di vibexa.js, sengaja dibuat lebih
-     dalam dari sisa 14px ini) — itulah jarak kecil yg membuat lingkaran
-     kelihatan mengambang bebas, tidak menempel ke garis lengkungnya.
-     Sebagai lapis pengaman tambahan, #mob-nav sendiri juga sudah diberi
-     z-index di bawah #bar (lihat rule #mob-nav di atas) — jadi walau
-     lingkaran ini sedikit tumpang tindih secara geometri saat animasi, ia
-     digambar DI BAWAH #bar & tidak pernah menutupi tombol Play. */
+     Ketinggian mengambangnya diturunin ke -4px saat diam (puncak -6px saat
+     berpindah tombol) — sebelumnya -26px/-34px, tapi jarak kosong antara
+     kotak play (#bar) & navbar cuma 6px (lihat margin #bar di media query
+     mobile), jadi ±20px bagian ATAS lingkaran nyodok masuk ke wilayah
+     kotak play & KETUTUPAN (krn z-index #bar lebih tinggi drpd #mob-nav —
+     lihat komentar di bawah). Dgn -4px, seluruh lingkaran (termasuk saat
+     animasi ke puncak -6px) tetap di bawah batas bawah kotak play (-6px
+     dari atas navbar), jadi tidak pernah lagi tumpang tindih dgn kotak
+     play, walau efek "mengambang bebas"-nya jadi lebih tipis drpd
+     sebelumnya. */
   .vbx-nav-goo-layer{
     position:absolute;
     left:0; top:0; right:0; height:100%;
@@ -1738,7 +1734,7 @@ body.np-page-open #bar{
     background:var(--panel);
     border:2px solid var(--green);
     box-shadow:0 8px 18px rgba(0,0,0,.4), 0 0 0 5px rgba(46,125,255,.1);
-    transform:translate(calc(var(--vbx-nav-x,28px) - 20px), -26px);
+    transform:translate(calc(var(--vbx-nav-x,28px) - 20px), -4px);
     transition:transform .38s cubic-bezier(.32,1.1,.4,1), opacity .2s ease;
     opacity:0; /* muncul via .vbx-show setelah posisi awal dihitung JS */
   }
@@ -1750,16 +1746,18 @@ body.np-page-open #bar{
 
   /* Animasi "meluncur" indikator antar tombol — posisi X start/tengah/akhir
      diisi lewat CSS var dari JS tepat sblm class ini ditambahkan (lihat
-     vibexa.js). Titik tengah lintasan naik sedikit lebih tinggi (-34px)
-     supaya kelihatan "melayang lepas" sesaat spt di gif referensi, lalu
-     turun & mendarat lagi di tombol tujuan (-26px, idle). */
+     vibexa.js). Titik tengah lintasan naik sedikit lebih tinggi (-6px)
+     supaya kelihatan sedikit "melayang lepas" sesaat, lalu turun & mendarat
+     lagi di tombol tujuan (-4px, idle) — puncaknya sengaja DIBATASI di
+     -6px (bukan lebih tinggi lagi) supaya tetap tidak pernah nyentuh batas
+     bawah kotak play (#bar) yg ada di -6px dari atas navbar. */
   .vbx-nav-goo-blob.vbx-hop{
     animation:vbx-nav-indicator-glide .38s cubic-bezier(.4,0,.2,1) 1;
   }
   @keyframes vbx-nav-indicator-glide{
-    0%  { transform:translate(calc(var(--vbx-x-from,28px) - 20px), -26px) scale(1); }
-    50% { transform:translate(calc(var(--vbx-x-mid,28px) - 20px), -34px) scale(.92); }
-    100%{ transform:translate(calc(var(--vbx-x-to,28px) - 20px), -26px) scale(1); }
+    0%  { transform:translate(calc(var(--vbx-x-from,28px) - 20px), -4px) scale(1); }
+    50% { transform:translate(calc(var(--vbx-x-mid,28px) - 20px), -6px) scale(.92); }
+    100%{ transform:translate(calc(var(--vbx-x-to,28px) - 20px), -4px) scale(1); }
   }
 
   /* ════════════════════════════════

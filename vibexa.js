@@ -9723,12 +9723,26 @@ function mobNav(tab){
 const _origShowHome = showHomeView;
 window.showHomeView = function(){
   _origShowHome();
-  setMobNavActive('mob-btn-home');
+  // FIX: dulu ini SELALU manggil setMobNavActive('mob-btn-home'), padahal
+  // mobNav('home') SUDAH manggilnya duluan sebelum showHomeView() dipanggil
+  // — jadi setMobNavActive('mob-btn-home') kepanggil 2x beruntun. Panggilan
+  // kedua ini bikin lingkaran indikator mikir "tombol yg sama ditekan lagi"
+  // (jaraknya 0) lalu LANGSUNG nyembunyikan icon asli Home tanpa nunggu
+  // animasi lingkaran (380ms) selesai mendarat — akibatnya utk sesaat TIDAK
+  // ADA icon Home yg terlihat sama sekali (baik icon asli maupun lingkaran).
+  // Sekarang cuma dipanggil kalau Home BELUM jadi tombol aktif (mis. saat
+  // showHomeView() dipanggil dari tempat lain yg bukan lewat mobNav/tombol
+  // nav bawah), jadi tidak pernah dobel dgn panggilan dari mobNav().
+  const homeBtn = document.getElementById('mob-btn-home');
+  if (homeBtn && !homeBtn.classList.contains('on')) setMobNavActive('mob-btn-home');
 };
 const _origShowSearch = showSearchView;
 window.showSearchView = function(){
   _origShowSearch();
-  setMobNavActive('mob-btn-search');
+  // Sama seperti fix showHomeView di atas — hindari panggilan setMobNavActive
+  // dobel yg bikin race dgn animasi lingkaran indikator.
+  const searchBtn = document.getElementById('mob-btn-search');
+  if (searchBtn && !searchBtn.classList.contains('on')) setMobNavActive('mob-btn-search');
 };
 
 window.addEventListener('resize', initMobileNav);
@@ -23105,18 +23119,21 @@ async function sendAIChatMessage(){
 
     // VBX_NAV_NOTCH — parameter bentuk lengkung notch (px):
     //  NOTCH_R = seberapa jauh lengkungannya "melebar" ke kiri/kanan dari
-    //            titik tengah tombol aktif (lebar notch total ≈ NOTCH_R*3.2).
+    //            titik tengah tombol aktif (lebar notch total ≈ NOTCH_R*2.6,
+    //            dipakai bareng FLARE di bawah). Makin KECIL nilainya,
+    //            makin RAPAT/mepet lengkungannya ke tombol (bentuk "U"
+    //            yg lebih sempit & nempel), makin BESAR makin melebar jadi
+    //            cekungan yg landai/lebar.
     //  NOTCH_D = seberapa dalam notch "menukik" ke bawah dari bibir atas
-    //            bar — harus SEDIKIT lebih dalam dari sisi bawah lingkaran
-    //            mengambang (lihat CSS .vbx-nav-goo-blob: idle di -26px,
-    //            jadi sisi bawah lingkaran ada di 40-26=14px dari bibir
-    //            atas nav) supaya masih ada jarak/celah kecil antara
-    //            lingkaran & garis lengkung — bukan malah saling menempel.
-    //            NOTCH_D=30 menyisakan celah ~16px, cukup terlihat tapi
-    //            lingkaran tetap kelihatan "duduk" di dalam cekungannya
-    //            (bukan melayang lepas jauh dari notch).
-    const NOTCH_R = 34;
-    const NOTCH_D = 30;
+    //            bar. Dinaikkan supaya bentuknya kelihatan bulat penuh
+    //            "U" (spt foto referensi), bukan dangkal & rata di bawah.
+    //  FLARE   = seberapa landai transisi dari garis lurus ke lengkungan
+    //            di kiri-kanan (dikali NOTCH_R). Makin KECIL, transisinya
+    //            makin cepat/tegak → lengkungan kelihatan lebih "rapat"
+    //            mengelilingi tombol, bukan basin yg lebar.
+    const NOTCH_R = 28;
+    const NOTCH_D = 48;
+    const FLARE = 1.3;
 
     let lastX = null;   // posisi X (px, relatif #mob-nav) tombol aktif terakhir
     let lastActiveId = null; // id tombol yg terakhir jadi target (utk lepas .mob-nav-icon-hide dr tombol asal)
@@ -23137,10 +23154,10 @@ async function sendAIChatMessage(){
         topEdge = `M0,0 L${navW},0`;
       } else {
         const r = NOTCH_R;
-        const x1 = Math.max(0, x - r * 1.6);
+        const x1 = Math.max(0, x - r * FLARE);
         const x2 = Math.max(x1 + 1, x - r);
         const x3 = Math.min(navW, x + r);
-        const x4 = Math.min(navW, x + r * 1.6);
+        const x4 = Math.min(navW, x + r * FLARE);
         topEdge = `M0,0 L${x1},0 C${x2},0 ${(x2 + x) / 2},${d} ${x},${d} `
                  + `C${(x + x3) / 2},${d} ${x3},0 ${x4},0 L${navW},0`;
       }
@@ -23240,7 +23257,19 @@ async function sendAIChatMessage(){
       }
 
       if (Math.abs(x - lastX) < 0.5) {
-        // Tombol yg sama persis ditekan lagi.
+        // Tombol yg sama persis ditekan/dipicu lagi.
+        if (hopTimer) {
+          // Masih ada animasi 'terbang' yg lagi berjalan menuju tombol ini
+          // (blm mendarat) — JANGAN langsung nge-hide icon asli sekarang,
+          // biarkan hopTimer yg sudah terjadwal yg menyelesaikannya nanti.
+          // Kalau langsung di-hide di sini, utk sesaat TIDAK ADA icon yg
+          // terlihat sama sekali (lingkaran msh di tengah jalan, icon asli
+          // sudah disembunyikan) — inilah penyebab bug "icon sempat hilang".
+          drawNotch(x, 1);
+          lastDepth = 1;
+          lastActiveId = activeId;
+          return;
+        }
         setIconFrom(btn);
         applyIconHide(activeId, true);
         drawNotch(x, 1);
