@@ -23240,10 +23240,17 @@ async function sendAIChatMessage(){
       const x = computeCenterX(btn);
       blob.classList.add('vbx-show');
 
-      // Tombol ASAL (yg baru saja ditinggalkan) langsung dimunculkan lagi
-      // ikon+labelnya SEKETIKA, tanpa menunggu animasi geser kelar — supaya
-      // tidak pernah ada momen tombol itu kelihatan tanpa ikon sama sekali.
-      if (lastActiveId && lastActiveId !== activeId) applyIconHide(lastActiveId, false);
+      // FIX: dulu cuma tombol "lastActiveId" (1 id terakhir yg dilacak)
+      // yg di-unhide di sini. Masalahnya setMobNavActive() dipanggil dari
+      // BANYAK tempat lain di file ini (showHomeView()/showSearchView()
+      // dipakai sbg "reset ke Home" generik dari puluhan fungsi, bukan cuma
+      // dari tombol nav bawah) — kalau salah satu id "kelewat" dr pelacakan
+      // 1-id ini, class mob-nav-icon-hide-nya nyangkut SELAMANYA di tombol
+      // itu walau dia sudah lama tidak aktif (persis bug icon Home/View yg
+      // hilang terus). Sekarang: paksa unhide SEMUA tombol lain selain yg
+      // baru aktif, setiap kali moveTo() jalan — self-healing, nggak peduli
+      // dipicu dari jalur mana, status lama yg nyangkut pasti kebersihin.
+      MOB_NAV_BTN_IDS.forEach(id => { if (id !== activeId) applyIconHide(id, false); });
 
       if (!animate || lastX === null) {
         setIconFrom(btn);
@@ -23304,8 +23311,14 @@ async function sendAIChatMessage(){
       // hilang lebih dulu sebelum digantikan oleh lingkaran.
       hopTimer = setTimeout(() => {
         blob.classList.remove('vbx-hop');
-        setIconFrom(btn);
-        applyIconHide(activeId, true);
+        // Jaring pengaman: cuma hide iconnya kalau tombol ini BENERAN masih
+        // jadi tombol aktif sekarang (bisa jadi sudah berubah lagi selama
+        // 380ms ini berjalan) — cegah hopTimer basi salah nge-hide tombol
+        // yg udah nggak aktif.
+        if (btn.classList.contains('on')) {
+          setIconFrom(btn);
+          applyIconHide(activeId, true);
+        }
         hopTimer = null;
       }, 380);
 
