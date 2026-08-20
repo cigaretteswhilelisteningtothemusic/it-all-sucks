@@ -23103,35 +23103,29 @@ async function sendAIChatMessage(){
     if (!nav || !layer || !blob || !iconEl) return;
     if (typeof MOB_NAV_BTN_IDS === 'undefined' || typeof setMobNavActive !== 'function') return;
 
-    // Tombol Song Preview (id di bawah) sudah punya gaya "elevated" sendiri
-    // (selalu di tengah, sedikit naik) — jangan ikut dikasih lingkaran
-    // mengambang ini juga, supaya tidak dobel/tabrakan visual.
-    const SKIP_IDS = ['mob-btn-songpreview'];
-
     // VBX_NAV_NOTCH — parameter bentuk lengkung notch (px):
     //  NOTCH_R = seberapa jauh lengkungannya "melebar" ke kiri/kanan dari
-    //            titik tengah tombol aktif (lebar notch total ≈ NOTCH_R*3).
+    //            titik tengah tombol aktif (lebar notch total ≈ NOTCH_R*3.2).
     //  NOTCH_D = seberapa dalam notch "menukik" ke bawah dari bibir atas
-    //            bar (dipangkas supaya tetap proporsional dgn ketinggian
-    //            mengambang indikator yg sudah direndahkan ke -14px).
-    // NOTCH_D diperdalam dari 20 -> 40: lingkaran tombol (diameter 40px)
-    // sekarang idle di -3px (lihat .vbx-nav-goo-blob di CSS), jadi sisi
-    // bawah lingkaran berada di ~37px dari bibir atas nav. Kedalaman notch
-    // harus melewati titik itu (baru sungguh2 melengkung DI BAWAH lingkaran)
-    // — kalau cuma 20px, garis lengkungnya berhenti persis di tengah
-    // lingkaran & terlihat memotongnya. NOTCH_R sedikit dilebarkan (36->40)
-    // supaya lengkungan yg lebih dalam ini tetap terlihat halus/landai,
-    // bukan seperti lubang sempit & curam.
-    const NOTCH_R = 40;
-    const NOTCH_D = 40;
+    //            bar — harus SEDIKIT lebih dalam dari sisi bawah lingkaran
+    //            mengambang (lihat CSS .vbx-nav-goo-blob: idle di -26px,
+    //            jadi sisi bawah lingkaran ada di 40-26=14px dari bibir
+    //            atas nav) supaya masih ada jarak/celah kecil antara
+    //            lingkaran & garis lengkung — bukan malah saling menempel.
+    //            NOTCH_D=30 menyisakan celah ~16px, cukup terlihat tapi
+    //            lingkaran tetap kelihatan "duduk" di dalam cekungannya
+    //            (bukan melayang lepas jauh dari notch).
+    const NOTCH_R = 34;
+    const NOTCH_D = 30;
 
     let lastX = null;   // posisi X (px, relatif #mob-nav) tombol aktif terakhir
+    let lastActiveId = null; // id tombol yg terakhir jadi target (utk lepas .mob-nav-icon-hide dr tombol asal)
     let hopTimer = null;
     let navW = 0, navH = 0;
 
     // ── Gambar ulang bentuk notch pada X & depth tertentu (0 = garis lurus
-    //    datar tanpa lengkungan, dipakai saat indikator sedang disembunyikan
-    //    mis. saat tombol View/Song Preview yg aktif). Depth di antara 0..1
+    //    datar tanpa lengkungan, dipakai saat indikator sedang disembunyikan,
+    //    mis. saat nav lagi tidak tampil sama sekali). Depth di antara 0..1
     //    adalah "porsi" dari NOTCH_D — dipakai saat animasi muncul/hilang. ──
     function drawNotch(x, depthRatio){
       if (!notchFill || !notchBorder || navW <= 0) return;
@@ -23184,6 +23178,17 @@ async function sendAIChatMessage(){
 
     function hideIndicator(){ blob.classList.remove('vbx-show'); }
 
+    // Tambah/lepas class yg menyembunyikan ikon+label ASLI di dalam tombol
+    // (diwakili oleh lingkaran mengambang saat itu). Sengaja dipisah dari
+    // class ".on" (yg tetap dipakai murni utk warna) supaya waktunya bisa
+    // diatur manual: dilepas SEKETIKA saat tombol berhenti aktif (icon asli
+    // langsung balik terlihat), tapi baru ditambah SETELAH lingkaran selesai
+    // mendarat di tombol yg baru aktif — lihat pemakaiannya di moveTo().
+    function applyIconHide(id, hide){
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle('mob-nav-icon-hide', hide);
+    }
+
     // rAF tween sederhana utk menggerakkan notch (X & depth) seiring dgn
     // durasi & kurva easing yg sama dgn transisi CSS lingkaran indikator
     // (.38s, easeOut) — supaya keduanya kelihatan "menyatu" bergerak
@@ -23209,15 +23214,6 @@ async function sendAIChatMessage(){
     // (dipakai saat render pertama & saat resize/orientasi berubah, supaya
     // tidak ada animasi aneh yg terpicu bukan krn user menekan tombol).
     function moveTo(activeId, animate){
-      if (SKIP_IDS.includes(activeId)) {
-        hideIndicator();
-        if (animate) tweenNotch(lastX ?? 0, lastX ?? 0, lastDepth, 0);
-        else drawNotch(0, 0);
-        lastDepth = 0;
-        lastX = null;
-        return;
-      }
-
       const btn = document.getElementById(activeId);
       // nav lagi disembunyikan (mis. tampilan desktop) → jangan hitung
       // posisi (getBoundingClientRect tidak berguna & bisa salah).
@@ -23225,18 +23221,33 @@ async function sendAIChatMessage(){
 
       syncSvgSize();
       const x = computeCenterX(btn);
-      setIconFrom(btn);
       blob.classList.add('vbx-show');
 
+      // Tombol ASAL (yg baru saja ditinggalkan) langsung dimunculkan lagi
+      // ikon+labelnya SEKETIKA, tanpa menunggu animasi geser kelar — supaya
+      // tidak pernah ada momen tombol itu kelihatan tanpa ikon sama sekali.
+      if (lastActiveId && lastActiveId !== activeId) applyIconHide(lastActiveId, false);
+
       if (!animate || lastX === null) {
+        setIconFrom(btn);
+        applyIconHide(activeId, true);
         layer.style.setProperty('--vbx-nav-x', x + 'px');
         blob.classList.remove('vbx-hop');
         drawNotch(x, 1);
         lastX = x; lastDepth = 1;
+        lastActiveId = activeId;
         return;
       }
 
-      if (Math.abs(x - lastX) < 0.5) { drawNotch(x, 1); lastDepth = 1; return; } // tombol yg sama persis
+      if (Math.abs(x - lastX) < 0.5) {
+        // Tombol yg sama persis ditekan lagi.
+        setIconFrom(btn);
+        applyIconHide(activeId, true);
+        drawNotch(x, 1);
+        lastDepth = 1;
+        lastActiveId = activeId;
+        return;
+      }
 
       const from = lastX, to = x, mid = (from + to) / 2;
       blob.style.setProperty('--vbx-x-from', from + 'px');
@@ -23256,12 +23267,21 @@ async function sendAIChatMessage(){
       tweenNotch(from, to, lastDepth, 1);
       lastDepth = 1;
 
+      // Ikon di dalam lingkaran BARU diganti ke ikon tombol tujuan, dan
+      // ikon asli tombol tujuan BARU disembunyikan, SETELAH lingkaran
+      // benar-benar selesai mendarat (bukan di awal animasi) — supaya
+      // lingkaran terlihat "membawa" ikon lama sepanjang perjalanan lalu
+      // bertukar tepat saat tiba, dan ikon tombol tujuan tidak pernah
+      // hilang lebih dulu sebelum digantikan oleh lingkaran.
       hopTimer = setTimeout(() => {
         blob.classList.remove('vbx-hop');
+        setIconFrom(btn);
+        applyIconHide(activeId, true);
         hopTimer = null;
-      }, 400);
+      }, 380);
 
       lastX = to;
+      lastActiveId = activeId;
     }
 
     // ── Wiring ke setMobNavActive() yang sudah ada ──

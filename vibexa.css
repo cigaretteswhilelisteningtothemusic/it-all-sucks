@@ -1637,19 +1637,33 @@ body.np-page-open #bar{
     cursor:pointer;padding:5px 10px;border-radius:12px;
     transition:all .18s;letter-spacing:.3px;text-transform:uppercase;flex:1;
   }
-  .mob-nav-btn svg{width:20px;height:20px;transition:all .18s}
+  .mob-nav-btn:active{transform:scale(.92)}
+  .mob-nav-btn svg{width:20px;height:20px;transition:opacity .3s ease}
   .mob-nav-btn.on{color:var(--green)}
   .mob-nav-btn.on svg{filter:drop-shadow(0 0 6px rgba(46,125,255,.5))}
   /* Tombol yg lagi aktif: ikon aslinya di dalam bar disembunyikan (opacity)
      krn sudah "diwakili" oleh lingkaran mengambang VBX_NAV_FLOAT_INDICATOR
-     di atasnya (lihat blok di bawah) — dan label teksnya memudar hilang,
-     persis seperti pada foto referensi (tombol aktif = ikon mengambang
-     tanpa teks, tombol lain tetap ikon+teks seperti biasa). Dikecualikan
-     utk tombol Song Preview (.mob-nav-preview-center) krn tombol itu sudah
-     punya gaya elevated sendiri & TIDAK ikut dapat lingkaran mengambang. */
-  .mob-nav-btn.on:not(.mob-nav-preview-center) svg{opacity:0}
+     di atasnya — dan label teksnya memudar hilang, persis seperti pada foto
+     referensi (tombol aktif = ikon mengambang tanpa teks, tombol lain tetap
+     ikon+teks seperti biasa). SEMUA tombol nav bawah (termasuk Song Preview
+     / "View") sekarang ikut memakai lingkaran mengambang yg sama — sudah
+     tidak ada lagi pengecualian, supaya bentuknya konsisten bulat seperti
+     tombol lain.
+     PENTING: yg menyembunyikan ikon BUKAN class ".on" secara langsung,
+     melainkan ".mob-nav-icon-hide" yang ditambah/dilepas lewat JS (lihat
+     komentar VBX_NAV_FLOAT_INDICATOR di vibexa.js). Sebelumnya ikon asli
+     langsung disembunyikan bersamaan dgn ".on" di AWAL animasi geser,
+     padahal lingkaran yg mengambang belum sampai ke posisi tombol itu
+     (masih di tengah perjalanan) — akibatnya sesaat TIDAK ADA ikon yg
+     terlihat sama sekali (baik di tombol asal spt Home maupun tombol
+     tujuan), terlihat seperti "ikon Home hilang" begitu tombol lain
+     ditekan. Sekarang: ikon tombol ASAL langsung dimunculkan lagi begitu
+     ditinggalkan (tanpa menunggu animasi), dan ikon tombol TUJUAN baru
+     disembunyikan SETELAH lingkaran benar-benar selesai mendarat —
+     jadi tidak pernah ada momen tanpa ikon di kedua sisi. */
+  .mob-nav-btn.mob-nav-icon-hide svg{opacity:0}
   .mob-nav-label{display:block;transition:opacity .15s ease,transform .15s ease;}
-  .mob-nav-btn.on:not(.mob-nav-preview-center) .mob-nav-label{
+  .mob-nav-btn.mob-nav-icon-hide .mob-nav-label{
     opacity:0;transform:translateY(3px);pointer-events:none;
   }
   .mob-nav-yours{position:relative;}
@@ -1658,26 +1672,11 @@ body.np-page-open #bar{
   /* Tombol Profil bawah dihilangkan khusus tampilan mobile (sudah ada akses
      profil lewat avatar di topbar) — slot ini sekarang dipakai tombol Chat */
 
-  /* Tombol Song Preview: diletakkan di tengah-tengah baris navigasi bawah
-     (bukan mengambang naik ke atas, supaya tidak menabrak mini player di
-     atasnya) — hanya ikon saja, tanpa lingkaran warna, menyatu dengan
-     tombol navigasi bawah lainnya. */
-  .mob-nav-preview-center{
-    position:absolute;left:50%;top:5px;transform:translateX(-50%);
-    flex:none;width:46px;padding:0;border-radius:12px;
-    background:none;color:var(--muted);box-shadow:none;
-    z-index:11;gap:2px;
-  }
-  .mob-nav-preview-center.on{color:#2e7dff!important;}
-  .mob-nav-preview-center svg{width:22px;height:22px}
-  .mob-nav-preview-center span{display:block;font-size:.52rem;}
-  .mob-nav-preview-center:active{transform:translateX(-50%) scale(.92)}
-  /* Tombol "Temukan" diletakkan berdekatan dengan tombol Home (tanpa jarak
-     di antara keduanya). Jarak untuk menghindari lingkaran Preview yang ada
-     persis di tengah dipindah ke SETELAH tombol Temukan (sebelum tombol
-     Unduhan Offline), bukan lagi di antara Home & Temukan. */
-  #mob-btn-finder{margin-right:36px}
-  .mob-nav-yours{margin-left:36px}
+  /* Tombol Song Preview ("View") sekarang tombol biasa dlm baris flex
+     spt tombol nav lainnya (tidak lagi position:absolute "elevated"
+     sendiri) — jadi ikut mendapat lingkaran mengambang biru yg sama saat
+     aktif & bentuknya bulat konsisten dgn Home/Search/Finder/Yours/Chat. */
+  .mob-nav-preview-center{ gap:3px; }
 
   /* ════════════════════════════════
      VBX_NAV_NOTCH — background #mob-nav digambar via SVG (bukan CSS rect
@@ -1711,14 +1710,16 @@ body.np-page-open #bar{
      VBX_NAV_FLOAT_INDICATOR di akhir file). TIDAK mengubah logic navigasi
      apa pun yg sudah ada.
 
-     Ketinggian mengambangnya sengaja dibuat RENDAH (-3px saat diam,
-     puncak -9px saat berpindah tombol) — dipangkas bertahap dari versi
-     awal yg sempat melompat sampai -56px lalu -34px lalu -6px/-16px,
-     krn -6px ternyata masih PERSIS berhimpit dgn tepi bawah #bar (jarak
-     margin-bottom #bar cuma 6px), jadi keduanya masih kelihatan
-     bersentuhan. Sekarang disisakan jarak ~3px (idle) / ~-3px..0px
-     (puncak) dari tepi #bar supaya TIDAK pernah mepet ke kotak mini
-     player (#bar, tombol Play) tepat di atas #mob-nav.
+     Ketinggian mengambangnya sekarang dinaikkan ke -26px saat diam
+     (puncak -34px saat berpindah tombol) — dinaikkan dari versi
+     sebelumnya (-3px / -9px) yg membuat lingkaran nyaris seluruhnya
+     terbenam di dalam bar & nyaris menempel ke garis lengkung notch di
+     baliknya (tidak terlihat "mengambang" spt foto referensi). Dgn -26px,
+     sekitar 2/3 lingkaran nongol jelas di ATAS tepi bar, dan sisa ~14px
+     bagian bawahnya yg masih di dalam bar tetap punya jarak kosong ke
+     dasar cekungan notch (lihat NOTCH_D di vibexa.js, sengaja dibuat lebih
+     dalam dari sisa 14px ini) — itulah jarak kecil yg membuat lingkaran
+     kelihatan mengambang bebas, tidak menempel ke garis lengkungnya.
      Sebagai lapis pengaman tambahan, #mob-nav sendiri juga sudah diberi
      z-index di bawah #bar (lihat rule #mob-nav di atas) — jadi walau
      lingkaran ini sedikit tumpang tindih secara geometri saat animasi, ia
@@ -1737,7 +1738,7 @@ body.np-page-open #bar{
     background:var(--panel);
     border:2px solid var(--green);
     box-shadow:0 8px 18px rgba(0,0,0,.4), 0 0 0 5px rgba(46,125,255,.1);
-    transform:translate(calc(var(--vbx-nav-x,28px) - 20px), -3px);
+    transform:translate(calc(var(--vbx-nav-x,28px) - 20px), -26px);
     transition:transform .38s cubic-bezier(.32,1.1,.4,1), opacity .2s ease;
     opacity:0; /* muncul via .vbx-show setelah posisi awal dihitung JS */
   }
@@ -1749,16 +1750,16 @@ body.np-page-open #bar{
 
   /* Animasi "meluncur" indikator antar tombol — posisi X start/tengah/akhir
      diisi lewat CSS var dari JS tepat sblm class ini ditambahkan (lihat
-     vibexa.js). Titik tengah lintasan naik sedikit lebih tinggi (-26px)
+     vibexa.js). Titik tengah lintasan naik sedikit lebih tinggi (-34px)
      supaya kelihatan "melayang lepas" sesaat spt di gif referensi, lalu
-     turun & mendarat lagi di tombol tujuan. */
+     turun & mendarat lagi di tombol tujuan (-26px, idle). */
   .vbx-nav-goo-blob.vbx-hop{
     animation:vbx-nav-indicator-glide .38s cubic-bezier(.4,0,.2,1) 1;
   }
   @keyframes vbx-nav-indicator-glide{
-    0%  { transform:translate(calc(var(--vbx-x-from,28px) - 20px), -3px) scale(1); }
-    50% { transform:translate(calc(var(--vbx-x-mid,28px) - 20px), -9px) scale(.92); }
-    100%{ transform:translate(calc(var(--vbx-x-to,28px) - 20px), -3px) scale(1); }
+    0%  { transform:translate(calc(var(--vbx-x-from,28px) - 20px), -26px) scale(1); }
+    50% { transform:translate(calc(var(--vbx-x-mid,28px) - 20px), -34px) scale(.92); }
+    100%{ transform:translate(calc(var(--vbx-x-to,28px) - 20px), -26px) scale(1); }
   }
 
   /* ════════════════════════════════
