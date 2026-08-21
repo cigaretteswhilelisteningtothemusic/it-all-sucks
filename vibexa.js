@@ -111,6 +111,16 @@ let _streakCache = null; // {currentStreak, longestStreak, lastCompletedDate, co
 const WORKER = 'https://fancy-band-d65b.alpinofficial26.workers.dev';
 const WORKER2 = 'https://morning-tooth-9544.efotbalakun70.workers.dev'; // worker cadangan — dipakai otomatis kalau WORKER utama gagal (502/503/504/timeout)
 const WORKERS = [WORKER, WORKER2];
+
+// ─── Share Playlist (link publik, mirip cara kerja VibeProfile) ────────────
+// PENTING: sama seperti PUBLIC_BASE_URL di vibeprofile.html — JANGAN pakai
+// window.location.href di sini. Kalau app ini dibungkus jadi native app
+// (Capacitor), WebView-nya membuka file LOKAL lewat virtual host
+// "https://localhost/" (Android) / "capacitor://localhost" (iOS) — bukan
+// domain publik aslinya, jadi link yang dibagikan jadi tidak valid dibuka
+// orang lain. Base URL publik di-hardcode di sini supaya link share SELALU
+// mengarah ke halaman yang benar-benar online di web.
+const PUBLIC_BASE_URL = 'https://cigaretteswhilelisteningtothemusic.github.io/it-all-sucks/';
 let YTP = null;
 let playing = false, cur = 0, tot = 0, raf = null;
 let lyrCache = {}, lyrs = [], curTrack = null;
@@ -363,6 +373,7 @@ if (window._vbxFirebaseOK && auth) {
       startFriendSuggestionsListener();
       loadPublicFeed();
       loadTrendingSongs();
+      loadTrendingArtists();
       loadRecentlyPlayedFromCloud();
       loadStreakFromCloud();
       loadDailyMixes();
@@ -372,6 +383,7 @@ if (window._vbxFirebaseOK && auth) {
       loadForYouPlaylists();
       loadMaybeLikeMixes();
       loadArtistRadioMixes();
+      loadSpecialSongs();
       loadSadPlaylists();
       loadWeekdayPlaylists();
       _aiAttachFollowUpListener();
@@ -2492,12 +2504,31 @@ function renderChatMessages(msgsObj, scrollToBottom) {
         </button>`;
     }
 
+    // Badge kecil "disukai lawan bicara": beda dari likeBtnHTML di atas
+    // (yang cuma merefleksikan like SAYA sendiri). Badge ini SELALU
+    // terlihat (tidak perlu hover/tekan-tahan) supaya pengirim pesan bisa
+    // langsung tahu pesannya disukai orang lain begitu buka chat, tanpa
+    // harus cek panel notifikasi.
+    let likedByPeerHTML = '';
+    if (!deleted) {
+      const peerUid = _chatCurrentPeer && _chatCurrentPeer.uid;
+      const likedByPeer = !!(peerUid && m.likes && m.likes[peerUid]);
+      if (likedByPeer) {
+        const peerName = (_chatCurrentPeer && _chatCurrentPeer.name) || 'User';
+        likedByPeerHTML = `
+          <span class="chat-msg-liked-badge" title="Disukai oleh ${esc(peerName)}" aria-label="Liked by ${esc(peerName)}">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-6.7-4.34-9.3-8.24C1 10.02 1.6 6.6 4.3 5.06c2.3-1.31 4.9-.5 6.3 1.4L12 8l1.4-1.54c1.4-1.9 4-2.71 6.3-1.4 2.7 1.54 3.3 4.96 1.6 7.7C18.7 16.66 12 21 12 21z"/></svg>
+          </span>`;
+      }
+    }
+
     return `${sepHTML}
       <div class="chat-bubble-row ${mine ? 'me' : 'them'}" data-msgkey="${key}">
         ${quoteHTML}
         <div class="chat-bubble-wrap">
           ${likeBtnHTML}
           ${bubbleHTML}
+          ${likedByPeerHTML}
         </div>
         <div class="chat-bubble-time">${formatChatTime(m.ts)}</div>
         ${readHTML}
@@ -3330,6 +3361,15 @@ async function startVoiceRecording() {
   cancelChatMediaPreview(); // jangan tumpang-tindih dgn preview foto/video
   closeGifPicker();
 
+  // Jaga-jaga: kalau ada _voiceStream/_voiceRecorder lama yang entah
+  // kenapa belum sempat dilepas (mis. state korup dari percobaan
+  // sebelumnya), lepas dulu SEBELUM minta stream baru — getUserMedia bisa
+  // gagal dgn NotReadableError kalau WebView masih mengira ada stream
+  // mic lain yang aktif.
+  if (_voiceStream || _voiceRecorder) {
+    forceReleaseVoiceRecordingIfActive();
+  }
+
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     _voiceStream = stream;
@@ -3355,7 +3395,24 @@ async function startVoiceRecording() {
     _voiceTimerInterval = setInterval(updateVoiceTimer, 250);
   } catch (err) {
     console.error('Gagal mengakses microphone:', err);
-    toast('Cannot access microphone — check app permission.');
+    // Pesan toast dibedakan per jenis DOMException supaya user tahu harus
+    // ngapain, bukan cuma "cannot access microphone" generik. Terutama
+    // NotReadableError ("Could not start audio source") — itu artinya izin
+    // browser SUDAH oke, tapi OS/hardware yang menolak kasih akses mic-nya
+    // (biasanya lagi dipakai app/tab lain, atau permission mic OS-nya mati).
+    let msg = 'Cannot access microphone — check app permission.';
+    if (err && err.name === 'NotReadableError') {
+      msg = 'Microphone is busy or blocked by your device/OS. Close other apps or tabs using the mic, check your OS microphone privacy setting, then try again.';
+    } else if (err && err.name === 'NotAllowedError') {
+      msg = 'Microphone permission was denied. Allow mic access for this app/site in your browser or device settings, then try again.';
+    } else if (err && err.name === 'NotFoundError') {
+      msg = 'No microphone was found on this device.';
+    } else if (err && err.name === 'OverconstrainedError') {
+      msg = 'No microphone matches the requested settings. Try again with default settings.';
+    } else if (err && err.name === 'SecurityError') {
+      msg = 'Microphone access is blocked because this page is not loaded over a secure (https) connection.';
+    }
+    toast(msg);
     _voiceRecorder = null;
     if (_voiceStream) { _voiceStream.getTracks().forEach(t => t.stop()); _voiceStream = null; }
   }
@@ -3398,6 +3455,58 @@ function cancelVoiceRecording() {
   _voiceRecorder = null;
   hideVoiceRecordingBar();
 }
+
+// FIX "Could not start audio source" (NotReadableError) yang muncul di
+// percobaan rekam BERIKUTNYA setelah app sempat di-background selagi mic
+// masih aktif: Android bisa "mengunci" AudioRecord milik WebView kalau
+// stream getUserMedia tidak dilepas SEBELUM proses app dibekukan/di-pause
+// (mis. user tap notifikasi lain, buka app switcher, atau lock-screen
+// media player kita sendiri ambil alih fokus). WebView tidak otomatis
+// melepas mic saat itu terjadi — jadi begitu user balik ke app dan coba
+// rekam voice note lagi, OS menolak buka input audio yang baru (walau
+// izin RECORD_AUDIO sudah granted), persis gejala toast "Microphone is
+// busy or blocked...". Solusinya: paksa hentikan & lepas mic SEGERA saat
+// app terdeteksi pindah ke background, bukan menunggu user menekan tombol
+// batal/kirim yang mungkin tidak sempat tersentuh.
+function forceReleaseVoiceRecordingIfActive() {
+  if (!_voiceRecorder && !_voiceStream) return;
+  _voiceCancelled = true;
+  try {
+    if (_voiceRecorder && _voiceRecorder.state !== 'inactive') {
+      _voiceRecorder.stop(); // onstop di atas otomatis stream.getTracks().forEach(t => t.stop())
+    } else if (_voiceStream) {
+      _voiceStream.getTracks().forEach(t => t.stop());
+    }
+  } catch (e) {
+    console.warn('forceReleaseVoiceRecordingIfActive: gagal stop rapi, lepas paksa track', e);
+    if (_voiceStream) { try { _voiceStream.getTracks().forEach(t => t.stop()); } catch (e2) {} }
+  }
+  _voiceStream = null;
+  _voiceChunks = [];
+  _voiceRecorder = null;
+  hideVoiceRecordingBar();
+}
+
+// Daftarkan listener app-state SEKALI saat script dimuat, supaya mic
+// otomatis dilepas begitu app pindah ke background (lihat penjelasan di
+// forceReleaseVoiceRecordingIfActive di atas). Dipasang lewat plugin native
+// @capacitor/app yang sudah dipakai fitur cek update, jadi tidak perlu
+// dependency baru. visibilitychange ditambahkan sbg fallback kedua utk
+// kasus WebView tidak memicu event Capacitor App tepat waktu.
+(function setupVoiceRecordingAutoRelease() {
+  try {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+      window.Capacitor.Plugins.App.addListener('appStateChange', ({ isActive }) => {
+        if (!isActive) forceReleaseVoiceRecordingIfActive();
+      });
+    }
+  } catch (e) {
+    console.warn('setupVoiceRecordingAutoRelease: gagal daftar App.addListener', e);
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) forceReleaseVoiceRecordingIfActive();
+  });
+})();
 
 // Berhentikan rekaman lalu upload+kirim sbg pesan chat type:"audio".
 async function sendVoiceRecording() {
@@ -3936,6 +4045,7 @@ async function loadFavoriteArtistsFromCloud() {
   loadForYouPlaylists(false);
   loadMaybeLikeMixes(false);
   loadArtistRadioMixes(false);
+  loadSpecialSongs(false);
 }
 
 function isArtistFavorited(name) {
@@ -3963,6 +4073,11 @@ async function setArtistFavorited(name, photo, following) {
   // dibikin ulang supaya isinya langsung menyesuaikan daftar artis favorit
   // yang terbaru (bukan menunggu cache harian habis).
   loadArtistRadioMixes(true);
+  // "Special Songs for (nama user)" juga harus LANGSUNG bertambah lagunya
+  // begitu artis baru di-follow, dan lagu dari artis itu harus langsung
+  // hilang begitu di-unfollow — dipanggil dengan force=true supaya tidak
+  // memakai cache lama yang belum tahu perubahan follow ini.
+  loadSpecialSongs(true);
   if (!currentUser) return;
   try {
     const ref = getFavArtistRef();
@@ -4103,6 +4218,100 @@ function _buildFavArtistGridInto(grid, list) {
       : `<div class="fav-artist-photo fav-artist-ph">🎤</div>`;
     card.innerHTML += `<div class="fav-artist-name">${esc(a.name)}</div>`;
     card.addEventListener('click', () => openArtistView(a.name));
+    grid.appendChild(card);
+  });
+}
+
+// ─── FOLLOW TRENDING ARTISTS (Home) ────────────────────────────────────
+// 100 artis paling populer saat ini menurut chart Deezer (sama seperti
+// sumber data yang sudah dipakai Daily Mix dkk: api.deezer.com/chart/0/artists).
+// GLOBAL untuk semua user, di-cache per hari di localStorage device (pola
+// yang sama dengan loadTrendingSongsFull()), supaya tidak perlu fetch ulang
+// tiap kali Home dibuka. Klik foto/nama artis → buka halaman artis
+// (openArtistView). Klik tombol "Follow" di tiap kartu → langsung
+// follow/unfollow lewat toggleFollowArtist() yang sama dipakai di seluruh
+// app, sehingga otomatis muncul/hilang dari "Favorite Artists" tanpa reload.
+let _trendingArtistsCache = [];
+
+async function loadTrendingArtists(force) {
+  const section = document.getElementById('trending-artist-section');
+  const grid = document.getElementById('trending-artist-grid');
+  if (!section || !grid) return;
+  const todayKey = 'vibexa_trending_artists_' + new Date().toISOString().slice(0, 10);
+
+  if (!force) {
+    try {
+      const cached = localStorage.getItem(todayKey);
+      if (cached) {
+        const items = JSON.parse(cached);
+        if (items && items.length) { renderTrendingArtists(items); return; }
+      }
+    } catch (e) {}
+  }
+
+  section.style.display = 'block';
+  grid.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Loading trending artists...</h3></div>';
+
+  try {
+    const data = await _deezerJsonp('https://api.deezer.com/chart/0/artists?limit=100');
+    const items = ((data && data.data) || []).map(a => ({
+      id: a.id,
+      name: a.name || 'Unknown',
+      photo: a.picture_medium || a.picture_big || a.picture || ''
+    })).filter(a => a.name && a.name !== 'Unknown');
+
+    try {
+      localStorage.setItem(todayKey, JSON.stringify(items));
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith('vibexa_trending_artists_') && k !== todayKey) localStorage.removeItem(k);
+      });
+    } catch (e) {}
+
+    renderTrendingArtists(items);
+  } catch (e) {
+    console.error('loadTrendingArtists error:', e);
+    grid.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;color:var(--sub)"> Failed to load trending artists, try again.</div>';
+  }
+}
+
+function renderTrendingArtists(items) {
+  _trendingArtistsCache = items || [];
+  const section = document.getElementById('trending-artist-section');
+  const grid = document.getElementById('trending-artist-grid');
+  if (!section || !grid) return;
+
+  if (!_trendingArtistsCache.length) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = 'block';
+
+  grid.innerHTML = '';
+  _trendingArtistsCache.forEach(a => {
+    const following = isArtistFavorited(a.name);
+    const card = document.createElement('div');
+    card.className = 'trend-artist-card';
+    card.innerHTML = `
+      <div class="trend-artist-photo-wrap" title="${esc(a.name)}">
+        ${a.photo
+          ? `<img class="trend-artist-photo" src="${esc(a.photo)}" alt="${esc(a.name)}" loading="lazy" onerror="this.outerHTML='<div class=&quot;trend-artist-photo trend-artist-ph&quot;>&#127908;</div>'">`
+          : `<div class="trend-artist-photo trend-artist-ph">🎤</div>`}
+      </div>
+      <div class="trend-artist-name" title="${esc(a.name)}">${esc(a.name)}</div>
+      <button type="button" class="trend-artist-follow-btn${following ? ' following' : ''}" data-artist="${esc(a.name)}">${following ? 'Following' : 'Follow'}</button>
+    `;
+    const photoWrap = card.querySelector('.trend-artist-photo-wrap');
+    const nameEl = card.querySelector('.trend-artist-name');
+    const goToArtist = () => openArtistView(a.name);
+    photoWrap.addEventListener('click', goToArtist);
+    nameEl.addEventListener('click', goToArtist);
+    const btn = card.querySelector('.trend-artist-follow-btn');
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const nowFollowing = toggleFollowArtist(a.name, a.photo);
+      btn.textContent = nowFollowing ? 'Following' : 'Follow';
+      btn.classList.toggle('following', nowFollowing);
+    });
     grid.appendChild(card);
   });
 }
@@ -4760,6 +4969,14 @@ function syncAllFollowButtons() {
     btn.textContent = f ? 'Following' : 'Follow';
     btn.classList.toggle('following', f);
   });
+  // Tombol "Follow" di tiap kartu section "Follow Trending Artists" (Home)
+  document.querySelectorAll('.trend-artist-follow-btn[data-artist]').forEach(btn => {
+    const artist = btn.dataset.artist;
+    if (!artist) return;
+    const f = isArtistFavorited(artist);
+    btn.textContent = f ? 'Following' : 'Follow';
+    btn.classList.toggle('following', f);
+  });
 }
 
 // Tombol "Ikuti" di halaman profil artis (Home > buka artis)
@@ -4804,6 +5021,7 @@ function showHomeView() {
   document.getElementById('top-songs-full-view').style.display = 'none';
   document.getElementById('recently-played-full-view').style.display = 'none';
   document.getElementById('recommend-full-view').style.display = 'none';
+  document.getElementById('special-songs-full-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
@@ -4826,6 +5044,7 @@ function showSearchView() {
   document.getElementById('top-songs-full-view').style.display = 'none';
   document.getElementById('recently-played-full-view').style.display = 'none';
   document.getElementById('recommend-full-view').style.display = 'none';
+  document.getElementById('special-songs-full-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
@@ -4860,6 +5079,7 @@ function showFinderView() {
   document.getElementById('top-songs-full-view').style.display = 'none';
   document.getElementById('recently-played-full-view').style.display = 'none';
   document.getElementById('recommend-full-view').style.display = 'none';
+  document.getElementById('special-songs-full-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
@@ -4885,6 +5105,7 @@ function showPlaylistView(plId) {
   document.getElementById('top-songs-full-view').style.display = 'none';
   document.getElementById('recently-played-full-view').style.display = 'none';
   document.getElementById('recommend-full-view').style.display = 'none';
+  document.getElementById('special-songs-full-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
@@ -4909,6 +5130,8 @@ function showPlaylistView(plId) {
     if (renameBtn) renameBtn.style.display = 'none';
     const deleteBtn = document.querySelector('.pv-action-btn[onclick="deleteCurrentPlaylist()"]');
     if (deleteBtn) deleteBtn.style.display = 'none';
+    const shareBtn = document.querySelector('.pv-action-btn[onclick="openSharePlaylistModal()"]');
+    if (shareBtn) shareBtn.style.display = 'none';
     if (pubBtn) pubBtn.style.display = 'none';
     if (covEdit) covEdit.style.display = 'none';
   }
@@ -5767,11 +5990,82 @@ function _vbxHandleForegroundResume(){
       const sync = _vbxPendingNativeSync; _vbxPendingNativeSync = null;
       _pendingNext = false; _nextGuarded = false;
       _clearSongTimer(); _stopBgInterval();
+
+      // BUG FIX UTAMA "masuk ke app lagi, lagu yang lagi didengar berhenti
+      // sesaat lalu main lagi (serasa restart) beberapa detik kemudian":
+      // SEBELUMNYA di sini SELALU dipanggil loadPlay(target, ...) — bahkan
+      // kalau native TIDAK pernah pindah lagu sama sekali (masih lagu yang
+      // SAMA PERSIS, cuma di-pause/lanjutkan oleh ExoPlayer selagi kita di
+      // background). loadPlay() MEMUAT ULANG video YouTube dari nol
+      // (resolve videoId, bikin player baru, dst), proses yang makan waktu
+      // beberapa detik — user MENDENGAR audio berhenti sesaat lalu "nyala
+      // lagi dari nol" walau sebenarnya tidak ada yang perlu di-reload.
+      // Sekarang: kalau lagu yang dikembalikan native SAMA PERSIS dengan
+      // yang sudah dimuat JS (curTrack._query === sync.query) dan player
+      // YTP-nya masih ada, cukup sinkronkan posisi & status play/pause di
+      // player yang SUDAH ADA — loadPlay() hanya dipanggil kalau native
+      // benar2 sudah pindah ke lagu LAIN selagi kita di background.
+      const sameTrack = !!(sync.query && curTrack && curTrack._query === sync.query);
+      if(sameTrack && YTP){
+        if(sync.positionMs != null){ try{ YTP.seekTo(sync.positionMs/1000, true); }catch(e){} cur = sync.positionMs/1000; }
+        if(sync.playing === false){
+          try{ YTP.pauseVideo(); }catch(e){}
+          playing = false; setPB(false);
+        } else {
+          // Pastikan BENAR2 lanjut bunyi (bukan cuma asumsi playWhenReady
+          // dari native tercermin otomatis di YTP) — lihat juga fix state
+          //===2 di jalur "tanpa pending sync" di bawah, akar masalah yang
+          // sama: "durasi jalan tapi tidak ada suara".
+          try{ YTP.playVideo(); }catch(e){}
+          playing = true; setPB(true);
+          _playStartWall = Date.now(); _playStartPos = cur;
+          tick(); _armSongTimer();
+        }
+        return;
+      }
+
       let target = curTrack;
       if(sync.query && (!curTrack || curTrack._query !== sync.query)){
         target = curQueue.find(t => t._query === sync.query) || target;
       }
       if(target){
+        // FIX PERMINTAAN: "sistem tidak perlu ke iframe YouTube kalau lagu
+        // sudah dikonversi — cukup pakai file MP3 hasil convert di
+        // Supabase". SEBELUMNYA titik ini SELALU memanggil loadPlay(target,
+        // ...) — yang harus resolve videoId dari nol (resolveVidByDuration,
+        // network call) sebelum baru mencoba MP3/Supabase, dan proses itu
+        // sendiri yang jadi salah satu penyebab jeda "berhenti lalu main
+        // lagi" saat balik ke app. Padahal untuk lagu yang dikembalikan
+        // native di sini, JS SANGAT MUNGKIN sudah tahu URL MP3-nya duluan
+        // (baik dari prewarm biasa maupun dari proses pengisian buffer
+        // native saat handoff — lihat _vbxStreamUrlCache & catatan cache di
+        // _vbxAppendBufferAfterHandoff/_vbxAppendNextToNativeQueue).
+        // Sekarang: kalau URL itu sudah diketahui, langsung stream dari MP3
+        // itu lewat playStreamTrack() — TIDAK PERNAH menyentuh
+        // resolveVidByDuration/iframe YouTube apa pun untuk kasus ini,
+        // jauh lebih cepat & tidak butuh network round-trip tambahan.
+        // loadPlay() (yang tetap BISA jatuh ke iframe sebagai upaya
+        // terakhir kalau MP3 total gagal) hanya jadi fallback: dipakai
+        // kalau memang belum ada URL MP3 yang diketahui, ATAU kalau URL
+        // cache yang ada ternyata sudah basi/rusak (playStreamTrack
+        // melapor ok=false).
+        const cachedUrl = target._query ? _vbxStreamUrlCache[target._query] : null;
+        if(cachedUrl){
+          const cachedLyrs = (_prefetchCache[target._query] && _prefetchCache[target._query].lyrs) || [];
+          playStreamTrack(target, cachedUrl, cachedLyrs, currentPlaylistId).then((res)=>{
+            if(!res || !res.ok){
+              console.warn('[VBX-MEDIA] Cache MP3 utk resume ternyata basi/gagal dimuat, fallback ke loadPlay() biasa:', target._query);
+              loadPlay(target, currentPlaylistId);
+              return;
+            }
+            // playStreamTrack() sudah mengganti YTP jadi wrapper <audio>
+            // (lihat _getOfflinePlayerObj) — method di bawah ini berlaku
+            // sama persis seperti untuk player YouTube biasa.
+            if(sync.positionMs != null && YTP){ YTP.seekTo(sync.positionMs/1000, true); cur = sync.positionMs/1000; }
+            if(sync.playing === false && YTP){ YTP.pauseVideo(); playing=false; setPB(false); }
+          }).catch(()=>{ loadPlay(target, currentPlaylistId); });
+          return;
+        }
         loadPlay(target, currentPlaylistId).then(()=>{
           if(sync.positionMs != null && YTP){ YTP.seekTo(sync.positionMs/1000, true); cur = sync.positionMs/1000; }
           if(sync.playing === false && YTP){ YTP.pauseVideo(); playing=false; setPB(false); }
@@ -5800,7 +6094,22 @@ function _vbxHandleForegroundResume(){
     if(YTP && playing){
       const state = _ytSafe(()=>YTP.getPlayerState(), -1);
       if(state === 0){ _clearSongTimer(); playing=false; setPB(false); _handleSongEnded(); return; }
-      if(state === 1 || state === -1){
+
+      // BUG FIX UTAMA "terkadang suara lagu tidak muncul padahal durasi
+      // lagu sudah jalan": SEBELUMNYA state===2 (YTP SUDAH di-pause — entah
+      // oleh Android sendiri yang menghentikan decoding video tersembunyi
+      // demi hemat baterai, atau oleh proses handoff/unmute yang belum
+      // sempurna) TIDAK PERNAH ditangani sama sekali di sini. Timer
+      // wall-clock (tick()/_armSongTimer() di bawah) tetap di-restart
+      // seolah audio sedang main, padahal YTP-nya sendiri diam total —
+      // hasilnya persis gejala yang dilaporkan: progress bar/lirik/timer
+      // jalan terus tapi tidak ada suara sampai user pencet tombol play
+      // manual. Sekarang: kalau YTP ternyata masih berstatus paused,
+      // panggil playVideo() dulu secara eksplisit supaya benar2 lanjut
+      // bunyi SEBELUM kita menyamakan timer JS ke posisinya.
+      if(state === 2){ try{ YTP.playVideo(); }catch(e){} }
+
+      if(state === 1 || state === -1 || state === 2 || state === 3){
         // Cek apakah songs sudah seharusnya selesai berdasarkan wall-clock
         if(tot > 0 && _playStartWall > 0){
           const wallElapsed = (Date.now() - _playStartWall) / 1000;
@@ -6063,6 +6372,12 @@ function _vbxTrackAfter(track){
 // masih menggantung, dan supaya panggilan yang sudah basi tidak menimpa
 // queue native dengan lagu yang salah (lihat pengecekan staleness di bawah).
 let _vbxHandoffGen = 0;
+// FIX "lagu berhenti sesaat begitu keluar app, baru bunyi lagi beberapa
+// detik kemudian": lihat komentar panjang di _vbxHandoffToNative() persis
+// di titik YTP.mute() dipanggil — jeda ini sengaja diberikan supaya
+// ExoPlayer native benar2 SUDAH mulai mengeluarkan suara (bukan cuma
+// "sudah menerima perintah putar") sebelum audio WebView dimatikan.
+const HANDOFF_MUTE_DELAY_MS = 1200;
 // True kalau YTP (video WebView) sedang dibisukan karena kendali audio
 // sudah diserahkan ke ExoPlayer native (lihat _vbxHandoffToNative() &
 // _vbxHandleForegroundResume()) — supaya tidak ada 2 sumber suara sekaligus.
@@ -6170,12 +6485,39 @@ async function _vbxHandoffToNative(){
     // cuma suaranya saja yang dimatikan sementara sampai app kembali
     // foreground (lihat unMute() di handler 'visibilitychange' & di
     // _vbxHandleForegroundResume()).
-    try{ if(YTP && YTP.mute){ YTP.mute(); _vbxYtMutedForHandoff = true; } }catch(e){}
+    //
+    // BUG FIX LANJUTAN (root cause "lagu berhenti sesaat begitu keluar
+    // app, baru bunyi lagi beberapa detik kemudian"): SEBELUMNYA YTP.mute()
+    // di atas dipanggil LANGSUNG begitu Promise setQueue() ini resolve.
+    // Tapi "resolve" di sini cuma berarti native SUDAH MENERIMA perintah
+    // exo.setMediaItem()+prepare() — BUKAN berarti ExoPlayer SUDAH BENAR2
+    // mengeluarkan suara. ExoPlayer masih perlu buffer stream MP3 lewat
+    // jaringan dulu (walau URL-nya sendiri sudah di-resolve/di-cache lewat
+    // prewarm, itu cuma tahap "tahu link-nya", bukan "sudah selesai
+    // buffering audio-nya"). Akibatnya ada jeda BENAR2 HENING selama
+    // beberapa detik setiap kali app masuk background: WebView sudah
+    // dibisukan duluan, ExoPlayer belum sempat bunyi. Sekarang: mute
+    // WebView ditunda HANDOFF_MUTE_DELAY_MS supaya ExoPlayer sempat mulai
+    // benar2 bunyi dulu SEBELUM audio WebView dimatikan — kalaupun terjadi
+    // overlap sepersekian detik antara dua sumber suara, itu jauh kurang
+    // mengganggu bagi user dibanding hening total tanpa penjelasan.
+    _vbxYtMutedForHandoff = false;
+    const muteGen = myGen;
+    setTimeout(()=>{
+      // Batalkan mute kalau handoff ini sudah basi (lagu sudah ganti /
+      // ada handoff generasi lebih baru) ATAU native sudah bukan pemegang
+      // kendali lagi (mis. app sudah balik ke foreground duluan sebelum
+      // timer jeda ini sempat jalan) — jangan sampai mute "menyusul"
+      // membisukan WebView padahal WebView-lah yang sekarang seharusnya
+      // bersuara.
+      if(muteGen !== _vbxHandoffGen || !_vbxNativeInControl) return;
+      try{ if(YTP && YTP.mute){ YTP.mute(); _vbxYtMutedForHandoff = true; } }catch(e){}
+    }, HANDOFF_MUTE_DELAY_MS);
     // Native ExoPlayer sekarang RESMI memegang kendali — JS berhenti ikut
     // memutuskan lagu berikutnya sendiri sampai kembali foreground (lihat
     // deklarasi _vbxNativeInControl & guard di _handleSongEnded()).
     _vbxNativeInControl = true;
-    console.log('[VBX-MEDIA] Handoff BERHASIL — native mengambil alih audio, WebView di-mute. gen=', myGen, 'query=', handoffQuery);
+    console.log('[VBX-MEDIA] Handoff BERHASIL — native mengambil alih audio, WebView akan di-mute setelah jeda singkat. gen=', myGen, 'query=', handoffQuery);
   }catch(e){ console.warn('[VBX-MEDIA] setQueue gagal (exception saat komunikasi ke native):', e); return; }
 
   // Susulkan buffer (next + next-next) TANPA await di sini — biarkan handoff
@@ -6247,6 +6589,18 @@ async function _vbxAppendBufferAfterHandoff(myGen, handoffQuery){
       try{
         await VM.appendQueue({ item: JSON.stringify(_vbxTrackToQueueItem(nextTrack, url)) });
         _vbxLastNativeQueueQuery = nextTrack._query;
+        // FIX "sistem tetap lewat iframe YouTube walau lagu sudah
+        // dikonversi": URL yang baru saja di-resolve di sini (utk dikirim
+        // ke native) SEBELUMNYA tidak pernah ikut disimpan ke
+        // _vbxStreamUrlCache — cuma dipakai sekali pakai untuk native.
+        // Akibatnya begitu app kembali foreground & native ternyata sudah
+        // pindah ke salah satu lagu buffer ini, JS tidak tahu lagu itu
+        // sudah punya MP3 siap pakai, dan _vbxHandleForegroundResume()
+        // terpaksa lewat loadPlay() (resolve videoId dari nol lagi, bisa
+        // jatuh ke iframe). Sekarang ikut dicache di sini juga supaya
+        // kemungkinan besar SELALU ada cache hit siap pakai untuk lagu
+        // manapun yang sedang diputar native saat resume.
+        if(nextTrack._query) _vbxStreamUrlCache[nextTrack._query] = url;
       }catch(e){}
     }
     // Gagal resolve 1 lagu (jarang, mis. RapidAPI lagi limit) BUKAN alasan
@@ -6274,6 +6628,7 @@ async function _vbxAppendNextToNativeQueue(){
   const url = await _vbxResolveStreamUrl(next).catch(()=>null);
   if(!url) return;
   _vbxLastNativeQueueQuery = next._query;
+  if(next._query) _vbxStreamUrlCache[next._query] = url; // lihat catatan cache di _vbxAppendBufferAfterHandoff
   try{ await VM.appendQueue({ item: JSON.stringify(_vbxTrackToQueueItem(next, url)) }); }catch(e){}
 }
 
@@ -7412,6 +7767,7 @@ function showRecentlyPlayedFullView() {
   document.getElementById('playlist-view').style.display = 'none';
   document.getElementById('top-songs-full-view').style.display = 'none';
   document.getElementById('recommend-full-view').style.display = 'none';
+  document.getElementById('special-songs-full-view').style.display = 'none';
   document.getElementById('recently-played-full-view').style.display = 'block';
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
@@ -7824,14 +8180,18 @@ async function loadPlay(track, fromPlId){
           console.log('[VBX-NOWPLAYING] "' + track.title + '" - ' + track.artist + ' : LAGU BARU DICONVERT via RapidAPI (belum ada di Supabase sebelumnya), hasilnya disimpan permanen di Supabase.');
           toast('⚙️ Lagu sedang di-convert via RapidAPI...', 4000);
         }
-        // [FIX] playStreamTrack() sekarang me-return Promise<boolean> yang
-        // baru resolve SETELAH benar2 terbukti audio bisa dimuat (canplay)
-        // atau gagal (error/timeout) — BUKAN langsung dianggap berhasil
-        // begitu audio.src diisi. Ini menutup celah bug lama: link cache
-        // yang sudah mati (mis. link mentah provider pihak-ketiga yang
-        // kedaluwarsa, bukan salinan permanen Supabase) sebelumnya dianggap
-        // "berhasil diputar" padahal audio diam total tanpa fallback apa pun.
-        let ok = await playStreamTrack(track, data.link, lines, fromPlId);
+        // [FIX] playStreamTrack() sekarang me-return Promise<{ok, reason}>
+        // yang baru resolve SETELAH benar2 terbukti audio bisa dimuat
+        // (reason='canplay') atau gagal (reason='error'/'timeout') — BUKAN
+        // langsung dianggap berhasil begitu audio.src diisi. Ini menutup
+        // celah bug lama: link cache yang sudah mati (mis. link mentah
+        // provider pihak-ketiga yang kedaluwarsa, bukan salinan permanen
+        // Supabase) sebelumnya dianggap "berhasil diputar" padahal audio
+        // diam total tanpa fallback apa pun. `reason` dipakai di bawah untuk
+        // membedakan link yang BENAR2 rusak vs sekadar lambat (lihat komentar
+        // panjang di playStreamTrack & di bawah sini soal refresh=1).
+        let streamRes = await playStreamTrack(track, data.link, lines, fromPlId);
+        let ok = streamRes.ok;
         // [FIX bug retry] playStreamTrack() SENDIRI menaikkan _playGen di
         // awal (bagian dari alur normal, untuk membatalkan proses lain kalau
         // user pindah lagu) — jadi tepat setelah memanggilnya, _playGen SUDAH
@@ -7844,26 +8204,68 @@ async function loadPlay(track, fromPlId){
         // (mis. user menekan Next selagi kita sedang retry).
         _myPlayGen = _playGen;
 
-        if (!ok) {
-          console.warn('[VBX] Link streaming cache TERBUKTI mati/gagal dimuat — minta proxy convert ulang (refresh=1) & coba sekali lagi sebelum fallback ke iframe.');
+        // Helper lokal: minta proxy convert ULANG (refresh=1) & coba putar
+        // sekali lagi dari link barunya. HANYA dipanggil dari titik-titik di
+        // bawah yang sudah memastikan reason benar-benar 'error' (link
+        // terkonfirmasi rusak, bukan sekadar lambat) sebelum sampai sini —
+        // supaya kuota RapidAPI & cache Supabase tidak dikorbankan sia-sia
+        // untuk kasus yang sebenarnya cuma koneksi lemot.
+        async function _retryStreamWithRefresh(){
+          console.warn('[VBX] Link streaming TERKONFIRMASI rusak (reason=error) — minta proxy convert ulang (refresh=1) & coba sekali lagi sebelum fallback ke iframe.');
           toast(' Link lagu ini basi, mencoba menyegarkan...', 6000);
           try {
             let freshData = await _yt2mp3Fetch(videoId, track.artist, track.title, true);
-            attempts = 0;
-            while (freshData && freshData.status === 'processing' && attempts < 20) {
-              attempts++; await _dlSleep(1500);
+            let a = 0;
+            while (freshData && freshData.status === 'processing' && a < 20) {
+              a++; await _dlSleep(1500);
               freshData = await _yt2mp3Fetch(videoId, track.artist, track.title, true);
             }
-            if (_myPlayGen !== _playGen) return;
+            if (_myPlayGen !== _playGen) return false;
             if (freshData && freshData.status === 'ok' && freshData.link) {
-              console.log('[VBX-NOWPLAYING] "' + track.title + '" - ' + track.artist + ' : DICONVERT ULANG (refresh) via RapidAPI karena link cache lama sudah mati, hasil baru disimpan ke Supabase.');
+              console.log('[VBX-NOWPLAYING] "' + track.title + '" - ' + track.artist + ' : DICONVERT ULANG (refresh) via RapidAPI karena link cache lama TERKONFIRMASI mati, hasil baru disimpan ke Supabase.');
               toast('⚙️ Link lama mati, di-convert ulang via RapidAPI...', 4000);
-              ok = await playStreamTrack(track, freshData.link, lines, fromPlId);
+              streamRes = await playStreamTrack(track, freshData.link, lines, fromPlId);
               _myPlayGen = _playGen; // sama seperti di atas: sinkronkan lagi setelah playStreamTrack menaikkan _playGen sendiri
+              return streamRes.ok;
             }
           } catch (e2) {
             console.warn('[VBX] Retry refresh=1 juga gagal:', e2);
           }
+          return false;
+        }
+
+        // [FIX "refresh=1 dipicu terus saat internet lemot"] `refresh=1` ke
+        // proxy MEMBUANG cache Supabase yang sedang dipakai SEMUA user &
+        // memaksa convert ulang via RapidAPI — jadi HANYA boleh dipicu kalau
+        // playStreamTrack() memberi reason='error' (elemen <audio> TERBUKTI
+        // melempar error, link memang rusak). Kalau reason='timeout' (lihat
+        // playStreamTrack di atas), itu SINYAL AMBIGU yang di koneksi lemot
+        // sangat mungkin cuma "belum sempat buffer", BUKAN link rusak — jadi
+        // cukup coba LINK YANG SAMA sekali lagi dulu (tanpa refresh, tanpa
+        // menyentuh proxy/RapidAPI sama sekali) sebelum mempertimbangkan
+        // refresh=1. Kalau perangkat memang sedang offline total, tidak ada
+        // gunanya coba apa pun ke jaringan — langsung lewati ke fallback.
+        if (!ok && !navigator.onLine) {
+          console.warn('[VBX] Perangkat sedang offline — lewati retry/refresh, langsung ke fallback iframe.');
+        } else if (!ok && streamRes.reason === 'timeout') {
+          console.warn('[VBX] Streaming timeout (bukan error link TERKONFIRMASI) — kemungkinan besar cuma koneksi lemot. Coba link yang SAMA sekali lagi TANPA refresh (hemat kuota RapidAPI & cache Supabase tetap dipakai).');
+          toast(' Koneksi lemot, mencoba lagi...', 6000);
+          try {
+            streamRes = await playStreamTrack(track, data.link, lines, fromPlId);
+            ok = streamRes.ok;
+            _myPlayGen = _playGen;
+          } catch (e2) {
+            console.warn('[VBX] Retry tanpa refresh (link sama) gagal:', e2);
+          }
+          // Retry tanpa refresh TERNYATA gagal dengan reason='error' (bukan
+          // timeout lagi) -> baru di titik ini ada sinyal cukup kuat kalau
+          // linknya memang rusak, baru boleh coba refresh=1 sekali sebelum
+          // menyerah ke fallback iframe.
+          if (!ok && streamRes.reason === 'error' && navigator.onLine) {
+            ok = await _retryStreamWithRefresh();
+          }
+        } else if (!ok && streamRes.reason === 'error') {
+          ok = await _retryStreamWithRefresh();
         }
 
         if (ok) {
@@ -9723,26 +10125,12 @@ function mobNav(tab){
 const _origShowHome = showHomeView;
 window.showHomeView = function(){
   _origShowHome();
-  // FIX: dulu ini SELALU manggil setMobNavActive('mob-btn-home'), padahal
-  // mobNav('home') SUDAH manggilnya duluan sebelum showHomeView() dipanggil
-  // — jadi setMobNavActive('mob-btn-home') kepanggil 2x beruntun. Panggilan
-  // kedua ini bikin lingkaran indikator mikir "tombol yg sama ditekan lagi"
-  // (jaraknya 0) lalu LANGSUNG nyembunyikan icon asli Home tanpa nunggu
-  // animasi lingkaran (380ms) selesai mendarat — akibatnya utk sesaat TIDAK
-  // ADA icon Home yg terlihat sama sekali (baik icon asli maupun lingkaran).
-  // Sekarang cuma dipanggil kalau Home BELUM jadi tombol aktif (mis. saat
-  // showHomeView() dipanggil dari tempat lain yg bukan lewat mobNav/tombol
-  // nav bawah), jadi tidak pernah dobel dgn panggilan dari mobNav().
-  const homeBtn = document.getElementById('mob-btn-home');
-  if (homeBtn && !homeBtn.classList.contains('on')) setMobNavActive('mob-btn-home');
+  setMobNavActive('mob-btn-home');
 };
 const _origShowSearch = showSearchView;
 window.showSearchView = function(){
   _origShowSearch();
-  // Sama seperti fix showHomeView di atas — hindari panggilan setMobNavActive
-  // dobel yg bikin race dgn animasi lingkaran indikator.
-  const searchBtn = document.getElementById('mob-btn-search');
-  if (searchBtn && !searchBtn.classList.contains('on')) setMobNavActive('mob-btn-search');
+  setMobNavActive('mob-btn-search');
 };
 
 window.addEventListener('resize', initMobileNav);
@@ -9760,20 +10148,47 @@ initMobileNav();
   const vv = window.visualViewport;
   if (!vv) return; // browser lama tanpa dukungan visualViewport, biarkan perilaku default
 
+  // CATATAN FIX: sebelumnya deteksi keyboard membandingkan window.innerHeight
+  // dengan vv.height. Ini gagal di WebView/APK (Capacitor) yang me-resize
+  // window.innerHeight JUGA saat keyboard muncul (mode "adjustResize"),
+  // sehingga selisihnya nyaris 0 dan keyboardOpen tidak pernah true — akibatnya
+  // #mob-nav ikut "naik" menempel tepat di atas keyboard alih-alih
+  // disembunyikan. Sekarang kita simpan tinggi viewport "baseline" (tinggi
+  // paling besar yang pernah terlihat selama halaman Chat terbuka, yaitu
+  // saat keyboard TERTUTUP) lalu bandingkan tinggi saat ini terhadap baseline
+  // itu sendiri — ini tetap akurat walau window.innerHeight ikut mengecil.
+  let chatKbBaseline = null;
+
   function updateChatKbState(){
     const chatOpen = document.getElementById('chat-overlay')?.classList.contains('show');
     if (!chatOpen || !isMobile()) {
       document.body.classList.remove('chat-kb-open');
+      chatKbBaseline = null;
       return;
     }
-    // Selisih signifikan antara tinggi layar penuh & visualViewport = keyboard sedang terbuka.
-    const heightDiff = window.innerHeight - vv.height;
+    const currentHeight = vv.height;
+    // Baseline = tinggi terbesar yang pernah tercatat (kondisi keyboard tertutup).
+    if (chatKbBaseline === null || currentHeight > chatKbBaseline) {
+      chatKbBaseline = currentHeight;
+    }
+    const heightDiff = chatKbBaseline - currentHeight;
     const keyboardOpen = heightDiff > 120;
     document.body.classList.toggle('chat-kb-open', keyboardOpen);
   }
 
   vv.addEventListener('resize', updateChatKbState);
   vv.addEventListener('scroll', updateChatKbState);
+
+  // Inisialisasi baseline begitu halaman Chat dibuka (sebelum keyboard sempat
+  // muncul), supaya perbandingan pertama kali sudah akurat.
+  const _origOpenChatOverlay = window.openChatOverlay;
+  if (typeof _origOpenChatOverlay === 'function') {
+    window.openChatOverlay = function(){
+      _origOpenChatOverlay.apply(this, arguments);
+      chatKbBaseline = null;
+      updateChatKbState();
+    };
+  }
 })();
 
 // ─── Fullscreen Lyrics ────────────────────────────────────
@@ -12122,6 +12537,7 @@ function openArtistView(artistName) {
   document.getElementById('top-songs-full-view').style.display = 'none';
   document.getElementById('recently-played-full-view').style.display = 'none';
   document.getElementById('recommend-full-view').style.display = 'none';
+  document.getElementById('special-songs-full-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'block';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
@@ -12409,6 +12825,7 @@ function openAlbumView(albumId, albumTitle) {
   document.getElementById('top-songs-full-view').style.display = 'none';
   document.getElementById('recently-played-full-view').style.display = 'none';
   document.getElementById('recommend-full-view').style.display = 'none';
+  document.getElementById('special-songs-full-view').style.display = 'none';
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.remove('on');
   document.getElementById('nav-finder').classList.remove('on');
@@ -13357,7 +13774,7 @@ async function loadQuickPicks(force) {
     }
   }
 
-  if (scroll) scroll.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;"><i></i><h3>Preparing Pilihan Cepat...</h3></div>';
+  if (scroll) scroll.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;"><i></i><h3>Preparing Trending Tracks...</h3></div>';
 
   try {
     // 1) Ambil chart top/trending Deezer saat ini (gabungan semua genre) —
@@ -13387,7 +13804,7 @@ async function loadQuickPicks(force) {
       }
     }
 
-    if (!pool.length) throw new Error('Failed to create Pilihan Cepat');
+    if (!pool.length) throw new Error('Failed to create Trending Tracks');
 
     let tracks = pool.slice(0, QP_TOTAL_SONGS).map(t => ({ ...t, _query: `${t.artist}|||${t.title}|||${t.id}` }));
 
@@ -13428,7 +13845,7 @@ async function loadQuickPicks(force) {
     renderQuickPicks(tracks);
   } catch (e) {
     console.error('loadQuickPicks error:', e);
-    if (scroll) scroll.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;color:var(--sub)"> Gagal memuat Pilihan Cepat, coba refresh.</div>';
+    if (scroll) scroll.innerHTML = '<div class="empty" style="padding:16px 0;font-size:.8rem;color:var(--sub)"> Failed to load Trending Tracks, try refreshing.</div>';
   }
 }
 
@@ -13473,14 +13890,14 @@ async function playQuickPickTrack(track) {
   const queueTracks = _qpTracks.map(t => ({ title: t.title, artist: t.artist, thumb: t.thumb || '', preview: t.preview || null, videoId: null, photo: null, duration: t.duration, _query: t._query }));
   curQueue = queueTracks;
   await loadPlay(track, null);
-  _npPlayingMixRef = { id: 'quick_picks', title: 'Pilihan Cepat', tracks: queueTracks };
+  _npPlayingMixRef = { id: 'quick_picks', title: 'Trending Tracks', tracks: queueTracks };
   updateNPMobQueueBtn();
   renderQuickPicks(_qpTracks);
 }
 
 // Tombol "Putar Semua" di header Pilihan Cepat: mulai dari lagu pertama.
 function playAllQuickPicks() {
-  if (!_qpTracks.length) { toast(' Pilihan Cepat belum siap'); return; }
+  if (!_qpTracks.length) { toast(' Trending Tracks not ready yet'); return; }
   const first = _qpTracks[0];
   const track = { title: first.title, artist: first.artist, thumb: first.thumb || '', preview: first.preview || null, videoId: null, photo: null, duration: first.duration, _query: first._query };
   playQuickPickTrack(track);
@@ -15640,6 +16057,7 @@ function openDailyMix(mix) {
   document.getElementById('top-songs-full-view').style.display = 'none';
   document.getElementById('recently-played-full-view').style.display = 'none';
   document.getElementById('recommend-full-view').style.display = 'none';
+  document.getElementById('special-songs-full-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
@@ -15812,6 +16230,8 @@ function showTopSongsFullView() {
   document.getElementById('finder-view').style.display = 'none';
   document.getElementById('playlist-view').style.display = 'none';
   document.getElementById('top-songs-full-view').style.display = 'block';
+  document.getElementById('recommend-full-view').style.display = 'none';
+  document.getElementById('special-songs-full-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
@@ -15830,6 +16250,7 @@ function backFromTopSongsFullView() {
   document.getElementById('top-songs-full-view').style.display = 'none';
   document.getElementById('recently-played-full-view').style.display = 'none';
   document.getElementById('recommend-full-view').style.display = 'none';
+  document.getElementById('special-songs-full-view').style.display = 'none';
   showHomeView();
 }
 
@@ -16052,6 +16473,7 @@ function showRecommendFullView() {
   if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
   if (typeof closeFSLyricsIfOpen === 'function') { closeFSLyricsIfOpen(); }
   document.getElementById('recommend-full-view').style.display = 'block';
+  document.getElementById('special-songs-full-view').style.display = 'none';
   // Tetap tandai nav Home sebagai aktif — halaman ini adalah bagian dari Home
   document.getElementById('nav-home').classList.add('on');
   document.getElementById('nav-search').classList.remove('on');
@@ -16062,6 +16484,186 @@ function showRecommendFullView() {
 
 function backFromRecommendFullView() {
   document.getElementById('recommend-full-view').style.display = 'none';
+  document.getElementById('special-songs-full-view').style.display = 'none';
+  showHomeView();
+}
+
+// ─── SPECIAL SONGS FOR (nama user) ──────────────────────────────────────
+// Berbeda dari "Recommended For You" (10 lagu per artis, tanpa batas total),
+// section ini SELALU dibatasi maksimal SPECIAL_TOTAL_SONGS (70) lagu total,
+// digabung round-robin dari SEMUA artis yang diikuti user (makin sedikit
+// artis yang diikuti, makin banyak lagu yang diambil per artis supaya tetap
+// bisa mendekati 70 kalau memungkinkan). Cache key-nya ikut menyertakan
+// daftar artis yang sedang diikuti (lihat setKey di bawah) — persis pola
+// yang sama dengan fetchRecommendedSongs() — sehingga begitu user
+// follow/unfollow artis, cache lama otomatis tidak terpakai lagi dan
+// dipanggil ulang dengan force=true dari setArtistFavorited() supaya
+// section ini LANGSUNG bertambah/berkurang lagunya tanpa perlu reload
+// halaman atau menunggu cache harian habis.
+const SPECIAL_TOTAL_SONGS = 70;
+const SPECIAL_HOME_PREVIEW_COUNT = 20;
+let _specialSongsCache = null;
+
+// Nama yang ditampilkan di judul "Special Songs for (nama user)"
+function _getMyDisplayNameForSpecialSongs() {
+  if (!currentUser) return 'You';
+  return currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'You');
+}
+
+function updateSpecialSongsTitle() {
+  const name = _getMyDisplayNameForSpecialSongs();
+  const homeEl = document.getElementById('special-songs-username');
+  if (homeEl) homeEl.textContent = name;
+  const fullEl = document.getElementById('special-songs-full-username');
+  if (fullEl) fullEl.textContent = name;
+}
+
+async function fetchSpecialSongs(force) {
+  const followed = Object.values(favoriteArtists);
+  if (!followed.length) { _specialSongsCache = []; return []; }
+
+  const dateStr = _dmTodayDateStr();
+  const setKey = followed.map(a => a.name.toLowerCase()).sort().join('|');
+  const todayKey = 'vibexa_special_' + dateStr + '_' + setKey;
+
+  if (!force) {
+    try {
+      const cached = localStorage.getItem(todayKey);
+      if (cached) {
+        const items = JSON.parse(cached);
+        if (items && items.length) { _specialSongsCache = items; return items; }
+      }
+    } catch (e) {}
+  }
+
+  // Pool per artis menyesuaikan jumlah artis yang diikuti: kalau artisnya
+  // sedikit, ambil lebih banyak lagu per artis supaya total tetap bisa
+  // mendekati 70; kalau artisnya banyak, cukup ambil sedikit per artis.
+  const perArtistPoolSize = Math.min(20, Math.max(Math.ceil(SPECIAL_TOTAL_SONGS / followed.length) + 5, 10));
+  const perArtistResultsRaw = await Promise.all(
+    followed.map(a => fetchArtistTopTracks(a.name, perArtistPoolSize))
+  );
+  const perArtistResults = perArtistResultsRaw.map((arr, i) => {
+    const pool = arr || [];
+    const artistSeed = dateStr + '_special_' + followed[i].name.toLowerCase();
+    return _dmSeededShuffle(pool, artistSeed);
+  });
+
+  // Gabungkan round-robin (bergiliran per artis) supaya bervariasi, TAPI
+  // dibatasi berhenti begitu total mencapai SPECIAL_TOTAL_SONGS (70) —
+  // beda dengan Recommended For You yang tidak dibatasi total.
+  const merged = [];
+  const seen = new Set();
+  let idx = 0;
+  let addedAny = true;
+  while (addedAny && merged.length < SPECIAL_TOTAL_SONGS) {
+    addedAny = false;
+    for (let i = 0; i < perArtistResults.length; i++) {
+      if (merged.length >= SPECIAL_TOTAL_SONGS) break;
+      const arr = perArtistResults[i];
+      if (arr && arr[idx]) {
+        const t = arr[idx];
+        if (!seen.has(t.id)) {
+          seen.add(t.id);
+          merged.push(t);
+          addedAny = true;
+        }
+      }
+    }
+    idx++;
+  }
+
+  const items = merged;
+  try {
+    localStorage.setItem(todayKey, JSON.stringify(items));
+    Object.keys(localStorage).forEach(k => {
+      if (k.startsWith('vibexa_special_') && k !== todayKey) localStorage.removeItem(k);
+    });
+  } catch (e) {}
+
+  _specialSongsCache = items;
+  return items;
+}
+
+// Preview di Home: scrollable ke samping, kartu sama seperti "Recommended
+// For You" (cover + tombol "add to playlist" + judul + nama artis).
+function renderSpecialSongsHome(items) {
+  const section = document.getElementById('special-songs-section');
+  const grid = document.getElementById('special-songs-grid');
+  if (!section || !grid) return;
+  if (!items || !items.length) { section.style.display = 'none'; grid.innerHTML = ''; return; }
+  section.style.display = 'block';
+  updateSpecialSongsTitle();
+  grid.innerHTML = '';
+  items.slice(0, SPECIAL_HOME_PREVIEW_COUNT).forEach(t => grid.appendChild(buildRecoCardEl(t)));
+}
+
+async function loadSpecialSongs(force) {
+  const section = document.getElementById('special-songs-section');
+  const grid = document.getElementById('special-songs-grid');
+  const followed = Object.values(favoriteArtists);
+  if (!followed.length) { if (section) section.style.display = 'none'; return; }
+  if (section) section.style.display = 'block';
+  updateSpecialSongsTitle();
+  if (grid) grid.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Loading special songs for you...</h3></div>';
+  try {
+    const items = await fetchSpecialSongs(force);
+    renderSpecialSongsHome(items);
+  } catch (e) {
+    console.error('loadSpecialSongs error:', e);
+    if (grid) grid.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;color:var(--sub)"> Failed to load special songs, try refreshing.</div>';
+  }
+}
+
+// "Show All" — halaman terpisah berisi seluruh (maks 70) lagu spesial
+function renderSpecialSongsFull(items) {
+  const c = document.getElementById('special-songs-full-grid');
+  if (!c) return;
+  c.innerHTML = '';
+  if (!items || !items.length) {
+    c.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;color:var(--sub)"> Follow your favorite artists first to unlock special songs picked just for you.</div>';
+    return;
+  }
+  items.forEach(t => c.appendChild(buildRecoCardEl(t)));
+}
+
+async function loadSpecialSongsFull(force) {
+  const grid = document.getElementById('special-songs-full-grid');
+  updateSpecialSongsTitle();
+  if (grid) grid.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;"><i></i><h3>Loading special songs for you...</h3></div>';
+  try {
+    const items = await fetchSpecialSongs(force);
+    renderSpecialSongsFull(items);
+  } catch (e) {
+    console.error('loadSpecialSongsFull error:', e);
+    if (grid) grid.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px 0;font-size:.8rem;color:var(--sub)"> Failed to load special songs, try again.</div>';
+  }
+}
+
+function showSpecialSongsFullView() {
+  document.getElementById('home-view').classList.remove('active');
+  document.getElementById('search-view').classList.remove('active');
+  document.getElementById('finder-view').style.display = 'none';
+  document.getElementById('playlist-view').style.display = 'none';
+  document.getElementById('top-songs-full-view').style.display = 'none';
+  document.getElementById('recently-played-full-view').style.display = 'none';
+  document.getElementById('recommend-full-view').style.display = 'none';
+  document.getElementById('artist-view').style.display = 'none';
+  document.getElementById('album-view').style.display = 'none';
+  document.getElementById('song-preview-view').style.display = 'none';
+  document.body.classList.remove('sp-mobile-open');
+  if (typeof spAudio !== 'undefined' && spAudio) { spAudio.pause(); }
+  if (typeof closeFSLyricsIfOpen === 'function') { closeFSLyricsIfOpen(); }
+  document.getElementById('special-songs-full-view').style.display = 'block';
+  document.getElementById('nav-home').classList.add('on');
+  document.getElementById('nav-search').classList.remove('on');
+  document.getElementById('nav-finder').classList.remove('on');
+  document.getElementById('nav-songpreview')?.classList.remove('on');
+  loadSpecialSongsFull(false);
+}
+
+function backFromSpecialSongsFullView() {
+  document.getElementById('special-songs-full-view').style.display = 'none';
   showHomeView();
 }
 
@@ -16231,6 +16833,7 @@ async function openPublicPlaylist(pl) {
   document.getElementById('top-songs-full-view').style.display = 'none';
   document.getElementById('recently-played-full-view').style.display = 'none';
   document.getElementById('recommend-full-view').style.display = 'none';
+  document.getElementById('special-songs-full-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('song-preview-view').style.display = 'none';
@@ -16408,6 +17011,128 @@ async function togglePublishPlaylist() {
       loadPublicFeed();
     } catch(e) { toast(' Failed: ' + e.message); }
   }
+}
+
+// ─── SHARE PLAYLIST (link publik, siapapun di luar app bisa memutar) ──────
+// Alurnya meniru VibeProfile: buka modal share -> tekan "Publish & Copy
+// Link" -> data playlist (nama, cover, daftar lagu) diupload ke Firebase
+// Realtime DB node "shared_playlists/{shareId}" -> link publik disalin ke
+// clipboard. Siapapun yang buka link itu (vibeplaylist-view.html) bisa
+// melihat & memutar lagu-lagunya lewat browser, tanpa perlu install/login
+// ke Vibexa. shareId dibuat deterministik dari ownerUid + playlistId supaya
+// link tidak berubah tiap kali playlist di-update ulang.
+function getPlaylistShareId(plId) {
+  if (!currentUser || !plId) return null;
+  return currentUser.uid + '_' + plId;
+}
+
+function getPlaylistShareLink(plId) {
+  const sid = getPlaylistShareId(plId);
+  if (!sid) return '';
+  return PUBLIC_BASE_URL + 'vibeplaylist-view.html?id=' + encodeURIComponent(sid);
+}
+
+// Tombol "Share" di halaman playlist HANYA muncul untuk playlist milik
+// sendiri (lihat .pv-action-btn show/hide di showPlaylistView() vs
+// openPublicPlaylist()) — fungsi ini jadi guard tambahan supaya modal share
+// tidak bisa dibuka sama sekali kalau bukan pemilik playlist yang sedang
+// dilihat (mis. playlist publik orang lain, atau belum login).
+function openSharePlaylistModal() {
+  if (!currentUser) { toast(' Login dulu untuk membagikan playlist'); return; }
+  if (!currentPlaylistId || currentPubPlaylist) { toast(' Buka playlist milikmu terlebih dahulu'); return; }
+  const pl = playlists[currentPlaylistId];
+  if (!pl) return;
+  document.getElementById('sp-share-title').textContent = pl.name || 'Playlist';
+  const link = getPlaylistShareLink(currentPlaylistId);
+  document.getElementById('sp-share-link-input').value = link;
+  updatePlaylistShareQR(link);
+  document.getElementById('sp-share-status').textContent = '';
+  document.getElementById('modal-share-playlist').style.display = 'flex';
+}
+
+function closeSharePlaylistModal() {
+  document.getElementById('modal-share-playlist').style.display = 'none';
+}
+
+function updatePlaylistShareQR(link) {
+  const qrEl = document.getElementById('sp-share-qr-img');
+  if (!qrEl) return;
+  const enc = encodeURIComponent(link);
+  qrEl.src = 'https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=' + enc + '&bgcolor=1a1a1a&color=2E7DFF&margin=10';
+}
+
+// Kumpulkan data playlist + upload ke Firebase (shared_playlists/{shareId})
+// -> salin link ke clipboard. Bisa dipanggil berkali-kali (mis. setelah
+// menambah lagu baru) untuk memperbarui isi link yang sudah dibagikan.
+async function publishPlaylistShareAndCopy() {
+  if (!currentUser || !currentPlaylistId) return;
+  const pl = playlists[currentPlaylistId];
+  if (!pl) return;
+
+  const btn = document.getElementById('sp-share-publish-btn');
+  const statusEl = document.getElementById('sp-share-status');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Mempublikasikan...'; }
+  if (statusEl) statusEl.innerHTML = '<span style="color:var(--sub)">Menyimpan playlist ke cloud...</span>';
+
+  try {
+    const sid = getPlaylistShareId(currentPlaylistId);
+    if (!sid || !db) throw new Error('Belum siap, coba lagi');
+
+    const profileSnap = await db.ref('users/' + currentUser.uid + '/profile').get().catch(() => null);
+    const profileData = profileSnap?.val() || {};
+    const ownerName = profileData.displayName || currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'User');
+    const ownerPhoto = profileData.photoURL || profileData.photoBase64 || currentUser.photoURL || '';
+
+    const snapshot = {
+      name: pl.name || 'Playlist',
+      coverThumb: pl.coverThumb || '',
+      ownerUid: currentUser.uid,
+      ownerName,
+      ownerPhoto,
+      tracks: (pl.tracks || []).map(t => ({
+        title: t.title || '',
+        artist: t.artist || '',
+        thumb: t.thumb || '',
+        _query: t._query || ((t.artist || '') + '|||' + (t.title || '') + '|||0')
+      })),
+      exportedAt: Date.now()
+    };
+
+    await db.ref('shared_playlists/' + sid).set(snapshot);
+
+    if (statusEl) statusEl.innerHTML = '<span style="color:var(--green)">✓ Dipublikasikan</span> · ' + new Date().toLocaleTimeString('id-ID');
+
+    const link = getPlaylistShareLink(currentPlaylistId);
+    navigator.clipboard.writeText(link).then(() => {
+      toast('🔗 Link playlist disalin! Siapapun bisa memutar lagunya lewat link ini.');
+    }).catch(() => {
+      const inputEl = document.getElementById('sp-share-link-input');
+      if (inputEl) inputEl.select();
+      toast('📋 Pilih teks di kotak untuk menyalin link');
+    });
+  } catch (err) {
+    console.error('Share playlist error:', err);
+    if (statusEl) statusEl.innerHTML = '<span style="color:#ff5555">✗ Gagal: ' + (err.message || 'Unknown error') + '</span>';
+    toast(' Gagal membagikan playlist, coba lagi');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📤 Publish & Copy Link'; }
+  }
+}
+
+function copySharePlaylistLink() {
+  publishPlaylistShareAndCopy();
+}
+
+function sharePlaylistToSocial(platform) {
+  if (!currentPlaylistId) return;
+  const pl = playlists[currentPlaylistId];
+  const link = getPlaylistShareLink(currentPlaylistId);
+  const text = 'Dengerin playlist "' + (pl?.name || 'Playlist') + '" aku di Vibexa 🎵';
+  const urls = {
+    whatsapp: `https://wa.me/?text=${encodeURIComponent(text + ' ' + link)}`,
+    twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(link)}`,
+  };
+  if (urls[platform]) window.open(urls[platform], '_blank');
 }
 
 // ─── HOME GIF BANNER — "GIF TIME" + Custom Upload ──────────
@@ -18792,6 +19517,7 @@ function _spOpenShell() {
   document.getElementById('top-songs-full-view').style.display = 'none';
   document.getElementById('recently-played-full-view').style.display = 'none';
   document.getElementById('recommend-full-view').style.display = 'none';
+  document.getElementById('special-songs-full-view').style.display = 'none';
   document.getElementById('artist-view').style.display = 'none';
   document.getElementById('album-view').style.display = 'none';
   document.getElementById('nav-home').classList.remove('on');
@@ -21014,37 +21740,72 @@ async function playStreamTrack(track, link, lines, fromPlId) {
   // YouTube sama sekali, audio diam, dan user cuma lihat tombol play
   // berputar tanpa suara sama sekali (persis seperti di screenshot).
   //
-  // Sekarang fungsi ini me-return Promise<boolean>: true kalau audio TERBUKTI
-  // bisa dimuat & mulai diputar, false kalau gagal (event 'error' pada
-  // elemen <audio>, ATAU audio.play() ditolak browser). loadPlay() memakai
-  // nilai ini untuk memutuskan apakah perlu retry (minta link baru dari
-  // proxy dengan refresh=1) atau fallback ke iframe YouTube seperti biasa.
+  // Sekarang fungsi ini me-return Promise<{ok, reason}>: ok=true kalau audio
+  // TERBUKTI bisa dimuat & mulai diputar (reason='canplay'). Kalau gagal,
+  // loadPlay() memakai `reason` untuk memutuskan langkah berikutnya —
+  // TIDAK lagi menganggap semua kegagalan setara.
+  //
+  // [FIX "refresh=1 dipicu terus saat internet lemot"] Sebelumnya SATU-
+  // SATUNYA sinyal "gagal" yang sampai ke loadPlay() adalah timeout TETAP
+  // 15 detik tanpa event 'canplay'/'error' sama sekali — lalu loadPlay()
+  // menganggap itu SAMA dengan link yang benar-benar rusak, dan langsung
+  // minta proxy convert ULANG (refresh=1: BUANG cache Supabase yang valid +
+  // panggil RapidAPI lagi). Padahal di koneksi lemot, buffering beberapa
+  // detik pertama MP3 sangat wajar makan waktu >15 detik walau linknya sama
+  // sekali tidak rusak — refresh=1 di kasus ini cuma buang-buang kuota API
+  // key untuk masalah yang sebenarnya bukan di link/cache-nya.
+  // Sekarang dibedakan tegas:
+  //   reason='error'   -> elemen <audio> BENAR-BENAR melempar event 'error'
+  //                       (link memang 404/rusak/format tak didukung) ->
+  //                       loadPlay() BOLEH minta refresh=1.
+  //   reason='timeout' -> TIDAK ADA progress data SAMA SEKALI selama jendela
+  //                       waktu berjalan -> kemungkinan besar cuma koneksi
+  //                       lemot/putus, BUKAN pasti link rusak -> loadPlay()
+  //                       TIDAK boleh langsung refresh=1.
+  // Supaya koneksi lemot (tapi progress-nya tetap JALAN, cuma pelan) tidak
+  // ikut kena timeout ini, event 'progress' pada <audio> (ditembakkan
+  // browser berkala selagi ada byte yang masuk) MERESET jam timeout —
+  // sehingga cuma koneksi yang benar-benar macet TOTAL (nol progress) dalam
+  // satu jendela waktu penuh yang dianggap timeout. Jendela dasarnya sendiri
+  // juga menyesuaikan Network Information API (kalau didukung browser)
+  // supaya perangkat di jaringan 2G/3G punya waktu lebih longgar sejak awal.
   const _streamResult = new Promise((resolveStream) => {
     let _settled = false;
-    const _finish = (ok) => {
+    let _streamTimeout = null;
+    const _finish = (ok, reason) => {
       if (_settled) return;
       _settled = true;
       audio.removeEventListener('error', onAudioError);
       audio.removeEventListener('canplay', onAudioCanPlay);
+      audio.removeEventListener('progress', onAudioProgress);
       clearTimeout(_streamTimeout);
-      resolveStream(ok);
+      resolveStream({ ok, reason });
     };
     const onAudioError = () => {
       const errCode = audio.error ? audio.error.code : '?';
-      console.warn('[VBX] Streaming MP3 gagal dimuat (audio error, code=' + errCode + '):', link);
-      _finish(false);
+      console.warn('[VBX] Streaming MP3 gagal dimuat (audio error, code=' + errCode + '), link TERBUKTI bermasalah:', link);
+      _finish(false, 'error');
     };
-    const onAudioCanPlay = () => _finish(true);
-    // Jaga-jaga kalau browser tidak pernah mengirim event 'error' ataupun
-    // 'canplay' sama sekali (jaringan menggantung dsb) — jangan biarkan
-    // loadPlay() menunggu selamanya, anggap gagal setelah 15 detik supaya
-    // tetap bisa fallback.
-    const _streamTimeout = setTimeout(() => {
-      console.warn('[VBX] Streaming MP3 timeout (15s) tanpa canplay/error, anggap gagal:', link);
-      _finish(false);
-    }, 15000);
+    const onAudioCanPlay = () => _finish(true, 'canplay');
+    const _conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    const _effType = _conn && _conn.effectiveType;
+    const _STREAM_TIMEOUT_MS = (_effType === 'slow-2g' || _effType === '2g') ? 45000
+      : (_effType === '3g') ? 30000
+      : 20000; // default/4g/tidak terdeteksi — tetap lebih longgar dari 15s lama
+    const _armTimeout = () => {
+      clearTimeout(_streamTimeout);
+      _streamTimeout = setTimeout(() => {
+        console.warn('[VBX] Streaming MP3 timeout (' + (_STREAM_TIMEOUT_MS / 1000) + 's TANPA progress data sama sekali) — kemungkinan koneksi lemot/putus, BUKAN pasti link rusak:', link);
+        _finish(false, 'timeout');
+      }, _STREAM_TIMEOUT_MS);
+    };
+    // Ada byte yang masuk (walau pelan) -> bukan koneksi macet total, beri
+    // jendela waktu baru lagi supaya tidak keburu dianggap timeout.
+    const onAudioProgress = () => { _armTimeout(); };
     audio.addEventListener('error', onAudioError, { once: true });
     audio.addEventListener('canplay', onAudioCanPlay, { once: true });
+    audio.addEventListener('progress', onAudioProgress);
+    _armTimeout();
   });
 
   audio.src = link; // STREAMING langsung dari URL permanen — tidak pernah disimpan ke device
@@ -23090,86 +23851,43 @@ async function sendAIChatMessage(){
 })();
 
 // ═══════════════════════════════════════════════════════════════════════
-// VBX_NAV_FLOAT_INDICATOR — lingkaran indikator yg mengambang & meluncur
-// (glide) di navigasi bawah (#mob-nav), sesuai referensi gif: lingkaran
-// meluncur horizontal dari satu tombol (Home/Find/Yours/Chat) ke tombol
-// lain saat ditekan, + referensi foto: tombol aktif jadi ikon mengambang
-// dlm cincin outline biru tanpa teks (teks & ikon aslinya difade lewat
-// class .on di CSS — lihat komentar VBX_NAV_FLOAT_INDICATOR di vibexa.css).
+// VBX_NAV_GOO_BLOB — animasi indikator "cair" (liquid/gooey) di navigasi
+// bawah (#mob-nav), sesuai referensi video: blob bulat melompat dari satu
+// tombol (Home/Find/View/Yours/Chat/dst) ke tombol lain saat ditekan,
+// nyambung ke bar lewat filter SVG goo (lihat definisi <filter
+// id="vbx-goo-filter"> di index.html) & animasi CSS (cari komentar
+// VBX_NAV_GOO_BLOB di vibexa.css).
 //
 // TIDAK menulis ulang logic navigasi sama sekali — cukup MEMBUNGKUS
 // (monkey-patch) fungsi setMobNavActive() yang SUDAH ADA (lihat definisi
 // aslinya & array MOB_NAV_BTN_IDS di atas, ~baris 9364), yang merupakan
 // SATU-SATUNYA titik yg dipanggil oleh SEMUA tombol nav bawah (langsung
 // dari onclick tiap tombol, dari mobNav(), maupun dari sinkronisasi
-// desktop→mobile showHomeView()/showSearchView()). Jadi indikator otomatis
-// ikut pindah kemanapun status aktifnya berubah, dari jalur manapun, tanpa
+// desktop→mobile showHomeView()/showSearchView()). Jadi blob otomatis ikut
+// pindah kemanapun status aktifnya berubah, dari jalur manapun, tanpa
 // perlu menambah pemanggilan baru di banyak tempat.
-(function vbxInitNavFloatIndicator(){
+(function vbxInitNavGooBlob(){
   function boot(){
     const nav    = document.getElementById('mob-nav');
     const layer  = document.getElementById('vbx-nav-goo-layer');
     const blob   = document.getElementById('vbx-nav-goo-blob');
+    const anchor = document.getElementById('vbx-nav-goo-anchor');
     const iconEl = document.getElementById('vbx-nav-goo-icon');
-    const notchSvg    = document.getElementById('vbx-nav-notch');
-    const notchFill   = document.getElementById('vbx-nav-notch-fill');
-    const notchBorder = document.getElementById('vbx-nav-notch-border');
-    if (!nav || !layer || !blob || !iconEl) return;
+    if (!nav || !layer || !blob || !anchor || !iconEl) return;
     if (typeof MOB_NAV_BTN_IDS === 'undefined' || typeof setMobNavActive !== 'function') return;
 
-    // VBX_NAV_NOTCH — parameter bentuk lengkung notch (px):
-    //  NOTCH_R = seberapa jauh lengkungannya "melebar" ke kiri/kanan dari
-    //            titik tengah tombol aktif (lebar notch total ≈ NOTCH_R*2.6,
-    //            dipakai bareng FLARE di bawah). Makin KECIL nilainya,
-    //            makin RAPAT/mepet lengkungannya ke tombol (bentuk "U"
-    //            yg lebih sempit & nempel), makin BESAR makin melebar jadi
-    //            cekungan yg landai/lebar.
-    //  NOTCH_D = seberapa dalam notch "menukik" ke bawah dari bibir atas
-    //            bar. Dinaikkan supaya bentuknya kelihatan bulat penuh
-    //            "U" (spt foto referensi), bukan dangkal & rata di bawah.
-    //  FLARE   = seberapa landai transisi dari garis lurus ke lengkungan
-    //            di kiri-kanan (dikali NOTCH_R). Makin KECIL, transisinya
-    //            makin cepat/tegak → lengkungan kelihatan lebih "rapat"
-    //            mengelilingi tombol, bukan basin yg lebar.
-    const NOTCH_R = 28;
-    const NOTCH_D = 48;
-    const FLARE = 1.3;
+    // [BLOB DIHILANGKAN] Bentuk blob/tetesan biru ini menutupi tombol Play
+    // di mini-player saat posisinya berada di sekitar situ. Sembunyikan
+    // total elemen layer-nya (bukan cuma animasinya) & jangan lanjutkan
+    // sisa logic goo-blob di bawah sama sekali — icon aktif (HOME/FIND/dst)
+    // tetap kesorot normal lewat class .on yang sudah diurus oleh
+    // setMobNavActive() aslinya, jadi tidak ada fungsi yang hilang selain
+    // dekorasi blob-nya.
+    layer.style.display = 'none';
+    return;
 
     let lastX = null;   // posisi X (px, relatif #mob-nav) tombol aktif terakhir
-    let lastActiveId = null; // id tombol yg terakhir jadi target (utk lepas .mob-nav-icon-hide dr tombol asal)
     let hopTimer = null;
-    let navW = 0, navH = 0;
-
-    // ── Gambar ulang bentuk notch pada X & depth tertentu (0 = garis lurus
-    //    datar tanpa lengkungan, dipakai saat indikator sedang disembunyikan,
-    //    mis. saat nav lagi tidak tampil sama sekali). Depth di antara 0..1
-    //    adalah "porsi" dari NOTCH_D — dipakai saat animasi muncul/hilang. ──
-    function drawNotch(x, depthRatio){
-      if (!notchFill || !notchBorder || navW <= 0) return;
-      const d = NOTCH_D * Math.max(0, Math.min(1, depthRatio));
-      let topEdge;
-      if (d < 0.5) {
-        // Nyaris tanpa lengkungan → gambar garis lurus biasa (lebih murah
-        // & menghindari lengkungan super tipis yg terlihat "bergerigi").
-        topEdge = `M0,0 L${navW},0`;
-      } else {
-        const r = NOTCH_R;
-        const x1 = Math.max(0, x - r * FLARE);
-        const x2 = Math.max(x1 + 1, x - r);
-        const x3 = Math.min(navW, x + r);
-        const x4 = Math.min(navW, x + r * FLARE);
-        topEdge = `M0,0 L${x1},0 C${x2},0 ${(x2 + x) / 2},${d} ${x},${d} `
-                 + `C${(x + x3) / 2},${d} ${x3},0 ${x4},0 L${navW},0`;
-      }
-      notchBorder.setAttribute('d', topEdge);
-      notchFill.setAttribute('d', `${topEdge} L${navW},${navH} L0,${navH} Z`);
-    }
-
-    function syncSvgSize(){
-      const r = nav.getBoundingClientRect();
-      navW = r.width; navH = r.height;
-      if (notchSvg) notchSvg.setAttribute('viewBox', `0 0 ${navW} ${navH}`);
-    }
 
     function computeCenterX(btn){
       const navRect = nav.getBoundingClientRect();
@@ -23177,169 +23895,81 @@ async function sendAIChatMessage(){
       return (btnRect.left - navRect.left) + (btnRect.width / 2);
     }
 
-    // Salin ikon SVG tombol aktif ke dalam lingkaran mengambang — termasuk
-    // atribut fill/stroke aslinya (bukan cuma innerHTML) supaya ikon "solid"
-    // (mis. Home) maupun ikon "outline" (mis. Chat/Find) sama-sama tampil
-    // benar di dalam lingkaran, ikut warna var(--green) lewat currentColor.
     function setIconFrom(btn){
       const svg = btn.querySelector('svg');
-      if (!svg) { iconEl.innerHTML = ''; return; }
-      iconEl.setAttribute('viewBox', svg.getAttribute('viewBox') || '0 0 24 24');
-      iconEl.setAttribute('fill', svg.getAttribute('fill') || 'none');
-      iconEl.setAttribute('stroke', svg.getAttribute('stroke') || 'none');
-      iconEl.setAttribute('stroke-width', svg.getAttribute('stroke-width') || '0');
-      iconEl.setAttribute('stroke-linecap', svg.getAttribute('stroke-linecap') || 'round');
-      iconEl.setAttribute('stroke-linejoin', svg.getAttribute('stroke-linejoin') || 'round');
-      iconEl.innerHTML = svg.innerHTML;
+      iconEl.innerHTML = svg ? svg.innerHTML : '';
     }
 
-    function hideIndicator(){ blob.classList.remove('vbx-show'); }
-
-    // Tambah/lepas class yg menyembunyikan ikon+label ASLI di dalam tombol
-    // (diwakili oleh lingkaran mengambang saat itu). Sengaja dipisah dari
-    // class ".on" (yg tetap dipakai murni utk warna) supaya waktunya bisa
-    // diatur manual: dilepas SEKETIKA saat tombol berhenti aktif (icon asli
-    // langsung balik terlihat), tapi baru ditambah SETELAH lingkaran selesai
-    // mendarat di tombol yg baru aktif — lihat pemakaiannya di moveTo().
-    function applyIconHide(id, hide){
-      const el = document.getElementById(id);
-      if (el) el.classList.toggle('mob-nav-icon-hide', hide);
-    }
-
-    // rAF tween sederhana utk menggerakkan notch (X & depth) seiring dgn
-    // durasi & kurva easing yg sama dgn transisi CSS lingkaran indikator
-    // (.38s, easeOut) — supaya keduanya kelihatan "menyatu" bergerak
-    // bersamaan, bukan notch diam sementara lingkaran sudah meluncur.
-    let notchAnim = null;
-    function tweenNotch(fromX, toX, fromDepth, toDepth){
-      if (notchAnim) cancelAnimationFrame(notchAnim);
-      const dur = 380, t0 = performance.now();
-      function ease(t){ return 1 - Math.pow(1 - t, 3); } // easeOutCubic
-      function step(now){
-        const t = Math.min(1, (now - t0) / dur);
-        const e = ease(t);
-        drawNotch(fromX + (toX - fromX) * e, fromDepth + (toDepth - fromDepth) * e);
-        if (t < 1) notchAnim = requestAnimationFrame(step);
-        else notchAnim = null;
-      }
-      notchAnim = requestAnimationFrame(step);
-    }
-
-    let lastDepth = 0;
-
-    // animate=false → langsung "snap" ke posisi tanpa animasi meluncur
+    // animate=false → langsung "snap" ke posisi tanpa animasi lompat
     // (dipakai saat render pertama & saat resize/orientasi berubah, supaya
     // tidak ada animasi aneh yg terpicu bukan krn user menekan tombol).
     function moveTo(activeId, animate){
       const btn = document.getElementById(activeId);
       // nav lagi disembunyikan (mis. tampilan desktop) → jangan hitung
       // posisi (getBoundingClientRect tidak berguna & bisa salah).
-      if (!btn || nav.offsetParent === null) { hideIndicator(); return; }
+      if (!btn || nav.offsetParent === null) return;
 
-      syncSvgSize();
       const x = computeCenterX(btn);
-      blob.classList.add('vbx-show');
-
-      // Tombol ASAL (yg baru saja ditinggalkan) langsung dimunculkan lagi
-      // ikon+labelnya SEKETIKA, tanpa menunggu animasi geser kelar — supaya
-      // tidak pernah ada momen tombol itu kelihatan tanpa ikon sama sekali.
-      // FIX: sebelumnya HANYA melepas class dari "lastActiveId" (satu
-      // variabel JS yg dilacak manual) — kalau ada tombol nav yg diaktifkan
-      // lewat jalur lain (mis. Yours/Chat/Info dipicu bukan lewat urutan
-      // panggilan yg sama persis), variabel ini bisa tidak sinkron dgn DOM
-      // sebenarnya, sehingga ikon Home/View bisa "nyangkut" tersembunyi
-      // selamanya walau bukan tombol aktif lagi. Sekarang: lepas class
-      // ".mob-nav-icon-hide" dari SEMUA tombol nav SELAIN yg baru aktif,
-      // supaya invariannya selalu benar (cuma 1 tombol aktif yg ikonnya
-      // tersembunyi) apa pun jalur yg memicu perpindahan tombol.
-      MOB_NAV_BTN_IDS.forEach(id => { if (id !== activeId) applyIconHide(id, false); });
 
       if (!animate || lastX === null) {
-        setIconFrom(btn);
-        applyIconHide(activeId, true);
         layer.style.setProperty('--vbx-nav-x', x + 'px');
         blob.classList.remove('vbx-hop');
-        drawNotch(x, 1);
-        lastX = x; lastDepth = 1;
-        lastActiveId = activeId;
+        setIconFrom(btn);
+        lastX = x;
         return;
       }
 
-      if (Math.abs(x - lastX) < 0.5) {
-        // Tombol yg sama persis ditekan/dipicu lagi.
-        if (hopTimer) {
-          // Masih ada animasi 'terbang' yg lagi berjalan menuju tombol ini
-          // (blm mendarat) — JANGAN langsung nge-hide icon asli sekarang,
-          // biarkan hopTimer yg sudah terjadwal yg menyelesaikannya nanti.
-          // Kalau langsung di-hide di sini, utk sesaat TIDAK ADA icon yg
-          // terlihat sama sekali (lingkaran msh di tengah jalan, icon asli
-          // sudah disembunyikan) — inilah penyebab bug "icon sempat hilang".
-          drawNotch(x, 1);
-          lastDepth = 1;
-          lastActiveId = activeId;
-          return;
-        }
-        setIconFrom(btn);
-        applyIconHide(activeId, true);
-        drawNotch(x, 1);
-        lastDepth = 1;
-        lastActiveId = activeId;
-        return;
-      }
+      if (Math.abs(x - lastX) < 0.5) { setIconFrom(btn); return; } // tombol yg sama persis
 
       const from = lastX, to = x, mid = (from + to) / 2;
       blob.style.setProperty('--vbx-x-from', from + 'px');
       blob.style.setProperty('--vbx-x-mid', mid + 'px');
       blob.style.setProperty('--vbx-x-to', to + 'px');
 
-      // Posisi akhir (setelah animasi selesai) digeser lewat var bersama
-      // --vbx-nav-x, jadi begitu keyframe animasi kelar, transform "diam"
-      // langsung persis di posisi yg sama (tidak ada lompatan balik).
-      layer.style.setProperty('--vbx-nav-x', to + 'px');
+      // Ganti ikon SEKARANG (selagi blob masih disembunyikan via opacity
+      // krn class .vbx-hop) supaya begitu blob "mendarat" & ikon muncul
+      // lagi, isinya sudah benar — bukan kelihatan berganti mendadak.
+      setIconFrom(btn);
 
       if (hopTimer) clearTimeout(hopTimer);
       blob.classList.remove('vbx-hop');
       void blob.offsetWidth; // force reflow → restart animasi kalau ditekan cepat berturut-turut
       blob.classList.add('vbx-hop');
 
-      tweenNotch(from, to, lastDepth, 1);
-      lastDepth = 1;
+      // Anchor (+ posisi akhir blob setelah animasi selesai) digeser lewat
+      // var bersama --vbx-nav-x, dgn transition biasa (bukan keyframes) —
+      // beda kurva gerak inilah yg bikin blob kelihatan lepas dari anchor
+      // sesaat lalu nyambung lagi, bukan cuma digeser lurus sejajar.
+      layer.style.setProperty('--vbx-nav-x', to + 'px');
 
-      // Ikon di dalam lingkaran BARU diganti ke ikon tombol tujuan, dan
-      // ikon asli tombol tujuan BARU disembunyikan, SETELAH lingkaran
-      // benar-benar selesai mendarat (bukan di awal animasi) — supaya
-      // lingkaran terlihat "membawa" ikon lama sepanjang perjalanan lalu
-      // bertukar tepat saat tiba, dan ikon tombol tujuan tidak pernah
-      // hilang lebih dulu sebelum digantikan oleh lingkaran.
       hopTimer = setTimeout(() => {
         blob.classList.remove('vbx-hop');
-        setIconFrom(btn);
-        applyIconHide(activeId, true);
         hopTimer = null;
-      }, 380);
+      }, 430);
 
       lastX = to;
-      lastActiveId = activeId;
     }
 
     // ── Wiring ke setMobNavActive() yang sudah ada ──
+    // [ANIMASI DIHILANGKAN] Sebelumnya moveTo(activeId, true) memicu animasi
+    // "hop"/lompat (class .vbx-hop) tiap kali pindah tombol nav bawah.
+    // Sekarang selalu dipanggil dengan animate=false supaya blob indikator
+    // langsung "snap" ke posisi tombol aktif tanpa animasi sama sekali.
     const _origSetMobNavActive = window.setMobNavActive;
     window.setMobNavActive = function(activeId){
       _origSetMobNavActive(activeId);
-      moveTo(activeId, true);
+      moveTo(activeId, false);
     };
 
     function syncNow(){
-      syncSvgSize();
       const activeBtn = MOB_NAV_BTN_IDS
         .map(id => document.getElementById(id))
         .find(b => b && b.classList.contains('on'));
       if (activeBtn) moveTo(activeBtn.id, false);
-      else drawNotch(0, 0);
     }
 
     // Resize/orientasi berubah (termasuk pindah dari desktop↔mobile) →
-    // hitung ulang posisi dari nol, tanpa animasi meluncur.
+    // hitung ulang posisi dari nol, tanpa animasi lompat.
     window.addEventListener('resize', () => { lastX = null; syncNow(); });
 
     syncNow();

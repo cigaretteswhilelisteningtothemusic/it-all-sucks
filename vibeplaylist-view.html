@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shared Playlist — Vibexa</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&family=Outfit:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0d0d0d;--panel:#161616;--card:#1e1e1e;--border:rgba(255,255,255,0.08);
+  --green:#2E7DFF;--green-dim:rgba(46,125,255,0.1);--text:#ffffff;--sub:#a8a8a8;--muted:#666;
+  --f:'Space Grotesk',sans-serif;--fm:'DM Mono',monospace;--page-w:720px;
+}
+body{font-family:var(--f);background:#111;color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center}
+#page-wrap{width:100%;max-width:var(--page-w);background:var(--bg);min-height:100vh;position:relative;box-shadow:0 0 80px rgba(0,0,0,0.6);margin:0 auto;padding-bottom:100px}
+
+/* ── TOP BAR ── */
+#top-bar{position:sticky;top:0;z-index:500;background:rgba(13,13,13,0.92);border-bottom:1px solid var(--border);backdrop-filter:blur(16px);display:flex;align-items:center;justify-content:space-between;padding:12px 18px;gap:10px}
+.top-brand{display:flex;align-items:center;gap:8px;text-decoration:none}
+.top-logo{width:28px;height:28px;background:var(--green);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.top-logo svg{width:14px;height:14px;color:#fff}
+.top-name{font-family:'Outfit',sans-serif;font-size:1rem;font-weight:800;letter-spacing:-.3px;background:linear-gradient(130deg,#fff 30%,#7B8DB0);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.top-badge{font-size:.58rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--green);background:var(--green-dim);border:1px solid rgba(46,125,255,0.25);border-radius:50px;padding:3px 9px;white-space:nowrap}
+.open-app-btn{background:var(--green);color:#fff;border:none;border-radius:50px;padding:8px 16px;font-family:var(--f);font-weight:700;font-size:.72rem;cursor:pointer;text-decoration:none;display:flex;align-items:center;gap:6px;flex-shrink:0}
+.open-app-btn:hover{opacity:.88}
+
+/* ── LOADING / NOT FOUND ── */
+#loading,#not-found{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:70vh;text-align:center;padding:40px 24px}
+.spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin 0.9s linear infinite;margin-bottom:18px}
+@keyframes spin{to{transform:rotate(360deg)}}
+#loading p,#not-found p{color:var(--sub);font-size:.9rem}
+#not-found{display:none}
+#not-found .nf-icon{font-size:3rem;margin-bottom:14px;opacity:.6}
+#not-found h2{font-size:1.2rem;margin-bottom:8px}
+
+/* ── PLAYLIST HEADER ── */
+#pl-content{display:none;padding:24px 20px 0}
+.pv-top{display:flex;gap:20px;align-items:flex-end;margin-bottom:20px;flex-wrap:wrap}
+.pv-cover-wrap{width:168px;height:168px;flex-shrink:0;border-radius:12px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,0.5);background:var(--card)}
+.pv-cover-wrap img{width:100%;height:100%;object-fit:cover;display:block}
+.pv-collage{width:100%;height:100%;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
+.pv-collage img{width:100%;height:100%;object-fit:cover;display:block}
+.pv-cover-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:3rem;color:var(--muted);background:linear-gradient(135deg,#1a1a1a,#222)}
+.pv-meta{flex:1;min-width:200px}
+.pv-type{font-size:.68rem;letter-spacing:2px;text-transform:uppercase;color:var(--green);font-weight:700;margin-bottom:8px}
+.pv-title{font-size:2rem;font-weight:800;line-height:1.1;letter-spacing:-.5px;margin-bottom:10px;word-break:break-word}
+.pv-sub{color:var(--sub);font-size:.85rem}
+
+.pv-owner-card{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:18px;cursor:pointer;transition:border-color .2s}
+.pv-owner-card:hover{border-color:rgba(46,125,255,0.35)}
+.pv-owner-avatar{width:34px;height:34px;border-radius:50%;overflow:hidden;background:var(--panel);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.pv-owner-avatar img{width:100%;height:100%;object-fit:cover}
+.pv-owner-label{font-size:.6rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase}
+.pv-owner-name{font-size:.85rem;font-weight:700}
+
+.pv-actions-row{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+.pv-play-all{background:var(--green);border:none;width:54px;height:54px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;box-shadow:0 6px 20px rgba(46,125,255,0.4)}
+.pv-play-all svg{width:22px;height:22px;color:#fff}
+.pv-play-all:hover{transform:scale(1.05)}
+.pv-hint{color:var(--muted);font-size:.72rem}
+
+/* ── TRACK LIST ── */
+.tl-header{display:grid;grid-template-columns:32px 1fr 34px;gap:12px;padding:8px 12px;color:var(--muted);font-size:.65rem;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border)}
+.track-row{display:grid;grid-template-columns:32px 1fr 34px;gap:12px;align-items:center;padding:9px 12px;border-radius:8px;cursor:pointer;transition:background .15s}
+.track-row:hover{background:rgba(255,255,255,0.04)}
+.track-row.playing{background:var(--green-dim)}
+.track-row.playing .tr-title{color:var(--green)}
+.tr-num{color:var(--muted);font-size:.78rem;text-align:center}
+.track-row.playing .tr-num{color:var(--green)}
+.tr-info{display:flex;align-items:center;gap:10px;min-width:0}
+.tr-thumb,.tr-thumb-ph{width:40px;height:40px;border-radius:6px;object-fit:cover;flex-shrink:0;background:var(--card)}
+.tr-thumb-ph{display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.9rem}
+.tr-text{min-width:0}
+.tr-title{font-size:.85rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tr-artist{font-size:.72rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tr-state{width:22px;height:22px;display:flex;align-items:center;justify-content:center;color:var(--sub)}
+.tr-state svg{width:16px;height:16px}
+.mini-spin{width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite}
+
+.pv-empty{text-align:center;padding:50px 20px;color:var(--muted);font-size:.85rem}
+
+/* ── MINI PLAYER ── */
+#mini-player{position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:100%;max-width:var(--page-w);background:rgba(18,18,18,0.97);backdrop-filter:blur(20px);border-top:1px solid var(--border);padding:10px 16px;display:none;align-items:center;gap:12px;z-index:600}
+#mp-thumb{width:42px;height:42px;border-radius:6px;object-fit:cover;background:var(--card);flex-shrink:0}
+#mp-info{flex:1;min-width:0}
+#mp-title{font-size:.8rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mp-artist{font-size:.68rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mp-btns{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.mp-btn{background:none;border:none;color:var(--text);cursor:pointer;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.mp-btn:hover{background:rgba(255,255,255,0.08)}
+.mp-btn svg{width:18px;height:18px}
+#mp-play{background:var(--green);width:38px;height:38px}
+#mp-play svg{width:16px;height:16px;color:#fff}
+#mp-progress-wrap{position:absolute;top:0;left:0;right:0;height:2px;background:rgba(255,255,255,0.08)}
+#mp-progress{height:100%;background:var(--green);width:0%}
+
+.toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(20px);background:#222;color:#fff;padding:10px 18px;border-radius:50px;font-size:.78rem;opacity:0;pointer-events:none;transition:all .25s;z-index:900;box-shadow:0 8px 24px rgba(0,0,0,0.4);max-width:86%;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media(max-width:480px){
+  .pv-cover-wrap{width:120px;height:120px}
+  .pv-title{font-size:1.5rem}
+}
+</style>
+</head>
+<body>
+
+<div id="page-wrap">
+
+  <div id="top-bar">
+    <div class="top-brand">
+      <div class="top-logo">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </div>
+      <span class="top-name">Vibexa</span>
+      <span class="top-badge">Shared Playlist</span>
+    </div>
+    <a class="open-app-btn" href="vibexa.html">
+      Open App
+    </a>
+  </div>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    <p>Memuat playlist...</p>
+  </div>
+
+  <div id="not-found">
+    <div class="nf-icon">🎧</div>
+    <h2>Playlist tidak ditemukan</h2>
+    <p>Link ini mungkin sudah tidak berlaku, atau pemiliknya belum mempublikasikan playlist ini.</p>
+  </div>
+
+  <div id="pl-content">
+    <div class="pv-top">
+      <div class="pv-cover-wrap" id="pv-cover"></div>
+      <div class="pv-meta">
+        <div class="pv-type">Playlist</div>
+        <div class="pv-title" id="pv-title">—</div>
+        <div class="pv-sub" id="pv-sub">0 lagu</div>
+      </div>
+    </div>
+
+    <div class="pv-owner-card" id="pv-owner-card" style="display:none">
+      <div class="pv-owner-avatar" id="pv-owner-avatar">
+        <svg viewBox="0 0 24 24" fill="currentColor" style="color:var(--sub);width:20px;height:20px"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v2h20v-2c0-3.3-6.7-5-10-5z"/></svg>
+      </div>
+      <div>
+        <div class="pv-owner-label">Dibuat oleh</div>
+        <div class="pv-owner-name" id="pv-owner-name">Anonymous</div>
+      </div>
+    </div>
+
+    <div class="pv-actions-row">
+      <button class="pv-play-all" id="pv-play-all" title="Putar semua">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+      <span class="pv-hint">Klik lagu untuk memutar langsung dari browser ini</span>
+    </div>
+
+    <div class="tl-header">
+      <span>#</span><span>Judul</span><span></span>
+    </div>
+    <div id="pv-tracks"></div>
+  </div>
+
+</div>
+
+<!-- Mini player (fixed bottom) -->
+<div id="mini-player">
+  <div id="mp-progress-wrap"><div id="mp-progress"></div></div>
+  <img id="mp-thumb" src="" alt="">
+  <div id="mp-info">
+    <div id="mp-title">—</div>
+    <div id="mp-artist">—</div>
+  </div>
+  <div class="mp-btns">
+    <button class="mp-btn" id="mp-prev" title="Sebelumnya">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+    </button>
+    <button class="mp-btn" id="mp-play" title="Play/Pause">
+      <svg id="mp-play-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+    </button>
+    <button class="mp-btn" id="mp-next" title="Berikutnya">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 18h2V6h-2zM6 18l8.5-6L6 6z"/></svg>
+    </button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Hidden YouTube player — dipakai murni sebagai sumber audio -->
+<div id="yt-wrap" style="position:fixed;bottom:-9999px;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none">
+  <div id="yt-player"></div>
+</div>
+
+<script>
+// ── Util ──────────────────────────────────────────────────────────────────
+function esc(s){ if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function toast(msg, d=2600){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'), d);
+}
+
+// ── Cari videoId di YouTube lewat worker pencarian Vibexa (sama seperti
+// yang dipakai app utama), dengan fallback ke worker cadangan & query polos
+// kalau query pertama nihil. ──────────────────────────────────────────────
+const WORKERS = [
+  'https://fancy-band-d65b.alpinofficial26.workers.dev',
+  'https://morning-tooth-9544.efotbalakun70.workers.dev'
+];
+async function _searchOne(workerBase, query){
+  try{
+    const url = `${workerBase}/search?q=${encodeURIComponent(query)}&max=6`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if(!res.ok) return null;
+    const data = await res.json();
+    if(Array.isArray(data.results) && data.results.length) return data.results;
+    if(data.videoId) return [{videoId:data.videoId}];
+    return null;
+  }catch(e){ return null; }
+}
+async function searchVideoList(query){
+  for(const base of WORKERS){
+    const r = await _searchOne(base, query);
+    if(r && r.length) return r;
+  }
+  return [];
+}
+const _vidCache = {};
+async function resolveVideoId(artist, title){
+  const key = artist + '|||' + title;
+  if(_vidCache[key] !== undefined) return _vidCache[key];
+  let results = await searchVideoList(`${artist} ${title} official audio`);
+  if(!results.length) results = await searchVideoList(`${artist} ${title}`);
+  const id = (results[0] && results[0].videoId) || null;
+  _vidCache[key] = id;
+  return id;
+}
+
+// ── Firebase (modular SDK, sama config dengan Vibexa) ───────────────────
+let _fbDb = null, _fbFns = null;
+</script>
+
+<!-- Firebase SDK — modular, sama seperti vibeprofile-view.html supaya
+     halaman ini bisa dibuka murni sebagai halaman web publik tanpa
+     bergantung ke seluruh bundle vibexa.js -->
+<script type="module">
+  import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+  import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+  import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCeMRU4JgIOlS_M9hgZfDKrkIHyAFncVjE",
+    authDomain: "nevermind-c246a.firebaseapp.com",
+    databaseURL: "https://nevermind-c246a-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "nevermind-c246a",
+    storageBucket: "nevermind-c246a.firebasestorage.app",
+    messagingSenderId: "703998258491",
+    appId: "1:703998258491:web:ea9cceaa10af71db61db1e"
+  };
+
+  const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  const auth = getAuth(app);
+
+  window._fbDb = db;
+  window._fbFns = { ref, get };
+
+  // Sign-in anonim (best-effort) — beberapa aturan keamanan Firebase
+  // mewajibkan request datang dari user yang ter-otentikasi (walau anonim),
+  // baru setelah itu halaman dimuat supaya tidak race dengan pembacaan data.
+  signInAnonymously(auth).catch(err => {
+    console.warn('Anonymous sign-in gagal, lanjut coba baca data:', err.message);
+  }).finally(() => {
+    if (typeof window._vbxLoadPlaylist === 'function') window._vbxLoadPlaylist();
+  });
+</script>
+
+<script>
+// ── Ambil ID share dari URL ──────────────────────────────────────────────
+function getShareId(){
+  return new URLSearchParams(window.location.search).get('id');
+}
+
+let _snapshot = null;
+let _tracks = [];
+let _curIndex = -1;
+let _ytReady = false;
+let _ytp = null;
+let _playing = false;
+let _pendingVideoId = null;
+
+window._vbxLoadPlaylist = async function(){
+  const sid = getShareId();
+  if(!sid){ showNotFound(); return; }
+  try{
+    const db = window._fbDb, fn = window._fbFns;
+    if(!db || !fn) throw new Error('Firebase belum siap');
+    const snap = await fn.get(fn.ref(db, 'shared_playlists/' + sid));
+    if(!snap.exists()){ showNotFound(); return; }
+    _snapshot = snap.val();
+    renderPlaylist(_snapshot);
+  }catch(e){
+    console.warn('Gagal memuat playlist:', e);
+    showNotFound();
+  }
+};
+
+function showNotFound(){
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('not-found').style.display = 'flex';
+}
+
+// ── Render halaman playlist ──────────────────────────────────────────────
+function buildCoverHTML(tracks){
+  const thumbs = tracks.map(t => t.thumb).filter(Boolean).slice(0, 4);
+  if(!thumbs.length) return '<div class="pv-cover-ph">🎵</div>';
+  if(thumbs.length === 1) return `<img src="${esc(thumbs[0])}" alt="cover" onerror="this.style.display='none'">`;
+  const cells = thumbs.length >= 4 ? thumbs.slice(0,4) : [thumbs[0], thumbs[1]||thumbs[0], thumbs[1]||thumbs[0], thumbs[0]];
+  return '<div class="pv-collage">' + cells.map(s => `<img src="${esc(s)}" alt="" onerror="this.style.display='none'">`).join('') + '</div>';
+}
+
+function renderPlaylist(snapshot){
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('pl-content').style.display = 'block';
+
+  _tracks = (snapshot.tracks || []).map(t => ({
+    title: t.title || 'Untitled',
+    artist: t.artist || '',
+    thumb: t.thumb || '',
+    _query: t._query || ((t.artist||'') + '|||' + (t.title||'') + '|||0')
+  }));
+
+  document.getElementById('pv-cover').innerHTML = buildCoverHTML(_tracks);
+  document.getElementById('pv-title').textContent = snapshot.name || 'Playlist';
+  document.getElementById('pv-sub').textContent = _tracks.length + (_tracks.length === 1 ? ' lagu' : ' lagu');
+  document.title = (snapshot.name || 'Playlist') + ' — Vibexa';
+
+  if(snapshot.ownerName){
+    const card = document.getElementById('pv-owner-card');
+    card.style.display = 'flex';
+    document.getElementById('pv-owner-name').textContent = snapshot.ownerName;
+    if(snapshot.ownerPhoto){
+      document.getElementById('pv-owner-avatar').innerHTML = `<img src="${esc(snapshot.ownerPhoto)}" alt="${esc(snapshot.ownerName)}" onerror="this.parentElement.innerHTML=''">`;
+    }
+    if(snapshot.ownerUid){
+      card.style.cursor = 'pointer';
+      card.addEventListener('click', () => {
+        window.location.href = 'profile.html?uid=' + encodeURIComponent(snapshot.ownerUid);
+      });
+    }
+  }
+
+  const c = document.getElementById('pv-tracks');
+  if(!_tracks.length){
+    c.innerHTML = '<div class="pv-empty">Playlist ini masih kosong.</div>';
+    document.getElementById('pv-play-all').style.opacity = '.4';
+    document.getElementById('pv-play-all').style.pointerEvents = 'none';
+    return;
+  }
+  c.innerHTML = '';
+  _tracks.forEach((t, i) => {
+    const row = document.createElement('div');
+    row.className = 'track-row';
+    row.dataset.idx = i;
+    row.innerHTML = `
+      <div class="tr-num">${i+1}</div>
+      <div class="tr-info">
+        ${t.thumb ? `<img class="tr-thumb" src="${esc(t.thumb)}" onerror="this.style.display='none'">` : `<div class="tr-thumb-ph">♪</div>`}
+        <div class="tr-text">
+          <div class="tr-title">${esc(t.title)}</div>
+          <div class="tr-artist">${esc(t.artist)}</div>
+        </div>
+      </div>
+      <div class="tr-state"></div>
+    `;
+    row.addEventListener('click', () => playTrackAt(i));
+    c.appendChild(row);
+  });
+
+  document.getElementById('pv-play-all').addEventListener('click', () => playTrackAt(0));
+  document.getElementById('mp-prev').addEventListener('click', playPrev);
+  document.getElementById('mp-next').addEventListener('click', playNext);
+  document.getElementById('mp-play').addEventListener('click', togglePlayPause);
+}
+
+// ── Highlight baris & status loading per-track ──────────────────────────
+function setRowState(idx, state){
+  document.querySelectorAll('.track-row').forEach(r => {
+    const el = r.querySelector('.tr-state');
+    const isThis = parseInt(r.dataset.idx) === idx;
+    r.classList.toggle('playing', isThis && state === 'playing');
+    if(!el) return;
+    if(isThis && state === 'loading'){
+      el.innerHTML = '<div class="mini-spin"></div>';
+    } else if(isThis && state === 'playing'){
+      el.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" style="color:var(--green)"><path d="M8 19V5l11 7z"/></svg>';
+    } else {
+      el.innerHTML = '';
+    }
+  });
+}
+
+// ── YouTube IFrame API ────────────────────────────────────────────────────
+(function loadYT(){
+  const tag = document.createElement('script');
+  tag.src = 'https://www.youtube.com/iframe_api';
+  document.head.appendChild(tag);
+})();
+
+window.onYouTubeIframeAPIReady = function(){
+  _ytReady = true;
+  if(_pendingVideoId){ createPlayer(_pendingVideoId); _pendingVideoId = null; }
+};
+
+function createPlayer(videoId){
+  if(_ytp){ try{ _ytp.loadVideoById(videoId); return; }catch(e){} }
+  _ytp = new YT.Player('yt-player', {
+    width:'1', height:'1', videoId,
+    playerVars:{ autoplay:1, controls:0, playsinline:1, rel:0, modestbranding:1 },
+    events:{
+      onReady(e){ e.target.playVideo(); },
+      onStateChange(e){
+        if(e.data === YT.PlayerState.PLAYING){
+          _playing = true; updatePlayIcon();
+          setRowState(_curIndex, 'playing');
+          startProgressLoop();
+        } else if(e.data === YT.PlayerState.PAUSED){
+          _playing = false; updatePlayIcon();
+        } else if(e.data === YT.PlayerState.ENDED){
+          _playing = false; updatePlayIcon();
+          playNext();
+        }
+      },
+      onError(){ toast('⚠ Lagu ini tidak bisa diputar, lanjut ke berikutnya'); playNext(); }
+    }
+  });
+}
+
+function startProgressLoop(){
+  cancelAnimationFrame(startProgressLoop._raf);
+  function tick(){
+    if(_ytp && _playing){
+      try{
+        const dur = _ytp.getDuration();
+        const cur = _ytp.getCurrentTime();
+        if(dur > 0) document.getElementById('mp-progress').style.width = ((cur/dur)*100) + '%';
+      }catch(e){}
+    }
+    startProgressLoop._raf = requestAnimationFrame(tick);
+  }
+  tick();
+}
+
+// ── Kontrol playback ──────────────────────────────────────────────────────
+async function playTrackAt(idx){
+  if(idx < 0 || idx >= _tracks.length) return;
+  _curIndex = idx;
+  const t = _tracks[idx];
+  showMiniPlayer(t);
+  setRowState(idx, 'loading');
+
+  const videoId = await resolveVideoId(t.artist, t.title);
+  if(!videoId){
+    toast('⚠ "' + t.title + '" tidak ditemukan, lanjut ke berikutnya');
+    setRowState(idx, 'none');
+    // otomatis coba lagu berikutnya supaya "Play All" tidak berhenti total
+    if(idx + 1 < _tracks.length) playTrackAt(idx + 1);
+    return;
+  }
+
+  if(_ytReady) createPlayer(videoId);
+  else _pendingVideoId = videoId;
+}
+
+function playNext(){
+  if(_curIndex + 1 < _tracks.length) playTrackAt(_curIndex + 1);
+}
+function playPrev(){
+  if(_curIndex - 1 >= 0) playTrackAt(_curIndex - 1);
+}
+function togglePlayPause(){
+  if(!_ytp) return;
+  if(_playing) _ytp.pauseVideo(); else _ytp.playVideo();
+}
+function updatePlayIcon(){
+  const icon = document.getElementById('mp-play-icon');
+  icon.innerHTML = _playing
+    ? '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>'
+    : '<path d="M8 5v14l11-7z"/>';
+}
+
+function showMiniPlayer(t){
+  const mp = document.getElementById('mini-player');
+  mp.style.display = 'flex';
+  document.getElementById('mp-title').textContent = t.title;
+  document.getElementById('mp-artist').textContent = t.artist;
+  const thumbEl = document.getElementById('mp-thumb');
+  if(t.thumb){ thumbEl.src = t.thumb; thumbEl.style.display = ''; }
+  else { thumbEl.style.display = 'none'; }
+  document.getElementById('mp-progress').style.width = '0%';
+}
+</script>
+
+</body>
+</html>

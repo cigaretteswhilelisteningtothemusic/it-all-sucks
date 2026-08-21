@@ -249,7 +249,7 @@
     <div class="pub-section" id="quick-picks-section" style="display:none;">
       <div class="pub-section-header">
         <div class="pub-section-title">
-           Pilihan Cepat
+           Trending Tracks
         </div>
         <button class="home-new-pl-btn" id="qp-playall-btn" onclick="playAllQuickPicks()">
           <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
@@ -289,6 +289,27 @@
       <div class="dm-grid" id="time-playlist-grid"></div>
     </div>
 
+    <!-- SPECIAL SONGS FOR (nama user) (maks 70 lagu digabung round-robin
+         dari SEMUA artis yang diikuti user, PER AKUN — bukan global. Bisa
+         digulir ke samping, tiap lagu punya tombol "add to playlist"
+         sendiri. Otomatis bertambah begitu user follow artis baru & lagu
+         dari artis itu otomatis hilang begitu di-unfollow — lihat
+         loadSpecialSongs() yang dipanggil dari setArtistFavorited() di JS.
+         Tombol "Show All" di kanan judul membuka halaman terpisah berisi
+         semua (maks 70) lagunya.) -->
+    <div class="pub-section" id="special-songs-section" style="display:none;">
+      <div class="pub-section-header">
+        <div class="pub-section-title">
+           Special Songs for <span id="special-songs-username">You</span>
+        </div>
+        <button class="home-new-pl-btn" onclick="showSpecialSongsFullView()" style="background:none;border:1px solid var(--border);color:var(--sub);">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+          Show All
+        </button>
+      </div>
+      <div class="reco-grid" id="special-songs-grid"></div>
+    </div>
+
     <!-- WEEKDAY VIBES (9 playlist x 15 lagu trending saat ini, judul berubah tiap hari sesuai hari dalam seminggu, GLOBAL untuk semua user, diperbarui 1x sehari) -->
     <div class="pub-section" id="weekday-playlist-section" style="display:none;">
       <div class="pub-section-header">
@@ -325,6 +346,27 @@
         </button>
       </div>
       <div class="rank-grid" id="rank-grid"></div>
+    </div>
+
+    <!-- FOLLOW TRENDING ARTISTS (100 artis paling populer saat ini menurut
+         chart Deezer, GLOBAL untuk semua user & direfresh 1x sehari — lihat
+         loadTrendingArtists() di JS. Bisa digulir ke samping, tiap kartu
+         punya tombol "Follow" sendiri yang langsung menyimpan artis ke
+         "Favorite Artists" tanpa perlu buka halaman artisnya dulu, dan foto
+         + nama bisa ditekan untuk membuka halaman profil artis tsb. Tombol
+         "Search Artist" di kanan judul memakai modal pencarian artis yang
+         sama dengan "+ Add Artist" di section Favorite Artists.) -->
+    <div class="pub-section" id="trending-artist-section" style="display:none;">
+      <div class="pub-section-header">
+        <div class="pub-section-title">
+           Follow Trending Artists
+        </div>
+        <button class="home-new-pl-btn" onclick="openAddFavArtistModal()" style="background:none;border:1px solid var(--border);color:var(--sub);">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/></svg>
+          Search Artist
+        </button>
+      </div>
+      <div class="trend-artist-grid" id="trending-artist-grid"></div>
     </div>
 
     <!-- MUNGKIN KAMU JUGA SUKA (8 playlist x 15 lagu, isinya dari artis-artis yang diikuti user) -->
@@ -564,6 +606,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
         Publish
       </button>
+      <button class="pv-action-btn" onclick="openSharePlaylistModal()" title="Bagikan playlist ini lewat link">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        Share
+      </button>
       <button class="pv-action-btn" onclick="deleteCurrentPlaylist()" style="color:#ff6b6b;border-color:rgba(255,107,107,.3);">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
         Delete Playlist
@@ -640,6 +686,25 @@
       </button>
     </div>
     <div class="reco-grid expanded" id="reco-full-grid"></div>
+  </div>
+
+  <!-- SPECIAL SONGS FOR (nama user) — FULL LIST VIEW (maks 70 lagu dari
+       semua artis yang diikuti user, Spotify-style "see all") -->
+  <div id="special-songs-full-view" style="display:none;">
+    <button class="pv-back" onclick="backFromSpecialSongsFullView()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      Back
+    </button>
+    <div class="pub-section-header" style="margin-bottom:14px;">
+      <div class="pub-section-title">
+         Special Songs for <span id="special-songs-full-username">You</span>
+      </div>
+      <button class="home-new-pl-btn" onclick="loadSpecialSongsFull(true)" style="background:none;border:1px solid var(--border);color:var(--sub);">
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+        Refresh
+      </button>
+    </div>
+    <div class="reco-grid expanded" id="special-songs-full-grid"></div>
   </div>
 
   <!-- RECENTLY PLAYED — FULL LIST VIEW (maks 100 songs, Spotify-style "see all") -->
@@ -1764,6 +1829,54 @@
   </div>
 </div>
 
+<!-- Share Playlist Modal — link publik, cara kerja sama seperti Share VibeProfile:
+     tekan "Publish & Copy Link" untuk mengupload isi playlist ke cloud dan
+     menyalin link publiknya. Siapapun yang membuka link itu (vibeplaylist-view.html)
+     bisa melihat & memutar lagu-lagu di playlist ini walau tidak punya akun Vibexa. -->
+<div id="modal-share-playlist" class="modal-bg" style="display:none" onclick="if(event.target===this)closeSharePlaylistModal()">
+  <div class="modal" style="width:400px;max-width:92vw;">
+    <h3>🔗 Share Playlist</h3>
+    <p id="sp-share-title" style="margin-bottom:16px;color:var(--sub)">Playlist</p>
+
+    <div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:16px">
+      <div style="flex-shrink:0;background:#111;border:1px solid var(--border);border-radius:12px;padding:6px;overflow:hidden">
+        <img id="sp-share-qr-img" src="" alt="QR" width="92" height="92" style="display:block;border-radius:8px">
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.65rem;color:var(--sub);font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">Link Publik Playlist</div>
+        <div style="position:relative">
+          <input id="sp-share-link-input" readonly style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:9px 38px 9px 12px;color:var(--text);font-family:var(--fm);font-size:.66rem;outline:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer" onclick="this.select()" title="Klik untuk pilih">
+          <button onclick="copySharePlaylistLink()" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--sub);padding:4px;border-radius:6px;display:flex;align-items:center" title="Salin link">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          </button>
+        </div>
+        <div id="sp-share-status" style="font-size:.62rem;color:var(--muted);margin-top:6px;min-height:15px"></div>
+      </div>
+    </div>
+
+    <button id="sp-share-publish-btn" onclick="publishPlaylistShareAndCopy()" style="width:100%;padding:12px;background:var(--green);border:none;border-radius:12px;color:#fff;font-family:var(--f);font-weight:800;font-size:.85rem;cursor:pointer;margin-bottom:12px;">
+      📤 Publish & Copy Link
+    </button>
+
+    <div style="font-size:.66rem;color:var(--muted);text-align:center;margin-bottom:14px;line-height:1.6">
+      Siapapun dengan link ini bisa memutar lagu di playlist kamu, walau tidak punya akun Vibexa.<br>Tekan "Publish" lagi setiap kali ingin memperbarui isi link.
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:center;margin-bottom:14px">
+      <button onclick="sharePlaylistToSocial('whatsapp')" style="flex:1;padding:9px;background:rgba(37,211,102,0.1);border:1px solid rgba(37,211,102,0.3);border-radius:10px;color:#25d366;font-family:var(--f);font-size:.7rem;font-weight:700;cursor:pointer">
+        WhatsApp
+      </button>
+      <button onclick="sharePlaylistToSocial('twitter')" style="flex:1;padding:9px;background:rgba(29,161,242,0.1);border:1px solid rgba(29,161,242,0.3);border-radius:10px;color:#1da1f2;font-family:var(--f);font-size:.7rem;font-weight:700;cursor:pointer">
+        Twitter / X
+      </button>
+    </div>
+
+    <div class="mbtns">
+      <button class="btn-s" onclick="closeSharePlaylistModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Add Song Suggestion (bagian "Saran Public" di Home — public,
      tampil untuk semua user, lihat startFriendSuggestionsListener()) -->
 <div id="add-suggestion-modal" class="modal-bg" style="display:none">
@@ -2091,39 +2204,29 @@
 </svg>
 
 <div id="mob-nav" style="display:none">
-  <!-- VBX_NAV_NOTCH — bentuk background #mob-nav digambar lewat SVG (bukan
-       CSS rect biasa) supaya bibir atasnya bisa melengkung cekung (notch)
-       persis di bawah tombol yang lagi mengambang (lihat komentar
-       VBX_NAV_FLOAT_INDICATOR di bawah & VBX_NAV_NOTCH di vibexa.js).
-       Selalu di paling belakang (z-index paling rendah) & pointer-events
-       none — murni visual, tombol-tombol tetap di atasnya seperti biasa. -->
-  <svg class="vbx-nav-notch" id="vbx-nav-notch" preserveAspectRatio="none" aria-hidden="true">
-    <path id="vbx-nav-notch-fill" class="vbx-nav-notch-fill"></path>
-    <path id="vbx-nav-notch-border" class="vbx-nav-notch-border"></path>
-  </svg>
-  <button class="mob-nav-btn on mob-nav-icon-hide" id="mob-btn-home" onclick="mobNav('home')">
+  <button class="mob-nav-btn on" id="mob-btn-home" onclick="mobNav('home')">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
-    <span class="mob-nav-label">Home</span>
+    Home
   </button>
   <button class="mob-nav-btn" id="mob-btn-search" onclick="mobNav('search')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-    <span class="mob-nav-label">Search</span>
+    Search
   </button>
   <button class="mob-nav-btn" id="mob-btn-finder" onclick="mobNav('finder')" style="position:relative;">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9 9c.55-1.34 2.25-2 3.5-1.3a2.5 2.5 0 0 1 .5 4c-.83.67-1.5 1-1.5 2"/><circle cx="12" cy="17" r=".5" fill="currentColor"/></svg>
-    <span class="mob-nav-label">Find</span>
+    Find
   </button>
   <button class="mob-nav-btn mob-nav-preview-center" id="mob-btn-songpreview" onclick="mobNav('songpreview')" title="Song Preview">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M10 9.2v5.6l4.8-2.8z" fill="currentColor" stroke="none"/></svg>
-    <span class="mob-nav-label">View</span>
+    <span>View</span>
   </button>
   <button class="mob-nav-btn mob-nav-yours" id="mob-btn-yours" onclick="setMobNavActive('mob-btn-yours');openYoursView()">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-    <span class="mob-nav-label">Yours</span>
+    Yours
   </button>
   <button class="mob-nav-btn" id="mob-btn-chat" onclick="setMobNavActive('mob-btn-chat');openChatOverlay()" style="position:relative;">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
-    <span class="mob-nav-label">Chat</span>
+    Chat
     <span class="mob-nav-badge" id="mob-chat-badge">0</span>
   </button>
   <button class="mob-nav-btn" id="mob-btn-notif" onclick="setMobNavActive('mob-btn-notif');toggleNotifPanel()" style="position:relative;">
@@ -2132,15 +2235,12 @@
     <span class="notif-badge" id="mob-notif-badge" style="position:absolute;top:4px;right:16px;margin:0;"></span>
   </button>
 
-  <!-- VBX_NAV_FLOAT_INDICATOR — indikator bulat yg mengambang & meluncur
-       dari satu tombol nav ke tombol lain saat ditekan (referensi:
-       animasi gliding di gif + foto). Murni dekoratif (pointer-events:
-       none) — TIDAK ikut menerima klik & TIDAK mengubah logic navigasi
-       apa pun. Posisi & perpindahannya "menonton" pemanggilan
-       setMobNavActive() yang SUDAH ADA lewat wiring di vibexa.js (cari
-       komentar VBX_NAV_FLOAT_INDICATOR di akhir file). Notch cekung di
-       #vbx-nav-notch di atas bergerak SEIRING dgn indikator ini, digambar
-       oleh fungsi yg sama di vibexa.js supaya selalu pas menyatu. -->
+  <!-- VBX_NAV_GOO_BLOB — indikator bulat "cair" yg meloncat dari satu tombol
+       nav ke tombol lain saat ditekan (referensi: animasi liquid/gooey tab
+       bar). Murni dekoratif (pointer-events:none) — TIDAK ikut menerima
+       klik & TIDAK mengubah logic navigasi apa pun. Posisi & perpindahannya
+       "menonton" pemanggilan setMobNavActive() yang SUDAH ADA lewat wiring
+       di vibexa.js (cari komentar VBX_NAV_GOO_BLOB di akhir file). -->
   <div class="vbx-nav-goo-layer" id="vbx-nav-goo-layer" aria-hidden="true">
     <div class="vbx-nav-goo-anchor" id="vbx-nav-goo-anchor"></div>
     <div class="vbx-nav-goo-blob" id="vbx-nav-goo-blob">
