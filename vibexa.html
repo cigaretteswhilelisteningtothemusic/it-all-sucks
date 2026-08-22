@@ -46,6 +46,17 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icons/launchericon-192x192.png">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&family=Press+Start+2P&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vibexa.css">
+<style>
+  /* Overlay tombol "Ganti Foto" di cover playlist — muncul saat cover di-hover/tap */
+  .pv-cover-wrap:hover .pv-cover-edit,
+  .pv-cover-wrap:focus-within .pv-cover-edit { opacity: 1; }
+  .pv-cover-edit:hover { background: rgba(0,0,0,.7); }
+  .pv-cover-reset:hover { background: var(--green, #1db954); }
+  @media (hover: none) {
+    /* Di layar sentuh, tombol ganti foto langsung terlihat samar supaya tetap ketemu */
+    .pv-cover-edit { opacity: .85; }
+  }
+</style>
 <link rel="stylesheet" href="lolu-voice.css?v=7">
 </head>
 <body>
@@ -568,8 +579,13 @@
         Back
       </button>
       <div class="pv-top">
-        <div class="pv-cover-wrap">
+        <div class="pv-cover-wrap" style="position:relative;">
           <div class="pv-cover-ph" id="pv-cover"></div>
+          <div class="pv-cover-edit" onclick="openPlaylistCoverPicker()" title="Klik untuk ganti foto playlist" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:rgba(0,0,0,.55);color:#fff;font-family:var(--f);font-size:.72rem;font-weight:600;border-radius:8px;opacity:0;cursor:pointer;transition:opacity .15s ease;">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <span>Ganti Foto</span>
+          </div>
+          <button class="pv-cover-reset" id="pv-cover-reset-btn" onclick="event.stopPropagation();resetPlaylistCover()" title="Kembalikan ke foto otomatis" style="display:none;position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;border:none;cursor:pointer;font-size:.75rem;line-height:1;z-index:2;font-family:var(--f);">✕</button>
         </div>
         <div class="pv-meta">
           <div class="pv-type">Playlist</div>

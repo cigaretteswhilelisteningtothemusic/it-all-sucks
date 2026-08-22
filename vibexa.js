@@ -5134,6 +5134,8 @@ function showPlaylistView(plId) {
     if (shareBtn) shareBtn.style.display = 'none';
     if (pubBtn) pubBtn.style.display = 'none';
     if (covEdit) covEdit.style.display = 'none';
+    const covResetBtn = document.getElementById('pv-cover-reset-btn');
+    if (covResetBtn) covResetBtn.style.display = 'none';
   }
   // Hapus owner card jika ada (dari playlist publik sebelumnya)
   const oldCard = document.getElementById('pv-owner-card');
@@ -5359,11 +5361,14 @@ function renderPlaylistView(plId) {
   const pl = playlists[plId];
   if (!pl) return;
 
-  // Cover — otomatis disusun dari art songs di dalam playlist (gaya Spotify), tidak lagi bisa diupload manual
+  // Cover — pakai foto custom upload-an user kalau ada (pl.coverThumb), kalau
+  // belum ada baru disusun otomatis dari art songs di dalam playlist (gaya Spotify).
   const coverEl = document.getElementById('pv-cover');
   coverEl.outerHTML = plCoverHTML(pl, 'pv-cover', 'pv-cover-ph', 'pv-cover');
   document.getElementById('pv-title').textContent = pl.name;
   document.getElementById('pv-sub').textContent = pl.tracks.length + ' songs';
+  const coverResetBtn = document.getElementById('pv-cover-reset-btn');
+  if (coverResetBtn) coverResetBtn.style.display = pl.coverThumb ? '' : 'none';
 
   // Sync reorder button state
   const btn = document.getElementById('pv-reorder-btn');
@@ -5555,9 +5560,14 @@ function _plCoverCells(thumbs) {
   return cells;
 }
 // Kembalikan markup <img> atau <div class="...pl-collage"> lengkap (untuk mengganti elemen berdiri sendiri)
+// Kalau user sudah upload foto custom (pl.coverThumb), foto itu SELALU diutamakan
+// dan menggantikan collage otomatis.
 function plCoverHTML(pl, boxClass, phClass, elId) {
   phClass = phClass || boxClass;
   const idAttr = elId ? ` id="${esc(elId)}"` : '';
+  if (pl && pl.coverThumb) {
+    return `<img class="${boxClass}"${idAttr} src="${esc(pl.coverThumb)}" alt="cover" onerror="this.style.display='none'">`;
+  }
   const thumbs = _plCoverThumbs(pl);
   if (!thumbs.length) return `<div class="${phClass}"${idAttr}></div>`;
   if (thumbs.length === 1) return `<img class="${boxClass}"${idAttr} src="${esc(thumbs[0])}" alt="cover" onerror="this.style.display='none'">`;
@@ -5566,11 +5576,116 @@ function plCoverHTML(pl, boxClass, phClass, elId) {
 }
 // Kembalikan HANYA isi dalam (untuk ditaruh di dalam container yang sudah punya ukuran+overflow:hidden sendiri, mis. .rank-cover / .modal-pl-icon)
 function plCoverInnerHTML(pl) {
+  if (pl && pl.coverThumb) {
+    return `<img src="${esc(pl.coverThumb)}" alt="" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">`;
+  }
   const thumbs = _plCoverThumbs(pl);
   if (!thumbs.length) return '';
   if (thumbs.length === 1) return `<img src="${esc(thumbs[0])}" alt="" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">`;
   const inner = _plCoverCells(thumbs).map(s => `<img src="${esc(s)}" alt="" onerror="this.style.display='none'">`).join('');
   return `<div class="pl-collage" style="width:100%;height:100%">${inner}</div>`;
+}
+
+// ─── Custom Playlist Cover (foto pilihan user sendiri) ─────
+// User bisa mengganti foto playlist dengan foto pilihannya sendiri lewat
+// tombol "Ganti Foto" di halaman playlist. Foto disimpan sebagai data URL
+// (base64) langsung di data playlist (field `coverThumb`), yang SUDAH ikut
+// tersinkron ke cloud (flushSave -> music_playlists_v2) dan ke
+// public_playlists / shared_playlists kalau playlist itu di-publish atau
+// dibagikan lewat link -- jadi user lain bisa melihat foto ini juga.
+const PL_COVER_MAX_FILE_SIZE = 8 * 1024 * 1024; // batas ukuran file asli sebelum dikompres (8MB)
+const PL_COVER_MAX_DIM = 500; // resize sisi terpanjang foto ke maksimal 500px sebelum disimpan
+
+let _plCoverFileInput = null;
+function _plCoverEnsureFileInput() {
+  if (_plCoverFileInput) return _plCoverFileInput;
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.style.display = 'none';
+  input.id = 'pv-cover-file-input';
+  document.body.appendChild(input);
+  input.addEventListener('change', async () => {
+    const file = input.files && input.files[0];
+    input.value = ''; // reset supaya file yang sama bisa dipilih ulang lain kali
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast(' File harus berupa gambar'); return; }
+    if (file.size > PL_COVER_MAX_FILE_SIZE) { toast(' Ukuran file maksimal 8MB'); return; }
+    try {
+      const dataUrl = await _plCoverResizeToDataURL(file);
+      setPlaylistCover(dataUrl);
+    } catch (e) {
+      console.warn('[PLCover] Gagal memproses foto playlist:', e);
+      toast(' Gagal memproses foto, coba lagi');
+    }
+  });
+  _plCoverFileInput = input;
+  return input;
+}
+
+// Resize foto ke ukuran wajar (maks PL_COVER_MAX_DIM px di sisi terpanjang)
+// dan kompres jadi JPEG supaya ukuran data-nya kecil saat disimpan ke cloud.
+function _plCoverResizeToDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error || new Error('Gagal membaca file'));
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('File bukan gambar yang valid'));
+      img.onload = () => {
+        let width = img.naturalWidth || img.width;
+        let height = img.naturalHeight || img.height;
+        const scale = Math.min(1, PL_COVER_MAX_DIM / Math.max(width, height));
+        width = Math.max(1, Math.round(width * scale));
+        height = Math.max(1, Math.round(height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// Klik "Ganti Foto" di halaman playlist -> buka file picker. Hanya berlaku
+// untuk playlist milik sendiri (bukan playlist publik orang lain, bukan
+// "Liked Songs" yang punya ikon khusus).
+function openPlaylistCoverPicker() {
+  if (!currentPlaylistId || currentPubPlaylist) { toast(' Buka playlist milikmu terlebih dahulu'); return; }
+  if (currentPlaylistId === LIKED_PLAYLIST_ID) { toast(' Foto "Liked Songs" tidak bisa diganti'); return; }
+  _plCoverEnsureFileInput().click();
+}
+
+// Simpan foto custom sebagai cover playlist yang sedang dibuka.
+function setPlaylistCover(dataUrl) {
+  if (!currentPlaylistId) return;
+  const pl = playlists[currentPlaylistId];
+  if (!pl) return;
+  pl.coverThumb = dataUrl;
+  pl.cover = dataUrl;
+  renderPlaylistView(currentPlaylistId);
+  renderSidebarPlaylists();
+  renderHomeGrid();
+  scheduleSave();
+  toast(' Foto playlist berhasil diganti!');
+}
+
+// Kembalikan cover playlist ke mode otomatis (disusun dari cover album lagu-lagunya).
+function resetPlaylistCover() {
+  if (!currentPlaylistId) return;
+  const pl = playlists[currentPlaylistId];
+  if (!pl) return;
+  pl.coverThumb = '';
+  pl.cover = '';
+  renderPlaylistView(currentPlaylistId);
+  renderSidebarPlaylists();
+  renderHomeGrid();
+  scheduleSave();
+  toast(' Foto playlist dikembalikan ke otomatis');
 }
 
 function renderSidebarPlaylists() {
@@ -16843,9 +16958,11 @@ async function openPublicPlaylist(pl) {
   document.getElementById('nav-home').classList.remove('on');
   document.getElementById('nav-search').classList.remove('on');
 
-  // Fill playlist view with public data (read-only) — cover otomatis dari art songs-nya juga
+  // Fill playlist view with public data (read-only) — pakai foto custom milik
+  // pemilik playlist kalau ada (pl.coverThumb), kalau tidak baru disusun
+  // otomatis dari art songs-nya.
   const coverEl = document.getElementById('pv-cover');
-  coverEl.outerHTML = plCoverHTML({ tracks }, 'pv-cover', 'pv-cover-ph', 'pv-cover');
+  coverEl.outerHTML = plCoverHTML({ tracks, coverThumb: pl.coverThumb }, 'pv-cover', 'pv-cover-ph', 'pv-cover');
   document.getElementById('pv-title').textContent = pl.name || 'Playlist';
   document.getElementById('pv-sub').textContent = `${tracks.length} songs`;
 
@@ -16859,6 +16976,8 @@ async function openPublicPlaylist(pl) {
   if (reorderBtn) reorderBtn.style.display = 'none';
   const covEdit = document.querySelector('.pv-cover-edit');
   if (covEdit) covEdit.style.display = 'none';
+  const covResetBtn = document.getElementById('pv-cover-reset-btn');
+  if (covResetBtn) covResetBtn.style.display = 'none';
 
   // ── Owner Profile Card ──
   // Remove old card if exists
