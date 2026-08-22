@@ -10,7 +10,7 @@
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
   --bg:#0d0d0d;--panel:#161616;--card:#1e1e1e;--border:rgba(255,255,255,0.08);
-  --green:#1ed760;--green-dim:rgba(30,215,96,0.1);--text:#ffffff;--sub:#a8a8a8;--muted:#555;
+  --green:#2E7DFF;--green-dim:rgba(46,125,255,0.1);--text:#ffffff;--sub:#a8a8a8;--muted:#555;
   --blue:#1D6BDB;--teal:#3D9DD6;
   --r:12px;--f:'Space Grotesk',sans-serif;--fm:'DM Mono',monospace;
   --page-w:700px;
@@ -33,7 +33,7 @@ body{font-family:var(--f);background:#111;color:var(--text);min-height:100vh;ove
 .top-bar-logo svg{width:14px;height:14px;color:#fff}
 .top-bar-name{font-family:'Outfit',sans-serif;font-size:1rem;font-weight:800;letter-spacing:-.3px;background:linear-gradient(130deg,#fff 30%,#7B8DB0);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .top-bar-label{font-size:.62rem;color:var(--muted);letter-spacing:.5px}
-#share-badge{font-size:.6rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--green);background:var(--green-dim);border:1px solid rgba(30,215,96,0.25);border-radius:50px;padding:3px 9px}
+#share-badge{font-size:.6rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--green);background:var(--green-dim);border:1px solid rgba(46,125,255,0.25);border-radius:50px;padding:3px 9px}
 
 /* ── CONTENT AREA — Scale-based responsive ── */
 #free-zone-outer{
@@ -47,12 +47,12 @@ body{font-family:var(--f);background:#111;color:var(--text);min-height:100vh;ove
   width:700px;
   transform-origin:top left;
 }
-#header-zone{position:absolute;top:0;left:0;width:700px;min-height:380px;background:linear-gradient(180deg,rgba(30,215,96,0.07) 0%,transparent 70%);pointer-events:none;z-index:0}
+#header-zone{position:absolute;top:0;left:0;width:700px;min-height:380px;background:linear-gradient(180deg,rgba(46,125,255,0.07) 0%,transparent 70%);pointer-events:none;z-index:0}
 
 /* ── WIDGET styles (mirror vibeprofile) ── */
 .widget{position:absolute;z-index:10}
 .w-inner{width:100%;height:100%;overflow:hidden;border-radius:8px}
-.profile-wrap{width:100%;height:100%;border-radius:12px;overflow:hidden;background:var(--card);border:2px solid rgba(30,215,96,0.2);position:relative}
+.profile-wrap{width:100%;height:100%;border-radius:12px;overflow:hidden;background:var(--card);border:2px solid rgba(46,125,255,0.2);position:relative}
 .profile-wrap img,.profile-wrap .profile-ph{width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block}
 .profile-wrap .profile-ph{display:flex;align-items:center;justify-content:center;font-size:3rem;background:var(--card)}
 .label-el{font-size:.6rem;letter-spacing:2.5px;text-transform:uppercase;color:var(--green);font-weight:700;white-space:nowrap}
@@ -64,7 +64,7 @@ body{font-family:var(--f);background:#111;color:var(--text);min-height:100vh;ove
 .ph-ig{display:flex;align-items:center;gap:5px;color:var(--sub);text-decoration:none;transition:color .2s}
 .ph-ig:hover{color:var(--text)}
 .playbar-el{display:flex;align-items:center;gap:12px;height:100%}
-.play-btn-big{width:52px;height:52px;background:var(--green);border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;box-shadow:0 4px 20px rgba(30,215,96,0.3);flex-shrink:0}
+.play-btn-big{width:52px;height:52px;background:var(--green);border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;box-shadow:0 4px 20px rgba(46,125,255,0.3);flex-shrink:0}
 .play-btn-big:hover{transform:scale(1.06)}
 .play-btn-big svg{width:20px;height:20px;color:#000;margin-left:2px}
 .heart-btn{background:none;border:none;cursor:pointer;color:var(--sub);padding:6px;transition:all .2s}
@@ -78,7 +78,7 @@ body{font-family:var(--f);background:#111;color:var(--text);min-height:100vh;ove
 .mc-artist{font-size:.65rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:3px;justify-content:center}
 .mc-play-overlay{position:absolute;top:0;left:0;right:0;bottom:22px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.4);border-radius:8px;opacity:0;transition:opacity .2s}
 .music-card:hover .mc-play-overlay{opacity:1}
-.mc-play-icon{width:40px;height:40px;background:var(--green);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(30,215,96,0.4)}
+.mc-play-icon{width:40px;height:40px;background:var(--green);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(46,125,255,0.4)}
 .mc-play-icon svg{width:16px;height:16px;color:#000;margin-left:2px}
 .photo-el{width:100%;height:100%;overflow:hidden;border-radius:10px;border:1px solid var(--border)}
 .photo-el img{width:100%;height:100%;object-fit:cover;display:block}
@@ -157,7 +157,7 @@ body{font-family:var(--f);background:#111;color:var(--text);min-height:100vh;ove
 #mini-player{
   position:fixed;bottom:90px;left:50%;transform:translateX(-50%);
   width:calc(100% - 20px);max-width:calc(var(--page-w) - 20px);
-  background:rgba(16,16,16,0.98);border:1px solid rgba(30,215,96,0.3);
+  background:rgba(16,16,16,0.98);border:1px solid rgba(46,125,255,0.3);
   border-radius:16px;padding:10px 14px;
   z-index:850;backdrop-filter:blur(20px);
   display:none;box-shadow:0 8px 40px rgba(0,0,0,0.6);
@@ -173,7 +173,7 @@ body{font-family:var(--f);background:#111;color:var(--text);min-height:100vh;ove
 .mp-btn:hover{color:var(--green);background:var(--green-dim)}
 .mp-btn svg{width:16px;height:16px}
 .mp-close:hover{color:#ff5c5c;background:rgba(255,92,92,0.1)}
-.mp-play{width:34px;height:34px;background:var(--green);border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;box-shadow:0 2px 12px rgba(30,215,96,0.4)}
+.mp-play{width:34px;height:34px;background:var(--green);border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;box-shadow:0 2px 12px rgba(46,125,255,0.4)}
 .mp-play:hover{transform:scale(1.08)}
 .mp-play svg{width:14px;height:14px;color:#000;margin-left:1px}
 .mp-progress-wrap{margin-top:8px;display:flex;align-items:center;gap:8px}
@@ -389,9 +389,9 @@ body{font-family:var(--f);background:#111;color:var(--text);min-height:100vh;ove
       <div class="cta-sub">Halaman musik personalmu. Gratis & langsung bisa dibagikan.</div>
     </div>
     <div class="cta-actions">
-      <a id="cta-main-btn" href="vibexa.html" class="cta-btn-primary">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-        Buat Sekarang
+      <a id="cta-main-btn" href="https://drive.google.com/file/d/1RV0UqCakrSBgMNHYYOBjPQ206txkYtup/view?usp=drivesdk" target="_blank" rel="noopener noreferrer" class="cta-btn-primary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+        Download App
       </a>
       <button class="cta-btn-close" onclick="dismissCTA()" title="Close">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
